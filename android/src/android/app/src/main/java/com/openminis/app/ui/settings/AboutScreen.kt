@@ -78,8 +78,12 @@ fun AboutScreen(onBack: () -> Unit) {
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            // nanoMuse: the installed build and the latest release (tap: check again / get it).
-            io.github.nanomuse.ui.settings.VersionLines()
+            // Mosaic: the installed build only; no release check over the network.
+            Text(
+                com.openminis.app.BuildConfig.VERSION_NAME,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 stringResource(R.string.about_minis_tagline),
                 style = MaterialTheme.typography.bodyMedium,
@@ -89,57 +93,18 @@ fun AboutScreen(onBack: () -> Unit) {
             )
         }
 
-        SettingsSection(header = stringResource(R.string.about_links)) {
-            SettingsRow(
-                icon = Icons.Outlined.Code,
-                iconColor = tileBlue,
-                title = stringResource(R.string.about_github_repository),
-                // Settings → ABOUT siblings (Privacy Policy / Submit GitHub
-                // Issues) all use openExternalUrl directly. The
-                // LocalInAppBrowserLauncher ambient defaults to a no-op when
-                // no InAppBrowserHost is in the tree above this screen — and
-                // nothing wraps Settings, so the row used to be a dead tap.
-                onClick = { openExternalUrl(context, "https://github.com/nano-muse/nanoMuse") },
-                trailing = { ExternalLinkIcon() },
-                showDivider = false,
-            )
-        }
-
-        // nanoMuse: licence, upstream and trademark lines (GPL-3.0 attribution
-        // to OpenMinis; see NOTICE in the repository).
+        // Mosaic: the licence line stays (GPL-3.0); the repository, upstream and trademark links
+        // and the update check are gone from the personal build.
         SettingsSection(header = stringResource(R.string.nm_about_build)) {
             SettingsRow(
                 icon = Icons.Outlined.Code,
                 iconColor = tileBlue,
                 title = stringResource(R.string.nm_about_license),
                 subtitle = "GPL-3.0-or-later",
-                onClick = { openExternalUrl(context, "https://github.com/nano-muse/nanoMuse/blob/main/LICENSE") },
-                trailing = { ExternalLinkIcon() },
-                minHeight = 72.dp,
-            )
-            SettingsRow(
-                icon = Icons.Outlined.Code,
-                iconColor = tileBlue,
-                title = stringResource(R.string.nm_about_upstream),
-                subtitle = stringResource(R.string.nm_about_upstream_detail),
-                onClick = { openExternalUrl(context, "https://github.com/nano-muse/nanoMuse") },
-                trailing = { ExternalLinkIcon() },
-                minHeight = 72.dp,
-            )
-            SettingsRow(
-                icon = Icons.Outlined.Code,
-                iconColor = tileBlue,
-                title = stringResource(R.string.nm_about_trademark),
-                subtitle = stringResource(R.string.nm_about_trademark_detail),
                 showDivider = false,
                 minHeight = 72.dp,
             )
         }
-
-        // T122: surface the existing UpdateChecker entry on the About screen.
-        // The composable was already implemented but never wired anywhere, so
-        // users had no way to trigger a check.
-        CheckUpdateSection()
 
         Spacer(Modifier.height(24.dp))
     }

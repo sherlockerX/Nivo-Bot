@@ -22,6 +22,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -159,6 +162,20 @@ class AgentForegroundService : Service() {
         startTimeMs = SystemClock.elapsedRealtime()
         acquireWakeLock()
         startOverlayObserver()
+        // nanoMuse: 使用同一个通知 ID 更新当前宠物，不重复响铃。
+        overlayScope.launch {
+            io.github.nanomuse.identity.NanoMuseIdentity.revision.collect { refreshOngoingNotification() }
+        }
+        // nanoMuse: 仅在有任务时刷新各自的用时，结束后取消循环并停表。
+        overlayScope.launch {
+            SessionActivityTracker.conversationRuns.runs.collectLatest { runs ->
+                refreshOngoingNotification()
+                if (runs.isNotEmpty()) while (isActive) {
+                    delay(1000)
+                    refreshOngoingNotification()
+                }
+            }
+        }
         Log.d(TAG, "Service created")
     }
 
@@ -189,7 +206,7 @@ class AgentForegroundService : Service() {
         if (com.openminis.app.crash.CrashFrequencyDetector.isSafeMode()) {
             try {
                 val stub = androidx.core.app.NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("nanoMuse")
+                    .setContentTitle("Nicholasx")
                     .setSmallIcon(android.R.drawable.stat_sys_warning)
                     .setOngoing(false)
                     .build()
@@ -447,7 +464,7 @@ class AgentForegroundService : Service() {
             hasCompletionPending = false
             wasBusy = state.hasActiveStream || state.isRunning
             // [T-android-dynamic-island] The overlay hid reactively above; make
-            // the notification switch to the promoted ProgressStyle promptly too
+            // the notification switch to the promoted text style promptly too
             // (rather than waiting for the next tool/status tick that rebuilds
             // it). Only when we're actually foregrounded as a service — a bare
             // notify() here would post a non-FGS notification. Guard on active
@@ -580,7 +597,7 @@ class AgentForegroundService : Service() {
     /**
      * [T-android-dynamic-island] Re-post the ongoing status notification with
      * the current session/status so a dynamic-island toggle flip switches the
-     * notification style (promoted ProgressStyle ↔ plain) without waiting for
+     * notification style (promoted BigTextStyle or plain) without waiting for
      * the next tool tick. Uses NotificationManager.notify on the same id — the
      * service is already in the foreground for this id, so this updates it in
      * place rather than posting a duplicate.
@@ -724,7 +741,10 @@ class AgentForegroundService : Service() {
         // in the same sitting would show a duration that already included the
         // first. Fall back to startTimeMs for the presence-only case (user in a
         // chat having never run anything), where no run anchor exists.
-        val anchorMs = SessionActivityTracker.currentRunStartedAtMs.value ?: startTimeMs
+        // nanoMuse: 多会话不能共享一个起点；通知角标使用当前最早的活动任务。
+        val runLines = SessionActivityTracker.conversationRuns.lines(SystemClock.elapsedRealtime(), getString(R.string.nm_notif_chat_fallback))
+        val anchorMs = SessionActivityTracker.conversationRuns.runs.value.values.minOfOrNull { it.startedAt }
+            ?: SessionActivityTracker.currentRunStartedAtMs.value ?: startTimeMs
         val elapsedMs = (endMs - anchorMs).coerceAtLeast(0L)
         val elapsedSeconds = (elapsedMs / 1000).toInt()
         val minutes = elapsedSeconds / 60
@@ -733,6 +753,11 @@ class AgentForegroundService : Service() {
 
         val mainIntent = Intent(this, Class.forName("com.openminis.app.MainActivity")).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // nanoMuse: 点击运行通知进入当前最早的活动会话。
+            SessionActivityTracker.conversationRuns.runs.value.values.minByOrNull { it.startedAt }?.let { run ->
+                action = Intent.ACTION_VIEW
+                data = android.net.Uri.parse("minis://session/${run.sessionId}")
+            }
         }
         val pendingIntent = PendingIntent.getActivity(
             this,
@@ -771,17 +796,16 @@ class AgentForegroundService : Service() {
         // through to the wrench (toolSmallIconRes' else branch) — a finished
         // task rendered exactly like a running one.
         val titleText = when {
+            runLines.isNotEmpty() -> getString(R.string.nm_notif_active_chats, runLines.size) // nanoMuse: 紧凑的多任务标题。
             isCompleted -> getString(R.string.bg_service_notification_title_completed)
-            toolName != null -> toolDisplayLabel(toolName)
+            toolName != null && runLines.isNotEmpty() -> toolDisplayLabel(toolName)
             // nanoMuse: "<name> is working", the way Muse phrases it.
-            else -> getString(R.string.nm_notif_working, io.github.nanomuse.identity.NanoMuseIdentity.name(this))
+            else -> getString(R.string.nm_notif_ready)
         }
-        val collapsedText = if (isCompleted) {
+        val collapsedText = if (runLines.isNotEmpty()) runLines.first() else if (isCompleted) {
             getString(R.string.bg_service_notification_text_completed, sessionLabel, timeString)
         } else {
-            getString(
-                R.string.bg_service_notification_text, sessionLabel, toolStatus, timeString,
-            )
+            getString(R.string.nm_notif_waiting)
         }
 
         // [T-android-dynamic-island] Short critical text — the ~7-char glyph
@@ -789,16 +813,17 @@ class AgentForegroundService : Service() {
         // Android 12 (API 31) on the native Builder, so we compute it for all
         // branches and apply it wherever the API exists. Prefer the elapsed
         // time (most glanceable); fall back to a tool hint.
+        val expandedText = runLines.takeIf { it.isNotEmpty() }?.joinToString("\n") ?: collapsedText // nanoMuse: 展开后每条对话只占一行。
         val shortCritical = timeString
 
         // [T-android-dynamic-island] Tier 3: Android 16 (Baklava) Live Updates.
         // When the device is capable AND the user enabled the toggle, build the
-        // ongoing notification with Notification.ProgressStyle and request
+        // ongoing notification with Notification.BigTextStyle and request
         // promotion (FLAG_PROMOTED_ONGOING) so it surfaces on the status chip /
         // "dynamic island". androidx.core 1.15 has none of these APIs, so this
         // branch drops to the native Notification.Builder. Everything the
         // promoted-notification contract requires is satisfied here: ongoing,
-        // a contentTitle, a supported style (ProgressStyle), NOT a group
+        // a contentTitle, a supported style (BigTextStyle), NOT a group
         // summary, NOT colorized, and the channel importance is LOW (not MIN).
         // [T-android-safemode-lateinit-crash-147] `?.` protects against a null
         // Application, NOT against an uninitialized lateinit — the safe call
@@ -819,6 +844,7 @@ class AgentForegroundService : Service() {
             return buildPromotedNotification(
                 titleText = titleText,
                 collapsedText = collapsedText,
+                expandedText = expandedText, // nanoMuse
                 shortCritical = shortCritical,
                 smallIcon = smallIconRes(toolName, isCompleted),
                 isToolRunning = isToolRunning,
@@ -833,7 +859,7 @@ class AgentForegroundService : Service() {
             .setLargeIcon(io.github.nanomuse.identity.NanoMuseIdentity.face(this)) // nanoMuse: the agent is the sender
             .setContentTitle(titleText)
             .setContentText(collapsedText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(collapsedText))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText))
             .setOngoing(true)
             .setShowWhen(false)
             .setOnlyAlertOnce(true)
@@ -843,7 +869,7 @@ class AgentForegroundService : Service() {
 
         // [T-android-live-update-completed] Same rule as the promoted branch:
         // no Stop once there is nothing left to stop.
-        if (!isCompleted) {
+        if (SessionActivityTracker.activeSessions.value.isNotEmpty()) { // nanoMuse
             builder.addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 getString(R.string.bg_service_stop_action),
@@ -851,13 +877,7 @@ class AgentForegroundService : Service() {
             )
         }
 
-        if (isToolRunning) {
-            // Tools rarely report determinate progress (shell/browser/a11y
-            // are open-ended). Always indeterminate while a tool is in
-            // flight; explicitly drop progress when not, so the bar
-            // disappears at idle/between-turn moments.
-            builder.setProgress(0, 0, true)
-        }
+        // nanoMuse: 执行耗时已经表达活动状态，不再绘制不确定进度条。
 
         return builder.build()
     }
@@ -876,6 +896,7 @@ class AgentForegroundService : Service() {
     private fun buildPromotedNotification(
         titleText: String,
         collapsedText: String,
+        expandedText: String, // nanoMuse: 标准多行内容支持 Live Updates。
         shortCritical: String,
         smallIcon: Int,
         isToolRunning: Boolean,
@@ -883,39 +904,15 @@ class AgentForegroundService : Service() {
         contentIntent: PendingIntent,
         stopIntent: PendingIntent,
     ): Notification {
-        // [T-android-dynamic-island] A ProgressStyle only counts as a valid
-        // *promotable* style when it carries at least one progress segment with
-        // positive length — an empty ProgressStyle (even an indeterminate one)
-        // fails Notification.hasPromotableCharacteristics() and the notification
-        // silently drops to a plain ongoing row (confirmed on-device: every
-        // other precondition passed, only the ProgressStyle validity failed).
-        // So the segment is NOT optional: it is what keeps the chip promoted,
-        // and it is why this style survives even though we show no percentage.
-        //
-        // [T-android-live-update-progressbar] An agent run has exactly two
-        // states the user cares about — running and done — and no meaningful
-        // fraction in between (tools are open-ended; there is no Nth-of-M to
-        // report). Rendered as a tracker, that produced a bar parked at 0 %
-        // with a paper-plane sitting on the left for the entire run: it looked
-        // like a stalled download rather than "working".
-        //
-        // setStyledByProgress(false) keeps the style (so promotion holds) but
-        // stops it drawing as a position tracker, and clearing the tracker icon
-        // removes the plane. The two states are carried by the title, the icon
-        // and the elapsed timer, which is where a user actually reads them.
-        val progressStyle = Notification.ProgressStyle()
-            .addProgressSegment(Notification.ProgressStyle.Segment(100))
-            .setStyledByProgress(false)
-            .setProgressTrackerIcon(null)
-            .setProgressIndeterminate(isToolRunning && !isCompleted)
-            .setProgress(if (isCompleted) 100 else 0)
+        // nanoMuse: BigTextStyle 同样支持系统提升通知，执行中只显示摘要及计时。
+        val detailStyle = Notification.BigTextStyle().bigText(expandedText)
 
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(smallIcon)
             .setLargeIcon(io.github.nanomuse.identity.NanoMuseIdentity.face(this)) // nanoMuse: the agent is the sender
             .setContentTitle(titleText)
             .setContentText(collapsedText)
-            .setStyle(progressStyle)
+            .setStyle(detailStyle)
             .setOngoing(true)
             .setShowWhen(false)
             .setOnlyAlertOnce(true)
@@ -929,7 +926,7 @@ class AgentForegroundService : Service() {
         // has finished — there is nothing left to stop, and offering it invites
         // a tap that does nothing visible. Reported from a device screenshot
         // showing "任务已完成 ✓" above a live Stop button.
-        if (!isCompleted) {
+        if (SessionActivityTracker.activeSessions.value.isNotEmpty()) { // nanoMuse
             builder.addAction(
                 Notification.Action.Builder(
                     Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
@@ -983,15 +980,15 @@ class AgentForegroundService : Service() {
      * so the user still gets a hint about what's running.
      */
     private fun toolDisplayLabel(toolName: String): String = when (toolName) {
-        "shell_execute" -> "nanoMuse is using Shell"
-        "file_read" -> "nanoMuse is reading File"
-        "file_write" -> "nanoMuse is using Editor"
-        "file_edit" -> "nanoMuse is editing File"
-        "browser_use" -> "nanoMuse is using Browser"
-        "read_image" -> "nanoMuse is reading Image"
-        "memory_write", "memory_get" -> "nanoMuse is using Memory"
-        "web_search" -> "nanoMuse is using Search"
-        else -> "nanoMuse is using $toolName"
+        "shell_execute" -> "Nicholasx is using Shell"
+        "file_read" -> "Nicholasx is reading File"
+        "file_write" -> "Nicholasx is using Editor"
+        "file_edit" -> "Nicholasx is editing File"
+        "browser_use" -> "Nicholasx is using Browser"
+        "read_image" -> "Nicholasx is reading Image"
+        "memory_write", "memory_get" -> "Nicholasx is using Memory"
+        "web_search" -> "Nicholasx is using Search"
+        else -> "Nicholasx is using $toolName"
     }
 
     /**

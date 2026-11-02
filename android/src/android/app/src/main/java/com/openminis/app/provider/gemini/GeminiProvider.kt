@@ -168,7 +168,7 @@ class GeminiProvider(
                     lastFinishReason = reason
                 }
             }
-            send(LLMStreamChunk.Finished(lastFinishReason ?: "end_turn"))
+            send(LLMStreamChunk.Finished(lastFinishReason)) // nanoMuse: 缺少结束原因保持未知，不能伪装正常完成。
         } catch (e: Exception) {
             cancel("Stream error", mapError(e))
         } finally {

@@ -8,19 +8,8 @@ name: Website
 # published alongside: https://nano-muse.github.io/nanoMuse/docs/. The same build with
 # DOCS_BASE=/docs/ is what nanomuse.cn/docs/ serves.
 
+# Mosaic fork: manual runs only; this repository publishes no website.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - "docs/**"
-      - "website/**"
-      - "web/public/avatars/dragon-*.webp"
-      - "web/public/icon.svg"
-      - "web/public/mark.svg"
-      - "docs/screenshots/**"
-      - "docs/cover.png"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 # Only the deploy job writes (actions/deploy-pages); the build reads the site's settings

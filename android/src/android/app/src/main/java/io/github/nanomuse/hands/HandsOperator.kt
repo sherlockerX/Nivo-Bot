@@ -57,7 +57,7 @@ class HandsOperator(private val context: Context) {
         /** A cap on steps for callers that want one; 0 (the default) means the run goes on until the task is done, the person stops it, or the time limit. */
         val maxSteps: Int = DEFAULT_MAX_STEPS,
         val sessionId: String? = null,
-        val agentName: String = "nanoMuse",
+        val agentName: String = "Nicholasx",
         val language: String = "the user's language",
     )
 
@@ -607,7 +607,7 @@ class HandsOperator(private val context: Context) {
         else PRootKernel.resolveHostPath("/var/minis/attachments")
         val hands = base?.let { File(it, "hands") } ?: return null
         // the person's screen is not kept without bound: older runs keep their trace and last screen
-        runCatching { HandsTraces.prune(hands) }
+        runCatching { HandsTraces.prune(hands, keepFull = HandsTraces.KEEP_FULL_RUNS - 1, keepRuns = HandsTraces.KEEP_RUNS - 1) }
         return File(hands, runId).apply { mkdirs() }
     }
 

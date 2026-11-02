@@ -13,13 +13,8 @@ LOG_PATH = "/var/minis/mcp-servers/mcp-cli.log"
 
 
 def _log(msg):
-    try:
-        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
-        import time
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            f.write("[%s] [deps] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
-    except OSError:
-        pass
+    from utils.bounded_log import append  # nanoMuse
+    append(LOG_PATH, "[deps] " + msg)
 
 
 def _run(cmd):
@@ -44,8 +39,8 @@ _RESOLVERS = {
     "npm": ["apk add --quiet nodejs npm"],
     "python3": ["apk add --quiet python3 py3-pip"],
     "pip": ["apk add --quiet python3 py3-pip"],
-    "uvx": ["pip install --quiet uv", "pip install --quiet --break-system-packages uv"],
-    "uv": ["pip install --quiet uv", "pip install --quiet --break-system-packages uv"],
+    "uvx": ["apk add --quiet uv", "apk add --quiet python3 py3-pip && python3 -m pip install --quiet --break-system-packages uv"],
+    "uv": ["apk add --quiet uv", "apk add --quiet python3 py3-pip && python3 -m pip install --quiet --break-system-packages uv"],
 }
 
 

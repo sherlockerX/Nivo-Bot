@@ -1,5 +1,9 @@
 package com.openminis.app.ui.settings
 
+// nanoMuse: 显式保存失败时保留草稿并提示。
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -7,8 +11,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -60,6 +66,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.openminis.app.data.model.ProviderType
@@ -113,13 +120,7 @@ fun ProviderDetailScreen(
     var label by remember { mutableStateOf(instance.label) }
     val labelChanged = label != instance.label
 
-    // [T-android-provider-apikey-save-stale] Hold the stored API key in Compose
-    // state, NOT as a plain val that re-reads EncryptedSharedPreferences on every
-    // recomposition. saveApiKey() writes with .apply() (async); a recomposition
-    // right after Save (isEditingKey=false) would re-read prefs before the write
-    // flushed and show the OLD key, making Save look like a no-op. Keeping it in
-    // remember + updating it synchronously in onSave reflects the just-saved
-    // value immediately, independent of the async flush.
+    // nanoMuse: 编辑草稿与已保存值分开，保存成功后才结束编辑。
     var storedKey by remember(instanceId) { mutableStateOf(providerRepository.loadApiKey(instanceId) ?: "") }
     var isEditingKey by remember { mutableStateOf(false) }
     var editKeyValue by remember { mutableStateOf("") }
@@ -132,10 +133,49 @@ fun ProviderDetailScreen(
     // OpenAI-/Anthropic-compat custom-base section surfaces it (see gate below).
     var customUserAgent by remember { mutableStateOf(instance.customUserAgent ?: "") }
 
+    // nanoMuse: 两个保存入口都提交地址及正在编辑的密钥，磁盘写入不阻塞界面。
+    var isSavingConnection by remember { mutableStateOf(false) }
+    var connectionError by remember { mutableStateOf<String?>(null) }
+    fun saveConnection() {
+        if (isSavingConnection) return
+        if (io.github.nanomuse.net.LanOnly.refusedHost(customBaseURL) != null) {
+            connectionError = "invalid_url"
+            return
+        }
+        val pendingKey = if (isEditingKey) editKeyValue else null
+        val pendingUrl = customBaseURL
+        val pendingSuffix = appendV1Suffix
+        val pendingAgent = customUserAgent
+        val firstKey = storedKey.isBlank() && !pendingKey.isNullOrBlank()
+        isSavingConnection = true
+        scope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    providerRepository.saveConnection(instanceId, pendingUrl, pendingSuffix, pendingAgent, pendingKey)
+                }
+                pendingKey?.let { storedKey = it.trim() }
+                isEditingKey = false
+                editKeyValue = ""
+                keyVisible = false
+                connectionError = null
+                if (firstKey) onKeyAdded(instanceId)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                connectionError = "save_failed"
+            } finally { isSavingConnection = false }
+        }
+    }
+
     val entries = providerRepository.entriesFor(instanceId)
     var isRefreshing by remember { mutableStateOf(false) }
 
     val exportContext = androidx.compose.ui.platform.LocalContext.current
+
+    if (connectionError != null) AlertDialog(
+        onDismissRequest = { connectionError = null },
+        title = { Text(stringResource(R.string.nm_provider_save_failed)) },
+        confirmButton = { TextButton(onClick = { connectionError = null }) { Text(stringResource(R.string.ok)) } },
+    )
 
     SettingsScaffold(
         title = instance.label,
@@ -198,7 +238,7 @@ fun ProviderDetailScreen(
                         onToggleVisibility = { keyVisible = !keyVisible },
                         isEditing = isEditingKey,
                         editValue = editKeyValue,
-                        onEditValueChange = { editKeyValue = it },
+                        onEditValueChange = { if (!isSavingConnection) editKeyValue = it },
                         onBeginEdit = {
                             isEditingKey = true
                             editKeyValue = storedKey
@@ -208,19 +248,7 @@ fun ProviderDetailScreen(
                             editKeyValue = ""
                             keyVisible = false
                         },
-                        onSave = {
-                            val nmFirstKey = storedKey.isBlank() && editKeyValue.isNotBlank() // nanoMuse
-                            providerRepository.saveApiKey(instanceId, editKeyValue)
-                            // [T-android-provider-apikey-save-stale] Reflect the
-                            // just-saved value in UI state immediately rather than
-                            // re-reading the async-written prefs on recomposition.
-                            storedKey = editKeyValue
-                            AppLogger.info(TAG, "Saved API key for ${instance.id}")
-                            isEditingKey = false
-                            editKeyValue = ""
-                            keyVisible = false
-                            if (nmFirstKey) onKeyAdded(instanceId) // nanoMuse
-                        },
+                        onSave = { saveConnection() },
                     )
                 }
             }
@@ -325,26 +353,8 @@ fun ProviderDetailScreen(
                 // Save action — TextButton presentation so it reads as a list
                 // row rather than a floating filled button inside the card.
                 MinisSmallTextButton(
-                    enabled = baseUrlProblem == null, // nanoMuse: LanOnly
-                    onClick = {
-                        providerRepository.updateInstance(
-                            instance.copy(
-                                customBaseURL = customBaseURL.ifBlank { null },
-                                appendV1Suffix = appendV1Suffix,
-                                // [T-provider-custom-user-agent] Blank → null →
-                                // default UA. Only the gated providers can edit
-                                // this; for others customUserAgent equals the
-                                // unchanged instance value, so the copy is inert.
-                                customUserAgent = customUserAgent.ifBlank { null },
-                            )
-                        )
-                        AppLogger.info(
-                            TAG,
-                            "Saved base URL for ${instance.id}: " +
-                                "url='${customBaseURL.ifBlank { "<default>" }}', appendV1=$appendV1Suffix, " +
-                                "ua='${customUserAgent.ifBlank { "<default>" }}'",
-                        )
-                    },
+                    enabled = baseUrlProblem == null && !isSavingConnection,
+                    onClick = { saveConnection() },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.provider_detail_save_url_settings))
@@ -365,7 +375,8 @@ fun ProviderDetailScreen(
                 },
             ) {
                 SettingsCardBlock {
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    // nanoMuse: both options always the same size: equal heights, no check mark taking label room on one side only.
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                         SegmentedButton(
                             selected = !instance.useResponsesAPI,
                             onClick = {
@@ -374,7 +385,9 @@ fun ProviderDetailScreen(
                                 }
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                        ) { Text(stringResource(R.string.provider_detail_chat_completions)) }
+                            modifier = Modifier.fillMaxHeight(),
+                            icon = {},
+                        ) { Text(stringResource(R.string.provider_detail_chat_completions), textAlign = TextAlign.Center) }
                         SegmentedButton(
                             selected = instance.useResponsesAPI,
                             onClick = {
@@ -383,7 +396,9 @@ fun ProviderDetailScreen(
                                 }
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                        ) { Text(stringResource(R.string.provider_detail_responses_api)) }
+                            modifier = Modifier.fillMaxHeight(),
+                            icon = {},
+                        ) { Text(stringResource(R.string.provider_detail_responses_api), textAlign = TextAlign.Center) }
                     }
                 }
             }
@@ -438,7 +453,8 @@ fun ProviderDetailScreen(
                 },
             ) {
                 SettingsCardBlock {
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    // nanoMuse: three options of one size, as in API Format above.
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                         SegmentedButton(
                             selected = mode == com.openminis.app.data.model.ImageEndpointMode.auto,
                             onClick = {
@@ -451,7 +467,9 @@ fun ProviderDetailScreen(
                                 }
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                        ) { Text("Auto") }
+                            modifier = Modifier.fillMaxHeight(),
+                            icon = {},
+                        ) { Text("Auto", textAlign = TextAlign.Center) }
                         SegmentedButton(
                             selected = mode == com.openminis.app.data.model.ImageEndpointMode.imagesGenerations,
                             onClick = {
@@ -466,7 +484,9 @@ fun ProviderDetailScreen(
                                 }
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                        ) { Text("Images API") }
+                            modifier = Modifier.fillMaxHeight(),
+                            icon = {},
+                        ) { Text("Images API", textAlign = TextAlign.Center) }
                         SegmentedButton(
                             selected = mode == com.openminis.app.data.model.ImageEndpointMode.chatCompletions,
                             onClick = {
@@ -480,11 +500,16 @@ fun ProviderDetailScreen(
                                 }
                             },
                             shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                        ) { Text("Chat") }
+                            modifier = Modifier.fillMaxHeight(),
+                            icon = {},
+                        ) { Text("Chat", textAlign = TextAlign.Center) }
                     }
                 }
             }
         }
+
+        // Mosaic: a relay's video generation, after its image generation.
+        io.github.nanomuse.ui.media.VideoApiSection(instance)
 
         // ─── Status ─────────────────────────────────────────────────
         SettingsSection(header = stringResource(R.string.provider_detail_status)) {

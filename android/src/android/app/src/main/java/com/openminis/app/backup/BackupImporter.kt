@@ -300,7 +300,7 @@ class BackupImporter(
                 report.skipped += 1
                 return@readJsonl
             }
-            dao.insertFolder(
+            dao.importFolder( // nanoMuse: 导入遵守规范化唯一键，重名不合并成员。
                 FolderEntity(
                     id = id,
                     name = f.str("name") ?: "",
@@ -381,6 +381,7 @@ class BackupImporter(
                     editCount = s.int("editCount") ?: 0,
                     thinkingOverride = s.str("thinkingOverride"),
                     folderId = s.str("folderId"),
+                    groupAssignedBy = s.str("groupAssignedBy"), createdByTaskId = s.str("createdByTaskId"), createdByRunId = s.str("createdByRunId"), // nanoMuse
                 )
             )
             if (existing == null) report.imported += 1 else report.updated += 1

@@ -65,7 +65,8 @@ object MediaModels {
 
     /**
      * Providers whose host speaks Model Studio's asynchronous video API: Model Studio itself,
-     * and a self-hosted relay only when its current menu advertises a video model.
+     * and a self-hosted relay only when its current menu advertises a video model. Mosaic: and
+     * a relay of one's own (new-api and its kin) whose model list names a video model.
      */
     fun eligibleVideoInstances(context: Context): List<ProviderInstance> {
         val app = context.applicationContext as? MinisApp ?: return emptyList()
@@ -86,7 +87,8 @@ object MediaModels {
         return repo.config.value.instances.filter { inst ->
             inst.isEnabled && inst.credentialType == ProviderCredential.apiKey &&
                 (VideoGen.speaksDashScope(ImageGen.baseUrlOf(inst)) ||
-                    (inst.id == cloudId && relayCanVideo)) &&
+                    (inst.id == cloudId && relayCanVideo) ||
+                    (isRelayVideo(context, inst) && listedVideoModels(context, inst).isNotEmpty())) &&
                 // C11: the catalogue's word on the vendor (Bailian has video models; a gateway on the same host is not gated)
                 io.github.nanomuse.cloud.Capabilities.allows(context, inst, io.github.nanomuse.cloud.ProviderCatalogue.VIDEO)
         }
@@ -102,9 +104,30 @@ object MediaModels {
     /** True when the person switched the video model off (a choice, unlike "never chosen"). */
     fun videoSwitchedOff(context: Context): Boolean = prefs(context).getString(KEY_VIDEO_INSTANCE, null) == VIDEO_OFF
 
-    /** The video model nanoMuse would pick for [inst]: the catalogue's `defaults.video` for its vendor, else Wan 2.2 Flash. */
+    /**
+     * The video model nanoMuse would pick for [inst]: the catalogue's `defaults.video` for its
+     * vendor, else (Mosaic) the first video model a relay lists, else Wan 2.2 Flash.
+     */
     fun defaultVideoModel(context: Context, inst: ProviderInstance): String =
-        io.github.nanomuse.models.ModelSlots.defaultOf(context, inst, io.github.nanomuse.models.ModelSlots.Slot.VIDEO) ?: DEFAULT_VIDEO_MODEL
+        io.github.nanomuse.models.ModelSlots.defaultOf(context, inst, io.github.nanomuse.models.ModelSlots.Slot.VIDEO)
+            ?: listedVideoModels(context, inst).takeIf { isRelayVideo(context, inst) }?.firstOrNull()
+            ?: DEFAULT_VIDEO_MODEL
+
+    /**
+     * Mosaic: true when [inst] makes clips through a relay's own video API ([RelayVideo]): not
+     * Model Studio, and not nanoMuse Cloud, which serves Model Studio's paths.
+     */
+    fun isRelayVideo(context: Context, inst: ProviderInstance): Boolean =
+        !VideoGen.speaksDashScope(ImageGen.baseUrlOf(inst)) && inst.id != NanoMuseCloud.instance(context)?.id
+
+    /** Mosaic: the video models [inst]'s own list names; a relay lists them, unlike Model Studio. */
+    fun listedVideoModels(context: Context, inst: ProviderInstance): List<String> {
+        val repo = (context.applicationContext as? MinisApp)?.providerRepositoryOrNull ?: return emptyList()
+        return repo.config.value.modelEntries
+            .filter { it.providerInstanceId == inst.id && !it.isHidden && VideoGen.isVideoModel(it.model) }
+            .map { it.model.id }
+            .distinct()
+    }
 
     /**
      * The video model, or null when there is none. The one chosen (Settings → Models, or →
@@ -134,7 +157,19 @@ object MediaModels {
         } ?: return null
         val model = p.getString(KEY_VIDEO_MODEL, null)?.takeIf { it.isNotBlank() && saved == inst.id } ?: defaultVideoModel(context, inst)
         val key = repo.usableApiKey(inst) ?: return null
-        return VideoGen.Endpoint(inst, key, model)
+        return VideoGen.Endpoint(inst, key, model, relay = isRelayVideo(context, inst), relayApi = videoApi(context, inst.id))
+    }
+
+    // ── Mosaic: which video API a relay speaks ────────────────────────────
+
+    private const val KEY_VIDEO_API = "media.video.api."
+
+    /** The video API chosen on [instanceId]'s page (Automatic until one is chosen). */
+    internal fun videoApi(context: Context, instanceId: String): RelayVideo.Api =
+        RelayVideo.Api.byId(prefs(context).getString(KEY_VIDEO_API + instanceId, null))
+
+    internal fun setVideoApi(context: Context, instanceId: String, api: RelayVideo.Api) {
+        prefs(context).edit().putString(KEY_VIDEO_API + instanceId, api.id).apply()
     }
 
     /** [instanceId] null switches the video model off; it is remembered, unlike "never chosen". */
@@ -166,13 +201,15 @@ object MediaModels {
      * video: the known candidates, each probed once and remembered for a day.
      */
     fun availableVideoModels(context: Context, inst: ProviderInstance): List<String>? {
+        if (isRelayVideo(context, inst)) return listedVideoModels(context, inst) // Mosaic: a relay's list is the answer
         val raw = prefs(context).getString(KEY_VIDEO_AVAILABLE + inst.id, null) ?: return null
         val arr = runCatching { JSONArray(raw) }.getOrNull() ?: return null
         return List(arr.length()) { arr.optString(it) }.filter { it.isNotBlank() }
     }
 
     fun videoCheckIsFresh(context: Context, inst: ProviderInstance): Boolean =
-        System.currentTimeMillis() - prefs(context).getLong(KEY_VIDEO_CHECKED + inst.id, 0L) < VIDEO_CHECK_TTL_MS
+        isRelayVideo(context, inst) || // Mosaic: nothing to probe on a relay
+            System.currentTimeMillis() - prefs(context).getLong(KEY_VIDEO_CHECKED + inst.id, 0L) < VIDEO_CHECK_TTL_MS
 
     /**
      * Asks the host which of the known video models exist for this key — plus anything on the
@@ -180,12 +217,14 @@ object MediaModels {
      * the models found, or null when the host could not be reached at all.
      */
     suspend fun checkVideoModels(context: Context, inst: ProviderInstance): List<String>? = withContext(Dispatchers.IO) {
+        // Mosaic: a relay names its video models in its list; Model Studio's probe would find none there.
+        if (isRelayVideo(context, inst)) return@withContext listedVideoModels(context, inst)
         val app = context.applicationContext as? MinisApp ?: return@withContext null
         val repo = app.providerRepositoryOrNull ?: return@withContext null
         val key = repo.usableApiKey(inst) ?: return@withContext null
         val host = VideoGen.Endpoint(inst, key, "").host
         val listed = repo.config.value.modelEntries
-            .filter { it.providerInstanceId == inst.id && !it.isHidden && VideoGen.looksLikeVideoModel(it.model.id) }
+            .filter { it.providerInstanceId == inst.id && !it.isHidden && VideoGen.isVideoModel(it.model) }
             .map { it.model.id }
         val candidates = (VideoGen.KNOWN_DASHSCOPE_MODELS + listed).distinct()
         var reached = false
@@ -225,7 +264,7 @@ object MediaModels {
         val image = imageEndpoint(context)
         val video = videoEndpoint(context)
         return buildString {
-            append("Media models. Unlike Muse, whose image and video models are built in, nanoMuse runs on three models the user configures: ")
+            append("Media models. Unlike Muse, whose image and video models are built in, Nicholasx runs on three models the user configures: ")
             append("the chat model (you), an image model (avatar changes, pictures the user asks for) and a video model (the animated avatar, short clips). ")
             append("Image model: ").append(image?.let { "${it.model} via ${it.label}" } ?: "NOT SET").append(". ")
             append("Video model: ").append(video?.let { "${it.model} via ${it.label}" } ?: "NOT SET").append(".\n")
@@ -240,7 +279,7 @@ object MediaModels {
             }
             if (video == null) {
                 append("- No video model is set: the avatar stays as still pictures, and clips cannot be made. If asked, explain that clips need a provider with video models ")
-                append("(Alibaba Cloud Bailian: a Wan video model such as wan2.2-i2v-flash, picked in the setting) and give the link [Image & video models](").append(DEEP_LINK).append(").")
+                append("(Alibaba Cloud Bailian: a Wan video model such as wan2.2-i2v-flash; or a relay whose model list has video models such as Veo, Seedance or Grok Imagine; picked in the setting) and give the link [Image & video models](").append(DEEP_LINK).append(").")
             }
         }.trimEnd()
     }
@@ -250,6 +289,6 @@ object MediaModels {
         "The user just asked you to change your avatar, but no image model is configured, so the app could not start the change. " +
             "Answer in the user's language: say that changing your look needs a provider with image models " +
             "(Alibaba Cloud Bailian, OpenAI with an API key, Gemini or OpenRouter — not a ChatGPT plan signed in through Codex, nor DeepSeek, Claude, Kimi or Groq), " +
-            "that nanoMuse ships no image model of its own, so this is something they set up themselves, and give the link [Image & video models]($DEEP_LINK) to open the setting. " +
+            "that Nicholasx ships no image model of its own, so this is something they set up themselves, and give the link [Image & video models]($DEEP_LINK) to open the setting. " +
             "Keep it to a few sentences and do not describe or invent a new look."
 }

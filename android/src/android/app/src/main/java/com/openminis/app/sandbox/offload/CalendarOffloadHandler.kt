@@ -105,7 +105,7 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
                     OffloadPermissionManager.SettingsGateRequest(
                         id = settingsId,
                         title = "Calendar permission needed",
-                        message = "nanoMuse needs $humanLabel permission to $humanLabel your calendar. Open Settings to allow it.",
+                        message = "Nicholasx needs $humanLabel permission to $humanLabel your calendar. Open Settings to allow it.",
                         settingsAction = android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         requiresPackageUri = true,
                         positiveLabel = "Open Settings",
@@ -168,6 +168,7 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
             CalendarContract.Events.ALL_DAY,
             CalendarContract.Events.CALENDAR_ID,
             CalendarContract.Events.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Events.DURATION, // nanoMuse: 重复事件允许只提供时长。
         )
         val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
         val selArgs = arrayOf(startMs.toString(), endMs.toString())
@@ -191,14 +192,16 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
             while (it.moveToNext()) {
                 val calName = it.getString(8) ?: ""
                 if (calFilter != null && !calName.contains(calFilter, ignoreCase = true)) continue
+                val eventEnd = io.github.nanomuse.sandbox.CalendarEventEnd.resolve(it.getLong(2), if (it.isNull(3)) null else it.getLong(3), it.getString(9)) // nanoMuse
                 matches.put(
                     JSONObject()
                         .put("id", it.getLong(0))
                         .put("title", it.getString(1) ?: "")
                         .put("start", formatIso(it.getLong(2)))
                         .put("start_ms", it.getLong(2))
-                        .put("end", formatIso(it.getLong(3)))
-                        .put("end_ms", it.getLong(3))
+                        .put("end", eventEnd?.let(::formatIso) ?: JSONObject.NULL) // nanoMuse
+                        .put("end_ms", eventEnd ?: JSONObject.NULL)
+                        .put("duration_unknown", eventEnd == null)
                         .put("location", it.getString(4) ?: "")
                         .put("notes", it.getString(5) ?: "")
                         .put("description", it.getString(5) ?: "")
@@ -234,6 +237,8 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
         }
         val data = JSONObject()
             .put("events", events)
+            .put("status", if (events.length() == 0) "empty" else "ok") // nanoMuse: 合法空仍使用退出码0。
+            .put("queried", JSONObject().put("start_ms", startMs).put("end_ms", endMs))
             .put("range", JSONObject().put("start", formatIso(startMs)).put("end", formatIso(endMs)))
             .put("count", events.length())
         if (truncated) {
@@ -425,16 +430,20 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
 
         val projection = arrayOf(
             CalendarContract.Events.TITLE,
-            CalendarContract.Events.DTSTART,
-            CalendarContract.Events.DTEND,
+            CalendarContract.Instances.BEGIN, // nanoMuse: 实例会展开重复事件并解析DURATION。
+            CalendarContract.Instances.END,
             CalendarContract.Events.ALL_DAY,
         )
-        val selection = "${CalendarContract.Events.DTSTART} < ? AND ${CalendarContract.Events.DTEND} > ?"
+        val selection = "${CalendarContract.Instances.BEGIN} < ? AND ${CalendarContract.Instances.END} > ?"
         val selArgs = arrayOf(endMs.toString(), startMs.toString())
-        val sort = "${CalendarContract.Events.DTSTART} ASC"
+        val sort = "${CalendarContract.Instances.BEGIN} ASC"
+        val instanceUri = CalendarContract.Instances.CONTENT_URI.buildUpon().apply { // nanoMuse
+            android.content.ContentUris.appendId(this, startMs)
+            android.content.ContentUris.appendId(this, endMs)
+        }.build()
 
         val cursor = try {
-            context.contentResolver.query(CalendarContract.Events.CONTENT_URI, projection, selection, selArgs, sort)
+            context.contentResolver.query(instanceUri, projection, selection, selArgs, sort)
         } catch (e: SecurityException) {
             return NativeOffloadResult(77, providerBlockedJson("READ_CALENDAR", e, args))
         } catch (e: Throwable) {
@@ -622,7 +631,7 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
      * Enumerate writable calendars (CALENDAR_ACCESS_LEVEL >= 500 = OWNER/CONTRIBUTOR).
      * Used by `create` for pick-best and by `calendars` subcommand for debugging.
      */
-    private fun listWritableCalendars(): JSONArray {
+    private fun listWritableCalendars(writableOnly: Boolean = false): JSONArray { // nanoMuse: 读取也包含只读日历。
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
@@ -636,8 +645,8 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
             context.contentResolver.query(
                 CalendarContract.Calendars.CONTENT_URI,
                 projection,
-                "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?",
-                arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString()),
+                if (writableOnly) "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?" else null,
+                if (writableOnly) arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString()) else null,
                 null,
             )?.use { c ->
                 while (c.moveToNext()) {
@@ -651,9 +660,9 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
                             .put("is_primary", c.getInt(5) == 1),
                     )
                 }
-            }
+            } ?: error("Calendar provider returned no cursor") // nanoMuse: 读取失败不能解释为空。
         } catch (e: Throwable) {
-            AppLogger.warning(TAG, "listWritableCalendars: ${e.message}")
+            throw e // nanoMuse: 交给既有结构化错误通道。
         }
         return arr
     }
@@ -666,7 +675,7 @@ class CalendarOffloadHandler(private val context: Context) : NativeOffloadHandle
      *   4. First writable calendar
      */
     private fun pickWritableCalendar(): Long? {
-        val cals = listWritableCalendars()
+        val cals = listWritableCalendars(writableOnly = true) // nanoMuse
         if (cals.length() == 0) return null
         fun score(obj: JSONObject): Int {
             var s = 0

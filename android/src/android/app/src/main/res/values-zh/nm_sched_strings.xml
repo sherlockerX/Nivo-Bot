@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_sched_result_channel">定时任务结果</string>
+    <string name="nm_sched_result_quiet_channel">定时任务结果（静默）</string>
+    <string name="nm_sched_result_failed">%1$s 失败</string>
+    <string name="nm_sched_result_overflow">%1$d 个定时任务有更新</string>
+    <string name="nm_sched_run_no_stderr">退出码 %1$d，没有错误输出</string>
+
+    <string name="nm_sched_run_exit">退出码 %1$d</string>
+    <string name="nm_sched_run_stderr">错误输出：%1$s</string>
+    <string name="nm_sched_run_not_notified">未发通知：%1$s</string>
+    <string name="nm_sched_quiet_empty">没有结果</string>
+    <string name="nm_sched_quiet_unchanged">结果和上次一样</string>
+    <string name="nm_sched_quiet_rate">这一小时通知太多</string>
+    <string name="nm_sched_quiet_debug">调试运行</string>
+    <string name="nm_sched_quiet_policy">这个任务不发结果通知</string>
+    <string name="nm_sched_quiet_failure">已由失败提醒告知</string>
+    <string name="nm_sched_target_own">专属对话</string>
+    <string name="nm_sched_target_own_note">第一次运行时在“定时任务”分组里为这个任务建一个对话，之后每次运行的结果都写进这里。点通知会打开它。</string>
+</resources>

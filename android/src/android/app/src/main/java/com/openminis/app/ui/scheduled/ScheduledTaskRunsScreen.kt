@@ -31,6 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +66,15 @@ fun ScheduledTaskRunsScreen(
     val tasks by vm.tasks.collectAsState()
     val task = tasks.firstOrNull { it.id == taskId }
     val runs = task?.runHistory ?: emptyList()
+    // nanoMuse: 运行日志里的结果全文、错误输出与通知决定，按 run_id 对应到每一行；读文件不在主线程。
+    val logs by androidx.compose.runtime.produceState(emptyMap<String, org.json.JSONObject>(), taskId, runs.firstOrNull()?.firedAt) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val rows = io.github.nanomuse.routines.ScheduledRunRecorder.journal(context).query(taskId, 30).optJSONArray("runs")
+                (0 until (rows?.length() ?: 0)).mapNotNull { rows?.optJSONObject(it) }.associateBy { it.optString("run_id") }
+            }.getOrDefault(emptyMap())
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -107,7 +117,7 @@ fun ScheduledTaskRunsScreen(
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             items(runs, key = { it.firedAt }) { run ->
-                RunRow(run = run, onOpenSession = onOpenSession)
+                RunRow(run = run, log = run.runId?.let(logs::get), onOpenSession = onOpenSession)
             }
         }
     }
@@ -137,19 +147,23 @@ private fun EmptyRuns(padding: PaddingValues) {
 }
 
 @Composable
-private fun RunRow(run: ScheduledRun, onOpenSession: (String) -> Unit) {
+private fun RunRow(run: ScheduledRun, log: org.json.JSONObject?, onOpenSession: (String) -> Unit) {
     val tappable = run.sessionId != null
+    // nanoMuse: 有结果全文时点按展开；会话入口移到行尾按钮。
+    val result = log?.takeIf { it.has("result") && !it.isNull("result") }?.optString("result")?.takeIf { it.isNotBlank() }
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable(run.firedAt) { androidx.compose.runtime.mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (tappable) Modifier.clickable { onOpenSession(run.sessionId!!) } else Modifier)
+            .then(if (result != null) Modifier.clickable { expanded = !expanded }
+                else if (tappable) Modifier.clickable { onOpenSession(run.sessionId!!) } else Modifier)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = if (run.ok) Icons.Filled.CheckCircle else Icons.Filled.Error,
+            imageVector = if (run.outcome == "unknown") Icons.Outlined.History else if (run.ok) Icons.Filled.CheckCircle else Icons.Filled.Error, // nanoMuse: 未知不显示成已验证成功。
             contentDescription = null,
-            tint = if (run.ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            tint = if (run.outcome == "unknown") MaterialTheme.colorScheme.onSurfaceVariant else if (run.ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(12.dp))
@@ -171,27 +185,53 @@ private fun RunRow(run: ScheduledRun, onOpenSession: (String) -> Unit) {
                     fontSize = 12.sp,
                 )
             }
-            val preview = run.preview
+            val preview = result ?: run.preview
+            if (run.outcome == "unknown") Text(stringResource(R.string.nm_task_outcome_unknown),
+                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) // nanoMuse
             if (!preview.isNullOrBlank()) {
                 Text(
                     text = preview,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
-                    maxLines = 2,
+                    maxLines = if (expanded) Int.MAX_VALUE else 3,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // nanoMuse: 退出码、错误输出的最后一行、没有发通知的原因。
+            val details = listOfNotNull(
+                run.exitCode?.let { stringResource(R.string.nm_sched_run_exit, it) },
+                log?.optString("stderr_tail")?.lines()?.lastOrNull { it.isNotBlank() }?.trim()?.take(160)
+                    ?.takeIf { run.outcome == "failure" || expanded }?.let { stringResource(R.string.nm_sched_run_stderr, it) },
+                log?.takeIf { it.has("notified") && !it.optBoolean("notified") }?.optString("notify_suppressed_reason")
+                    ?.let { quietReason(it) }?.let { stringResource(R.string.nm_sched_run_not_notified, it) },
+            )
+            if (details.isNotEmpty()) Text(details.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp, maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
         }
         if (tappable) {
             Spacer(Modifier.width(8.dp))
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = stringResource(R.string.scheduled_task_runs_open_session),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
+            IconButton(onClick = { onOpenSession(run.sessionId!!) }, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.scheduled_task_runs_open_session),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
+}
+
+// nanoMuse: 日志里 notify_suppressed_reason 的人话。
+@Composable
+private fun quietReason(code: String): String? = when (code) {
+    "empty" -> stringResource(R.string.nm_sched_quiet_empty)
+    "unchanged" -> stringResource(R.string.nm_sched_quiet_unchanged)
+    "rate_limited" -> stringResource(R.string.nm_sched_quiet_rate)
+    "debug" -> stringResource(R.string.nm_sched_quiet_debug)
+    "policy_never", "policy_on_failure" -> stringResource(R.string.nm_sched_quiet_policy)
+    "failure_alert" -> stringResource(R.string.nm_sched_quiet_failure)
+    else -> null
 }
 
 private fun formatRunTime(ms: Long): String =

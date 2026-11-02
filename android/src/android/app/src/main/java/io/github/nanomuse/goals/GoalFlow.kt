@@ -45,7 +45,7 @@ object GoalFlow {
     }
 
     private fun creationAddendum(category: GoalCategory): String = """
-        |## Creating a goal (nanoMuse)
+        |## Creating a goal (Nicholasx)
         |The user just chose to create a goal in the "${category.key}" category from the Goals tab.
         |Shape it together: ask at most three short questions, ONE message at a time,
         |in the user's language: (1) what exactly they want to achieve, (2) why it matters and by
@@ -136,6 +136,7 @@ object GoalFlow {
             val withSession = goal.copy(sessionId = sessionId)
             val task = ScheduledTaskManager(app).create(
                 ScheduledTask(
+                    origin = "builtin_goal", // nanoMuse: 目标巡检不是用户显式创建的定时会话。
                     label = context.getString(R.string.nm_goal_check_task_label, goal.title),
                     timeOfDayHour = goal.checkHour,
                     timeOfDayMinute = goal.checkMinute,
@@ -171,7 +172,7 @@ object GoalFlow {
         else "daily at %02d:%02d".format(java.util.Locale.ROOT, goal.checkHour, goal.checkMinute)
         val steps = goal.steps.mapIndexed { i, s -> "${i + 1}. ${s.text}" }.joinToString("\n").ifEmpty { "(none yet)" }
         return buildString {
-            appendLine("## This conversation tracks a goal (nanoMuse)")
+            appendLine("## This conversation tracks a goal (Nicholasx)")
             appendLine("Goal: ${goal.title}")
             if (goal.why.isNotBlank()) appendLine("Why: ${goal.why}")
             appendLine("Steps:")

@@ -28,8 +28,9 @@ class FirstRunSetupTest {
         assertFalse(FirstRunSetup.needed(signedIn = false, hasProviders = true, hasSessions = true, done = true))
         // The account alone is enough too: the relay is a provider.
         assertFalse(FirstRunSetup.needed(signedIn = true, hasProviders = false, hasSessions = true, done = true))
-        // Nothing that could answer: the setup comes back.
-        assertTrue(FirstRunSetup.needed(signedIn = false, hasProviders = false, hasSessions = true, done = true))
+        // 用户已完成或跳过引导时，供应商缺失不再阻止进入。
+        assertFalse(FirstRunSetup.needed(signedIn = false, hasProviders = false, hasSessions = true, done = true))
+        assertFalse(FirstRunSetup.needed(signedIn = false, hasProviders = false, hasSessions = false, done = true))
     }
 
     @Test

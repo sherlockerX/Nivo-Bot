@@ -21,6 +21,13 @@ data class ScheduledRun(
     // written before the field existed. Additive in the JSON, like the
     // optional fields above.
     val scheduledForMs: Long? = null,
+    val startedAtMs: Long? = null, // nanoMuse: 新字段可空以兼容旧运行记录。
+    val durationMs: Long? = null,
+    val status: String = if (ok) "succeeded" else "execution_failed",
+    val exitCode: Int? = null,
+    val runId: String? = null, // nanoMuse: 运行身份与日志共用，旧记录不补造身份。
+    val outcome: String = if (ok) "unknown" else "failure",
+    val debug: Boolean = false, // nanoMuse: 调试运行只留记录，不改变失败计数。
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("firedAt", firedAt)
@@ -29,6 +36,13 @@ data class ScheduledRun(
         put("ok", ok)
         // nanoMuse: [GH#557]
         if (scheduledForMs != null) put("scheduledForMs", scheduledForMs)
+        if (startedAtMs != null) put("startedAtMs", startedAtMs) // nanoMuse
+        if (durationMs != null) put("durationMs", durationMs)
+        put("finishedAtMs", firedAt).put("status", status)
+        if (exitCode != null) put("exitCode", exitCode)
+        if (runId != null) put("runId", runId) // nanoMuse
+        put("outcome", outcome)
+        if (debug) put("debug", true) // nanoMuse
     }
 
     companion object {
@@ -39,6 +53,12 @@ data class ScheduledRun(
             ok = o.optBoolean("ok", true),
             // nanoMuse: [GH#557]
             scheduledForMs = if (o.has("scheduledForMs")) o.optLong("scheduledForMs") else null,
+            startedAtMs = if (o.has("startedAtMs")) o.optLong("startedAtMs") else null, // nanoMuse
+            durationMs = if (o.has("durationMs")) o.optLong("durationMs") else null,
+            status = o.optString("status", if (o.optBoolean("ok", true)) "succeeded" else "execution_failed"),
+            exitCode = if (o.has("exitCode")) o.optInt("exitCode") else null,
+            runId = o.optString("runId", "").takeIf { it.isNotBlank() }, outcome = o.optString("outcome", if (o.optBoolean("ok", true)) "unknown" else "failure"), // nanoMuse
+            debug = o.optBoolean("debug"), // nanoMuse
         )
     }
 }
@@ -157,6 +177,22 @@ data class ScheduledTask(
     // in the JSON as a "times" array of "HH:MM" strings (see toJson); rows
     // written before the field existed read back with none.
     val additionalTimes: List<Pair<Int, Int>> = emptyList(),
+    val scriptId: String? = null, // nanoMuse: 显式脚本任务与旧prompt任务互不替代。
+    val consecutiveFailures: Int = 0,
+    val totalFailures: Int = 0,
+    val autoDisableOnFailure: Boolean = false,
+    val failureThreshold: Int = 5,
+    val scriptArgs: List<String> = emptyList(), // nanoMuse: 参数保持argv边界，不进行shell展开。
+    val requireOutput: Boolean = false,
+    val logStdout: Boolean = false,
+    val origin: String = "legacy",
+    val runtime: io.github.nanomuse.routines.ScheduledRuntime = io.github.nanomuse.routines.ScheduledRuntime(),
+    // nanoMuse: 结果通知。notifyPolicy 取 always | on_change | on_failure | never，默认结果不变时不重复推送。
+    val notifyPolicy: String = "on_change",
+    val notifyTitle: String? = null,
+    val notifySilent: Boolean = false,
+    val sessionOutput: Boolean = false, // nanoMuse: 脚本任务默认不建会话，开启后会话归入“定时任务”分组。
+    val debug: Boolean = false, // nanoMuse: 调试任务不推通知、不建会话、不计失败。
 ) {
 
     /**
@@ -268,6 +304,14 @@ data class ScheduledTask(
         if (modelId != null) put("modelId", modelId)
         if (modelBinding != null) put("modelBinding", modelBinding)
         put("enabled", enabled)
+        if (scriptId != null) put("scriptId", scriptId) // nanoMuse
+        put("consecutiveFailures", consecutiveFailures).put("totalFailures", totalFailures)
+        put("autoDisableOnFailure", autoDisableOnFailure).put("failureThreshold", failureThreshold)
+        put("scriptArgs", JSONArray(scriptArgs)).put("requireOutput", requireOutput).put("logStdout", logStdout) // nanoMuse
+        put("origin", origin)
+        put("notifyPolicy", notifyPolicy).put("notifySilent", notifySilent).put("sessionOutput", sessionOutput).put("debug", debug) // nanoMuse
+        if (notifyTitle != null) put("notifyTitle", notifyTitle)
+        runtime.write(this)
         put("createdAt", createdAt)
         if (startDateMs != null) put("startDateMs", startDateMs)
         if (endDateMs != null) put("endDateMs", endDateMs)
@@ -367,6 +411,17 @@ data class ScheduledTask(
                 intervalMinutes = if (o.has("intervalMinutes")) o.optInt("intervalMinutes") else null,
                 // nanoMuse: [GH#557]
                 additionalTimes = additionalTimesFromJson(o, hour, minute),
+                scriptId = o.optString("scriptId", "").takeIf { it.isNotBlank() }, // nanoMuse
+                consecutiveFailures = o.optInt("consecutiveFailures", 0),
+                totalFailures = o.optInt("totalFailures", 0),
+                autoDisableOnFailure = o.optBoolean("autoDisableOnFailure", false),
+                failureThreshold = o.optInt("failureThreshold", 5).coerceIn(2, 100),
+                scriptArgs = o.optJSONArray("scriptArgs")?.let { values -> List(values.length()) { values.getString(it) } } ?: emptyList(), // nanoMuse
+                requireOutput = o.optBoolean("requireOutput"), logStdout = o.optBoolean("logStdout"),
+                origin = o.optString("origin", "legacy"), runtime = io.github.nanomuse.routines.ScheduledRuntime.read(o),
+                notifyPolicy = o.optString("notifyPolicy", "on_change").takeIf { it in io.github.nanomuse.routines.ScheduledResultNotifier.POLICIES } ?: "on_change", // nanoMuse
+                notifyTitle = o.optString("notifyTitle", "").takeIf { it.isNotBlank() },
+                notifySilent = o.optBoolean("notifySilent"), sessionOutput = o.optBoolean("sessionOutput"), debug = o.optBoolean("debug"),
             )
         }
     }

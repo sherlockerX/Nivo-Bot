@@ -309,7 +309,7 @@ class GeminiProviderTest {
     }
 
     @Test
-    fun `streamMessage defaults to end_turn when no finishReason in SSE`() = runBlocking {
+    fun `streamMessage keeps finish reason unknown when SSE has no terminal signal`() = runBlocking {
         val sseBody = buildString {
             appendLine("""data: {"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}""")
             appendLine()
@@ -321,7 +321,8 @@ class GeminiProviderTest {
 
         val finished = chunks.filterIsInstance<LLMStreamChunk.Finished>()
         assertEquals(1, finished.size)
-        assertEquals("end_turn", finished[0].stopReason)
+        // nanoMuse: 缺少结束信号不能触发最终正文的自动朗读。
+        assertEquals(null, finished[0].stopReason)
     }
 
     @Test

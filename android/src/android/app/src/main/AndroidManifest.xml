@@ -8,6 +8,8 @@
          apps" for this package the first time they upgrade. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Mosaic: a voice call routes audio like a phone call (communication mode, earpiece or speaker). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- T-android-fgs-timeout-crash: switched from dataSync to mediaPlayback.
          dataSync has a hard 6h/24h cumulative cap on Android 14+, after
@@ -209,6 +211,8 @@
              Safe here because the UI is Compose: layout is driven by
              currentWindowAdaptiveInfo(), which recomposes on configuration
              change, so nothing depends on the recreate to re-read resources. -->
+        <!-- nanoMuse: 定时任务补偿扫描，不接收外部广播。 -->
+        <receiver android:name="io.github.nanomuse.routines.RoutineHeartbeatReceiver" android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"

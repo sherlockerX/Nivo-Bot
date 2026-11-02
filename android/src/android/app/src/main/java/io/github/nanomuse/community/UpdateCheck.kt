@@ -78,6 +78,7 @@ object UpdateCheck {
 
     /** A check when the last one is older than a day, or did not get through and is older than an hour. */
     fun refreshIfStale(context: Context) {
+        if (MOSAIC_OFFLINE) return // Mosaic: no release check
         val s = load(context)
         val age = System.currentTimeMillis() - s.checkedAt
         if (age < if (s.failed) RETRY_MS else FRESH_MS) return
@@ -88,6 +89,7 @@ object UpdateCheck {
 
     /** A check right now (the row's tap). */
     fun checkNow(context: Context) {
+        if (MOSAIC_OFFLINE) return // Mosaic: no release check
         if (!checking.compareAndSet(false, true)) return
         val app = context.applicationContext
         _state.value = load(app).copy(checking = true)

@@ -78,8 +78,9 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
             when (val sub = args.positional.firstOrNull() ?: "list") {
                 "send", "schedule" -> handleSend(args)
                 "clear" -> {
+                    if (args.get("tag") != null || args.get("package") != null) return handleCancel(args) // nanoMuse: 带限定条件的清理不能扩大为全部。
                     nm.cancelAll()
-                    NativeOffloadResult(0, OffloadOutput.formatBody("All notifications cleared.", args) + "\n")
+                    NativeOffloadResult(0, OffloadOutput.formatBody("This app's notifications cleared. Other apps are unchanged.", args) + "\n") // nanoMuse: 明确取消范围。
                 }
                 "list" -> handleList(args)
                 "pending" -> handlePending(args)
@@ -136,7 +137,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
                         OffloadPermissionManager.SettingsGateRequest(
                             id = Manifest.permission.POST_NOTIFICATIONS,
                             title = "Notifications are off",
-                            message = "nanoMuse needs notification permission to send notifications. Open Settings to allow it.",
+                            message = "Nicholasx needs notification permission to send notifications. Open Settings to allow it.",
                             settingsAction = Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                             requiresPackageUri = true,
                             positiveLabel = "Open Settings",
@@ -192,7 +193,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
         // Immediate path (apple-notification has no equivalent — UN
         // schedules with trigger=nil deliver immediately, which is what
         // our pre-T58 `send` already does).
-        val id = UUID.randomUUID().toString()
+        val id = args.get("tag")?.let { "tag:$it" } ?: UUID.randomUUID().toString() // nanoMuse: 标签通知使用稳定身份。
         val notifId = id.hashCode() and 0x7FFFFFFF
         val n = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_nanomuse) // nanoMuse: flat status-bar mark
@@ -207,7 +208,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
             // the one broken shape. Same helper both sides, see its KDoc.
             .setContentIntent(ScheduledNotificationReceiver.contentIntentFor(context, notifId))
             .build()
-        nm.notify(notifId, n)
+        if (id.startsWith("tag:")) nm.notify(id.removePrefix("tag:"), 0, n) else nm.notify(notifId, n) // nanoMuse
         // The system fans the post to bound listeners on its own thread, so
         // an immediate follow-up `list` may miss this notification. Block
         // until our listener observes it (best-effort: 2s, only when the
@@ -222,7 +223,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
         }
         AppLogger.info(TAG, "send (immediate): id=$id title='$title'")
         val oemHint = if (OsCompat.isHuawei || OsCompat.isXiaomi) {
-            "On ${OsCompat.oemLabel()}, banner notifications may be disabled by default — the user can enable them in Settings → Notifications for nanoMuse."
+            "On ${OsCompat.oemLabel()}, banner notifications may be disabled by default — the user can enable them in Settings → Notifications for Nicholasx."
         } else null
         val data = JSONObject()
             .put("id", id)
@@ -262,13 +263,14 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
             return NativeOffloadResult(2, "android-notification: trigger time is in the past\n")
         }
 
-        val id = args.get("id") ?: UUID.randomUUID().toString()
+        val id = args.get("tag")?.let { "tag:$it" } ?: args.get("id") ?: UUID.randomUUID().toString() // nanoMuse
         val requestCode = id.hashCode() and 0x7FFFFFFF
 
         val intent = Intent(context, ScheduledNotificationReceiver::class.java).apply {
             putExtra(ScheduledNotificationReceiver.EXTRA_ID, id)
             putExtra(ScheduledNotificationReceiver.EXTRA_TITLE, title)
             putExtra(ScheduledNotificationReceiver.EXTRA_BODY, body)
+            if (id.startsWith("tag:")) data = android.net.Uri.parse("nm-notification://entry/${android.net.Uri.encode(id)}") // nanoMuse: PendingIntent不能只用易碰撞的hash。
         }
         val pi = PendingIntent.getBroadcast(
             context, requestCode, intent,
@@ -312,6 +314,14 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
      * on the integer hash so the user-visible notification disappears too.
      */
     private fun handleCancel(args: OffloadArgs): NativeOffloadResult {
+        args.get("package")?.let { selectedPackage -> // nanoMuse: 跨应用操作需要已授权且已连接的监听服务。
+            if (!MinisNotificationListenerService.isEnabled(context) || !MinisNotificationListenerService.isConnected()) return NativeOffloadResult(77, "{\"status\":\"error\",\"error\":\"NOTIFICATION_ACCESS_REQUIRED\"}")
+            val active = MinisNotificationListenerService.getActiveNotifications() ?: return NativeOffloadResult(77, "{\"error\":\"LISTENER_NOT_CONNECTED\"}")
+            val keys = active.filter { it.packageName == selectedPackage && (args.get("key") == null || it.key == args.get("key")) && (args.get("tag") == null || it.tag == args.get("tag")) }.map { it.key }
+            val requested = MinisNotificationListenerService.cancelKeys(keys)
+            return NativeOffloadResult(0, JSONObject().put("scope", selectedPackage).put("cancellation_requested", requested)
+                .put("note", "The system may retain protected or ongoing notifications").toString())
+        }
         if (args.hasFlag("all")) {
             // Cancel pending: walk store, drop alarms, clear prefs.
             val all = store.loadAll()
@@ -326,10 +336,10 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
             // cancel --all semantics: nothing the user sees from us remains).
             nm.cancelAll()
             AppLogger.info(TAG, "cancel --all: pending=$n")
-            val data = JSONObject().put("cancelled", "all").put("pending_cleared", n)
+            val data = JSONObject().put("cancelled", "all").put("scope", "this_app").put("pending_cleared", n) // nanoMuse
             return NativeOffloadResult(0, OffloadOutput.formatBody(data.toString(2), args) + "\n")
         }
-        val id = args.get("id")
+        val id = args.get("tag")?.let { "tag:$it" } ?: args.get("id") // nanoMuse
             ?: return NativeOffloadResult(2, "android-notification cancel: --id <id> or --all is required\n")
 
         val entry = store.get(id)
@@ -341,7 +351,16 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
         // notifId = id.hashCode() & 0x7FFFFFFF, same convention as both
         // immediate-send and scheduled-fire.
         val notifId = id.hashCode() and 0x7FFFFFFF
-        nm.cancel(notifId)
+        if (id.startsWith("tag:")) nm.cancel(id.removePrefix("tag:"), 0) else nm.cancel(notifId) // nanoMuse
+        // nanoMuse: the app's own notifications carry an int id (and sometimes a tag) as `list` prints them;
+        // cancel those by the same identity instead of the hash of the id string.
+        val listedId = id.toIntOrNull()
+        val listedTag = args.get("tag")
+        if (listedId != null || listedTag != null) runCatching {
+            nm.activeNotifications.filter { (listedId == null || it.id == listedId) && (listedTag == null || it.tag == listedTag) }
+                .forEach { nm.cancel(it.tag, it.id) }
+        }
+        if (listedId != null) nm.cancel(listedId)
 
         AppLogger.info(TAG, "cancel: id=$id pending=${entry != null}")
         val data = JSONObject().put("cancelled", id).put("was_pending", entry != null)
@@ -351,6 +370,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
     private fun cancelAlarmFor(id: String, requestCode: Int) {
         val intent = Intent(context, ScheduledNotificationReceiver::class.java).apply {
             putExtra(ScheduledNotificationReceiver.EXTRA_ID, id)
+            if (id.startsWith("tag:")) data = android.net.Uri.parse("nm-notification://entry/${android.net.Uri.encode(id)}") // nanoMuse: 与创建时保持同一身份。
         }
         val pi = PendingIntent.getBroadcast(
             context, requestCode, intent,
@@ -455,7 +475,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
                     OffloadPermissionManager.SettingsGateRequest(
                         id = "notification_access",
                         title = "Notification access needed",
-                        message = "nanoMuse needs Notification access to read the status-bar notifications. Open Settings and enable \"nanoMuse\" under Notification access.",
+                        message = "Nicholasx needs Notification access to read the status-bar notifications. Open Settings and enable \"Nicholasx\" under Notification access.",
                         settingsAction = MinisNotificationListenerService.SETTINGS_ACTION,
                         requiresPackageUri = false,
                         positiveLabel = "Open Settings",
@@ -530,6 +550,7 @@ class NotificationOffloadHandler(private val context: Context) : NativeOffloadHa
             }
             val obj = JSONObject()
                 .put("package", pkg)
+                .put("key", sbn.key).put("tag", sbn.tag ?: JSONObject.NULL).put("id", sbn.id) // nanoMuse: 可精确定位，不混淆跨应用通知。
                 .put("app", appName)
                 .put("title", title)
                 .put("body", text)
@@ -580,7 +601,7 @@ Notes:
     fire reliably even in Doze. Requires SCHEDULE_EXACT_ALARM on
     Android 14+ (settings reports schedule_exact_allowed).
   - list needs Notification access (Settings → Apps → Special app
-    access → Notification access → nanoMuse). First list call opens it.
+    access → Notification access → Nicholasx). First list call opens it.
 """
     }
 }

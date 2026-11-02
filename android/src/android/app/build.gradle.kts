@@ -92,6 +92,10 @@ android {
     }
 
     buildTypes {
+        // nanoMuse: 隔离模拟器验收数据，正式包和现有安装均不受影响。
+        debug {
+            if (project.findProperty("nm.uiTest") == "true") applicationIdSuffix = ".uitest"
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(

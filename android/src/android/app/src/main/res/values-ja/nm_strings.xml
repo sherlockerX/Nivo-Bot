@@ -7,7 +7,7 @@
     <string name="nm_about_upstream">OpenMinis 1.13 をベースにしています</string>
     <string name="nm_about_upstream_detail">GPL-3.0 · 2026-09-24 以降に改変 · ソースは GitHub にあります</string>
     <string name="nm_about_trademark">Meta とは関係ありません</string>
-    <string name="nm_about_trademark_detail">Muse は Meta Platforms, Inc. の商標です。nanoMuse は独立した自由ソフトウェアのプロジェクトです。</string>
+    <string name="nm_about_trademark_detail">Muse は Meta Platforms, Inc. の商標です。Nicholasx は独立した自由ソフトウェアのプロジェクトです。</string>
 
     <!-- Chat header -->
     <string name="nm_avatar_content_description">あなたのエージェントです。タップして名前、アイコン、スタイルを変更できます。</string>
@@ -22,26 +22,26 @@
     <string name="nm_star_action">GitHub でスターを付ける</string>
     <string name="nm_star_later">今はしない</string>
     <string name="nm_star_done">もうスターしました</string>
-    <string name="nm_star_signed_in">ようこそ。nanoMuse は無料でオープンソース、非営利のプロジェクトです：使う人すべてのためのパーソナルエージェントです。もし価値を感じていただけたら、GitHub のスターが次の人がこれを見つける手がかりになります。</string>
+    <string name="nm_star_signed_in">ようこそ。Nicholasx は無料でオープンソース、非営利のプロジェクトです：使う人すべてのためのパーソナルエージェントです。もし価値を感じていただけたら、GitHub のスターが次の人がこれを見つける手がかりになります。</string>
     <plurals name="nm_star_tasks">
-        <item quantity="other">%1$d 件のタスクが完了しました。nanoMuse が役に立っているなら、GitHub のスターが次の人がこれを見つける助けになります。</item>
+        <item quantity="other">%1$d 件のタスクが完了しました。Nicholasx が役に立っているなら、GitHub のスターが次の人がこれを見つける助けになります。</item>
     </plurals>
-    <string name="nm_star_days_used_week">nanoMuse と過ごして 1 週間。毎日の中に居場所ができたなら、GitHub のスターが次の人がこれを見つける助けになります。</string>
-    <string name="nm_star_days_used_month">nanoMuse と過ごして 1 か月。日課の一部になったなら、GitHub のスターが試す価値があることをほかの人に伝えます。</string>
+    <string name="nm_star_days_used_week">Nicholasx と過ごして 1 週間。毎日の中に居場所ができたなら、GitHub のスターが次の人がこれを見つける助けになります。</string>
+    <string name="nm_star_days_used_month">Nicholasx と過ごして 1 か月。日課の一部になったなら、GitHub のスターが試す価値があることをほかの人に伝えます。</string>
     <plurals name="nm_star_days_used">
-        <item quantity="other">nanoMuse と過ごして %1$d 日。毎日の中に居場所ができたなら、GitHub のスターが次の人がこれを見つける助けになります。</item>
+        <item quantity="other">Nicholasx と過ごして %1$d 日。毎日の中に居場所ができたなら、GitHub のスターが次の人がこれを見つける助けになります。</item>
     </plurals>
-    <string name="nm_star_goal_done">目標を達成しました。nanoMuse がその助けになったなら、GitHub のスターで作っている人たちに伝わります。</string>
-    <string name="nm_star_new_look">新しい顔ができました。nanoMuse の進む方向が気に入ったら、GitHub のスターがより多くの人に届く助けになります。</string>
-    <string name="nm_star_exhausted">無料枠を使い切りました。ここまで使っていただきありがとうございます。nanoMuse にその価値があると思えたら、GitHub のスターが次の人の目に留まる助けになります。</string>
+    <string name="nm_star_goal_done">目標を達成しました。Nicholasx がその助けになったなら、GitHub のスターで作っている人たちに伝わります。</string>
+    <string name="nm_star_new_look">新しい顔ができました。Nicholasx の進む方向が気に入ったら、GitHub のスターがより多くの人に届く助けになります。</string>
+    <string name="nm_star_exhausted">無料枠を使い切りました。ここまで使っていただきありがとうございます。Nicholasx にその価値があると思えたら、GitHub のスターが次の人の目に留まる助けになります。</string>
     <string name="nm_chat_menu_rename">チャット名を変更</string>
 
     <!-- Foreground-service notification title while no tool is running -->
     <string name="nm_notif_working">%1$s が作業中です</string>
 
     <!-- First conversation: the scripted opening (see io.github.nanomuse.onboarding) -->
-    <string name="nm_intro_hello">こんにちは、nanoMuse です。あなたのスマートフォンの中に住んでいるアシスタントです。いくつかの用事を代わりに引き受けます。</string>
-    <string name="nm_intro_how_i_work">私の働き方について少し:\n\n- 自分のコンピューター（Linux のサンドボックスとブラウザー）を持っているので、コマンドの実行、ウェブサイトを開くこと、フォームの入力ができます。\n- マウントしてもらったファイルや写真を読んで整理し、リマインダーや予定されたタスクを引き受けます。\n- 重要な操作の前には、必ず先にあなたに確認します。\n- すべてはこの端末上で動きます。メッセージは設定したモデルに送られます。nanoMuse Cloud にサインインしていると、この会話はほかの端末にも同期されます。データ管理でオフにできます。</string>
+    <string name="nm_intro_hello">こんにちは、Nicholasx です。あなたのスマートフォンの中に住んでいるアシスタントです。いくつかの用事を代わりに引き受けます。</string>
+    <string name="nm_intro_how_i_work">私の働き方について少し:\n\n- 自分のコンピューター（Linux のサンドボックスとブラウザー）を持っているので、コマンドの実行、ウェブサイトを開くこと、フォームの入力ができます。\n- マウントしてもらったファイルや写真を読んで整理し、リマインダーや予定されたタスクを引き受けます。\n- 重要な操作の前には、必ず先にあなたに確認します。\n- すべてはこの端末上で動きます。メッセージは設定したモデルに送られます。Nicholasx Cloud にサインインしていると、この会話はほかの端末にも同期されます。データ管理でオフにできます。</string>
     <string name="nm_intro_ask_name">始める前に、あなたのことを何とお呼びすればいいですか？</string>
 
     <!-- First conversation: the name chooser -->
@@ -196,7 +196,7 @@
     <string name="nm_risk_class_outbound">送信</string>
     <string name="nm_risk_class_money">支払い</string>
     <string name="nm_risk_class_install">インストール</string>
-    <string name="nm_grants_header">nanoMuse が記憶した承認</string>
+    <string name="nm_grants_header">Nicholasx が記憶した承認</string>
     <string name="nm_grants_empty">まだ記憶した承認はありません</string>
     <string name="nm_grants_revoke">取り消す</string>
     <string name="nm_grants_revoke_confirm">この承認を取り消しますか？次に同じ操作が出てきたときは、改めて確認されます。</string>
@@ -204,7 +204,7 @@
     <string name="nm_risk_remember_money_note">画面ロックで確認します。以後、この 1 つのアプリまたはサイトでの支払いはカードなしで実行されます。設定 → 権限の先頭に表示され、いつでも取り消せます。</string>
     <string name="nm_risk_remember_money_needs_lock">支払いを記憶するには、まず画面ロックを設定してください（設定 → セキュリティ）。記憶する際にそれで確認します。</string>
     <string name="nm_risk_lock_title">本人確認</string>
-    <string name="nm_risk_lock_subtitle">nanoMuse は %1$s での支払いの承認を記憶し、確認せずに実行します。</string>
+    <string name="nm_risk_lock_subtitle">Nicholasx は %1$s での支払いの承認を記憶し、確認せずに実行します。</string>
     <string name="nm_risk_remembered_toast">記憶しました · 取り消すには設定 → 権限へ</string>
     <string name="nm_risk_tier_highest">確認なしで実行 · 支払い</string>
     <string name="nm_risk_tier_confirm">カードから記憶 · 削除と送信</string>
@@ -212,46 +212,17 @@
     <string name="nm_grants_footer_tiers">重要度ごとにまとめています。先頭は支払い: 画面ロックで確認したその 1 つのアプリまたはサイトでだけ、カードなしで実行されます。削除と送信は、カードの「… では常に許可」から記憶したものです。インストールは確認せず、あとから知らせます。どの行もタップすると取り消せます。次に出てきたときは改めて確認されます。</string>
 
     <!-- 0.1.5: feed -->
-    <string name="nm_tab_feed">フィード</string>
-    <string name="nm_feed_session_title">フィード</string>
-    <string name="nm_feed_routine_label">フィードを書く</string>
-    <string name="nm_feed_prompt">今日のフィードを書いてください。</string>
-    <string name="nm_feed_default_preferences">私が関心を持っていることについてのフィードを作ってください。短く率直に、ざっと読めるように。釣り見出しはなしで。</string>
-    <string name="nm_feed_intro_title">フィードについて</string>
-    <string name="nm_feed_intro_desc">エージェントが覚えていること（メモリファイル、直近 1 週間の日記、あなたの目標）から書く短い投稿です。下の一文が今後のすべての投稿の方針になります。いつでも編集できます。</string>
-    <string name="nm_feed_edit">編集</string>
-    <string name="nm_feed_got_it">わかりました</string>
     <string name="nm_feed_save">保存</string>
-    <string name="nm_feed_settings_title">フィード</string>
     <string name="nm_feed_routine_switch">毎日書く</string>
     <string name="nm_feed_routine_time">毎日 %1$s · タップして変更</string>
-    <string name="nm_feed_routine_needs_model">まずモデルを追加してください。フィードはエージェントが書きます。</string>
-    <string name="nm_feed_write_now">今すぐ書く</string>
-    <string name="nm_feed_generating">書いています…</string>
     <string name="nm_feed_discuss">話し合う</string>
-    <string name="nm_feed_discuss_opener">フィードのこの投稿について:\n\n**%1$s**\n\n%2$s</string>
     <string name="nm_feed_delete">この投稿を削除</string>
     <string name="nm_feed_info_type">種類</string>
     <string name="nm_feed_info_written">作成日時</string>
     <string name="nm_feed_info_source">出典</string>
     <string name="nm_feed_info_file">ファイル</string>
-    <string name="nm_feed_type_brief">ブリーフィング</string>
-    <string name="nm_feed_type_reminder">リマインダー</string>
-    <string name="nm_feed_type_idea">アイデア</string>
-    <string name="nm_feed_type_goal">目標</string>
-    <string name="nm_feed_type_memory">メモリ</string>
-    <string name="nm_feed_type_note">メモ</string>
-    <string name="nm_feed_empty_title">フィードにはまだ何もありません</string>
-    <string name="nm_feed_empty_body">お互いを知っていくにつれて、新しい投稿がここに表示されます。毎日 %1$s に、あなたについて覚えていること（メモリファイル、直近 1 週間の日記、あなたの目標）を読み返して、短い投稿をいくつか書きます。</string>
-    <string name="nm_feed_empty_how_title">一文で方向づける</string>
-    <string name="nm_feed_empty_how_body">右上のスライダーをタップして、もっと読みたいことを伝えたり、毎日のルーティンをオフにしたり、最初の 1 日分を今すぐ書かせたりできます。</string>
-    <string name="nm_feed_card_posted">フィードに追加しました</string>
     <string name="nm_feed_card_open">開く</string>
-    <string name="nm_feed_day_today">%1$s %2$s</string>
     <string name="nm_feed_day_past">%1$s · %2$s</string>
-    <string name="nm_feed_part_morning">午前</string>
-    <string name="nm_feed_part_afternoon">午後</string>
-    <string name="nm_feed_part_evening">夜</string>
     <string-array name="nm_weekdays">
         <item>月曜日</item>
         <item>火曜日</item>
@@ -275,10 +246,9 @@
     <string name="nm_sysfiles_open_memory">メモリを開く</string>
     <string name="nm_sysfiles_footer">これらはエージェントのファイルです: 自分が何者か、あなたについて知っていること、覚えていること、あなたのために書くもの、そしていつ目を覚ますか。端末のストレージにあり、エージェントは自分のシェルから /var/minis/memory 以下を読み書きします。ここで何でも編集できます。</string>
     <string name="nm_sysfile_about_lead">このファイルについて。</string>
-    <string name="nm_sysfile_about_soul">これはエージェントのペルソナです: すべての会話で守ろうとする価値観と習慣、名前、答え方のスタイル。nanoMuse に付属するテンプレートから始まり、エージェントが時間とともに手を入れることがあり、そのときは知らせます。いつでも編集できます。この注記はファイルの一部ではありません。</string>
+    <string name="nm_sysfile_about_soul">これはエージェントのペルソナです: すべての会話で守ろうとする価値観と習慣、名前、答え方のスタイル。Nicholasx に付属するテンプレートから始まり、エージェントが時間とともに手を入れることがあり、そのときは知らせます。いつでも編集できます。この注記はファイルの一部ではありません。</string>
     <string name="nm_sysfile_about_user">エージェントがあなたについての作業メモとして持つファイルです: 名前、呼ばれ方の好み、タイムゾーン、そして役に立つために必要な文脈：今取り組んでいることなど。会話から少しずつ書き足し、毎回の会話の始めに読みます。エージェントの現時点の理解を映すものなので、不完全だったり古かったりすることがあります。ここで何でも編集でき、エージェントは書かれたことに従います。この注記はファイルの一部ではありません。</string>
     <string name="nm_sysfile_about_memory">エージェントが会話をまたいで持ち続ける長期的なメモです：覚えておく価値のあることをエージェント自身の言葉で、それにほかのアシスタントから取り込んだものを加えたもの。日々の日記はメモリフォルダの隣にあります。メモリがオンのときは毎回の会話の始めに読まれます。この注記はファイルの一部ではありません。</string>
-    <string name="nm_sysfile_about_feed">フィードの方向を決める一段落です: もっと読みたいこと、省くこと、投稿の長さ。毎日のフィードルーティンが書く前に読みます。この注記はファイルの一部ではありません。</string>
     <string name="nm_sysfile_about_heartbeat">エージェントが自分で目を覚ますとき: すべてのルーティンと目標の確認、そのスケジュールと前回の実行結果。ルーティンから生成されるためここでは読み取り専用です。変更は目標 → ルーティンから行ってください。この注記はファイルの一部ではありません。</string>
     <string name="nm_sysfile_edit">編集</string>
     <string name="nm_sysfile_copy">内容をコピー</string>
@@ -366,7 +336,7 @@
     <string name="nm_own_clip_title">自分の動画</string>
     <string name="nm_own_clip_body">自分の短い動画が待機中の顔として再生され、他の状態でも同じ動画が使われます。H.264 の MP4 または MOV、最長 15 秒、最大 30 MB。無音でループ再生されます。</string>
     <string name="nm_own_clip_on">自分の動画が有効で、すべての状態で再生されます。静止画が使われる場所では描かれた画像がそのまま使われます。「標準の顔」で取り除けます。</string>
-    <string name="nm_own_clip_local">動画はこの端末にだけ保存されます。nanoMuse Cloud にアップロードされず、他の端末にも同期されません。</string>
+    <string name="nm_own_clip_local">動画はこの端末にだけ保存されます。Nicholasx Cloud にアップロードされず、他の端末にも同期されません。</string>
     <string name="nm_own_clip_choose">動画を選ぶ</string>
     <string name="nm_own_clip_replace">動画を差し替える</string>
     <string name="nm_own_clip_default">標準の顔</string>
@@ -384,7 +354,7 @@
     <string name="nm_a11y_own_clip_preview">自分の動画のプレビュー</string>
 
     <!-- First run (Muse-style welcome; the steps are OpenMinis' provider and model screens) -->
-    <string name="nm_setup_title">nanoMuse へようこそ</string>
+    <string name="nm_setup_title">Nicholasx へようこそ</string>
     <string name="nm_setup_step_models">モデルを選ぶ</string>
     <string name="nm_setup_step_models_sub">プロバイダが提供するモデルを一覧にします。最大 3 つ選べます</string>
     <string name="nm_setup_step_start">%1$s に会う</string>
@@ -400,7 +370,7 @@
     <string name="nm_settings_no_model">モデルがまだありません</string>
     <string name="nm_settings_no_model_sub">プロバイダを追加してモデルを選んでください</string>
     <string name="nm_settings_change_model">変更</string>
-    <string name="nm_settings_version">nanoMuse %1$s (%2$d)</string>
+    <string name="nm_settings_version">Nicholasx %1$s (%2$d)</string>
     <string name="nm_version_title">バージョン</string>
     <string name="nm_version_checking">最新リリースを確認しています…</string>
     <string name="nm_version_have">最新の %1$s、お使いのものです</string>
@@ -480,7 +450,7 @@
     <string name="nm_avatar_share_title">アバターを共有する</string>
     <string name="nm_avatar_share_subtitle">カードを選んでください。システムの共有シートから送られます。</string>
     <string name="nm_avatar_share_system">共有</string>
-    <string name="nm_avatar_share_bubble">こんにちは、%1$s です。パーソナル AI エージェントです。nanoMuse をどうぞ：オープンソースで、スマートフォンの上で動きます。</string>
+    <string name="nm_avatar_share_bubble">こんにちは、%1$s です。パーソナル AI エージェントです。Nicholasx をどうぞ：オープンソースで、スマートフォンの上で動きます。</string>
     <string name="nm_avatar_share_tagline">あなたのパーソナル AI エージェント、オープンソース · github.com/nano-muse/nanoMuse</string>
 
     <!-- 0.1.10 · Motion -->
@@ -532,7 +502,7 @@
     <string name="nm_hands_section_needs">必要なもの</string>
     <string name="nm_hands_needs_footer">ユーザー補助サービスがスクリーンショットを撮り、ジェスチャーを行います。画面の内容は読み取りません。他のアプリの上に重ねて表示する権限はカプセルのためです。</string>
     <string name="nm_hands_need_a11y">ユーザー補助サービス</string>
-    <string name="nm_hands_need_a11y_fix">ユーザー補助の設定の「インストール済みアプリ」で nanoMuse をオンにしてください</string>
+    <string name="nm_hands_need_a11y_fix">ユーザー補助の設定の「インストール済みアプリ」で Nicholasx をオンにしてください</string>
     <string name="nm_hands_need_overlay">他のアプリの上に重ねて表示</string>
     <string name="nm_hands_need_overlay_fix">停止ボタン付きのカプセルを表示できるよう許可してください</string>
     <string name="nm_hands_need_model">画像を見られるモデル</string>
@@ -549,7 +519,7 @@
     <string name="nm_hands_why_default">自分のキーでのハンズの既定</string>
     <string name="nm_hands_why_chat">選んだチャットモデル</string>
     <string name="nm_hands_why_group">既定グループで最初に画面を見られるもの</string>
-    <string name="nm_hands_why_menu">nanoMuse Cloud の画面モデル</string>
+    <string name="nm_hands_why_menu">Nicholasx Cloud の画面モデル</string>
     <string name="nm_hands_why_vision_group">ビジョングループ</string>
     <string name="nm_hands_why_any">有効なモデルのうち画面を見られる唯一のもの</string>
     <string name="nm_hands_section_rules">ふるまい</string>
@@ -570,7 +540,7 @@
     <string name="nm_hands_protected_screen">この画面は保護されていて読み取れません。この部分はご自身で済ませてから、「続ける」をタップしてください。</string>
     <string name="nm_hands_secret_field">パスワードまたはコードの入力欄です：ご自身で入力してから、「続ける」をタップしてください。</string>
     <string name="nm_hands_approval_title">承認を待っています</string>
-    <string name="nm_hands_approval_detail">「%1$s」をタップ：nanoMuse で確認してください（画面ロックを求められます）。</string>
+    <string name="nm_hands_approval_detail">「%1$s」をタップ：Nicholasx で確認してください（画面ロックを求められます）。</string>
     <string name="nm_hands_approval_here">「%1$s」をタップしますか？</string>
     <string name="nm_hands_allow_once">許可</string>
     <string name="nm_hands_deny">拒否</string>
@@ -601,10 +571,10 @@
     <!-- Reach (0.1.13): the phone drives your computer -->
     <string name="nm_pc_title">コンピューター</string>
     <string name="nm_pc_none_short">なし</string>
-    <string name="nm_pc_intro">ここで言えば、コンピューターで実行されます: コマンド、ファイル、そのブラウザーのページ、画面の確認、あるいはそこにある nanoMuse へのタスク全体。スマートフォンがコンピューターを動かし、その逆はありません。承認はすべてまずここで決まります。</string>
-    <string name="nm_pc_hub_title">簡単な方法: 同じアカウントで nanoMuse Desktop</string>
-    <string name="nm_pc_hub_body">コンピューターに nanoMuse Desktop をインストールし、この端末のアカウントでサインインしてください。数秒でアカウント → デバイスに表示されます。</string>
-    <string name="nm_pc_hub_download">nanoMuse Desktop を入手</string>
+    <string name="nm_pc_intro">ここで言えば、コンピューターで実行されます: コマンド、ファイル、そのブラウザーのページ、画面の確認、あるいはそこにある Nicholasx へのタスク全体。スマートフォンがコンピューターを動かし、その逆はありません。承認はすべてまずここで決まります。</string>
+    <string name="nm_pc_hub_title">簡単な方法: 同じアカウントで Nicholasx Desktop</string>
+    <string name="nm_pc_hub_body">コンピューターに Nicholasx Desktop をインストールし、この端末のアカウントでサインインしてください。数秒でアカウント → デバイスに表示されます。</string>
+    <string name="nm_pc_hub_download">Nicholasx Desktop を入手</string>
     <string name="nm_pc_hub_account">アカウントとデバイス</string>
     <string name="nm_pc_section_paired">このアカウントのコンピューター</string>
     <string name="nm_pc_none">コンピューターはまだありません</string>
@@ -613,11 +583,11 @@
     <string name="nm_pc_last_seen">最終確認 %1$s</string>
     <string name="nm_pc_offline">オフライン</string>
     <string name="nm_pc_online">オンライン</string>
-    <string name="nm_pc_account_none">この端末はまだ nanoMuse Cloud にサインインしていません。まずここでサインインし、次にコンピューターで同じアカウントを使ってください。</string>
+    <string name="nm_pc_account_none">この端末はまだ Nicholasx Cloud にサインインしていません。まずここでサインインし、次にコンピューターで同じアカウントを使ってください。</string>
     <string name="nm_pc_account_hint">この端末は %1$s としてサインインしています。コンピューターも同じアカウントでサインインする必要があります。</string>
     <string name="nm_pc_checking">確認中…</string>
     <string name="nm_pc_answering">%1$s が応答しました</string>
-    <string name="nm_pc_not_answering">%1$s が応答しません。そちらで nanoMuse Desktop はまだ動いていますか？</string>
+    <string name="nm_pc_not_answering">%1$s が応答しません。そちらで Nicholasx Desktop はまだ動いていますか？</string>
 
     <!-- the approval card -->
     <string name="nm_risk_desc_on_computer">この端末ではなく、コンピューター「%1$s」で実行されます。</string>
@@ -639,7 +609,7 @@
     <string name="nm_welcome_fine_print">1 つのアカウントでデバイスがつながり、無料のモデル利用も付いてきます。料金はかかりません。自分の API キーはすぐあとで追加できます。</string>
     <string name="nm_setup_source_title">どのモデルが答えますか？</string>
     <string name="nm_setup_source_sub">アカウントにはすでにモデルが付いています。自分の API キーも追加でき、いつでも切り替えられます。</string>
-    <string name="nm_setup_source_cloud">nanoMuse Cloud のモデルを使う</string>
+    <string name="nm_setup_source_cloud">Nicholasx Cloud のモデルを使う</string>
     <string name="nm_setup_source_cloud_sub">チャットは DeepSeek、ハンズは Qwen。開発者が負担する無料枠がアカウントごとに付きます。設定は不要です。</string>
     <string name="nm_setup_source_own_sub">OpenAI、Anthropic、DeepSeek、百煉、その他の OpenAI 互換エンドポイント。キーはこの端末に残ります。</string>
     <string name="nm_setup_source_fine_print">両者は競合しません: Cloud のモデルはそのまま使え、モデルグループごとに選べます。</string>
@@ -652,15 +622,15 @@
     <string name="nm_welcome_feat_hands">ハンズ: スマートフォンを使います</string>
     <string name="nm_welcome_feat_hands_sub">列車の予約、食事の注文、アプリ内での調べもの。あなたは見守り、いつでも止められます</string>
     <string name="nm_welcome_feat_reach">リーチ: ここからコンピューターへ</string>
-    <string name="nm_welcome_feat_reach_sub">Mac、Windows、Linux のマシンに nanoMuse Desktop を入れて同じアカウントでサインインすれば、スマートフォンから仕事を任せられます</string>
-    <string name="nm_welcome_notice">nanoMuse は非営利のオープンソースコミュニティプロジェクトです：ずっと無料です。モデルには開発者が負担する無料枠が付き、その後は自分のキーを使います。何も売りません。リレーが保持するものはプライバシーポリシーに書かれ、設定 → データ管理はあなたのものです。</string>
+    <string name="nm_welcome_feat_reach_sub">Mac、Windows、Linux のマシンに Nicholasx Desktop を入れて同じアカウントでサインインすれば、スマートフォンから仕事を任せられます</string>
+    <string name="nm_welcome_notice">Nicholasx は非営利のオープンソースコミュニティプロジェクトです：ずっと無料です。モデルには開発者が負担する無料枠が付き、その後は自分のキーを使います。何も売りません。リレーが保持するものはプライバシーポリシーに書かれ、設定 → データ管理はあなたのものです。</string>
     <string name="nm_welcome_hands_title">スマートフォンを使わせる</string>
     <string name="nm_welcome_hands_sub">2 つの権限で、アプリを開き、タップし、入力を代わりに行えます。各ステップと停止ボタンの付いたカプセルが画面に残ります。ログイン、パスワード、コードは常にあなたのものです。</string>
     <string name="nm_welcome_hands_turn_on">オンにする</string>
     <string name="nm_welcome_skip">今はスキップ</string>
     <string name="nm_welcome_hands_fine_print">これらがなくてもほかの機能はすべて使えます。必要になったら設定 → ハンズにあります。</string>
     <string name="nm_welcome_meet_fine_print">取り消せない操作（削除、送信、支払い）の前には、立ち止まってまずあなたに確認します。</string>
-    <string name="nm_cloud_signin_title">nanoMuse Cloud で始める</string>
+    <string name="nm_cloud_signin_title">Nicholasx Cloud で始める</string>
     <string name="nm_cloud_signin_subtitle">スマートフォンかメールにコードを送ります。パスワードを設定済みならそれでも。</string>
     <string name="nm_cloud_mode_code">コードで</string>
     <string name="nm_cloud_mode_password">パスワードで</string>
@@ -685,7 +655,7 @@
     <string name="nm_cloud_server_https">自分のネットワークの外にあるサーバーには https を使ってください。プライベートアドレス（10.x、192.168.x、172.16-31.x、localhost、.local や .ts.net の名前）なら http でかまいません。</string>
     <string name="nm_lan_only_https">暗号化なしの http:// は自分のネットワーク内のアドレス（10.x、172.16-31.x、192.168.x、.local 名）にだけ使えます。%1$s には https:// を使ってください。</string>
     <string name="nm_cloud_server_unreachable">%1$s からリレーの応答がありません。アドレスと、リレーが動いているかを確認してください。</string>
-    <string name="nm_cloud_server_default">nanoMuse Cloud に戻す</string>
+    <string name="nm_cloud_server_default">Nicholasx Cloud に戻す</string>
     <string name="nm_cloud_server_row">サーバー</string>
     <string name="nm_cloud_server_change">変更</string>
     <string name="nm_cloud_server_change_confirm">この端末のキーは今のサーバーのものです。まずここでサインアウトし、サインイン画面から別のサーバーにサインインしてください。</string>
@@ -706,11 +676,11 @@
     <string name="nm_cloud_used_today_open">今日 %1$s</string>
     <string name="nm_cloud_refresh">残高を更新</string>
     <string name="nm_cloud_refreshing">更新中…</string>
-    <string name="nm_cloud_how_it_works">nanoMuse Cloud はこのアプリでは普通のプロバイダの 1 つです: そのモデルはプロバイダに一覧され、モデルグループで自分のものと混ぜて使えます。</string>
+    <string name="nm_cloud_how_it_works">Nicholasx Cloud はこのアプリでは普通のプロバイダの 1 つです: そのモデルはプロバイダに一覧され、モデルグループで自分のものと混ぜて使えます。</string>
     <string name="nm_cloud_open_provider">プロバイダ設定</string>
     <string name="nm_cloud_sign_out">サインアウト</string>
     <string name="nm_cloud_sign_out_sub">この端末のキーは失効し、Cloud プロバイダは削除されます。無料枠はアカウントに残ります。</string>
-    <string name="nm_cloud_sign_out_confirm">nanoMuse Cloud プロバイダとそのモデルがこの端末から削除されます。</string>
+    <string name="nm_cloud_sign_out_confirm">Nicholasx Cloud プロバイダとそのモデルがこの端末から削除されます。</string>
     <string name="nm_cloud_row_remaining">残り %1$s</string>
     <string name="nm_cloud_row_sign_in">サインイン</string>
     <string name="nm_cloud_err_bad_identifier">メールアドレスの形式ではないようです。</string>
@@ -728,7 +698,7 @@
     <string name="nm_cloud_err_allowance_abroad">無料枠を使い切りました。友だちを招待する（お互いに +¥%1$s）か、設定 → プロバイダで自分のキーを追加してください。OpenRouter が手早い方法です: 1 つのアカウント、1 つのキー、従量課金。</string>
     <string name="nm_cloud_warn_line">無料枠が残りわずかです: ¥%2$s 中 ¥%1$s が残っています。友だちを招待する（お互いに +¥%3$s）か、自分のキーを追加してください、どちらもアカウントにあります。</string>
     <string name="nm_cloud_err_rate_limited">一度に多くのリクエストが集中しています。少しお待ちください。</string>
-    <string name="nm_cloud_err_unreachable">nanoMuse Cloud に接続できません。接続を確認してください。</string>
+    <string name="nm_cloud_err_unreachable">Nicholasx Cloud に接続できません。接続を確認してください。</string>
     <string name="nm_cloud_err_generic">問題が起きました。</string>
     <string name="nm_cloud_err_bad_credentials">メールアドレスまたはパスワードが違います。</string>
     <string name="nm_cloud_err_no_password">このアカウントにはまだパスワードがありません。コードでサインインしてから、アカウントで設定してください。</string>
@@ -744,10 +714,10 @@
     <string name="nm_cloud_err_content_rejected">モデル提供元のコンテンツ審査がこのリクエストを通しませんでした。言い方を変えてみてください。続くようなら新しいチャットを始めてください。問題とされた言葉は会話のもっと前にあることもあります。</string>
     <string name="nm_cloud_err_provider_busy">モデル提供元が混み合っています。少ししてからもう一度お試しください。</string>
     <string name="nm_cloud_err_provider_busy_wait">モデル提供元が混み合っています。%1$s 後にもう一度お試しください。</string>
-    <string name="nm_cloud_err_model_not_offered">nanoMuse Cloud ではそのモデルの提供を終了しました。設定 → nanoMuse Cloud で別のモデルを選んでください。</string>
-    <string name="nm_cloud_err_relay_down">nanoMuse Cloud から応答がありませんでした。少ししてからもう一度お試しください。</string>
-    <string name="nm_cloud_err_allowance_paused">このリレーでは無料枠を一時停止しているだけで、使い切ったわけではありません。設定 → nanoMuse Cloud で自分のキーを追加するか、すでに契約しているプランでサインインしてください。サインイン、デバイス、残りの枠はそのまま残ります。</string>
-    <string name="nm_cloud_err_service_paused">nanoMuse Cloud は運営者により一時停止中です。サインインとデータは保持されます。後でもう一度お試しください。</string>
+    <string name="nm_cloud_err_model_not_offered">Nicholasx Cloud ではそのモデルの提供を終了しました。設定 → Nicholasx Cloud で別のモデルを選んでください。</string>
+    <string name="nm_cloud_err_relay_down">Nicholasx Cloud から応答がありませんでした。少ししてからもう一度お試しください。</string>
+    <string name="nm_cloud_err_allowance_paused">このリレーでは無料枠を一時停止しているだけで、使い切ったわけではありません。設定 → Nicholasx Cloud で自分のキーを追加するか、すでに契約しているプランでサインインしてください。サインイン、デバイス、残りの枠はそのまま残ります。</string>
+    <string name="nm_cloud_err_service_paused">Nicholasx Cloud は運営者により一時停止中です。サインインとデータは保持されます。後でもう一度お試しください。</string>
     <string name="nm_cloud_err_sync_paused">このリレーでは会話の同期を一時停止しています。保存済みの内容は残り、各デバイスは単独で動き続けます。</string>
     <string name="nm_cloud_err_hub_paused">このリレーではデバイス間の連携を一時停止しています。各デバイスは単独で動き続けます。</string>
     <string name="nm_refusal_relay_says">リレーからの説明: %1$s</string>
@@ -791,7 +761,7 @@
     <string name="nm_cloud_invite_share">リンクを共有</string>
     <string name="nm_cloud_invite_copy">コピー</string>
     <string name="nm_cloud_invite_copied">コピーしました</string>
-    <string name="nm_cloud_invite_share_text">一緒に nanoMuse を試しませんか：完全オープンソースのパーソナルエージェントで、無料で使えます。私のコード %1$s で登録してください: %2$s</string>
+    <string name="nm_cloud_invite_share_text">一緒に Nicholasx を試しませんか：完全オープンソースのパーソナルエージェントで、無料で使えます。私のコード %1$s で登録してください: %2$s</string>
     <string name="nm_cloud_invite_count">%1$d 人の友だちが参加</string>
     <string name="nm_cloud_invite_earned">招待で ¥%1$s 追加</string>
     <string name="nm_cloud_invite_have">招待コードをお持ちですか？</string>
@@ -832,8 +802,8 @@
     <string name="nm_cloud_ev_contribute_deleted">データ管理: 保持していた会話を削除しました</string>
     <string name="nm_cloud_ev_contribute_default">データ管理: 新規アカウントではオン</string>
     <string name="nm_data_title">データ管理</string>
-    <string name="nm_data_improve">nanoMuse の AI モデルの改善に協力する</string>
-    <string name="nm_data_why">オンの間、nanoMuse Cloud のモデルとのチャットのテキスト（あなたが書いたこと、モデルの答え、モデルが呼ぶことにしたツール）がリレーに保持され、コミュニティ自身のオープンモデルの学習に使われます。メモリや SOUL（システムプロンプト）、ツールが返した内容、画像は含まれず、あなたが誰かと結び付けられることもありません。自分の API キーがリレーを通ることはありません。</string>
+    <string name="nm_data_improve">Nicholasx の AI モデルの改善に協力する</string>
+    <string name="nm_data_why">オンの間、Nicholasx Cloud のモデルとのチャットのテキスト（あなたが書いたこと、モデルの答え、モデルが呼ぶことにしたツール）がリレーに保持され、コミュニティ自身のオープンモデルの学習に使われます。メモリや SOUL（システムプロンプト）、ツールが返した内容、画像は含まれず、あなたが誰かと結び付けられることもありません。自分の API キーがリレーを通ることはありません。</string>
     <string name="nm_data_default_on">新規アカウントではオンで始まります。</string>
     <string name="nm_data_default_off">新規アカウントではオフで始まります。</string>
     <string name="nm_data_kept">これまでに %1$d ターンを保持。</string>
@@ -843,7 +813,7 @@
     <string name="nm_data_delete_sub">スイッチのオン・オフにかかわらず、このアカウントから保持したすべてのターンを削除します。スイッチをオフにしても、ここで削除するまで保持済みのものは残ります。</string>
     <string name="nm_data_delete_confirm">保持している会話がサーバーから削除されます。元に戻せません。</string>
     <string name="nm_data_deleted">%1$d ターンを削除しました。</string>
-    <string name="nm_data_sign_in">使うには nanoMuse Cloud にサインインしてください。</string>
+    <string name="nm_data_sign_in">使うには Nicholasx Cloud にサインインしてください。</string>
     <string name="nm_data_privacy">プライバシーポリシー</string>
     <string name="nm_data_status_on">オン</string>
     <string name="nm_data_status_off">オフ</string>
@@ -891,7 +861,7 @@
     <!-- 0.1.20: the coding agents on the account's computers -->
     <string name="nm_coding_title">コーディングエージェント</string>
     <string name="nm_coding_intro">コンピューター上の Cursor、Codex、Claude Code: それらのセッション、最後の返信、そしてどれかへのメッセージをここから。それらのものがスマートフォンにコピーされることはありません。</string>
-    <string name="nm_coding_no_computer">コーディングエージェントのあるコンピューターがオンラインではありません。Cursor、Codex、Claude Code がインストールされているコンピューターで、このアカウントでサインインして nanoMuse を実行してください。</string>
+    <string name="nm_coding_no_computer">コーディングエージェントのあるコンピューターがオンラインではありません。Cursor、Codex、Claude Code がインストールされているコンピューターで、このアカウントでサインインして Nicholasx を実行してください。</string>
     <string name="nm_coding_account_hint">この端末は %1$s としてサインインしています。コンピューターも同じアカウントを使う必要があります。</string>
     <string name="nm_coding_refresh">更新</string>
     <string name="nm_coding_all">すべて</string>
@@ -925,13 +895,13 @@
     <string name="nm_cloud_tokens_line">累計 %1$s トークン · 今日 %2$s</string>
     <string name="nm_cloud_notice_title">無料、オープンソース、非営利</string>
     <string name="nm_cloud_notice_closing">バグを見つけた、機能がほしい、パッチがある？GitHub のリポジトリへどうぞ。</string>
-    <string name="nm_cloud_notice">nanoMuse は非営利のオープンソースコミュニティプロジェクトです：ずっと無料です。モデルには開発者が負担する無料枠が付き、その後は自分のキーを使います。何も売りません。リレーが保持するものはプライバシーポリシーに書かれ、設定 → データ管理はあなたのものです。アカウントはいつでも削除できます。</string>
+    <string name="nm_cloud_notice">Nicholasx は非営利のオープンソースコミュニティプロジェクトです：ずっと無料です。モデルには開発者が負担する無料枠が付き、その後は自分のキーを使います。何も売りません。リレーが保持するものはプライバシーポリシーに書かれ、設定 → データ管理はあなたのものです。アカウントはいつでも削除できます。</string>
 
     <!-- nanoMuse: devices on the hub -->
     <string name="nm_hub_channel">デバイスからのメッセージ</string>
     <string name="nm_hub_service_channel">デバイスと接続中</string>
-    <string name="nm_hub_service_title">nanoMuse · デバイスから到達可能</string>
-    <string name="nm_hub_service_connecting">nanoMuse Cloud に接続しています…</string>
+    <string name="nm_hub_service_title">Nicholasx · デバイスから到達可能</string>
+    <string name="nm_hub_service_connecting">Nicholasx Cloud に接続しています…</string>
     <string name="nm_hub_service_alone">今はほかにオンラインのデバイスがありません</string>
     <plurals name="nm_hub_service_devices">
         <item quantity="other">%d 台のデバイスがオンライン</item>
@@ -951,7 +921,7 @@
     <string name="nm_devices_connected">接続済み</string>
     <string name="nm_devices_connecting">接続中…</string>
     <string name="nm_devices_off">オフ</string>
-    <string name="nm_devices_none">ほかのデバイスはまだありません。コンピューターに nanoMuse Desktop をインストールして同じアカウントでサインインすると、数秒でここに表示されます。</string>
+    <string name="nm_devices_none">ほかのデバイスはまだありません。コンピューターに Nicholasx Desktop をインストールして同じアカウントでサインインすると、数秒でここに表示されます。</string>
     <string name="nm_devices_online">オンライン</string>
     <string name="nm_devices_offline">オフライン</string>
     <string name="nm_devices_web">ウェブコンソール</string>
@@ -970,7 +940,7 @@
     <string name="nm_hub_err_not_controllable">そのデバイスには用事を頼めません。</string>
     <string name="nm_hub_err_unknown_agent">そのコーディングエージェントはコンピューターにありません。</string>
     <string name="nm_hub_err_no_session">そのセッションはもうコンピューターにありません。</string>
-    <string name="nm_hub_err_unknown_action">コンピューターの nanoMuse が古く、この操作を知りません。</string>
+    <string name="nm_hub_err_unknown_action">コンピューターの Nicholasx が古く、この操作を知りません。</string>
     <string name="nm_hub_err_bad_key">リレーでサインアウトされました。もう一度サインインしてください。</string>
     <string name="nm_hub_err_generic">コンピューターで実行できませんでした。</string>
     <string name="nm_devices_refused">リレーに拒否されました。もう一度サインインしてください</string>
@@ -989,7 +959,7 @@
     <string name="nm_connectors_sign_in">サインイン</string>
     <string name="nm_connectors_disconnect">接続を解除</string>
     <string name="nm_connectors_docs">このサーバーについてのベンダーのページ</string>
-    <string name="nm_connectors_how_oauth">ブラウザーで %1$s のアカウントにサインインします。nanoMuse が自分でサービスに登録するので、入力するものはありません。トークンはこの端末に残ります。</string>
+    <string name="nm_connectors_how_oauth">ブラウザーで %1$s のアカウントにサインインします。Nicholasx が自分でサービスに登録するので、入力するものはありません。トークンはこの端末に残ります。</string>
     <string name="nm_connectors_how_key">サービスからのキーが必要です: %1$s。この端末の MCP 項目にだけ保存されます。</string>
     <string name="nm_connectors_how_none">誰でも使えます。サインインは不要です。</string>
     <string name="nm_connectors_how_auto">サーバーに何が必要かをまず確認します: 不要、サインイン、またはキー。</string>
@@ -1033,13 +1003,13 @@
 
     <!-- Conversation sync between the account's devices (contract C7) -->
     <string name="nm_sync_title">デバイス間で会話を同期</string>
-    <string name="nm_sync_caption">チャットのテキストを nanoMuse Cloud に保持し、すべてのデバイスで同じ会話を表示します。ファイルと画像は作られたデバイスに残ります。</string>
+    <string name="nm_sync_caption">チャットのテキストを Nicholasx Cloud に保持し、すべてのデバイスで同じ会話を表示します。ファイルと画像は作られたデバイスに残ります。</string>
     <string name="nm_sync_sign_in">同期するにはサインイン</string>
     <string name="nm_sync_on_toast">オンにしました。この端末の会話を送信しています。</string>
     <string name="nm_sync_off_toast">オフにしました。保持されていたものは削除されました。</string>
     <string name="nm_sync_delete">同期した会話を削除</string>
-    <string name="nm_sync_delete_sub">会話のテキストを nanoMuse Cloud から削除します。各デバイスはすでに持っているものを保持し、同期はオンのままです。</string>
-    <string name="nm_sync_delete_confirm">nanoMuse Cloud に保持されている会話が削除されます。デバイス上のチャットはそのまま残ります。</string>
+    <string name="nm_sync_delete_sub">会話のテキストを Nicholasx Cloud から削除します。各デバイスはすでに持っているものを保持し、同期はオンのままです。</string>
+    <string name="nm_sync_delete_confirm">Nicholasx Cloud に保持されている会話が削除されます。デバイス上のチャットはそのまま残ります。</string>
     <string name="nm_sync_deleted">同期した会話を削除しました。</string>
     <string name="nm_sync_from">%1$s から</string>
     <string name="nm_sync_attachment_note">[添付 %1$s、作られたデバイスに残ります]</string>
@@ -1052,7 +1022,7 @@
     <string name="nm_devices_ask_hint">オンラインのデバイスをタップすると、チャットからそのデバイスに書けます: メッセージは @ とその名前で始まり、そのデバイスが作業します。</string>
     <string name="nm_reach_the_provider">プロバイダー</string>
     <string name="nm_reach_unreachable_title">このネットワークから %1$s に到達できません</string>
-    <string name="nm_reach_unreachable_body">%1$s から応答がありませんでした。この電話からプロバイダーまでの経路の問題で、nanoMuse 自身のサーバーは関係ありません。</string>
+    <string name="nm_reach_unreachable_body">%1$s から応答がありませんでした。この電話からプロバイダーまでの経路の問題で、Nicholasx 自身のサーバーは関係ありません。</string>
     <string name="nm_reach_region_title">OpenAI はこの地域でサービスを提供していません</string>
     <string name="nm_reach_region_body">リクエストは OpenAI に届きましたが、この接続の発信元ではサービスを提供していないとの応答でした。</string>
     <string name="nm_reach_signed_out_title">ChatGPT のサインインが無効になりました</string>
@@ -1095,7 +1065,7 @@
     <string name="nm_network_test_fail">プロキシ経由で %1$s に到達できませんでした：%2$s</string>
     <string name="nm_network_test_status">HTTP %1$d</string>
     <string name="nm_network_invalid">ホストと 1〜65535 のポートを入力してください。</string>
-    <string name="nm_network_proxy_caption">自分のキーで追加したプロバイダーと ChatGPT プランへのリクエストだけがプロキシを通ります。nanoMuse Cloud、あなたのコンピューター、ローカルネットワークは通りません。この電話にだけ保存されます。</string>
+    <string name="nm_network_proxy_caption">自分のキーで追加したプロバイダーと ChatGPT プランへのリクエストだけがプロキシを通ります。Nicholasx Cloud、あなたのコンピューター、ローカルネットワークは通りません。この電話にだけ保存されます。</string>
     <string name="nm_network_hosts_caption">プロキシを通るホスト：%1$s</string>
     <string name="nm_ways_title_day">今日の分の無料枠を使い切りました。</string>
     <string name="nm_ways_day_sub">日付が変わると戻ります。下の方法は今すぐ使えます。</string>
@@ -1106,7 +1076,7 @@
     <string name="nm_ways_devices">デバイス</string>
     <!-- 0.1.41 Choice: Settings → Models, the "Use it for" card, one turn on the Cloud -->
     <string name="nm_models_title">モデル</string>
-    <string name="nm_models_intro">どのモデルが何を担当するか。各行を開くと選択画面になり、nanoMuse Cloud と追加したプロバイダーが、合うモデルとともに並びます。</string>
+    <string name="nm_models_intro">どのモデルが何を担当するか。各行を開くと選択画面になり、Nicholasx Cloud と追加したプロバイダーが、合うモデルとともに並びます。</string>
     <string name="nm_models_chat_title">チャット</string>
     <string name="nm_models_chat_sub">あなたと話すモデル。</string>
     <string name="nm_models_hands_title">画面の操作</string>
@@ -1118,19 +1088,19 @@
     <string name="nm_models_chat_applies">メインチャットと新しいチャットに適用されます。サイドチャットは各自のモデルを保ちます。</string>
     <string name="nm_models_media_more">画像と動画のその他のオプション</string>
     <string name="nm_models_media_more_sub">モデル名を入力する、各モデルがないと何が止まるかを見る、キーで使える動画モデルを再確認する。</string>
-    <string name="nm_models_cloud_switch">nanoMuse Cloud のモデルを使う</string>
-    <string name="nm_models_cloud_on_sub">nanoMuse Cloud は下の各行の提供元のひとつで、そこで動いた分は利用枠から差し引かれます。</string>
-    <string name="nm_models_cloud_off_sub">オフにすると「今回は nanoMuse Cloud を使う」をタップしない限り、nanoMuse Cloud では何も動きません。同期と端末のためにサインインは保たれます。</string>
-    <string name="nm_models_cloud_off_refused">先に自分のプロバイダーを追加してください。nanoMuse Cloud をオフにすると、ほかに答えられるものがありません。</string>
+    <string name="nm_models_cloud_switch">Nicholasx Cloud のモデルを使う</string>
+    <string name="nm_models_cloud_on_sub">Nicholasx Cloud は下の各行の提供元のひとつで、そこで動いた分は利用枠から差し引かれます。</string>
+    <string name="nm_models_cloud_off_sub">オフにすると「今回は Nicholasx Cloud を使う」をタップしない限り、Nicholasx Cloud では何も動きません。同期と端末のためにサインインは保たれます。</string>
+    <string name="nm_models_cloud_off_refused">先に自分のプロバイダーを追加してください。Nicholasx Cloud をオフにすると、ほかに答えられるものがありません。</string>
     <string name="nm_chat_no_model">いま答えられるモデルがありません。設定 › モデルで一つ選んでください。</string>
-    <string name="nm_cloud_provider_no_delete">このプロバイダーは nanoMuse Cloud のアカウントそのものです。モデルを使わないようにするには上のスイッチをオフにし、サインアウトするには「設定 › nanoMuse Cloud」を開いてください。</string>
+    <string name="nm_cloud_provider_no_delete">このプロバイダーは Nicholasx Cloud のアカウントそのものです。モデルを使わないようにするには上のスイッチをオフにし、サインアウトするには「設定 › Nicholasx Cloud」を開いてください。</string>
     <string name="nm_welcome_own_key">自分の API キーを使う</string>
     <string name="nm_useit_title">何に使うか</string>
     <string name="nm_useit_body_signed_out">このキーに任せることを選んでください。</string>
     <string name="nm_useit_use">使う</string>
     <string name="nm_useit_not_now">今はしない</string>
     <string name="nm_useit_footnote">設定 › モデル からいつでも変更できます。</string>
-    <string name="nm_retry_on_cloud">今回は nanoMuse Cloud を使う</string>
+    <string name="nm_retry_on_cloud">今回は Nicholasx Cloud を使う</string>
     <string name="nm_hands_why_chat_provider">チャットのプロバイダーでのハンズの既定</string>
     <string name="nm_models_auto">自動</string>
     <string name="nm_models_auto_currently">現在は %1$s</string>
@@ -1148,10 +1118,6 @@
     <string name="nm_a11y_mark_not_done">未完了に戻す</string>
     <string name="nm_a11y_done">完了</string>
     <string name="nm_a11y_not_done">未完了</string>
-    <string name="nm_a11y_like">いいね</string>
-    <string name="nm_a11y_unlike">いいねを取り消す</string>
-    <string name="nm_a11y_liked">いいね済み</string>
-    <string name="nm_a11y_not_liked">いいねしていません</string>
     <string name="nm_a11y_post_details">投稿の詳細</string>
     <string name="nm_claude_sign_in_unavailable">このビルドでは Claude アカウントでのサインインは使えません。代わりに API キーで Anthropic を追加してください。</string>
     <string name="nm_oauth_rescue_hint">ブラウザが localhost でエラーページを表示する場合、端末のプロキシや VPN がコールバックを横取りしています。localhost をその除外リストに加えるか、そのページのアドレスをコピーしてここに貼り付けてください。</string>
@@ -1174,4 +1140,29 @@
     <string name="nm_backup_delivery_failed">送信に失敗しました。</string>
     <string name="nm_backup_run_needs_passphrase">暗号化がオンで、パスフレーズはバックアップ画面で入力するものです。シェルからの実行では尋ねられません。画面からバックアップを開始するか、そこで暗号化をオフにしてください。</string>
     <string name="nm_backup_run_started">シェルからバックアップを開始しました。</string>
+    <string name="nm_chat_menu_thinking">思考の強さ</string>
+    <string name="nm_chat_menu_thinking_unsupported">このモデルでは思考を調整できません</string>
+    <string name="nm_header_elapsed">処理時間 %1$s</string>
+    <string name="nm_mcp_healthy">接続を確認済み</string>
+    <string name="nm_mcp_auth_required">認証が必要です。認証情報を更新して再確認してください。</string>
+    <string name="nm_mcp_unavailable">接続に失敗しました。実行環境とネットワークを確認してください。</string>
+    <string name="nm_mcp_unknown">接続は最近確認されていません</string>
+    <string name="nm_mcp_check">確認</string>
+    <string name="nm_schedule_warning">定期タスクの失敗：%1$s</string>
+    <string name="nm_turn_elapsed">今回の所要時間%1$s</string>
+    <string name="nm_task_failures_channel">Task failures</string>
+    <string name="nm_task_failure_count">Task %1$s failed %2$d times in a row</string>
+    <string name="nm_task_auto_disabled">Task %1$s disabled after repeated failures</string>
+    <string name="nm_task_empty_output">Script exited with code 0 but produced no output.</string>
+    <string name="nm_batch_select">Select chats</string>
+    <string name="nm_batch_selected">%1$d selected</string>
+    <string name="nm_batch_protected">%1$d protected or running chats were not deleted.</string>
+    <string name="nm_batch_scope_all">Select these chats</string>
+    <string name="nm_group_name_exists">Group name already in use.</string>
+    <string name="nm_group_name_invalid">Use 1 to 40 printable characters for the group name.</string>
+    <string name="nm_group_name_reserved">This group name is reserved.</string>
+    <string name="nm_group_protected">This system group cannot be renamed or deleted.</string>
+    <string name="nm_task_chat_busy">This conversation is running a scheduled task. Try again when it finishes.</string>
+    <string name="nm_batch_failed">%1$d chats could not be deleted. Try again.</string>
+    <string name="nm_task_outcome_unknown">Finished, outcome not verified</string>
 </resources>

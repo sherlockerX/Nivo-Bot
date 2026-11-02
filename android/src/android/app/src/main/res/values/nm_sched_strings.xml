@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Scheduled task results: one notification per run, one per task in the shade. -->
+    <string name="nm_sched_result_channel">Scheduled task results</string>
+    <string name="nm_sched_result_quiet_channel">Scheduled task results, silent</string>
+    <string name="nm_sched_result_failed">%1$s failed</string>
+    <string name="nm_sched_result_overflow">%1$d scheduled tasks have updates</string>
+    <string name="nm_sched_run_no_stderr">Exit code %1$d, no error output</string>
+
+    <!-- Run records: what a run left behind. -->
+    <string name="nm_sched_run_exit">Exit code %1$d</string>
+    <string name="nm_sched_run_stderr">Error output: %1$s</string>
+    <string name="nm_sched_run_not_notified">Not notified: %1$s</string>
+    <string name="nm_sched_quiet_empty">no result</string>
+    <string name="nm_sched_quiet_unchanged">same result as last time</string>
+    <string name="nm_sched_quiet_rate">too many notifications this hour</string>
+    <string name="nm_sched_quiet_debug">debug run</string>
+    <string name="nm_sched_quiet_policy">this task sends no result notifications</string>
+    <string name="nm_sched_quiet_failure">told by the failure alert</string>
+    <!-- Mosaic: every task writes into one chat of its own. -->
+    <string name="nm_sched_target_own">Its own chat</string>
+    <string name="nm_sched_target_own_note">The first run makes a chat for this task under Scheduled tasks, and every run after adds its result there. Tapping the notification opens it.</string>
+</resources>

@@ -24,7 +24,7 @@ import androidx.room.PrimaryKey
  *
  * Consequence: every name-based lookup must tolerate multiple matches.
  */
-@Entity(tableName = "folders")
+@Entity(tableName = "folders", indices = [androidx.room.Index(value = ["name_key"], unique = true)]) // nanoMuse: UUID身份不变，规范化名称唯一。
 data class FolderEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -57,6 +57,7 @@ data class FolderEntity(
      * session moving in or out of the group must not touch it.
      */
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "name_key", defaultValue = "''") val nameKey: String = io.github.nanomuse.chat.GroupNamePolicy.key(name), // nanoMuse
 ) {
     val isPinned: Boolean get() = pinnedAt != null
 

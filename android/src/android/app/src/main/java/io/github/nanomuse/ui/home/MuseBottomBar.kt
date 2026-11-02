@@ -112,7 +112,7 @@ fun MuseBottomBar(
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HomeTab.entries.forEach { tab ->
+            HomeTab.entries.filter { it.inBar }.forEach { tab ->
                 val isSelected = tab == selected
                 val indicator by animateColorAsState(
                     targetValue = if (isSelected) nmSelectedBg

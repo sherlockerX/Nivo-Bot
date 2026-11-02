@@ -1,7 +1,9 @@
 package io.github.nanomuse.media
 
 import android.graphics.Bitmap
+import com.openminis.app.data.model.LLMModel
 import com.openminis.app.data.model.ProviderInstance
+import com.openminis.app.data.model.normalizeModalityName
 import com.openminis.app.logging.AppLogger
 import io.github.nanomuse.avatar.ImageGen
 import kotlinx.coroutines.Dispatchers
@@ -36,15 +38,27 @@ import java.util.concurrent.TimeUnit
  *
  * Costs are the user's: billing is per output second, so callers keep [imageToVideo]'s
  * `seconds` at the minimum that reads well (4 for an avatar loop).
+ *
+ * Mosaic: an [Endpoint] on a relay of one's own (Veo, Grok Imagine, Seedance and others behind
+ * one key) goes through [RelayVideo] instead; everything above is Model Studio's.
  */
 object VideoGen {
     private const val TAG = "VideoGen"
-    private const val POLL_MS = 10_000L
-    private const val MAX_WAIT_MS = 12 * 60_000L
+    internal const val POLL_MS = 10_000L
+    internal const val MAX_WAIT_MS = 12 * 60_000L
 
-    data class Endpoint(val instance: ProviderInstance, val apiKey: String, val model: String) {
+    /** [relay]: Mosaic, a relay of one's own that speaks [RelayVideo]'s APIs instead of Model Studio's, [relayApi] which one. */
+    data class Endpoint(
+        val instance: ProviderInstance,
+        val apiKey: String,
+        val model: String,
+        val relay: Boolean = false,
+        val relayApi: RelayVideo.Api = RelayVideo.Api.AUTO,
+    ) {
         val instanceId: String get() = instance.id
         val label: String get() = instance.label
+        /** Mosaic: the OpenAI-shaped base with its version (`https://relay.example/v1`), where a relay's video API lives. */
+        val apiBase: String get() = ImageGen.baseUrlOf(instance).trimEnd('/')
         /**
          * `https://….maas.aliyuncs.com`, `https://dashscope.aliyuncs.com` or nanoMuse Cloud's
          * `https://cloud.nanomuse.cn`, without the API path (the relay serves the same
@@ -79,11 +93,15 @@ object VideoGen {
         "wan2.2-i2v-plus", "wan2.2-t2v-plus",
     )
 
-    /** Names that mean "video" in a provider's model list. */
+    /** Names that mean "video" in a provider's model list (Mosaic: a relay's too, so Vidu, Jimeng and PixVerse count). */
     fun looksLikeVideoModel(id: String): Boolean {
         val s = id.lowercase()
-        return listOf("t2v", "i2v", "video", "minimax-h", "hailuo", "kling", "veo", "seedance", "sora").any { s.contains(it) }
+        return listOf("t2v", "i2v", "video", "minimax-h", "hailuo", "kling", "veo", "seedance", "sora", "vidu", "jimeng", "pixverse").any { s.contains(it) }
     }
+
+    /** Mosaic: a video model by its name, or by "video" among its outputs, set by hand on the model's page. */
+    fun isVideoModel(model: LLMModel): Boolean =
+        looksLikeVideoModel(model.id) || model.outputModalities.orEmpty().any { it.normalizeModalityName() == "video" }
 
     /**
      * Whether [model] exists for this key, without making a video: an empty task is submitted
@@ -148,7 +166,7 @@ object VideoGen {
         else -> seconds.coerceIn(4, 15)
     }
 
-    private val http: OkHttpClient by lazy {
+    internal val http: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
@@ -164,6 +182,7 @@ object VideoGen {
         seconds: Int = 4,
         onProgress: (Progress) -> Unit = {},
     ): ByteArray = withContext(Dispatchers.IO) {
+        if (ep.relay) return@withContext RelayVideo.generate(ep, prompt, fitFrame(image), seconds, ratio = null, onProgress)
         onProgress(Progress.Uploading)
         val model = modelFor(ep.model, fromImage = true)
         val png = pngBytes(fitFrame(image))
@@ -183,6 +202,7 @@ object VideoGen {
         ratio: String = "1:1",
         onProgress: (Progress) -> Unit = {},
     ): ByteArray = withContext(Dispatchers.IO) {
+        if (ep.relay) return@withContext RelayVideo.generate(ep, prompt, frame = null, seconds, ratio, onProgress)
         val model = modelFor(ep.model, fromImage = false)
         val task = createTask(ep, textToVideoBody(model, prompt, seconds, ratio), ossInput = false)
         onProgress(Progress.Submitted)
@@ -311,7 +331,7 @@ object VideoGen {
         }
     }
 
-    private fun download(url: String): ByteArray =
+    internal fun download(url: String): ByteArray =
         http.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
             if (!resp.isSuccessful) throw VideoGenException("Video download failed (${resp.code})")
             resp.body?.bytes()?.takeIf { it.isNotEmpty() } ?: throw VideoGenException("Empty video")
@@ -356,6 +376,6 @@ object VideoGen {
         }
     }
 
-    private fun pngBytes(bitmap: Bitmap): ByteArray =
+    internal fun pngBytes(bitmap: Bitmap): ByteArray =
         ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
 }

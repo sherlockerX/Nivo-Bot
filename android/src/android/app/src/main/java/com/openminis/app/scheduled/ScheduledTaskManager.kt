@@ -34,28 +34,42 @@ class ScheduledTaskManager(private val context: Context) {
     fun get(taskId: String): ScheduledTask? = store.get(taskId)
 
     fun create(task: ScheduledTask): ScheduledTask {
-        store.upsert(task)
+        store.upsert(task, rejectDuplicate = true) // nanoMuse
         if (task.enabled) registerAlarm(task)
         return task
     }
 
     fun update(task: ScheduledTask): ScheduledTask {
+        val previous = store.get(task.id) // nanoMuse: 编辑表单不应擦除运行历史或CLI脚本元数据。
+        val merged = if (previous == null) task else task.copy(runHistory = previous.runHistory,
+            lastFiredAt = previous.lastFiredAt, lastResultPreview = previous.lastResultPreview, lastResultSessionId = previous.lastResultSessionId,
+            scriptId = previous.scriptId, consecutiveFailures = previous.consecutiveFailures, totalFailures = previous.totalFailures,
+            autoDisableOnFailure = previous.autoDisableOnFailure, failureThreshold = previous.failureThreshold,
+            scriptArgs = previous.scriptArgs, requireOutput = previous.requireOutput, logStdout = previous.logStdout,
+            origin = previous.origin, runtime = previous.runtime, hidden = previous.hidden, goalId = previous.goalId, intervalMinutes = previous.intervalMinutes, // nanoMuse: 编辑保留CLI与内置任务元数据。
+            notifyPolicy = previous.notifyPolicy, notifyTitle = previous.notifyTitle, notifySilent = previous.notifySilent,
+            sessionOutput = previous.sessionOutput, debug = previous.debug) // nanoMuse: 通知与会话设置只由CLI修改。
+        store.upsert(merged, rejectDuplicate = true) // nanoMuse: 校验成功后才撤销旧闹钟。
         cancelAlarm(task.id)
-        store.upsert(task)
-        if (task.enabled) registerAlarm(task)
-        return task
+        io.github.nanomuse.routines.RoutineHeartbeat.forget(context, task.id) // nanoMuse: 修改计划使旧时间槽失效。
+        if (merged.enabled) registerAlarm(merged)
+        return merged
     }
 
     fun setEnabled(taskId: String, enabled: Boolean) {
         val t = store.get(taskId) ?: return
         val updated = t.copy(enabled = enabled)
-        store.upsert(updated)
+        if (enabled && updated.scriptId != null) require(io.github.nanomuse.routines.ScheduledScript.probe(context, updated).getBoolean("can_run")) { "Script preflight failed" } // nanoMuse
+        store.upsert(updated, rejectDuplicate = enabled) // nanoMuse
+        io.github.nanomuse.routines.RoutineHeartbeat.forget(context, taskId) // nanoMuse: 校验成功后再清除旧时间槽。
         if (enabled) registerAlarm(updated) else cancelAlarm(taskId)
     }
 
     fun delete(taskId: String) {
+        io.github.nanomuse.routines.RoutineHeartbeat.forget(context, taskId) // nanoMuse
         cancelAlarm(taskId)
-        store.delete(taskId)
+        io.github.nanomuse.routines.ScheduledRunRecorder.delete(context, store, taskId) // nanoMuse: 删除与运行结算共用边界，日志保留。
+        io.github.nanomuse.routines.ScheduledResultNotifier.cancel(context, taskId) // nanoMuse: 删除任务同时撤回它的结果通知。
     }
 
     /**
@@ -88,10 +102,11 @@ class ScheduledTaskManager(private val context: Context) {
         if (t.repeatMode == ScheduledRepeatMode.ONCE) {
             // Mark fired ONCE task as disabled — keep row so the user can
             // see its last result, re-enable if they want to re-run.
+            io.github.nanomuse.routines.RoutineHeartbeat.forget(context, taskId, keepPending = true) // nanoMuse: 待派发记录保留到真正执行。
             store.upsert(t.copy(enabled = false))
             return
         }
-        registerAlarm(t)
+        registerAlarm(t, replaceDue = true)
     }
 
     // nanoMuse: [GH#557] scheduledForMs is the trigger instant the alarm
@@ -103,35 +118,27 @@ class ScheduledTaskManager(private val context: Context) {
         resultPreview: String?,
         ok: Boolean = true,
         scheduledForMs: Long? = null,
-    ) {
-        val t = store.get(taskId) ?: return
+        startedAtMs: Long? = null, durationMs: Long? = null, status: String = if (ok) "succeeded" else "execution_failed", exitCode: Int? = null, // nanoMuse
+        runId: String = java.util.UUID.randomUUID().toString(), outcome: String = if (ok) "success" else "failure",
+        reason: String? = null, details: org.json.JSONObject? = null, debug: Boolean = false,
+    ): ScheduledTask? { // nanoMuse: 返回本轮结算快照供CLI构造不可变收据。
+        // nanoMuse: 读取、合并运行历史和写入都在同一锁内，保留最新计划设置。
         val now = System.currentTimeMillis()
-        // [T-android-scheduled-tasks-run-records] Prepend a run record
-        // (newest-first), capped at MAX_RUN_HISTORY. lastResult* are kept in
-        // sync for back-compat but are no longer surfaced in the list UI.
-        val run = ScheduledRun(
-            firedAt = now,
-            sessionId = sessionId,
-            preview = resultPreview,
-            ok = ok,
-            scheduledForMs = scheduledForMs,
-        )
-        val history = (listOf(run) + t.runHistory).take(ScheduledTask.MAX_RUN_HISTORY)
-        store.upsert(
-            t.copy(
-                lastFiredAt = now,
-                lastResultPreview = resultPreview,
-                lastResultSessionId = sessionId,
-                runHistory = history,
-            ),
-        )
+        val run = ScheduledRun(firedAt = now, sessionId = sessionId, preview = resultPreview,
+            ok = ok, scheduledForMs = scheduledForMs, startedAtMs = startedAtMs, durationMs = durationMs, status = status, exitCode = exitCode,
+            runId = runId, outcome = outcome, debug = debug) // nanoMuse: 明确业务结果，不用ok推断提示词任务成功。
+        val updated = io.github.nanomuse.routines.ScheduledRunRecorder.record(context, store, taskId, run, reason, details)
+        if (updated?.enabled == false) cancelAlarm(taskId) // nanoMuse: 默认只告警，用户开启策略后才停用。
+        return updated
     }
 
-    private fun registerAlarm(task: ScheduledTask) {
-        val triggerAt = task.nextTriggerMs() ?: run {
+    private fun registerAlarm(task: ScheduledTask, replaceDue: Boolean = false) {
+        val proposed = task.nextTriggerMs() ?: run {
             AppLogger.warning(TAG, "task ${task.id} has no next trigger — skipping register")
             return
         }
+        // nanoMuse: 开机恢复使用已保存的时间，避免把漏跑任务顺延。
+        val triggerAt = io.github.nanomuse.routines.RoutineHeartbeat.rememberDue(context, task.id, proposed, replaceDue)
         // nanoMuse: [GH#557] the armed instant rides the intent so the
         // receiver can attribute the run to one of the task's times.
         val pi = buildPendingIntent(task.id, triggerAt)

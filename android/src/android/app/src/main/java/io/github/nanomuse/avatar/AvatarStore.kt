@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.openminis.app.logging.AppLogger
 import io.github.nanomuse.ui.avatar.AgentMood
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONObject
@@ -41,9 +42,13 @@ object AvatarStore {
 
     fun init(context: Context) {
         dir = File(context.filesDir, "minis-global/nanomuse/avatar").apply { mkdirs() }
-        reload()
-        AvatarMotion.init()
-        OwnClip.init()
+        // 初始化目录后在后台恢复图片和视频封面，避免启动时同步解码。
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+            reload()
+            AvatarMotion.init()
+            OwnClip.init()
+            AvatarWardrobe.init()
+        }
     }
 
     /** Tests only: the pictures go under [root]; nothing is reloaded. */
@@ -56,6 +61,9 @@ object AvatarStore {
     fun baseFile(): File = File(dir, "base.png")
     fun moodFile(mood: AgentMood): File = File(dir, mood.name.lowercase() + ".png")
     private fun metaFile(): File = File(dir, "avatar.json")
+
+    /** Mosaic: the files that make the face in use (picture, poses, description), for [AvatarWardrobe]. */
+    internal fun faceFiles(): List<File> = listOf(baseFile(), metaFile()) + AgentMood.entries.map(::moodFile)
 
     fun reload() {
         val base = decode(baseFile()) ?: run { _current.value = null; return }
@@ -101,14 +109,24 @@ object AvatarStore {
         io.github.nanomuse.cloud.ProfileSync.changed()
     }
 
+    /** 先完成临时图片写入再替换目标，失败时清理临时文件，避免留下半成品。 */
     fun write(file: File, bitmap: Bitmap) {
-        val scaled = if (bitmap.width > STORED_PX || bitmap.height > STORED_PX) {
-            val s = STORED_PX.toFloat() / maxOf(bitmap.width, bitmap.height)
-            Bitmap.createScaledBitmap(bitmap, (bitmap.width * s).toInt(), (bitmap.height * s).toInt(), true)
-        } else bitmap
         val tmp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(tmp).use { scaled.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) }
+        try {
+            writeTemporary(tmp, bitmap)
+            java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    /** 写入调用方独占的未发布临时文件，候选图不再生成第二层临时文件。 */
+    internal fun writeTemporary(file: File, bitmap: Bitmap) {
+        val scaled = if (bitmap.width > STORED_PX || bitmap.height > STORED_PX) {
+            val ratio = STORED_PX.toFloat() / maxOf(bitmap.width, bitmap.height)
+            Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)
+        } else bitmap
+        FileOutputStream(file).use { scaled.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     fun decodeBitmap(file: File): Bitmap? =

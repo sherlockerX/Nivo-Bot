@@ -27,6 +27,7 @@ class ChatRepository(internal val dao: ChatDao) {
         // here; existing call sites that omit it keep the prior
         // memoryEnabled=1 behavior (legacy default).
         memoryEnabled: Boolean = true,
+        source: String? = null, taskId: String? = null, runId: String? = null, scheduledGroup: FolderEntity? = null, // nanoMuse: 新任务会话原子包含来源与归属。
     ): ChatSessionEntity {
         val now = System.currentTimeMillis()
         val session = ChatSessionEntity(
@@ -36,8 +37,10 @@ class ChatRepository(internal val dao: ChatDao) {
             createdAt = now,
             updatedAt = now,
             memoryEnabled = if (memoryEnabled) 1 else 0,
+            source = source, createdByTaskId = taskId, createdByRunId = runId, folderId = scheduledGroup?.id,
+            groupAssignedBy = if (scheduledGroup != null) "system" else null, // nanoMuse
         )
-        dao.insertSession(session)
+        if (scheduledGroup == null) dao.insertSession(session) else dao.insertSessionWithFolder(session, scheduledGroup) // nanoMuse: 不存在先创建会话再补分组的中间状态。
         io.github.nanomuse.account.AccountData.claim(session.id) // nanoMuse: the chat belongs to whoever is signed in now (contract C12)
         return session
     }
@@ -115,10 +118,17 @@ class ChatRepository(internal val dao: ChatDao) {
     }
 
     suspend fun deleteSession(id: String) {
-        dao.deleteMessages(id)
-        dao.deleteSession(id)
+        dao.deleteConversation(id) // nanoMuse: 每个对话的删除原子化，文件目录保持既有行为。
         io.github.nanomuse.guard.Grants.clearSession(id) // nanoMuse
         io.github.nanomuse.sync.ConversationSync.changed() // nanoMuse: a tombstone goes to the other devices
+    }
+
+    /** nanoMuse: 数据库批删原子化，授权清理不删除共享文件。 */
+    suspend fun deleteSessions(ids: List<String>) {
+        if (ids.isEmpty()) return // nanoMuse: 全部受保护时不制造无意义的删除或同步事件。
+        dao.deleteConversations(ids)
+        ids.forEach { runCatching { io.github.nanomuse.guard.Grants.clearSession(it) } }
+        runCatching { io.github.nanomuse.sync.ConversationSync.changed() } // nanoMuse: 已提交删除的结果不由后续诊断清理决定。
     }
 
     // ─── Session groups ("folders") ────────────────────────────────────────
@@ -141,16 +151,23 @@ class ChatRepository(internal val dao: ChatDao) {
         description: String? = null,
         origin: String = FolderEntity.ORIGIN_MANUAL,
     ): FolderEntity {
+        val cleanName = io.github.nanomuse.chat.GroupNamePolicy.validate(name) // nanoMuse: 服务层统一校验。
+        val nameKey = io.github.nanomuse.chat.GroupNamePolicy.key(cleanName)
+        dao.folderByNameKey(nameKey)?.let { throw io.github.nanomuse.chat.GroupNameException("GROUP_NAME_EXISTS", it.id) }
         val now = System.currentTimeMillis()
         val folder = FolderEntity(
             id = UUID.randomUUID().toString(),
-            name = name.trim(),
+            name = cleanName, // nanoMuse: 显示名与唯一键同时规范化。
             origin = origin,
             description = description?.trim()?.take(FolderEntity.DESC_MAX_CHARS)?.ifBlank { null },
             createdAt = now,
             updatedAt = now,
         )
-        dao.insertFolder(folder)
+        try { dao.insertFolder(folder) } catch (conflict: Exception) { // nanoMuse: 并发创建同名也返回相同错误，不覆盖原组。
+            if (conflict is kotlinx.coroutines.CancellationException) throw conflict
+            dao.folderByNameKey(nameKey)?.let { throw io.github.nanomuse.chat.GroupNameException("GROUP_NAME_EXISTS", it.id) }
+            throw conflict
+        }
         return folder
     }
 
@@ -164,14 +181,20 @@ class ChatRepository(internal val dao: ChatDao) {
      *   will wipe descriptions they never meant to touch.
      */
     suspend fun renameFolder(id: String, name: String, description: String? = null) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        dao.renameFolder(
+        io.github.nanomuse.chat.GroupNamePolicy.protect(id) // nanoMuse: 系统组不允许普通入口改名。
+        val trimmed = io.github.nanomuse.chat.GroupNamePolicy.validate(name)
+        val nameKey = io.github.nanomuse.chat.GroupNamePolicy.key(trimmed)
+        dao.folderByNameKey(nameKey)?.takeIf { it.id != id }?.let { throw io.github.nanomuse.chat.GroupNameException("GROUP_NAME_EXISTS", it.id) }
+        try { dao.renameFolder(
             id = id,
             name = trimmed,
             description = description?.trim()?.take(FolderEntity.DESC_MAX_CHARS),
             updatedAt = System.currentTimeMillis(),
-        )
+        ) } catch (conflict: Exception) { // nanoMuse: 索引冲突不作为内部错误泄漏。
+            if (conflict is kotlinx.coroutines.CancellationException) throw conflict
+            dao.folderByNameKey(nameKey)?.takeIf { it.id != id }?.let { throw io.github.nanomuse.chat.GroupNameException("GROUP_NAME_EXISTS", it.id) }
+            throw conflict
+        }
     }
 
     /** @return the new pinned state. Bumps `updated_at` so the edit is stamped. */
@@ -195,10 +218,8 @@ class ChatRepository(internal val dao: ChatDao) {
      * @return ids of the sessions that became ungrouped.
      */
     suspend fun dissolveFolder(id: String): List<String> {
-        val memberIds = dao.sessionIdsInFolder(id)
-        dao.clearFolderForSessions(id)
-        dao.deleteFolder(id)
-        return memberIds
+        io.github.nanomuse.chat.GroupNamePolicy.protect(id) // nanoMuse: 解散保护位于任何成员写操作之前。
+        return dao.dissolveFolderAtomic(id) // nanoMuse: 不保留半完成的分组删除。
     }
 
     suspend fun sessionIdsInFolder(folderId: String): List<String> = dao.sessionIdsInFolder(folderId)
@@ -210,6 +231,7 @@ class ChatRepository(internal val dao: ChatDao) {
      * and must not re-sort the session list.
      */
     suspend fun setFolderForSessions(folderId: String?, sessionIds: List<String>) {
+        folderId?.let(io.github.nanomuse.chat.GroupNamePolicy::protect) // nanoMuse: 普通会话不能手动混入任务运行组。
         if (sessionIds.isEmpty()) return
         for (sid in sessionIds) dao.setSessionFolder(sid, folderId)
     }
@@ -222,7 +244,8 @@ class ChatRepository(internal val dao: ChatDao) {
      * @return true if this call actually filed the session.
      */
     suspend fun setFolderIfUnfiled(folderId: String, sessionId: String): Boolean =
-        dao.setSessionFolderIfUnfiled(sessionId, folderId) > 0
+        folderId != io.github.nanomuse.chat.GroupNamePolicy.SYSTEM_ID && // Mosaic: an automatic move never files a chat under Scheduled tasks
+            dao.setSessionFolderIfUnfiled(sessionId, folderId) > 0
 
     /**
      * Name → group, case- and whitespace-insensitive. Duplicate-tolerant by
@@ -230,9 +253,8 @@ class ChatRepository(internal val dao: ChatDao) {
      * match, which is what [listFolders]' ordering already puts first.
      */
     suspend fun findFolderByName(name: String): FolderEntity? {
-        val needle = name.trim().lowercase()
-        if (needle.isEmpty()) return null
-        return dao.listFolders().firstOrNull { it.name.trim().lowercase() == needle }
+        if (name.isBlank()) return null
+        return dao.folderByNameKey(io.github.nanomuse.chat.GroupNamePolicy.key(name)) // nanoMuse: 查找与创建共用完整规范化键。
     }
 
     suspend fun searchSessions(query: String): List<ChatSessionEntity> =
@@ -366,6 +388,7 @@ class ChatRepository(internal val dao: ChatDao) {
         tokenUsage: String? = null,
         reasoningContent: String? = null,
         modelSnapshot: ModelAttributionSnapshot? = null,
+        messageId: String = UUID.randomUUID().toString(), // nanoMuse: 显式运行可指定幂等消息身份。
     ): MessageEntity {
         val sortOrder = dao.nextSortOrder(sessionId)
         val now = System.currentTimeMillis()
@@ -381,7 +404,7 @@ class ChatRepository(internal val dao: ChatDao) {
             partsJson
         }
         val message = MessageEntity(
-            id = UUID.randomUUID().toString(),
+            id = messageId, // nanoMuse: 同一次运行重试不追加重复消息。
             sessionId = sessionId,
             role = role,
             partsJson = capped,
@@ -395,6 +418,8 @@ class ChatRepository(internal val dao: ChatDao) {
             providerInstanceId = modelSnapshot?.providerInstanceId,
         )
         dao.insertMessage(message)
+        io.github.nanomuse.chat.DailyEventJournal.record(message, dao.getSession(sessionId)?.memoryEnabled == 1) // nanoMuse: 关闭记忆的会话不进入事件日志。
+        if (role == "assistant") io.github.nanomuse.chat.TurnTimingStore.bindAssistant(sessionId, message.id) // nanoMuse: 固定用时绑定持久消息。
         // [T-android-preview-flicker-toolresult] Only overwrite the preview
         // when this row actually yields one. A tool-result row is
         // `[{"type":"toolResult",…}]`, a shape extractTextPreview does not
@@ -467,9 +492,14 @@ class ChatRepository(internal val dao: ChatDao) {
         limit: Int,
         startMs: Long?,
         endMs: Long?,
+        excludeFolderId: String? = null, // Mosaic: list 默认不列归档（定时任务分组）里的会话。
     ): List<SessionMeta> {
         val conditions = mutableListOf<String>()
         val args = mutableListOf<Any>()
+        if (excludeFolderId != null) { // Mosaic
+            conditions += "(s.folder_id IS NULL OR s.folder_id != ?)"
+            args += excludeFolderId
+        }
 
         if (!sessionIds.isNullOrEmpty()) {
             conditions += "s.id IN (${sessionIds.joinToString(",") { "?" }})"
@@ -499,7 +529,7 @@ class ChatRepository(internal val dao: ChatDao) {
                    (SELECT m2.parts_json FROM messages m2
                     WHERE m2.session_id = s.id AND m2.role = 'user'
                     ORDER BY m2.sort_order ASC LIMIT 1) AS first_user_msg,
-                   s.source, s.created_at, s.updated_at,
+                   s.source, s.created_at, s.updated_at, s.folder_id, s.pinned_at, s.group_assigned_by, s.created_by_task_id, s.created_by_run_id, -- nanoMuse: 显式归属与运行身份。
                    (SELECT COUNT(*) FROM messages m3 WHERE m3.session_id = s.id) AS msg_count
             FROM sessions s
             $where
@@ -523,6 +553,8 @@ class ChatRepository(internal val dao: ChatDao) {
                 startedAt = r.createdAt,
                 lastActive = r.updatedAt,
                 messageCount = r.msgCount,
+                folderId = r.folderId, pinnedAt = r.pinnedAt, // nanoMuse
+                groupAssignedBy = r.groupAssignedBy, createdByTaskId = r.createdByTaskId, createdByRunId = r.createdByRunId,
             )
         }
     }
@@ -918,6 +950,11 @@ data class SessionMeta(
     val startedAt: Long,    // ms — sessions.created_at
     val lastActive: Long,   // ms — sessions.updated_at
     val messageCount: Int,
+    val folderId: String? = null, // nanoMuse
+    val pinnedAt: Long? = null,
+    val groupAssignedBy: String? = null, // nanoMuse: CLI保持既有字段，仅追加来源。
+    val createdByTaskId: String? = null,
+    val createdByRunId: String? = null,
 )
 
 /** T188: a single matching message returned by `minis-sessions-cli search`. */

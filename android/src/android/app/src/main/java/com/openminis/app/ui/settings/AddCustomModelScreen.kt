@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.openminis.app.data.model.LLMModel
 import com.openminis.app.data.model.ModelEntry
+import com.openminis.app.data.model.withInferredVoiceModality
 import com.openminis.app.data.repository.ProviderRepository
 import com.openminis.app.ui.components.RowLabel
 import com.openminis.app.ui.components.SectionTextField
@@ -81,7 +82,7 @@ fun AddCustomModelScreen(
                     id = modelId.trim(),
                     displayName = name.trim(),
                     provider = instance.providerType.displayName,
-                )
+                ).withInferredVoiceModality() // nanoMuse: a typed-in speech model (qwen3-asr-flash, cosyvoice-v3-flash…) can be picked for voice, as a fetched one can
                 val entry = ModelEntry(
                     providerInstanceId = instanceId,
                     baseModel = model,

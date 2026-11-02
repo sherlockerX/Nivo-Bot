@@ -1,12 +1,10 @@
 package io.github.nanomuse.ui.feed
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,12 +47,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -83,17 +79,19 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/** The header's sliders button and the tab live in different composables; this is the wire. */
+/** The header's buttons and the tab live in different composables; this is the wire. */
 object FeedUi {
     val settingsOpen = MutableStateFlow(false)
+    /** Mosaic: the calendar button left of the settings opens the training calendar. */
+    val calendarOpen = MutableStateFlow(false)
 }
 
-private val likeRed = Color(0xFFE0245E)
-
 /**
- * Muse's Feed: a grey canvas, a "Wednesday morning" heading, white cards with an icon tile, a
- * title, a few lines, and a footer of heart · discuss · info. The first card explains what drives
- * the feed and lets the user edit that sentence; before the first run, the page says what to expect.
+ * Mosaic: the Coach tab. A grey canvas, the ability in training, today's recall, then today's
+ * training cards under a "Today · Sunday · 1 Nov 2026" heading: white cards with an icon tile, a
+ * title, a few lines, the question with its answer and review, and a footer of discuss · info.
+ * Earlier days are in the training calendar; when no card was written today, one card says when
+ * they come and writes them on a tap, and a run that wrote none says why.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,19 +100,35 @@ fun FeedTab(
     onDiscuss: (FeedPost) -> Unit,
     onEditRoutine: (String) -> Unit,
     bottomInset: Dp = 0.dp,
+    // Mosaic: the training settings open a skill, the skills list and the mounted folders.
+    onOpenSkill: (String) -> Unit = {},
+    onOpenSkills: () -> Unit = {},
+    onOpenFolders: () -> Unit = {},
+    // Mosaic: a chat of its own with this first message (designing an ability's course).
+    onChat: (title: String, opener: String) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val posts by FeedStore.posts.collectAsState()
-    val introAck by FeedFlow.introAcknowledged.collectAsState()
     val generating by FeedFlow.generating.collectAsState()
+    val failure by FeedFlow.writeFailure.collectAsState()
     val settingsOpen by FeedUi.settingsOpen.collectAsState()
+    val calendarOpen by FeedUi.calendarOpen.collectAsState()
+    val responses by io.github.nanomuse.growth.GrowthStore.responses.collectAsState()
+    val growth by io.github.nanomuse.growth.GrowthStore.state.collectAsState()
     var infoPost by remember { mutableStateOf<FeedPost?>(null) }
-    var editPrefs by remember { mutableStateOf(false) }
+    var growthOpen by remember { mutableStateOf(false) } // Mosaic
+    var calendarDay by remember { mutableStateOf<String?>(null) }
 
     // The routine needs a model; retry quietly whenever the tab shows.
     LaunchedEffect(Unit) { runCatching { FeedFlow.ensureRoutine(context) } }
 
-    val days = remember(posts) { posts.groupBy { it.day }.toList() }
+    // Mosaic: the page is today; every earlier day is in the calendar.
+    val today = todayKey()
+    val todayPosts = remember(posts, today) { posts.filter { it.day == today } }
+    val earlierOpen = remember(posts, responses, today) {
+        posts.filter { it.day != today && it.track != null && it.prompt.isNotBlank() && it.id !in responses }
+    }
+    val nothingPlanned = remember(posts, growth) { io.github.nanomuse.growth.GrowthFlow.plan(posts).isEmpty() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MuseTones.canvas),
@@ -122,35 +136,48 @@ fun FeedTab(
         contentPadding = PaddingValues(bottom = 28.dp + bottomInset),
     ) {
         item(key = "header") { header() }
-
-        if (days.isEmpty()) {
-            item(key = "today-title") { DayTitle(dayLabel(todayKey(), System.currentTimeMillis())) }
-            if (!introAck) item(key = "intro") { IntroCard(onEdit = { editPrefs = true }, onAck = { FeedFlow.acknowledgeIntro(context) }) }
-            item(key = "empty") { EmptyState(generating = generating, onWriteNow = { FeedFlow.generateNow(context) }) }
-        } else {
-            days.forEachIndexed { i, (day, dayPosts) ->
-                item(key = "day-$day") { DayTitle(dayLabel(day, dayPosts.first().createdAt)) }
-                if (i == 0 && !introAck) {
-                    item(key = "intro") { IntroCard(onEdit = { editPrefs = true }, onAck = { FeedFlow.acknowledgeIntro(context) }) }
-                }
-                if (i == 0 && generating) item(key = "generating") { Box(Modifier.animateItem()) { GeneratingCard() } }
-                items(dayPosts, key = { it.id }) { post -> // the model leads with what matters most
-                    PostCard(
-                        post = post,
-                        onLike = { FeedStore.setLiked(post, !post.liked) },
-                        onDiscuss = { onDiscuss(post) },
-                        onInfo = { infoPost = post },
-                        modifier = Modifier.animateItem(), // new posts settle in, removed ones fade out
-                    )
-                }
+        // Mosaic: the ability in training on top, then today's recall.
+        item(key = "growth") { GrowthCard(today = todayPosts, onOpen = { growthOpen = true }) }
+        item(key = "recall") { RecallCard() }
+        item(key = "today-title") { DayTitle(dayLabel(today)) }
+        if (earlierOpen.isNotEmpty()) item(key = "earlier") {
+            EarlierLine(earlierOpen.size) { calendarDay = earlierOpen.first().day; FeedUi.calendarOpen.value = true }
+        }
+        when {
+            generating -> item(key = "generating") { Box(Modifier.animateItem()) { GeneratingCard() } }
+            todayPosts.isEmpty() || (failure != null && !nothingPlanned) -> item(key = "write") {
+                WriteCard(empty = todayPosts.isEmpty(), nothingPlanned = nothingPlanned, failure = failure, onWriteNow = { FeedFlow.generateNow(context) })
             }
+        }
+        items(todayPosts, key = { it.id }) { post -> // the model leads with what matters most
+            PostCard(
+                post = post,
+                onDiscuss = { onDiscuss(post) },
+                onInfo = { infoPost = post },
+                modifier = Modifier.animateItem(), // new posts settle in, removed ones fade out
+            )
         }
     }
 
-    if (settingsOpen || editPrefs) {
+    if (growthOpen) GrowthSheet(onDismiss = { growthOpen = false }, onChat = onChat) // Mosaic
+
+    if (calendarOpen) {
+        CoachCalendarSheet(
+            posts = posts,
+            initialDay = calendarDay ?: today,
+            onDismiss = { FeedUi.calendarOpen.value = false; calendarDay = null },
+            onDiscuss = { FeedUi.calendarOpen.value = false; calendarDay = null; onDiscuss(it) },
+            onInfo = { infoPost = it },
+        )
+    }
+
+    if (settingsOpen) {
         FeedSettingsSheet(
-            onDismiss = { FeedUi.settingsOpen.value = false; editPrefs = false },
+            onDismiss = { FeedUi.settingsOpen.value = false },
             onEditRoutine = onEditRoutine,
+            onOpenSkill = onOpenSkill,
+            onOpenSkills = onOpenSkills,
+            onOpenFolders = onOpenFolders,
         )
     }
 
@@ -165,7 +192,8 @@ fun FeedTab(
                 Text(post.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(12.dp))
                 InfoRow(stringResource(R.string.nm_feed_info_type), typeLabel(post.type))
-                InfoRow(stringResource(R.string.nm_feed_info_written), DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(post.createdAt)))
+                // Mosaic: a 24-hour time, not "3:05 PM".
+                InfoRow(stringResource(R.string.nm_feed_info_written), SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date(post.createdAt)))
                 if (post.source.isNotEmpty()) InfoRow(stringResource(R.string.nm_feed_info_source), post.source.joinToString("\n"))
                 InfoRow(stringResource(R.string.nm_feed_info_file), "minis-global/nanomuse/feed/${post.day}/${"%02d".format(Locale.ROOT, post.index)}.md")
                 Spacer(Modifier.height(16.dp))
@@ -188,7 +216,7 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun DayTitle(text: String) {
+internal fun DayTitle(text: String) {
     Text(
         text = text,
         fontSize = 22.sp,
@@ -213,9 +241,8 @@ private fun FeedCard(modifier: Modifier = Modifier, content: @Composable () -> U
 }
 
 @Composable
-private fun PostCard(
+internal fun PostCard(
     post: FeedPost,
-    onLike: () -> Unit,
     onDiscuss: () -> Unit,
     onInfo: () -> Unit,
     modifier: Modifier = Modifier,
@@ -233,6 +260,7 @@ private fun PostCard(
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
+                    GrowthTag(post) // Mosaic
                     Text(
                         post.title,
                         fontSize = 16.sp,
@@ -248,31 +276,10 @@ private fun PostCard(
                     )
                 }
             }
+            GrowthAnswer(post) // Mosaic: the question, the answer and its review
             Spacer(Modifier.height(6.dp))
+            // Mosaic: no heart; a training card is answered, not liked.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                // The heart pops when it fills, the way a like should feel.
-                val heartScale = remember { Animatable(1f) }
-                LaunchedEffect(post.liked) {
-                    if (post.liked) {
-                        heartScale.snapTo(0.7f)
-                        heartScale.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 800f))
-                    }
-                }
-                val heartTint by animateColorAsState(
-                    if (post.liked) likeRed else MaterialTheme.colorScheme.onSurface,
-                    tween(180),
-                    label = "heartTint",
-                )
-                FooterAction(
-                    icon = if (post.liked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    tint = heartTint,
-                    label = null,
-                    contentDescription = stringResource(if (post.liked) R.string.nm_a11y_unlike else R.string.nm_a11y_like),
-                    stateDescription = stringResource(if (post.liked) R.string.nm_a11y_liked else R.string.nm_a11y_not_liked),
-                    onClick = onLike,
-                    iconModifier = Modifier.graphicsLayer { scaleX = heartScale.value; scaleY = heartScale.value },
-                )
-                Spacer(Modifier.width(6.dp))
                 FooterAction(
                     icon = Icons.Outlined.ChatBubbleOutline,
                     tint = MaterialTheme.colorScheme.onSurface,
@@ -323,73 +330,54 @@ private fun FooterAction(
     }
 }
 
-/** Muse's "About the feed" card: what drives it, the sentence itself, Edit / Got it. */
+/**
+ * Mosaic: the one card about writing today's cards. With none today, when they come and a button
+ * to write them now (or, with nothing in training, where to pick an ability); after a run that
+ * wrote no card, why, with the button to try again.
+ */
 @Composable
-private fun IntroCard(onEdit: () -> Unit, onAck: () -> Unit) {
-    val prefs by FeedStore.preferences.collectAsState()
-    FeedCard {
-        Column {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text(stringResource(R.string.nm_feed_intro_title), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.nm_feed_intro_desc), fontSize = 13.sp, lineHeight = 18.sp, color = ChatColors.secondaryText)
-            }
-            HorizontalDivider(color = MuseTones.hairline, thickness = 1.dp)
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text(prefs, fontSize = 15.sp, lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Surface(onClick = onEdit, shape = CircleShape, color = MuseTones.fill) {
-                        Text(
-                            stringResource(R.string.nm_feed_edit),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 26.dp, vertical = 11.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Surface(onClick = onAck, shape = CircleShape, color = MuseTones.action) {
-                        Text(
-                            stringResource(R.string.nm_feed_got_it),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 26.dp, vertical = 11.dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(generating: Boolean, onWriteNow: () -> Unit) {
+private fun WriteCard(empty: Boolean, nothingPlanned: Boolean, failure: String?, onWriteNow: () -> Unit) {
     val context = LocalContext.current
     val task = remember { FeedFlow.task(context) }
-    val time = task?.let { "%02d:%02d".format(java.util.Locale.ROOT, it.timeOfDayHour, it.timeOfDayMinute) }
-        ?: "%02d:%02d".format(java.util.Locale.ROOT, FeedFlow.DEFAULT_HOUR, FeedFlow.DEFAULT_MINUTE)
-    StaticCard("🖼️", stringResource(R.string.nm_feed_empty_title), stringResource(R.string.nm_feed_empty_body, time))
-    StaticCard("📝", stringResource(R.string.nm_feed_empty_how_title), stringResource(R.string.nm_feed_empty_how_body))
+    val time = task?.let { "%02d:%02d".format(Locale.ROOT, it.timeOfDayHour, it.timeOfDayMinute) }
+        ?: "%02d:%02d".format(Locale.ROOT, FeedFlow.DEFAULT_HOUR, FeedFlow.DEFAULT_MINUTE)
     FeedCard {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (generating) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MuseTones.action)
-                    Spacer(Modifier.width(10.dp))
-                    Text(stringResource(R.string.nm_feed_generating), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-            } else {
+        Column(Modifier.padding(16.dp)) {
+            if (empty) {
+                Text(stringResource(R.string.nm_growth_empty_title), fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (nothingPlanned) stringResource(R.string.nm_growth_empty_nothing) else stringResource(R.string.nm_growth_empty_body, time),
+                    fontSize = 15.sp, lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
+                )
+            }
+            if (failure != null && !nothingPlanned) {
+                if (empty) Spacer(Modifier.height(8.dp))
+                Text(failure, fontSize = 14.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.error)
+            }
+            if (!nothingPlanned) {
+                Spacer(Modifier.height(14.dp))
                 Button(
                     onClick = onWriteNow,
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = MuseTones.action, contentColor = Color.White),
                     modifier = Modifier.fillMaxWidth().height(46.dp),
-                ) { Text(stringResource(R.string.nm_feed_write_now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                ) { Text(stringResource(R.string.nm_growth_write_now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
     }
+}
+
+/** Mosaic: cards from earlier days that still wait for an answer live in the calendar; this line points there. */
+@Composable
+private fun EarlierLine(count: Int, onOpen: () -> Unit) {
+    Text(
+        androidx.compose.ui.res.pluralStringResource(R.plurals.nm_growth_earlier_open, count, count),
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        color = MuseTones.action,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 20.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
@@ -398,47 +386,52 @@ private fun GeneratingCard() {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MuseTones.action)
             Spacer(Modifier.width(10.dp))
-            Text(stringResource(R.string.nm_feed_generating), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.nm_growth_writing), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
 
-@Composable
-private fun StaticCard(emoji: String, title: String, body: String) {
-    FeedCard {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.size(44.dp).background(MuseTones.fill, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Text(emoji, fontSize = 22.sp)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(4.dp))
-                Text(body, fontSize = 15.sp, lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f))
-            }
-        }
-    }
-}
-
-/** Sliders sheet: the steering sentence, the routine's switch and time, "Write it now". */
+/**
+ * Mosaic: the training settings behind the header's sliders. The skill each ability is trained
+ * with, the knowledge the cards are made from, then the steering sentence, the routine's switch
+ * and time, and "Write it now".
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> Unit) {
+private fun FeedSettingsSheet(
+    onDismiss: () -> Unit,
+    onEditRoutine: (String) -> Unit,
+    onOpenSkill: (String) -> Unit,
+    onOpenSkills: () -> Unit,
+    onOpenFolders: () -> Unit,
+) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val prefs by FeedStore.preferences.collectAsState()
     var text by remember(prefs) { mutableStateOf(prefs) }
     val taskStore = remember { ScheduledTaskStore(context) }
-    val tasks by taskStore.observe().collectAsState(initial = taskStore.all())
+    // Mosaic: one subscription and one read of the stored tasks, not one per recomposition.
+    val tasks by remember(taskStore) { taskStore.observe() }.collectAsState(initial = remember(taskStore) { taskStore.all() })
     val task = remember(tasks) { FeedFlow.taskId(context)?.let { id -> tasks.firstOrNull { it.id == id } } }
     val generating by FeedFlow.generating.collectAsState()
+    val sources by produceState<io.github.nanomuse.growth.GrowthSources.Snapshot?>(null) {
+        value = runCatching { io.github.nanomuse.growth.GrowthSources.snapshot(context) }.getOrNull()
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = ChatColors.background) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-            Text(stringResource(R.string.nm_feed_settings_title), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Text(stringResource(R.string.nm_growth_settings_title), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
-            Text(stringResource(R.string.nm_feed_intro_desc), fontSize = 13.sp, lineHeight = 18.sp, color = ChatColors.secondaryText)
-            Spacer(Modifier.height(14.dp))
+            Text(stringResource(R.string.nm_growth_settings_desc), fontSize = 13.sp, lineHeight = 18.sp, color = ChatColors.secondaryText)
+            sources?.let { s ->
+                GrowthSkillsSection(s, onOpenSkill = { onDismiss(); onOpenSkill(it) }, onOpenSkills = { onDismiss(); onOpenSkills() })
+                GrowthKnowledgeSection(s, onOpenFolders = { onDismiss(); onOpenFolders() })
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(stringResource(R.string.nm_growth_settings_steer), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(2.dp))
+            Text(stringResource(R.string.nm_growth_settings_steer_desc), fontSize = 12.sp, lineHeight = 17.sp, color = ChatColors.secondaryText)
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
@@ -459,7 +452,7 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
                             Text(stringResource(R.string.nm_feed_routine_switch), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                             val time = task?.let { "%02d:%02d".format(java.util.Locale.ROOT, it.timeOfDayHour, it.timeOfDayMinute) }
                             Text(
-                                if (time != null) stringResource(R.string.nm_feed_routine_time, time) else stringResource(R.string.nm_feed_routine_needs_model),
+                                if (time != null) stringResource(R.string.nm_feed_routine_time, time) else stringResource(R.string.nm_growth_routine_needs_model),
                                 fontSize = 12.sp,
                                 color = ChatColors.secondaryText,
                                 maxLines = 1,
@@ -478,7 +471,7 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            stringResource(if (generating) R.string.nm_feed_generating else R.string.nm_feed_write_now),
+                            stringResource(if (generating) R.string.nm_growth_writing else R.string.nm_growth_write_now),
                             fontSize = 15.sp,
                             color = if (generating) ChatColors.secondaryText else MuseTones.action,
                             fontWeight = FontWeight.Medium,
@@ -488,7 +481,7 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
             }
             Spacer(Modifier.height(18.dp))
             Button(
-                onClick = { FeedStore.savePreferences(text); FeedFlow.acknowledgeIntro(context); onDismiss() },
+                onClick = { FeedStore.savePreferences(text); onDismiss() },
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(containerColor = MuseTones.action, contentColor = Color.White),
                 modifier = Modifier.fillMaxWidth().height(46.dp),
@@ -499,56 +492,40 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
 
 // ── labels ─────────────────────────────────────────────────────────────────
 
-private fun todayKey(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+internal fun todayKey(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-/** "Wednesday morning" for today, "Yesterday" for the day before, "Monday · Sep 22" further back. */
+/**
+ * Mosaic: "Today · Sunday · 1 Nov 2026" for today, "Saturday · 31 Oct 2026" for any other day.
+ * No morning or evening: the cards of a day are one set, whenever they were written.
+ */
 @Composable
-private fun dayLabel(day: String, firstPostAt: Long): String {
+internal fun dayLabel(day: String): String {
     val weekdays = stringArrayResource(R.array.nm_weekdays)
-    val cal = Calendar.getInstance()
-    val date = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(day) }.getOrNull() ?: Date(firstPostAt)
-    cal.time = date
+    val date = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(day) }.getOrNull() ?: Date()
+    val cal = Calendar.getInstance().apply { time = date }
     val weekday = weekdays[(cal.get(Calendar.DAY_OF_WEEK) + 5) % 7] // Calendar: SUNDAY=1 → index 6
-    val today = todayKey()
-    return when {
-        day == today -> {
-            val hour = Calendar.getInstance().apply { timeInMillis = firstPostAt }.get(Calendar.HOUR_OF_DAY)
-            val part = stringResource(
-                when {
-                    hour < 12 -> R.string.nm_feed_part_morning
-                    hour < 18 -> R.string.nm_feed_part_afternoon
-                    else -> R.string.nm_feed_part_evening
-                },
-            )
-            stringResource(R.string.nm_feed_day_today, weekday, part)
-        }
-        isYesterday(cal) -> stringResource(R.string.nm_time_yesterday)
-        else -> stringResource(R.string.nm_feed_day_past, weekday, DateFormat.getDateInstance(DateFormat.MEDIUM).format(date))
-    }
-}
-
-private fun isYesterday(cal: Calendar): Boolean {
-    val y = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
-    return y.get(Calendar.YEAR) == cal.get(Calendar.YEAR) && y.get(Calendar.DAY_OF_YEAR) == cal.get(Calendar.DAY_OF_YEAR)
+    val dateText = DateFormat.getDateInstance(DateFormat.MEDIUM).format(date)
+    return if (day == todayKey()) stringResource(R.string.nm_growth_day_today, weekday, dateText)
+    else stringResource(R.string.nm_feed_day_past, weekday, dateText)
 }
 
 @Composable
 private fun typeLabel(type: String): String = stringResource(
-    when (type) {
-        "brief" -> R.string.nm_feed_type_brief
-        "reminder" -> R.string.nm_feed_type_reminder
-        "idea" -> R.string.nm_feed_type_idea
-        "goal" -> R.string.nm_feed_type_goal
-        "memory" -> R.string.nm_feed_type_memory
-        else -> R.string.nm_feed_type_note
+    when (type) { // Mosaic: training cards and the weekly report only
+        "theory" -> R.string.nm_growth_type_theory
+        "challenge" -> R.string.nm_growth_type_challenge
+        "review" -> R.string.nm_growth_type_review
+        "action" -> R.string.nm_growth_type_action
+        "weekly" -> R.string.nm_growth_type_weekly
+        else -> R.string.nm_growth_type_practice
     },
 )
 
 private fun defaultEmoji(type: String): String = when (type) {
-    "brief" -> "📰"
-    "reminder" -> "⏰"
-    "idea" -> "💡"
-    "goal" -> "🎯"
-    "memory" -> "🧠"
-    else -> "📝"
+    "theory" -> "📖" // Mosaic
+    "challenge" -> "🏆"
+    "review" -> "🔁"
+    "action" -> "🚶"
+    "weekly" -> "📊"
+    else -> "🏋️"
 }

@@ -22,7 +22,7 @@ enum class SystemFiles(
     SOUL("SOUL.md", R.string.nm_sysfile_about_soul, editable = true),
     USER("USER.md", R.string.nm_sysfile_about_user, editable = true),
     MEMORY("GLOBAL.md", R.string.nm_sysfile_about_memory, editable = true),
-    FEED("feed-preferences.md", R.string.nm_sysfile_about_feed, editable = true),
+    FEED("feed-preferences.md", R.string.nm_growth_sysfile_about, editable = true), // Mosaic: it steers the training cards
     HEARTBEAT("HEARTBEAT.md", R.string.nm_sysfile_about_heartbeat, editable = false);
 
     /** Where the file lives; HEARTBEAT has no file of its own. */

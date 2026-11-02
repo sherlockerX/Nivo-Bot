@@ -98,6 +98,8 @@ private data class AvatarPreset(
 )
 
 private val avatarPresets = listOf(
+    // Mosaic: a backpacker caterpillar in the dragon's own 3D toy style, so its poses and clips match.
+    AvatarPreset(R.string.nm_pet_caterpillar_name, R.string.nm_pet_caterpillar_description, R.string.nm_avatar_style_muse, AvatarStudio.Style.MUSE, R.drawable.nm_preset_caterpillar),
     AvatarPreset(R.string.nm_avatar_preset_moss_name, R.string.nm_avatar_preset_moss_description, R.string.nm_avatar_style_muse, AvatarStudio.Style.MUSE, R.drawable.nm_preset_moss_courier),
     AvatarPreset(R.string.nm_avatar_preset_tide_name, R.string.nm_avatar_preset_tide_description, R.string.nm_avatar_style_clay, AvatarStudio.Style.CLAY, R.drawable.nm_preset_tide_tinker),
     AvatarPreset(R.string.nm_avatar_preset_dusk_name, R.string.nm_avatar_preset_dusk_description, R.string.nm_avatar_style_watercolor, AvatarStudio.Style.WATERCOLOR, R.drawable.nm_preset_dusk_moth),
@@ -259,6 +261,10 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
                         )
                     }
                 }
+            }
+            // Mosaic: the dragon and every pet kept so far, worn again with a tap.
+            item(key = "pets") {
+                PetWardrobe(Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             item(key = "describe") {
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {

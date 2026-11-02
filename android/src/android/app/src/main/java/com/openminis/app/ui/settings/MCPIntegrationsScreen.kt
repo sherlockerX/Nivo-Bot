@@ -87,6 +87,10 @@ fun MCPIntegrationsScreen(
     // mode (matches iOS). null = the sheet is for adding a new server.
     var editServer by remember { mutableStateOf<MCPRepository.MCPServerConfig?>(null) }
     var deleteId by remember { mutableStateOf<String?>(null) }
+    val healthContext = LocalContext.current // nanoMuse: 真实探活与凭据是否存在分别展示。
+    val healthScope = androidx.compose.runtime.rememberCoroutineScope()
+    var healthRevision by remember { mutableIntStateOf(0) }
+    var checkingServer by remember { mutableStateOf<String?>(null) }
 
     SettingsScaffold(
         title = stringResource(R.string.mcp_title),
@@ -128,10 +132,17 @@ fun MCPIntegrationsScreen(
                 }
             } else {
                 servers.forEachIndexed { index, server ->
+                    val health = remember(server, healthRevision) { io.github.nanomuse.connectors.McpHealth.state(healthContext, server.id) } // nanoMuse
+                    val healthText = stringResource(when (health) {
+                        "connected" -> R.string.nm_mcp_healthy
+                        "auth_required" -> R.string.nm_mcp_auth_required
+                        "unavailable" -> R.string.nm_mcp_unavailable
+                        else -> R.string.nm_mcp_unknown
+                    })
                     val transportIcon = if (server.isStdio) Icons.Outlined.Terminal else Icons.Outlined.Language
                     SettingsRow(
                         title = server.id,
-                        subtitle = server.transportSummary.takeIf { it.isNotBlank() },
+                        subtitle = healthText, // nanoMuse: 列表不回显可能带敏感查询参数的URL。
                         showChevron = true,
                         showDivider = index < servers.size - 1,
                         // FIX 1: plain tap opens the edit form (was delete-confirm).
@@ -139,6 +150,20 @@ fun MCPIntegrationsScreen(
                         onClick = { editServer = server },
                         trailing = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                MinisTextButton(enabled = checkingServer == null, onClick = { // nanoMuse: 重测不注册OAuth客户端，也不自动输入凭据。
+                                    checkingServer = server.id
+                                    healthScope.launch {
+                                        try {
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                val quoted = "'" + server.id.replace("'", "'\\''") + "'"
+                                                com.openminis.app.sandbox.ExecutionCoordinator.execute("mcp-health-check", "minis-mcp-cli ping $quoted", timeout = 60_000)
+                                            }
+                                        } catch (failure: Exception) { // nanoMuse: 检测失败不使设置页崩溃。
+                                            if (failure is kotlinx.coroutines.CancellationException) throw failure
+                                            android.widget.Toast.makeText(healthContext, R.string.nm_mcp_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                                        } finally { checkingServer = null; healthRevision++ }
+                                    }
+                                }) { Text(stringResource(R.string.nm_mcp_check)) }
                                 Icon(
                                     transportIcon,
                                     contentDescription = null,

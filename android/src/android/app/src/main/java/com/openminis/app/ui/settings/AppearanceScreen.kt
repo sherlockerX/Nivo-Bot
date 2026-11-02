@@ -112,7 +112,8 @@ const val KEY_AUTO_EXPAND_THINKING = "chat.autoExpandThinking"  // Boolean, defa
 // asked"; that concern is bounded here because the feature only ever files a
 // chat into a group the user already created, only when the model is confident,
 // only once per chat, and never over a hand-filed session (setFolderIfUnfiled).
-const val KEY_AUTO_GROUPING = "autoGroupingEnabled"  // Boolean, default true
+// Mosaic: default OFF. A catch-all group such as "Daily" took nearly every new chat; a new chat stays Ungrouped unless the owner turns this on.
+const val KEY_AUTO_GROUPING = "autoGroupingEnabled"  // Boolean, default false
 const val KEY_FONT_CHAT_INPUT = "font_chat_input"  // Int scale level -2..3
 const val KEY_FONT_MESSAGE = "font_message"        // Int scale level -2..3
 const val KEY_FONT_APP_BASE = "font_app_base"      // Int scale level -2..3
@@ -132,9 +133,9 @@ fun returnKeySendsMessage(context: Context): Boolean =
 fun keepScreenAwakeEnabled(context: Context): Boolean =
     getAppearancePrefs(context).getBoolean(KEY_KEEP_SCREEN_AWAKE, false)
 
-/** [T-android-auto-grouping] Default ON — see [KEY_AUTO_GROUPING]. */
+/** [T-android-auto-grouping] Default OFF in Mosaic — see [KEY_AUTO_GROUPING]. */
 fun autoGroupingEnabled(context: Context): Boolean =
-    getAppearancePrefs(context).getBoolean(KEY_AUTO_GROUPING, true)
+    getAppearancePrefs(context).getBoolean(KEY_AUTO_GROUPING, false) // Mosaic: was true
 
 /** Default ON — pill shows up on scroll for everyone unless explicitly disabled. */
 fun showChatTitleEnabled(context: Context): Boolean =
@@ -285,7 +286,7 @@ fun AppearanceScreen(
     var toolPreview by remember { mutableStateOf(prefs.getBoolean(KEY_TOOL_PREVIEW, true)) }
     var autoFocusAfterReply by remember { mutableStateOf(prefs.getBoolean(KEY_AUTO_FOCUS_AFTER_REPLY, true)) }
     var autoExpandThinking by remember { mutableStateOf(prefs.getBoolean(KEY_AUTO_EXPAND_THINKING, true)) }
-    var autoGrouping by remember { mutableStateOf(prefs.getBoolean(KEY_AUTO_GROUPING, true)) }
+    var autoGrouping by remember { mutableStateOf(autoGroupingEnabled(context)) } // Mosaic: one default, read in one place
     var chatInputLevel by remember { mutableIntStateOf(prefs.getInt(KEY_FONT_CHAT_INPUT, 0)) }
     var messageLevel by remember { mutableIntStateOf(prefs.getInt(KEY_FONT_MESSAGE, 0)) }
     var appBaseLevel by remember { mutableIntStateOf(prefs.getInt(KEY_FONT_APP_BASE, 0)) }

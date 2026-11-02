@@ -442,6 +442,7 @@ class MCPRepository(private val context: Context) {
     fun mcpPromptFragment(sessionId: String): String? {
         val enabled = _servers.value
             .filter { isEnabledForSession(it.id, sessionId) }
+            .filter { io.github.nanomuse.connectors.McpHealth.state(context, it.id) !in setOf("auth_required", "unavailable") } // nanoMuse: 已确认失败的服务器暂不推荐给模型，配置页仍可重测。
             .sortedByDescending { it.createdAt }
         if (enabled.isEmpty()) return null
 

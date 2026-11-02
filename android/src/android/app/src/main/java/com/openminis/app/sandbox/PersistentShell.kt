@@ -457,6 +457,9 @@ class PersistentShell(
      *
      * @return Pair of (output, exitCode)
      */
+    /** nanoMuse: 仅供宿主将当前Shell进程绑定到任务上下文。 */
+    internal fun trustedPid(): Int? = process?.let(io.github.nanomuse.routines.ScheduledProcessIdentity::pid)
+
     suspend fun executeCommand(
         command: String,
         timeout: Long = 600_000L,

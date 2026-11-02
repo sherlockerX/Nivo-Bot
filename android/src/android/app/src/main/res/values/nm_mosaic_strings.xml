@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: the strings of the Mosaic tab and its editor, in a file of their own so a pull of
+     nanoMuse's nm_strings.xml never conflicts with them. English and Simplified Chinese; the
+     other locales fall back to these. The fmt_ entries are java.time patterns. -->
+<resources>
+    <string name="nm_mosaic_recorded_marker">Recorded</string>
+    <string name="nm_mosaic_missing_marker">No record</string>
+    <string name="nm_mosaic_future_marker">Future date</string>
+    <string name="nm_mosaic_loading_marker">Loading records</string>
+    <string name="nm_mosaic_future_no_ring">Future dates: no ring</string>
+    <string name="nm_tab_mosaic">Mosaic</string>
+    <string name="nm_mosaic_debug_skip_setup">Skip for now (debug)</string>
+
+    <string name="nm_mosaic_scope_day">Day</string>
+    <string name="nm_mosaic_scope_week">Week</string>
+    <string name="nm_mosaic_scope_month">Month</string>
+    <string name="nm_mosaic_scope_quarter">Quarter</string>
+    <string name="nm_mosaic_scope_year">Year</string>
+    <string name="nm_mosaic_previous">Previous</string>
+    <string name="nm_mosaic_next">Next</string>
+    <string name="nm_mosaic_pick_date">Pick a date</string>
+    <string name="nm_mosaic_today">Today</string>
+    <string name="nm_mosaic_list_separator">, </string>
+
+    <string name="nm_mosaic_fmt_day">EEE, MMM d</string>
+    <string name="nm_mosaic_fmt_month_day">MMM d</string>
+    <string name="nm_mosaic_fmt_day_only">d</string>
+    <string name="nm_mosaic_fmt_full">MMM d, yyyy</string>
+    <string name="nm_mosaic_fmt_year_month">MMMM yyyy</string>
+    <string name="nm_mosaic_fmt_month">MMM</string>
+    <string name="nm_mosaic_fmt_weekday">EEE</string>
+    <string name="nm_mosaic_fmt_week_card">EEE d</string>
+    <string name="nm_mosaic_fmt_snippet">MMM d</string>
+
+    <string name="nm_mosaic_day_sub">%1$d</string>
+    <string name="nm_mosaic_day_sub_today">%1$d · Today</string>
+    <string name="nm_mosaic_week_sub">%1$d · Week %2$d</string>
+    <string name="nm_mosaic_quarter_title">Q%2$d %1$d</string>
+    <string name="nm_mosaic_year_title">%1$d</string>
+    <plurals name="nm_mosaic_year_places">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+
+    <string name="nm_mosaic_day_title_today_empty">What do you want to keep from today?</string>
+    <string name="nm_mosaic_day_title_today">Today, in pieces</string>
+    <string name="nm_mosaic_day_title_past">This day, in pieces</string>
+    <string name="nm_mosaic_day_title_past_empty">Nothing recorded this day</string>
+    <string name="nm_mosaic_day_title_future">Not here yet</string>
+    <string name="nm_mosaic_day_empty_body">A photo, a sentence or a habit marked done each fills a cloud. The rest can stay empty.</string>
+    <string name="nm_mosaic_day_past_empty_body">You can still add something for this day.</string>
+    <string name="nm_mosaic_day_future_body">The habits planned for this day show below. Records can be added once the day comes.</string>
+    <plurals name="nm_mosaic_entries">
+        <item quantity="one">%d record</item>
+        <item quantity="other">%d records</item>
+    </plurals>
+    <string name="nm_mosaic_habits_done">%1$d of %2$d habits done</string>
+    <string name="nm_mosaic_action_camera">Camera</string>
+    <string name="nm_mosaic_action_album">Album</string>
+    <string name="nm_mosaic_action_text">A sentence</string>
+    <string name="nm_mosaic_habits_today">Today\'s habits</string>
+    <string name="nm_mosaic_habits_of_day">Habits on this day</string>
+    <string name="nm_mosaic_habits_none">No habits yet. Add one and it gets a slot on the days you choose.</string>
+    <string name="nm_mosaic_habits_none_planned">No habit is planned for this day.</string>
+    <string name="nm_mosaic_view">View</string>
+    <string name="nm_mosaic_slot_add">Add a record for %1$s</string>
+    <string name="nm_mosaic_draft_row">Unsaved draft: %1$s</string>
+    <string name="nm_mosaic_draft_photo">a photo</string>
+    <string name="nm_mosaic_draft_blank">nothing written yet</string>
+    <string name="nm_mosaic_continue">Continue</string>
+    <string name="nm_mosaic_deleted">Record moved to the bin</string>
+    <string name="nm_mosaic_undo">Undo</string>
+    <string name="nm_mosaic_menu_edit">Edit</string>
+    <string name="nm_mosaic_menu_cover">Use as the day\'s cover</string>
+    <string name="nm_mosaic_menu_delete">Delete</string>
+    <string name="nm_mosaic_form_today">Today\'s shape: %1$s</string>
+    <string name="nm_mosaic_form_day">This day\'s shape: %1$s</string>
+    <string name="nm_mosaic_form_change">Change</string>
+    <string name="nm_mosaic_form_auto">Automatic (%1$s)</string>
+    <string name="nm_mosaic_form_heart">Heart</string>
+    <string name="nm_mosaic_form_diamond">Diamond</string>
+    <string name="nm_mosaic_form_flower">Flower</string>
+    <string name="nm_mosaic_form_triangle">Triangle</string>
+    <string name="nm_mosaic_form_ring">Ring</string>
+    <string name="nm_mosaic_form_star">Star</string>
+    <string name="nm_mosaic_form_jigsaw">Jigsaw piece</string>
+    <string name="nm_mosaic_form_cross">Cross</string>
+    <string name="nm_mosaic_cloud_add">Add a record</string>
+    <string name="nm_mosaic_records_title">Records</string>
+    <string name="nm_mosaic_record_photo">Photo</string>
+    <string name="nm_mosaic_recorded_later">added %1$s, %2$s</string>
+    <string name="nm_mosaic_photo_view">View the whole photo</string>
+    <string name="nm_mosaic_month_a11y">%1$s: %2$d days recorded. Tap a day to preview it.</string>
+
+    <string name="nm_mosaic_week_title">One week, seven places</string>
+    <string name="nm_mosaic_week_sub_ongoing">Up to %1$s · days recorded: %2$d</string>
+    <string name="nm_mosaic_week_sub_done">Days recorded: %1$d of 7</string>
+    <string name="nm_mosaic_week_sub_future">This week has not started yet.</string>
+    <string name="nm_mosaic_no_record">No record</string>
+    <string name="nm_mosaic_not_yet">Not here yet</string>
+    <string name="nm_mosaic_done_only">Habits marked done</string>
+    <string name="nm_mosaic_week_summary">This week, bit by bit</string>
+    <string name="nm_mosaic_habit_times">%1$s ×%2$d</string>
+    <string name="nm_mosaic_week_no_habits">No habit was marked done this week.</string>
+
+    <string name="nm_mosaic_month_title">This month\'s puzzles</string>
+    <plurals name="nm_mosaic_days_recorded">
+        <item quantity="one">day recorded</item>
+        <item quantity="other">days recorded</item>
+    </plurals>
+    <string name="nm_mosaic_month_sub_ongoing">Up to %1$s · days ahead keep their places</string>
+    <string name="nm_mosaic_month_sub_done">%1$d of %2$d days</string>
+    <string name="nm_mosaic_open_day">Open</string>
+
+    <string name="nm_mosaic_quarter_heading">Three months, one stretch</string>
+    <string name="nm_mosaic_quarter_caption">Tap a day to open it, or a month\'s name for the month.</string>
+    <plurals name="nm_mosaic_month_recorded">
+        <item quantity="one">%d day recorded</item>
+        <item quantity="other">%d days recorded</item>
+    </plurals>
+    <string name="nm_mosaic_quarter_sub_ongoing">%1$d of %2$d days so far</string>
+    <string name="nm_mosaic_quarter_sub_done">%1$d days in the quarter</string>
+    <string name="nm_mosaic_quarter_pieces">From this quarter</string>
+    <string name="nm_mosaic_quarter_pieces_none">No records this quarter yet.</string>
+    <string name="nm_mosaic_quarter_chip">Q%1$d</string>
+
+    <string name="nm_mosaic_year_heading">The shape of this year</string>
+    <string name="nm_mosaic_year_caption">Tap a month to open it.</string>
+    <string name="nm_mosaic_year_sub_ongoing">Up to %1$s · %2$d days so far</string>
+    <string name="nm_mosaic_year_sub_done">%1$d days in the year</string>
+
+    <string name="nm_mosaic_habits_title">Habits</string>
+    <string name="nm_mosaic_habit_add">Add a habit</string>
+    <string name="nm_mosaic_habit_edit">Edit habit</string>
+    <string name="nm_mosaic_habit_name">Name</string>
+    <string name="nm_mosaic_habit_days">Days</string>
+    <string name="nm_mosaic_habit_rule_note">A change to the days applies from today on; earlier days keep their plan.</string>
+    <string name="nm_mosaic_every_day">Every day</string>
+    <string name="nm_mosaic_workdays">Weekdays</string>
+    <string name="nm_mosaic_paused">Paused</string>
+    <string name="nm_mosaic_pause">Pause</string>
+    <string name="nm_mosaic_resume">Resume</string>
+    <string name="nm_mosaic_archive">Archive</string>
+    <string name="nm_mosaic_archive_confirm">From today on %1$s gets no slot. Its records and done marks stay where they are.</string>
+    <string name="nm_mosaic_skip">Skip this day</string>
+    <string name="nm_mosaic_unskip">Undo skip</string>
+    <string name="nm_mosaic_state_done">Done</string>
+    <string name="nm_mosaic_state_skipped">Skipped</string>
+    <string name="nm_mosaic_state_open">Not marked</string>
+    <string name="nm_mosaic_state_not_planned">Not planned this day</string>
+    <string name="nm_mosaic_save">Save</string>
+
+    <string name="nm_mosaic_editor_title">Keep a record</string>
+    <string name="nm_mosaic_editor_title_edit">Edit record</string>
+    <string name="nm_mosaic_photo_hint">Add a photo, or just write a sentence.</string>
+    <string name="nm_mosaic_photo_importing">Importing the photo…</string>
+    <string name="nm_mosaic_photo_failed">This picture could not be read. Choose another one, or save the text alone.</string>
+    <string name="nm_mosaic_photo_replace">Replace</string>
+    <string name="nm_mosaic_photo_remove">Remove photo</string>
+    <string name="nm_mosaic_camera_denied">Camera permission was not granted.</string>
+    <string name="nm_mosaic_camera_unavailable">No camera app could be opened.</string>
+    <string name="nm_mosaic_adjust">Crop</string>
+    <string name="nm_mosaic_crop_hint">Drag to move the photo, pinch to zoom.</string>
+    <string name="nm_mosaic_crop_reset">Reset</string>
+    <string name="nm_mosaic_text_label">A sentence</string>
+    <string name="nm_mosaic_text_hint">What happened?</string>
+    <string name="nm_mosaic_text_count">%1$d / %2$d</string>
+    <string name="nm_mosaic_mark_habit">Also mark %1$s done</string>
+    <string name="nm_mosaic_mood">Mood</string>
+    <string name="nm_mosaic_energy_a11y">Energy %1$d of 5</string>
+    <string name="nm_mosaic_mood_none">Not set</string>
+    <string name="nm_mosaic_mood_1">Great</string>
+    <string name="nm_mosaic_mood_2">Good</string>
+    <string name="nm_mosaic_mood_3">Okay</string>
+    <string name="nm_mosaic_mood_4">Low</string>
+    <string name="nm_mosaic_mood_5">Bad</string>
+    <string name="nm_mosaic_date">Date</string>
+    <string name="nm_mosaic_save_entry">Save this record</string>
+    <string name="nm_mosaic_saved_locally">Photos stay on this phone.</string>
+    <string name="nm_mosaic_saved">Saved</string>
+    <string name="nm_mosaic_marked_done">Marked done</string>
+    <string name="nm_mosaic_err_empty">Add a photo or a sentence first.</string>
+    <string name="nm_mosaic_err_future">A day that has not come yet cannot have a record.</string>
+    <string name="nm_mosaic_err_photo_missing">The photo of this draft is gone. Choose it again.</string>
+    <string name="nm_mosaic_err_storage">The photo could not be stored. Check the free space and try again.</string>
+    <string name="nm_mosaic_err_database">Not saved. Your text and photo are still here; try again.</string>
+    <string name="nm_mosaic_err_action">That did not go through. Try again.</string>
+    <string name="nm_mosaic_leave_title">Keep this draft?</string>
+    <string name="nm_mosaic_leave_body">It opens again the next time you come back to this place.</string>
+    <string name="nm_mosaic_keep">Keep</string>
+    <string name="nm_mosaic_discard">Discard</string>
+    <string name="nm_mosaic_delete_entry">Delete this record</string>
+    <string name="nm_mosaic_delete_title">Delete this record?</string>
+    <string name="nm_mosaic_delete_body">You can undo it right away. It stays in the bin for 7 days before it is removed.</string>
+</resources>

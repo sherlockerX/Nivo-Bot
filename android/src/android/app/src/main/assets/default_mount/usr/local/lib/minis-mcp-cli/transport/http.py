@@ -254,7 +254,7 @@ class HTTPTransport:
         headers["Accept"] = "application/json, text/event-stream"
         # [T-mcp-static-oauth] OAuth servers get their Authorization from the
         # native-materialized token bridge, overriding any static header.
-        if self.oauth_cfg is not None:
+        if self.oauth_cfg is not None and not any(key.lower() == "authorization" and str(value).strip() for key, value in headers.items()):  # nanoMuse: 空授权头不覆盖有效OAuth。
             headers["Authorization"] = "Bearer %s" % self._oauth_access_token(
                 force_refresh=_oauth_retried)
         if self._session_id:
@@ -265,8 +265,8 @@ class HTTPTransport:
             )
         except httpx.TimeoutException:
             raise MCPError("TIMEOUT", "request timed out after %ds" % TIMEOUT_SECONDS)
-        except httpx.HTTPError as exc:
-            raise MCPError("CONNECTION_ERROR", str(exc))
+        except httpx.HTTPError:
+            raise MCPError("CONNECTION_ERROR", "HTTP transport failed; check connectivity")
         # Capture a session id handed back by the server (streamable-HTTP).
         sid = resp.headers.get("mcp-session-id")
         if sid:
@@ -275,11 +275,16 @@ class HTTPTransport:
         # the same request; a second 401 falls through to AUTH_REQUIRED via
         # _oauth_access_token(force_refresh=True) on the retry, or to the
         # generic error below if refresh succeeded but the server still 401s.
-        if resp.status_code == 401 and self.oauth_cfg is not None and not _oauth_retried:
+        if resp.status_code == 401 and self.oauth_cfg is not None and not any(key.lower() == "authorization" and str(value).strip() for key, value in self.headers.items()) and not _oauth_retried:
             return self._post(method, params=params, notify=notify, _oauth_retried=True)
         if resp.status_code >= 400:
+            # nanoMuse: 不回显可能含凭据的响应正文，认证失败可由用户修复后重试。
+            if resp.status_code in (401, 403):
+                raise MCPError("AUTH_REQUIRED", "HTTP %d: configure authorization in server settings" % resp.status_code)
+            if resp.status_code in (400, 404) and "session" in resp.text.lower():  # nanoMuse: 保留会话失效重连信号，但不回显服务端正文。
+                raise MCPError("CONNECTION_ERROR", "HTTP %d: invalid session" % resp.status_code)
             raise MCPError(
-                "CONNECTION_ERROR", "HTTP %d: %s" % (resp.status_code, resp.text[:200])
+                "CONNECTION_ERROR", "HTTP %d" % resp.status_code
             )
         if notify:
             return None

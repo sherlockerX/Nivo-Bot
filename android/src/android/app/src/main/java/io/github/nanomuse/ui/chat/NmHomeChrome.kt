@@ -35,6 +35,10 @@ import io.github.nanomuse.ui.home.MuseTones
 data class NmHomeChrome(
     val isMainChat: Boolean,
     val onOpenDrawer: () -> Unit,
+    /** False while another tab covers the chat; a new session then does not take the keyboard. */
+    val isVisible: Boolean = true,
+    /** Mosaic: opens a voice call in this chat (the ⋯ menu's "Voice call"). */
+    val onStartCall: (() -> Unit)? = null,
 )
 
 /**

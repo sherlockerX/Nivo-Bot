@@ -89,6 +89,7 @@ fun ModelEntryDetailScreen(
     var videoInput by remember { mutableStateOf("video" in effectiveInput) }
     var imageOutput by remember { mutableStateOf("image" in effectiveOutput) }
     var audioOutput by remember { mutableStateOf("audio" in effectiveOutput) }
+    var videoOutput by remember { mutableStateOf("video" in effectiveOutput) } // nanoMuse: a video model marked by hand
 
     SettingsScaffold(
         title = stringResource(R.string.model_entry_model_detail),
@@ -121,8 +122,12 @@ fun ModelEntryDetailScreen(
                         if (videoInput) add("video")
                     }
                     val newOutputs = buildList {
+                        // nanoMuse: text has no switch here, so it is kept as it was; dropping it
+                        // turned a chat model that also draws into one that cannot answer.
+                        if ("text" in effectiveOutput) add("text")
                         if (imageOutput) add("image")
                         if (audioOutput) add("audio")
+                        if (videoOutput) add("video") // nanoMuse
                     }
                     val newOverrides = ModelOverrides(
                         displayName = displayName.trim().takeIf { it.isNotEmpty() && it != baseModel.displayName },
@@ -280,6 +285,13 @@ fun ModelEntryDetailScreen(
                 title = stringResource(R.string.modeldetail_audio_output),
                 checked = audioOutput,
                 onCheckedChange = { audioOutput = it },
+            )
+            // nanoMuse: a relay's video model whose name does not say so is marked here,
+            // and is then offered for clips (io.github.nanomuse.media.MediaModels).
+            SettingsSwitchRow(
+                title = stringResource(R.string.modeldetail_video_output),
+                checked = videoOutput,
+                onCheckedChange = { videoOutput = it },
                 showDivider = false,
             )
         }

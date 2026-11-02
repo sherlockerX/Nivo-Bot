@@ -70,6 +70,7 @@ import io.github.nanomuse.guard.RiskGate
 import io.github.nanomuse.guard.RiskRequest
 import io.github.nanomuse.guard.RiskText
 import io.github.nanomuse.identity.NanoMuseIdentity
+import io.github.nanomuse.routines.ScheduledResult
 import io.github.nanomuse.ui.home.MuseTones
 
 /**
@@ -81,7 +82,8 @@ import io.github.nanomuse.ui.home.MuseTones
 fun RiskApprovalHost(sessionId: String, onOpenSession: (String) -> Unit) {
     val pending by RiskGate.pending.collectAsState()
     val request = pending
-    val mine = request != null && request.sessionId == sessionId
+    // A scheduled script that runs without a chat asks wherever the person is.
+    val mine = request != null && (request.sessionId == sessionId || ScheduledResult.isSessionless(request.sessionId))
     AnimatedVisibility(
         visible = request != null,
         enter = slideInVertically(tween(220)) { it / 2 } + fadeIn(tween(220)),
@@ -97,7 +99,7 @@ fun RiskApprovalHost(sessionId: String, onOpenSession: (String) -> Unit) {
 @Composable
 fun RiskScrim(sessionId: String) {
     val pending by RiskGate.pending.collectAsState()
-    val visible = pending?.sessionId == sessionId
+    val visible = pending?.sessionId == sessionId || ScheduledResult.isSessionless(pending?.sessionId)
     AnimatedVisibility(visible = visible, enter = fadeIn(tween(220)), exit = fadeOut(tween(160))) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)).clickable(enabled = false) {})
     }

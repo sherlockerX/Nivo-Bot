@@ -185,6 +185,7 @@ object Nudges {
      * Own-key users without an account fetch from the default relay base too.
      */
     fun refreshIfStale(context: Context) {
+        if (MOSAIC_OFFLINE) return // Mosaic: no fetch of the relay's nudges
         if (System.currentTimeMillis() - checkedAt(context) < FRESH_MS) return
         if (!fetching.compareAndSet(false, true)) return
         val app = context.applicationContext

@@ -42,6 +42,14 @@ class HandsOffloadHandler(private val context: Context) : NativeOffloadHandler {
         return JSONObject()
             .put("enabled", Hands.enabled(context))
             .put("ready", r.ready)
+            .put("usable", Hands.enabled(context) && r.ready)
+            .put("blockers", JSONArray().apply {
+                if (!Hands.enabled(context)) put(blocker("DISABLED"))
+                if (!r.androidOk) put(blocker("ANDROID_VERSION"))
+                if (!r.serviceOn) put(blocker("ACCESSIBILITY_REQUIRED"))
+                if (!r.overlayOk) put(blocker("OVERLAY_REQUIRED"))
+                if (r.model == null) put(blocker("VISION_MODEL_REQUIRED"))
+            })
             .put("android_11_or_newer", r.androidOk)
             .put("accessibility_service", r.serviceOn)
             .put("draw_over_apps", r.overlayOk)
@@ -57,6 +65,8 @@ class HandsOffloadHandler(private val context: Context) : NativeOffloadHandler {
             .put("apps", JSONArray().apply { list.forEach { put(JSONObject().put("name", it.label).put("package", it.packageName)) } })
     }
 
+    private fun blocker(code: String): JSONObject = JSONObject().put("code", code).put("settings", Hands.DEEP_LINK)
+
     private fun run(args: MediaOffloadHandler.Args, sessionId: String?): NativeOffloadResult {
         val task = args.get("task")?.trim().orEmpty()
         if (task.isEmpty()) return NativeOffloadResult(2, "nanomuse-hands run: --task is required\n")
@@ -66,7 +76,7 @@ class HandsOffloadHandler(private val context: Context) : NativeOffloadHandler {
             val missing = buildList {
                 if (!r.androidOk) add("Android 11 or newer is needed for screenshots")
                 if (!r.serviceOn) add("the accessibility service is off")
-                if (!r.overlayOk) add("nanoMuse may not draw over other apps")
+                if (!r.overlayOk) add("Nicholasx may not draw over other apps")
                 if (r.model == null) add("no model that can see pictures is configured")
             }
             return refused("not_ready", missing.joinToString("; ") + ".")

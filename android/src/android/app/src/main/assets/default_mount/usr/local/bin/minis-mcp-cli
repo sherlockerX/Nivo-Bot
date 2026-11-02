@@ -15,17 +15,25 @@ LOG="/var/minis/mcp-servers/mcp-cli.log"
 mkdir -p /var/minis/mcp-servers 2>/dev/null
 _log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG" 2>/dev/null; }
 
+# nanoMuse: 安装失败必须返回明确错误，不把缺运行时伪装成空结果。
+_fail() {
+  printf '%s\n' '{"status":"error","error":{"code":"DEPENDENCY_UNAVAILABLE","message":"MCP requires python3 and httpx. Check the package mirror and network, then retry.","retryable":true}}'
+  exit 4
+}
+if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 1048576 ]; then mv -f "$LOG" "$LOG.1"; fi
+
 # Ensure python3 is available.
 if ! command -v python3 > /dev/null 2>&1; then
   _log "Installing python3..."
-  apk add --quiet python3 py3-pip >> "$LOG" 2>&1
+  apk add --no-cache --quiet python3 py3-httpx py3-requests py3-pip tzdata >> "$LOG" 2>&1 || _fail
 fi
+command -v python3 >/dev/null 2>&1 || _fail
 
 # Ensure httpx is importable (used by the HTTP transport).
 if ! python3 -c "import httpx" 2>/dev/null; then
   _log "Installing httpx..."
-  pip install --quiet httpx >> "$LOG" 2>&1 || \
-    pip install --quiet --break-system-packages httpx >> "$LOG" 2>&1
+  apk add --no-cache --quiet py3-httpx py3-requests py3-pip tzdata >> "$LOG" 2>&1 || _fail
 fi
+python3 -c 'import httpx' 2>/dev/null || _fail
 
 exec python3 /usr/local/lib/minis-mcp-cli/main.py "$@"

@@ -78,7 +78,7 @@ class ScheduledNotificationReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: "unknown"
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "nanoMuse"
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Nicholasx"
         val body = intent.getStringExtra(EXTRA_BODY) ?: ""
         AppLogger.debug(TAG, "scheduled notification fired: id=$id title='$title'")
 
@@ -101,7 +101,7 @@ class ScheduledNotificationReceiver : BroadcastReceiver() {
         try {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE)
                 as android.app.NotificationManager
-            nm.notify(notifId, notification)
+            if (id.startsWith("tag:")) nm.notify(id.removePrefix("tag:"), 0, notification) else nm.notify(notifId, notification) // nanoMuse: 延迟发送也沿用同一标签。
         } catch (e: SecurityException) {
             AppLogger.error(TAG, "post denied — POST_NOTIFICATIONS missing: ${e.message}")
         }

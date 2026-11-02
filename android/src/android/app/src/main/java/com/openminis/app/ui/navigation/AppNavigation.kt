@@ -771,6 +771,56 @@ fun AppNavigation(
             )
         }
 
+        // Mosaic: the record editor (a photo, a sentence, a habit marked done) over the Mosaic tab.
+        composable(
+            route = io.github.nanomuse.ui.mosaic.ROUTE_MOSAIC_EDIT,
+            arguments = listOf(
+                navArgument("day") { type = NavType.LongType; defaultValue = java.time.LocalDate.now().toEpochDay() },
+                navArgument("habit") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("entry") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("source") { type = NavType.StringType; defaultValue = io.github.nanomuse.ui.mosaic.MosaicEditSource.NONE.name },
+                navArgument("draft") { type = NavType.StringType; nullable = true; defaultValue = null },
+            ),
+        ) { entry ->
+            val args = entry.arguments
+            io.github.nanomuse.ui.mosaic.MosaicEditorScreen(
+                day = args?.getLong("day") ?: java.time.LocalDate.now().toEpochDay(),
+                habitId = args?.getString("habit"),
+                entryId = args?.getString("entry"),
+                source = io.github.nanomuse.ui.mosaic.MosaicEditSource.entries
+                    .firstOrNull { it.name == args?.getString("source") } ?: io.github.nanomuse.ui.mosaic.MosaicEditSource.NONE,
+                onClose = { navController.safePopBackStack() },
+                draftKey = args?.getString("draft"),
+            )
+        }
+
+        // Mosaic: a voice call in a chat. The page shares that chat's ViewModel (the process-level
+        // store), so the call's turns land in the conversation and the chat keeps them.
+        composable(
+            route = io.github.nanomuse.call.ROUTE_CALL,
+            arguments = listOf(navArgument("session") { type = NavType.StringType; defaultValue = "" }),
+        ) { entry ->
+            val callSession = entry.arguments?.getString("session").orEmpty()
+            val callVm: com.openminis.app.ui.chat.ChatViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                viewModelStoreOwner = com.openminis.app.ui.chat.ChatViewModelStore.ownerFor(callSession),
+                factory = com.openminis.app.ui.chat.ChatViewModel.factory(
+                    sessionId = callSession,
+                    chatRepository = chatRepository,
+                    providerRepository = providerRepository,
+                    appContext = context.applicationContext,
+                    memoryRepository = memoryRepository,
+                    skillRepository = skillRepository,
+                    mcpRepository = mcpRepository,
+                ),
+            )
+            io.github.nanomuse.call.CallScreen(
+                sessionId = callSession,
+                vm = callVm,
+                providerRepository = providerRepository,
+                onClose = { navController.safePopBackStack() },
+            )
+        }
+
         // nanoMuse: the full OpenMinis session list (folders, search, bulk
         // actions), one tap behind the drawer's archive glyph. Picking a chat
         // hands it to the home shell underneath.

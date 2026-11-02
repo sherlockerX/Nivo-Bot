@@ -400,6 +400,27 @@ internal sealed class FlatChatItem {
         }
     }
 
+    // nanoMuse: 一个折叠行保存过程，正式答复仍使用独立的 Markdown 行。
+    data class AssistantSteps(val messageId: String, val blocks: List<AssistantBlock>, val isStreaming: Boolean) : FlatChatItem() {
+        override val key = "steps:$messageId"
+        override val contentType = "steps"
+    }
+
+    // nanoMuse: 展开正文独立进入懒加载列表，标题高度不随过程长度改变。
+    /** 单个工具或有界的过程文本片段。 */
+    data class AssistantStepPart(
+        val messageId: String,
+        val block: AssistantBlock,
+        val occurrence: Int,
+        val partIndex: Int,
+        val text: String,
+        val isStreaming: Boolean,
+        val tools: List<AssistantBlock>,
+    ) : FlatChatItem() {
+        override val key = "step-part:$messageId:${block.id}:$occurrence:$partIndex"
+        override val contentType = if (block.kind == "tool_use") "step-tool" else "step-text"
+    }
+
     data class AssistantThinking(
         val messageId: String,
         val block: AssistantBlock,
@@ -472,6 +493,12 @@ internal sealed class FlatChatItem {
     data class NanoMuseAllowance(val messageId: String) : FlatChatItem() {
         override val key = "nm_allowance:$messageId"
         override val contentType = "nm_allowance"
+    }
+
+    /** Mosaic: the action row under a finished reply (io.github.nanomuse.ui.chat.NmReplyActions). */
+    data class NanoMuseReplyActions(val messageId: String) : FlatChatItem() {
+        override val key = "nm_reply_actions:$messageId"
+        override val contentType = "nm_reply_actions"
     }
 
     data class AssistantTyping(val messageId: String) : FlatChatItem() {
@@ -560,6 +587,7 @@ internal fun buildFlatChatItems(
     // Appearance → "Show the agent's steps", off by default). The typing
     // indicator then stays up while a tool runs, since nothing else shows.
     showSteps: Boolean = true,
+    foldSteps: Boolean = false,
 ): List<FlatChatItem> {
     val out = mutableListOf<FlatChatItem>()
     val usedKeys = if (seedKeys.isEmpty()) mutableSetOf() else seedKeys.toMutableSet()
@@ -587,6 +615,8 @@ internal fun buildFlatChatItems(
                 messageIsStreaming = item.messageIsStreaming,
                 messageMarkdown = item.messageMarkdown,
             )
+            is FlatChatItem.AssistantSteps -> item.copy(messageId = "${item.messageId}#$n")
+            is FlatChatItem.AssistantStepPart -> item.copy(messageId = "${item.messageId}#$n") // nanoMuse: 展示层片段身份。
             is FlatChatItem.AssistantThinking -> item.copy(messageId = "${item.messageId}#$n")
             is FlatChatItem.AssistantToolUse -> item.copy(messageId = "${item.messageId}#$n")
             is FlatChatItem.AssistantInfo -> item.copy(messageId = "${item.messageId}#$n")
@@ -595,6 +625,7 @@ internal fun buildFlatChatItems(
             is FlatChatItem.NanoMuseAvatarShare -> item.copy(messageId = "${item.messageId}#$n") // nanoMuse
             is FlatChatItem.NanoMuseAvatarConfirm -> item.copy(messageId = "${item.messageId}#$n") // nanoMuse
             is FlatChatItem.NanoMuseAllowance -> item.copy(messageId = "${item.messageId}#$n") // nanoMuse
+            is FlatChatItem.NanoMuseReplyActions -> item.copy(messageId = "${item.messageId}#$n") // Mosaic
             is FlatChatItem.AssistantTyping -> item.copy(messageId = "${item.messageId}#$n")
             is FlatChatItem.AssistantError -> item.copy(messageId = "${item.messageId}#$n")
             is FlatChatItem.AssistantLegacyContent -> FlatChatItem.AssistantLegacyContent(
@@ -651,10 +682,10 @@ internal fun buildFlatChatItems(
         // it; leave the whole turn out (its steps are still in the history).
         // The look-back below skips such turns too, so the reply that
         // follows one keeps its header.
-        if (!showSteps && message.role != "system" && stepsOnlyTurn(message)) continue
+        if (!foldSteps && !showSteps && message.role != "system" && stepsOnlyTurn(message)) continue
         val prevNonSystem = (idx - 1 downTo 0).asSequence()
             .map { messages[it] }
-            .firstOrNull { it.role != "system" && (showSteps || !stepsOnlyTurn(it)) }
+            .firstOrNull { it.role != "system" && (foldSteps || showSteps || !stepsOnlyTurn(it)) }
         val isResumeContinuation = prevNonSystem?.role == "assistant"
         if (!isSystem && !isResumeContinuation) {
             out.add(dedupe(FlatChatItem.AssistantHeader(message.id)))
@@ -674,7 +705,15 @@ internal fun buildFlatChatItems(
         // retryLast() re-runs the whole turn, so one button is enough.
         val lastCancelledToolId = blocks.lastOrNull { it.kind == "tool_use" && it.toolStatus == ToolBlockStatus.CANCELLED }?.id
 
+        // nanoMuse: 工具调用之前的说明也属于执行过程，后续正文单独显示。
+        val lastToolIndex = blocks.indexOfLast { it.kind == "tool_use" }
+        val processBlocks = if (foldSteps && !isSystem) blocks.filterIndexed { index, block ->
+            block.kind == "thinking" || block.kind == "tool_use" || (block.kind == "text" && index < lastToolIndex)
+        } else emptyList()
+        if (processBlocks.isNotEmpty()) out.add(dedupe(FlatChatItem.AssistantSteps(message.id, processBlocks, message.isStreaming)))
+        val processIds = processBlocks.map { it.id }.toSet()
         blocks.forEachIndexed { index, block ->
+            if (block.id in processIds) return@forEachIndexed
             when (block.kind) {
                 "text" -> {
                     if (block.content.isNotEmpty()) {
@@ -736,7 +775,7 @@ internal fun buildFlatChatItems(
         // A null thinkingLevel snapshot falls back to the chat's CURRENT
         // level in the renderer, which this pure builder can't read — treat
         // it as visible (legacy messages; conservative, old behavior).
-        val hasVisibleContent = message.content.isNotEmpty() || blocks.any {
+        val hasVisibleContent = processBlocks.isNotEmpty() || message.content.isNotEmpty() || blocks.any {
             when (it.kind) {
                 "info" -> false
                 "thinking" -> showSteps && (message.thinkingLevel?.isEnabled ?: true) // nanoMuse: hidden steps do not count
@@ -762,6 +801,11 @@ internal fun buildFlatChatItems(
         // Inline error banner
         message.error?.let {
             out.add(dedupe(FlatChatItem.AssistantError(message.id, it)))
+        }
+
+        // Mosaic: copy, read aloud, branch and share under a reply once it is written.
+        if (message.role == "assistant" && !message.isStreaming && joinedMarkdown.isNotBlank()) {
+            out.add(dedupe(FlatChatItem.NanoMuseReplyActions(message.id)))
         }
     }
     return out

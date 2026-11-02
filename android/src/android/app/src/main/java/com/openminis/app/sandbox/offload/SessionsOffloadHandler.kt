@@ -36,6 +36,7 @@ import java.util.TimeZone
  */
 class SessionsOffloadHandler(
     private val repo: ChatRepository,
+    private val context: android.content.Context? = null, // Mosaic: delete 需要与侧栏相同的保护检查。
 ) : NativeOffloadHandler {
 
     override fun handle(request: NativeOffloadRequest): NativeOffloadResult {
@@ -44,14 +45,22 @@ class SessionsOffloadHandler(
         // is the subcommand name. `full` is declared boolean so
         // `--full <token>` never greedily consumes the next token as a value
         // (e.g. `--full` placed before the subcommand).
-        val args = OffloadArgs(request.argv.drop(1), booleanFlags = setOf("full"))
+        val args = OffloadArgs(request.argv.drop(1), booleanFlags = setOf("full", "unpin", "include-archived", "force")) // nanoMuse
         if (args.hasFlag("h", "help")) {
             return NativeOffloadResult(0, OffloadOutput.formatBody(HELP_TEXT, args) + "\n")
         }
 
         val sub = args.positional.firstOrNull() ?: "list"
         return try {
+            if ((sub in setOf("groups", "move", "pin", "archive", "unarchive") || sub == "delete" && args.hasFlag("force")) && // Mosaic
+                !(sub == "groups" && args.positional.getOrNull(1) in listOf(null, "list"))) { // nanoMuse: 写操作同样经过风险闸门。
+                val gate = runBlocking { io.github.nanomuse.guard.RiskGate.checkShell(request.sessionId ?: "sessions-cli", request.argv.joinToString(" ")) }
+                if (gate is io.github.nanomuse.guard.GateOutcome.Denied) return NativeOffloadResult(3, errorEnvelope(sub, "PERMISSION_DENIED", gate.message).toString())
+            }
             when (sub) {
+                "groups", "move", "pin", "archive", "unarchive" -> // nanoMuse; Mosaic: archive, unarchive
+                    emit(sub, runBlocking { io.github.nanomuse.chat.SessionOrganizationCli.execute(repo, args) }, args)
+                "delete" -> cmdDelete(args) // Mosaic
                 "list" -> cmdList(args)
                 "search" -> cmdSearch(args)
                 "messages" -> cmdMessages(args)
@@ -68,6 +77,14 @@ class SessionsOffloadHandler(
                     )
                 }
             }
+        } catch (e: io.github.nanomuse.chat.GroupNameException) { // nanoMuse: 名称校验使用稳定错误码，不作为INTERNAL。
+            val message = when (e.code) { "GROUP_NAME_EXISTS" -> "Group name already in use"; "GROUP_NAME_RESERVED" -> "Group name is reserved";
+                "GROUP_SYSTEM_PROTECTED" -> "System group is protected"; else -> "Group name is invalid" }
+            val envelope = errorEnvelope(sub, e.code, message)
+            e.existingGroupId?.let { envelope.getJSONObject("data").put("existing_group_id", it) }
+            NativeOffloadResult(EXIT_INVALID_ARGS, envelope.toString())
+        } catch (e: IllegalArgumentException) { // nanoMuse: 参数错误与内部故障分开。
+            NativeOffloadResult(EXIT_INVALID_ARGS, errorEnvelope(sub, "INVALID_ARGS", e.message ?: "Invalid arguments").toString())
         } catch (e: Throwable) {
             // Last-ditch: any unexpected exception (sql parse error, OOM,
             // …) becomes an INTERNAL envelope rather than a crash so the
@@ -87,8 +104,11 @@ class SessionsOffloadHandler(
         val startMs = parseDate(args.get("start"))
         val endMs = parseEndDate(args.get("end"))
         val limit = parseLimit(args)
+        // Mosaic: 归档（定时任务分组）里的会话默认不列；点名 --ids 或 --include-archived 时照列。
+        val includeArchived = ids != null || args.hasFlag("include-archived")
 
-        val metas = runBlocking { repo.querySessionsMeta(ids, kws, limit, startMs, endMs) }
+        val metas = runBlocking { repo.querySessionsMeta(ids, kws, limit, startMs, endMs,
+            io.github.nanomuse.chat.GroupNamePolicy.SYSTEM_ID.takeUnless { includeArchived }) }
 
         val sessions = JSONArray()
         for (m in metas) {
@@ -97,6 +117,12 @@ class SessionsOffloadHandler(
                 .put("started_at", DATE_FMT.format(Date(m.startedAt)))
                 .put("last_active", DATE_FMT.format(Date(m.lastActive)))
                 .put("message_count", m.messageCount)
+                .put("started_at_ms", m.startedAt).put("last_active_ms", m.lastActive) // nanoMuse
+                .put("group_id", m.folderId ?: JSONObject.NULL).put("pinned", m.pinnedAt != null)
+                .put("group_assigned_by", m.groupAssignedBy ?: JSONObject.NULL).put("created_by_task_id", m.createdByTaskId ?: JSONObject.NULL)
+                .put("created_by_run_id", m.createdByRunId ?: JSONObject.NULL) // nanoMuse
+                .put("source", m.source ?: "user").put("timing", io.github.nanomuse.chat.TurnTimingStore.summary(m.id))
+                .put("archived", m.folderId == io.github.nanomuse.chat.GroupNamePolicy.SYSTEM_ID) // Mosaic
             // Optional fields — only emit when non-null so the JSON
             // matches iOS's `(optional)` shape rather than carrying
             // null literals through to the agent prompt.
@@ -107,8 +133,33 @@ class SessionsOffloadHandler(
         }
         val data = JSONObject()
             .put("count", sessions.length())
+            .put("include_archived", includeArchived) // Mosaic
             .put("sessions", sessions)
         return emit("list", data, args)
+    }
+
+    /**
+     * Mosaic: 删除要 --force；不带时只报出会删掉几个会话、多少条消息，不动数据。
+     * 主聊天、执行中、任务目标和隐藏会话跳过不删，与侧栏删除同一套检查。
+     */
+    private fun cmdDelete(args: OffloadArgs): NativeOffloadResult {
+        val ids = args.get("id")?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        require(ids.isNotEmpty()) { "--id <session_id[,session_id...]> is required" }
+        val messages = runBlocking { ids.sumOf { id ->
+            requireNotNull(repo.getSession(id)) { "Session not found: $id" }
+            repo.messageCountInRange(id, null, null)
+        } }
+        if (!args.hasFlag("force")) {
+            val err = errorEnvelope("delete", "CONFIRM_REQUIRED", "Deleting removes ${ids.size} conversation(s) and $messages message(s) for good. Repeat with --force.")
+            err.getJSONObject("data").put("sessions", ids.size).put("messages", messages)
+            return NativeOffloadResult(EXIT_INVALID_ARGS, err.toString())
+        }
+        val app = requireNotNull(context) { "delete is not available here" }
+        val report = runBlocking { io.github.nanomuse.chat.SessionDeleteGuard.delete(app, repo, ids) }
+        val data = JSONObject().put("deleted", JSONArray(report.deleted.toList())).put("protected", JSONArray(report.protectedIds.toList()))
+            .put("failed", JSONArray(report.failed.toList())).put("messages", messages)
+        return if (report.failed.isEmpty()) emit("delete", data, args)
+        else NativeOffloadResult(1, JSONObject().put("ok", false).put("tool", TOOL_NAME).put("action", "delete").put("data", data).toString())
     }
 
     private fun cmdSearch(args: OffloadArgs): NativeOffloadResult {
@@ -140,6 +191,7 @@ class SessionsOffloadHandler(
                     .put("message_id", m.messageId)
                     .put("role", m.role)
                     .put("created_at", DATE_FMT.format(Date(m.createdAt)))
+                    .put("created_at_ms", m.createdAt) // nanoMuse
                     .put("snippet", m.snippet),
             )
         }
@@ -199,10 +251,11 @@ class SessionsOffloadHandler(
                 .put("message_id", m.messageId)
                 .put("role", m.role)
                 .put("created_at", DATE_FMT.format(Date(m.createdAt)))
+                .put("created_at_ms", m.createdAt) // nanoMuse
                 .put("text", m.text)
             // Only present when the stored text exceeded the cap, so normal
             // messages serialize byte-identically to before (iOS parity).
-            if (m.truncated) obj.put("truncated", true)
+            obj.put("truncated", m.truncated) // nanoMuse: 读取契约始终包含text与布尔截断标志。
             msgs.put(obj)
         }
         val data = JSONObject()
@@ -309,6 +362,14 @@ COMMANDS:
   list      List recent sessions (default: 50, max: 100)
   search    Search message content across sessions (requires --keywords)
   messages  Read messages from a specific session (requires --id)
+  archive   Put conversations made by scheduled tasks under Scheduled tasks (--id a,b,...)
+  unarchive Take conversations out of Scheduled tasks (--id a,b,...)
+  delete    Delete conversations (--id a,b,...); without --force it only reports what would go
+
+Archived conversations (the Scheduled tasks group) are left out of 'list' unless
+--include-archived is given or --ids names them; 'search' and 'messages' still read them.
+Each list entry carries "archived". delete skips the main chat, running conversations,
+conversations a task appends to, and hidden ones, and reports them under "protected".
 
 OPTIONS:
   --keywords <words>    Space-separated keywords (AND logic, required for search)
@@ -344,6 +405,16 @@ WORKFLOW:
   4. Use --offset to paginate through long conversations
 
 EXAMPLES:
+  minis-sessions-cli groups list
+  minis-sessions-cli groups create --name "Work"
+  minis-sessions-cli groups rename --id <group_id> --name "Study"
+  minis-sessions-cli groups delete --id <group_id>    (ungroups, never deletes chats)
+  minis-sessions-cli move --id <session_id> --group <group_id|none>
+  minis-sessions-cli pin --id <session_id> [--unpin]
+  minis-sessions-cli archive --id <session_id>,<session_id>
+  minis-sessions-cli delete --id <session_id>              (reports the message count)
+  minis-sessions-cli delete --id <session_id> --force
+  minis-sessions-cli list --include-archived
   minis-sessions-cli list
   minis-sessions-cli list --limit 10
   minis-sessions-cli list --keywords python flask

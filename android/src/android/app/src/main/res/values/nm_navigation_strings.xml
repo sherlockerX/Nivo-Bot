@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_ungrouped">Ungrouped</string>
+    <string name="nm_notif_active_chats">%1$d conversations running</string>
+    <string name="nm_notif_chat_fallback">Conversation</string>
+    <string name="nm_notif_ready">Ready</string>
+    <string name="nm_notif_waiting">Waiting for your next message</string>
+    <string name="nm_anchors">Conversation anchors</string>
+    <string name="nm_anchor_add">Add bookmark</string>
+    <string name="nm_anchor_remove">Remove bookmark</string>
+    <string name="nm_anchor_directory">Questions</string>
+    <string name="nm_anchor_saved">Bookmarks</string>
+    <string name="nm_anchor_search">Search this conversation</string>
+    <string name="nm_anchor_empty">No matching messages</string>
+    <string name="nm_anchor_loading">Loading bookmarks</string>
+    <string name="nm_anchor_unavailable">This message is no longer available</string>
+    <string name="nm_anchor_save_failed">Could not save the bookmark. Please try again.</string>
+    <string name="nm_anchor_user">You</string>
+    <string name="nm_anchor_assistant">Reply</string>
+    <string name="nm_calendar_input">Enter a date</string>
+    <string name="nm_calendar_grid">Show calendar</string>
+    <string name="nm_calendar_date_hint">YYYY-MM-DD</string>
+    <string name="nm_calendar_invalid">Enter a valid allowed date</string>
+</resources>

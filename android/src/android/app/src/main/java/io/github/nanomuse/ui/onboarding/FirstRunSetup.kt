@@ -126,17 +126,10 @@ object FirstRunSetup {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /**
-     * Whether the home should show the setup instead of the chat. The setup comes back when
-     * nothing could answer: no account *and* no provider of the person's own with a key
-     * ([hasProviders]). An account is one way in, a key of one's own is the other; the sign-in
-     * stays an invitation (sync, the devices, the free allowance), never a wall, so a phone
-     * with its own key works signed out. Otherwise the setup stays only for a brand-new
-     * install, no conversation yet, until *Start* has been tapped, so the last page is a real
-     * step and the hand-off into the first conversation is deliberate.
-     */
+    /** 只在首次且未完成或跳过引导时显示，不以供应商配置作为进入应用的门槛。 */
+    @Suppress("UNUSED_PARAMETER")
     fun needed(signedIn: Boolean, hasProviders: Boolean, hasSessions: Boolean, done: Boolean): Boolean =
-        (!signedIn && !hasProviders) || (!hasSessions && !done)
+        !hasSessions && !done
 
     enum class Stage { WELCOME, PASSWORD, SOURCE, MODELS, HANDS, MEET }
 
@@ -187,6 +180,8 @@ fun FirstRunSetupScreen(
     onStart: () -> Unit,
     onSettings: () -> Unit,
     hasProviders: Boolean = signedIn,
+    // Mosaic: debug builds pass this to offer "skip for now" (MosaicDebug); release builds pass null.
+    onDebugSkip: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var modelsSkipped by remember { mutableStateOf(false) }
@@ -212,6 +207,11 @@ fun FirstRunSetupScreen(
             // where every OpenMinis page (providers, groups, appearance) is reachable anyway.
             Box(modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Dots(current = FirstRunSetup.dot(stage), total = 3, modifier = Modifier.align(Alignment.Center))
+                if (onDebugSkip != null) {
+                    TextButton(onClick = onDebugSkip, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp)) {
+                        Text(stringResource(R.string.nm_mosaic_debug_skip_setup), color = MuseTones.action, fontSize = 14.sp)
+                    }
+                }
                 IconButton(onClick = onSettings, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
                     Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.nm_setup_settings), tint = onSurface)
                 }
@@ -230,6 +230,7 @@ fun FirstRunSetupScreen(
                     FirstRunSetup.Stage.WELCOME -> WelcomePage(
                         onSignIn = onSignIn,
                         onOwnKey = { FirstRunSetup.markSourceChosen(context); sourceChosen = true; onAddProvider() },
+                        onSkip = onStart,
                     )
                     FirstRunSetup.Stage.PASSWORD -> PasswordPage(
                         onDone = { NanoMuseCloud.clearFreshAccount(context); passwordAnswered = true; fresh = false },
@@ -256,26 +257,21 @@ fun FirstRunSetupScreen(
  * account, or a key of one's own (the provider screen; the sign-in can come later).
  */
 @Composable
-private fun WelcomePage(onSignIn: () -> Unit, onOwnKey: () -> Unit) {
-    val context = LocalContext.current
+@Suppress("UNUSED_PARAMETER")
+private fun WelcomePage(onSignIn: () -> Unit, onOwnKey: () -> Unit, onSkip: () -> Unit) {
+    // Mosaic: one door, the owner's own provider; no account, no relay notice, no computers.
     Page(
         hero = { io.github.nanomuse.ui.muse.NmBrandMark(size = 104.dp) }, // the face comes with the conversation, on the last page
         title = stringResource(R.string.nm_setup_title),
         subtitle = stringResource(R.string.nm_welcome_tagline),
-        primaryLabel = stringResource(R.string.nm_welcome_email),
-        onPrimary = onSignIn,
-        secondaryLabel = stringResource(R.string.nm_welcome_own_key),
-        onSecondary = onOwnKey,
-        finePrint = stringResource(R.string.nm_welcome_fine_print),
-        onLearnMore = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) } },
+        primaryLabel = stringResource(R.string.nm_welcome_own_key),
+        onPrimary = onOwnKey,
+        secondaryLabel = stringResource(R.string.nm_welcome_skip),
+        onSecondary = onSkip,
     ) {
         FeatureRow(Icons.Outlined.ChatBubbleOutline, stringResource(R.string.nm_welcome_feat_chat), stringResource(R.string.nm_welcome_feat_chat_sub))
         Spacer(Modifier.height(10.dp))
         FeatureRow(Icons.Outlined.TouchApp, stringResource(R.string.nm_welcome_feat_hands), stringResource(R.string.nm_welcome_feat_hands_sub))
-        Spacer(Modifier.height(10.dp))
-        FeatureRow(Icons.Outlined.Computer, stringResource(R.string.nm_welcome_feat_reach), stringResource(R.string.nm_welcome_feat_reach_sub))
-        Spacer(Modifier.height(18.dp))
-        NoticeCard(title = stringResource(R.string.nm_cloud_notice_title), body = stringResource(R.string.nm_welcome_notice))
     }
 }
 

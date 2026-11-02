@@ -110,7 +110,8 @@ fun GoalsTab(
     val store = remember { GoalStore.get(context) }
     val goals by store.goals.collectAsState()
     val taskStore = remember { ScheduledTaskStore(context) }
-    val routines by taskStore.observe().collectAsState(initial = taskStore.all())
+    // Mosaic: one subscription and one read of the stored tasks, not one per recomposition.
+    val routines by remember(taskStore) { taskStore.observe() }.collectAsState(initial = remember(taskStore) { taskStore.all() })
     val visibleRoutines = remember(routines) { routines.filterNot { it.hidden }.sortedByDescending { it.createdAt } }
     val listState = rememberLazyListState()
     var sheetCategory by remember { mutableStateOf<GoalCategory?>(null) }

@@ -531,7 +531,7 @@ class ProviderRepository(private val context: Context) {
         if (!configLoadComplete.isCompleted) configLoadComplete.complete(Unit)
     }
 
-    private fun saveConfig(config: ProviderConfig) {
+    private fun saveConfig(config: ProviderConfig, requirePersistence: Boolean = false) { // nanoMuse: 显式保存必须确认落盘。
         // [T-android-provider-room-store] Double-write: DB + legacy JSON
         // mirror, both produced inside the same configLock window. The
         // mirror keeps older app builds able to read current config on
@@ -571,6 +571,7 @@ class ProviderRepository(private val context: Context) {
             val canonical = try {
                 runBlocking { persistToDbAndMirror(config) }
             } catch (e: Exception) {
+                if (requirePersistence) throw e // nanoMuse: 保存失败不能伪装为成功。
                 android.util.Log.e(
                     "ProviderRepo",
                     "[ProviderStore] saveConfig persistence failed; emitting in-memory only: ${e.message}",
@@ -771,7 +772,7 @@ class ProviderRepository(private val context: Context) {
         return officialHosts.none { custom.contains(it) }
     }
 
-    fun updateInstance(instance: ProviderInstance): Unit = synchronized(configLock) {
+    fun updateInstance(instance: ProviderInstance, requirePersistence: Boolean = false): Unit = synchronized(configLock) { // nanoMuse
         ensureConfigLoaded()
         val config = workingCopy()
         val idx = config.instances.indexOfFirst { it.id == instance.id }
@@ -790,7 +791,7 @@ class ProviderRepository(private val context: Context) {
                 instance.imageEndpointResolved = null
             }
             config.instances[idx] = instance
-            saveConfig(config)
+            saveConfig(config, requirePersistence) // nanoMuse
             // Any change that could move the model list (base URL, credential
             // swap, enabled flag, API format) invalidates the cache. Cheap to
             // over-invalidate.
@@ -2411,6 +2412,17 @@ class ProviderRepository(private val context: Context) {
     }
 
     // API Key management
+    /** nanoMuse: 后台提交整页连接设置，基于最新实例合并，避免旧快照覆盖模型配置。 */
+    fun saveConnection(instanceId: String, baseUrl: String, appendV1: Boolean, userAgent: String, apiKey: String?) = synchronized(configLock) {
+        ensureConfigLoaded()
+        val current = _config.value.instances.firstOrNull { it.id == instanceId }
+            ?: error("Provider no longer exists")
+        updateInstance(current.copy(customBaseURL = baseUrl.trim().ifBlank { null },
+            appendV1Suffix = appendV1, customUserAgent = userAgent.trim().ifBlank { null }), requirePersistence = true)
+        if (apiKey != null) check(encryptedPrefs.edit().putString("apikey_$instanceId", apiKey.trim()).commit())
+        invalidateModelCache(instanceId)
+    }
+
     fun saveApiKey(instanceId: String, key: String) {
         encryptedPrefs.edit().putString("apikey_$instanceId", key).apply()
     }

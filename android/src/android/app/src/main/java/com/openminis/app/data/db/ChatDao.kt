@@ -6,6 +6,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RawQuery
+import androidx.room.Transaction // nanoMuse: 原子分组和导入。
+import androidx.room.Update
 import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
@@ -25,6 +27,11 @@ data class SessionMetaRow(
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     @ColumnInfo(name = "msg_count") val msgCount: Int,
+    @ColumnInfo(name = "folder_id") val folderId: String? = null, // nanoMuse: CLI复用已有分组和置顶字段。
+    @ColumnInfo(name = "group_assigned_by") val groupAssignedBy: String? = null, // nanoMuse
+    @ColumnInfo(name = "created_by_task_id") val createdByTaskId: String? = null,
+    @ColumnInfo(name = "created_by_run_id") val createdByRunId: String? = null,
+    @ColumnInfo(name = "pinned_at") val pinnedAt: Long? = null,
 )
 
 /**
@@ -55,6 +62,46 @@ data class SessionTailRow(
 
 @Dao
 interface ChatDao {
+    /** nanoMuse: 回读任务输出，确认数据库持久文本而非仅内存副本。 */
+    @Query("SELECT * FROM messages WHERE id = :id")
+    suspend fun findMessage(id: String): MessageEntity?
+
+    /** nanoMuse: 任务只读取本轮新回答，取消或失败时不拿旧回答冒充结果。 */
+    @Query("SELECT id FROM messages WHERE session_id = :sessionId AND role = 'assistant'")
+    suspend fun assistantMessageIds(sessionId: String): List<String>
+
+    /** nanoMuse: 消息与会话在同一事务删除，失败不留下半删除的对话。 */
+    @Transaction
+    suspend fun deleteConversation(id: String) {
+        deleteMessages(id)
+        deleteSession(id)
+    }
+
+    /** nanoMuse: 批量删除在同一数据库事务内成功或回滚。 */
+    @Transaction
+    suspend fun deleteConversations(ids: List<String>) { ids.forEach { deleteConversation(it) } }
+    /** nanoMuse: 错误占位只能插在指定用户消息之后，不能落到历史回复。 */
+    @androidx.room.Transaction
+    suspend fun insertTurnError(sessionId: String, userId: String, errorId: String, error: String): String? {
+        val anchor = messageSortOrder(userId) ?: return null
+        if (messageSortOrder(errorId) != null) {
+            updateMessageErrorInfo(errorId, error)
+            return errorId
+        }
+        shiftMessagesAfter(sessionId, anchor)
+        insertMessage(MessageEntity(id = errorId, sessionId = sessionId, role = "assistant",
+            partsJson = "[]", createdAt = System.currentTimeMillis(), sortOrder = anchor + 1, errorInfo = error))
+        return errorId
+    }
+
+    /** nanoMuse: 使用消息身份定位错误的轮次边界。 */
+    @Query("SELECT sort_order FROM messages WHERE id = :id")
+    suspend fun messageSortOrder(id: String): Int?
+
+    /** nanoMuse: 为本轮错误占位保留位置，后续轮次顺序保持不变。 */
+    @Query("UPDATE messages SET sort_order = sort_order + 1 WHERE session_id = :sessionId AND sort_order > :anchor")
+    suspend fun shiftMessagesAfter(sessionId: String, anchor: Int)
+
     // Sessions
     @Query("SELECT * FROM sessions ORDER BY updated_at DESC")
     fun observeSessions(): Flow<List<ChatSessionEntity>>
@@ -64,6 +111,10 @@ interface ChatDao {
 
     @Query("SELECT * FROM sessions WHERE id = :id")
     suspend fun getSession(id: String): ChatSessionEntity?
+
+    /** Mosaic: 定时任务的专属对话：这个任务建过的对话里最近活动的那个，每次运行都写进去。 */
+    @Query("SELECT * FROM sessions WHERE created_by_task_id = :taskId ORDER BY updated_at DESC LIMIT 1")
+    suspend fun latestSessionOfTask(taskId: String): ChatSessionEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: ChatSessionEntity)
@@ -115,8 +166,37 @@ interface ChatDao {
     @Query("SELECT * FROM folders WHERE id = :id")
     suspend fun getFolder(id: String): FolderEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT) // nanoMuse: 重名冲突不能REPLACE并删除既有分组。
     suspend fun insertFolder(folder: FolderEntity)
+
+    /** nanoMuse: 由唯一键查询友好冲突错误，并用数据库约束兜底并发。 */
+    @Query("SELECT * FROM folders WHERE name_key = :key LIMIT 1")
+    suspend fun folderByNameKey(key: String): FolderEntity?
+
+    /** nanoMuse: 导入复用原ID，重名只编号，不覆盖其他组。 */
+    @Transaction
+    suspend fun importFolder(folder: FolderEntity) {
+        val base = io.github.nanomuse.chat.GroupNamePolicy.legacyBase(folder.name)
+        var name = base
+        var number = 2
+        while (folderByNameKey(io.github.nanomuse.chat.GroupNamePolicy.key(name))?.id?.let { it != folder.id } == true ||
+            (folder.id != io.github.nanomuse.chat.GroupNamePolicy.SYSTEM_ID && runCatching { io.github.nanomuse.chat.GroupNamePolicy.validate(name) }.isFailure)) {
+            name = io.github.nanomuse.chat.GroupNamePolicy.numbered(base, number++)
+        }
+        val restored = folder.copy(name = name, nameKey = io.github.nanomuse.chat.GroupNamePolicy.key(name))
+        if (getFolder(folder.id) == null) insertFolder(restored) else updateFolder(restored)
+    }
+
+    /** nanoMuse: 更新使用ID，不用REPLACE触发隐式删除。 */
+    @Update
+    suspend fun updateFolder(folder: FolderEntity)
+
+    /** nanoMuse: 会话与系统归属在同一事务内产生。 */
+    @Transaction
+    suspend fun insertSessionWithFolder(session: ChatSessionEntity, folder: FolderEntity?) {
+        if (folder != null && getFolder(folder.id) == null) insertFolder(folder)
+        insertSession(session)
+    }
 
     /**
      * `description = COALESCE(:description, description)` so passing null LEAVES
@@ -127,12 +207,13 @@ interface ChatDao {
         """
         UPDATE folders
         SET name = :name,
+            name_key = :nameKey,
             description = COALESCE(:description, description),
             updated_at = :updatedAt
         WHERE id = :id
         """,
     )
-    suspend fun renameFolder(id: String, name: String, description: String?, updatedAt: Long)
+    suspend fun renameFolder(id: String, name: String, description: String?, updatedAt: Long, nameKey: String = io.github.nanomuse.chat.GroupNamePolicy.key(name)) // nanoMuse
 
     /** Pin toggles bump `updated_at` too, so the change carries a fresh LWW stamp. */
     @Query("UPDATE folders SET pinned_at = :pinnedAt, updated_at = :updatedAt WHERE id = :id")
@@ -155,7 +236,7 @@ interface ChatDao {
      * `updated_at DESC`). Filing a months-old chat should not shove it to the
      * top of Today.
      */
-    @Query("UPDATE sessions SET folder_id = :folderId WHERE id = :sessionId")
+    @Query("UPDATE sessions SET folder_id = :folderId, group_assigned_by = 'user' WHERE id = :sessionId") // nanoMuse
     suspend fun setSessionFolder(sessionId: String, folderId: String?)
 
     /**
@@ -164,12 +245,21 @@ interface ChatDao {
      * read-then-write, so a group the user chose by hand can never be
      * overwritten by a machine guess racing it.
      */
-    @Query("UPDATE sessions SET folder_id = :folderId WHERE id = :sessionId AND folder_id IS NULL")
+    @Query("UPDATE sessions SET folder_id = :folderId, group_assigned_by = 'system' WHERE id = :sessionId AND folder_id IS NULL AND group_assigned_by IS NULL") // nanoMuse
     suspend fun setSessionFolderIfUnfiled(sessionId: String, folderId: String): Int
 
     /** Clear membership for every session of a group — the dissolve half. */
-    @Query("UPDATE sessions SET folder_id = NULL WHERE folder_id = :folderId")
+    @Query("UPDATE sessions SET folder_id = NULL, group_assigned_by = 'user' WHERE folder_id = :folderId") // nanoMuse
     suspend fun clearFolderForSessions(folderId: String)
+
+    /** nanoMuse: 解散分组的清归属和删除在同一事务中完成。 */
+    @androidx.room.Transaction
+    suspend fun dissolveFolderAtomic(folderId: String): List<String> {
+        val members = sessionIdsInFolder(folderId)
+        clearFolderForSessions(folderId)
+        deleteFolder(folderId)
+        return members
+    }
 
     // Messages
     @Query("SELECT * FROM messages WHERE session_id = :sessionId ORDER BY sort_order ASC")

@@ -47,6 +47,13 @@ class AlibabaVoiceProvider(providerId: String, baseURL: String, apiKey: String?)
     override fun defaultVoiceInputModel() = "paraformer-realtime-v2"
     override fun defaultVoiceOutputModel() = "cosyvoice-v2"
     override fun defaultVoiceOutputVoice() = "longxiaochun"
+
+    // nanoMuse: Bailian's compatible mode has neither OpenAI audio endpoint; each model goes where Bailian serves it (BailianVoice).
+    override suspend fun transcribe(request: VoiceInputRequest): VoiceInputResponse =
+        io.github.nanomuse.call.BailianVoice.transcribe(baseURL, apiKey, request, defaultVoiceInputModel())
+
+    override suspend fun synthesize(request: VoiceOutputRequest): ByteArray =
+        io.github.nanomuse.call.BailianVoice.synthesize(baseURL, apiKey, request, defaultVoiceOutputModel())
 }
 
 // -- xAI (ASR endpoint path differs: /v1/stt) ---------------------------------

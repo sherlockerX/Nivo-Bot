@@ -30,11 +30,8 @@
 # with a release tag does the same for a release that already exists (a platform fixed afterwards).
 name: desktop app
 
+# Mosaic fork: manual runs only; the installers would take macOS runner minutes from the iOS build.
 on:
-  push:
-    branches: ["**"]
-    paths: ["harness/**", "scripts/desktop-app/**", ".github/workflows/desktop-app.yml"]
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       release_tag:

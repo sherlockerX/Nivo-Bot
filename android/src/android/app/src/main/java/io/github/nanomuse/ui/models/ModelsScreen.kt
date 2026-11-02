@@ -7,7 +7,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -167,6 +169,37 @@ fun ModelsScreen(
                         showDivider = false,
                     )
                 }
+            }
+        }
+        // Mosaic: speech to text and text to speech, the upstream per-device voice choices voice input, read-aloud and the quick test read.
+        if (repo != null) {
+            var voicePicker by remember { mutableStateOf<Boolean?>(null) } // true: speech to text, false: text to speech
+            val input = remember(config) { repo.resolveVoiceInputChoice() }
+            val output = remember(config) { repo.resolveVoiceOutputChoice() }
+            val system = stringResource(R.string.nm_models_voice_system)
+            SettingsSection(footer = stringResource(R.string.nm_models_voice_footer)) {
+                SettingsRow(
+                    title = stringResource(R.string.nm_models_voice_in_title),
+                    subtitle = input.entry?.let { (inst, entry) -> ModelSlots.providerLabel(context, inst) + " · " + entry.model.displayName } ?: system,
+                    icon = Icons.Outlined.Mic,
+                    iconColor = if (input.entry != null) MuseTones.action else MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { voicePicker = true },
+                    minHeight = 72.dp,
+                )
+                SettingsRow(
+                    title = stringResource(R.string.nm_models_voice_out_title),
+                    subtitle = output.entry?.let { (inst, entry) -> ModelSlots.providerLabel(context, inst) + " · " + entry.model.displayName } ?: system,
+                    icon = Icons.Outlined.RecordVoiceOver,
+                    iconColor = if (output.entry != null) MuseTones.action else MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { voicePicker = false },
+                    showDivider = false,
+                    minHeight = 72.dp,
+                )
+            }
+            when (voicePicker) {
+                true -> com.openminis.app.ui.chat.voice.VoiceInputPickerSheet(repo, onDismiss = { voicePicker = null })
+                false -> com.openminis.app.ui.chat.voice.VoiceOutputPickerSheet(repo, onDismiss = { voicePicker = null })
+                null -> Unit
             }
         }
         SettingsSection(footer = stringResource(R.string.nm_models_media_more_sub)) {

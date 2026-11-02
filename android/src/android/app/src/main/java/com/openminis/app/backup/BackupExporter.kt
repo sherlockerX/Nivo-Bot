@@ -343,6 +343,9 @@ class BackupExporter(
         put("source", s.source?.let(::JsonPrimitive) ?: JsonNull)
         put("pinnedAt", s.pinnedAt?.let { JsonPrimitive(iso8601(it)) } ?: JsonNull)
         put("folderId", s.folderId?.let(::JsonPrimitive) ?: JsonNull)
+        put("groupAssignedBy", s.groupAssignedBy?.let(::JsonPrimitive) ?: JsonNull) // nanoMuse: 组织来源和任务身份随备份恢复。
+        put("createdByTaskId", s.createdByTaskId?.let(::JsonPrimitive) ?: JsonNull)
+        put("createdByRunId", s.createdByRunId?.let(::JsonPrimitive) ?: JsonNull)
         // iOS's SessionRecord wrapper fields.
         put("memoryEnabled", JsonPrimitive(s.memoryEnabled != 0))
         put("modelBinding", s.modelBinding?.let(::JsonPrimitive) ?: JsonNull)

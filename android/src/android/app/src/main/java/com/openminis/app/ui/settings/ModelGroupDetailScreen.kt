@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -473,7 +475,8 @@ fun ModelGroupDetailScreen(
                                 modifier = Modifier.padding(bottom = 6.dp),
                             )
                             SingleChoiceSegmentedButtonRow(
-                                modifier = Modifier.fillMaxWidth(),
+                                // nanoMuse: up to six steps share the row; equal heights and no check mark keep them one size.
+                                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                             ) {
                                 cases.forEachIndexed { idx, (level, label) ->
                                     SegmentedButton(
@@ -488,7 +491,9 @@ fun ModelGroupDetailScreen(
                                             index = idx,
                                             count = cases.size,
                                         ),
-                                    ) { Text(label) }
+                                        modifier = Modifier.fillMaxHeight(),
+                                        icon = {},
+                                    ) { Text(label, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                                 }
                             }
                         }

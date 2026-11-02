@@ -166,7 +166,9 @@ object StarPrompt {
     }
 
     /** Still worth asking this now. */
-    fun due(context: Context, ask: Ask): Boolean = Gate.due(policy(context), ledger(context), ask, System.currentTimeMillis())
+    fun due(context: Context, ask: Ask): Boolean =
+        // Mosaic: the personal build never asks for a star; every ask (offer, taskAsk) passes here.
+        !MOSAIC_OFFLINE && Gate.due(policy(context), ledger(context), ask, System.currentTimeMillis())
 
     fun due(context: Context, moment: Moment): Boolean = due(context, Ask(moment))
 

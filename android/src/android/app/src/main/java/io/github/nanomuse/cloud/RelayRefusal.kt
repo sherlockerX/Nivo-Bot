@@ -166,7 +166,9 @@ object RelayRefusal {
     fun parse(status: Int, body: String?, fromRelay: Boolean = false): Refusal? {
         val err = errorObject(body)
         val code = err?.optString("code")?.takeIf { it.isNotBlank() }
-        val relays = err?.optString("type") == RELAY_TYPE || (code != null && code in RELAY_CODES)
+        // Mosaic: only the relay's own answers read as relay refusals; an own provider's error
+        // that happens to share a code must not bring up the account cards.
+        val relays = fromRelay && (err?.optString("type") == RELAY_TYPE || (code != null && code in RELAY_CODES))
         val contentCheck = status == 400 && contentCheck(body)
         if (!relays && !contentCheck && !(fromRelay && (status == 413 || status >= 500 || status == 401))) return null
         val paused = err?.optBoolean("paused", false) == true

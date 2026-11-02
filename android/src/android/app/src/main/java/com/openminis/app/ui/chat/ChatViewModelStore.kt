@@ -25,6 +25,20 @@ object ChatViewModelStore {
      */
     private val stores = mutableMapOf<String, ViewModelStore>()
 
+    /** nanoMuse: 不创建新VM，只查询已缓存会话的准备或流式状态。 */
+    @Synchronized
+    fun isSessionBusy(sessionId: String): Boolean {
+        val store = stores[resolveKey(sessionId)] ?: return false
+        return store.keys().any { (store[it] as? ChatViewModel)?.nmHasUnfinishedStream() == true }
+    }
+
+    /** nanoMuse: 只返回已存在的VM，用于任务收尾，不创建新聊天或解析模型。 */
+    @Synchronized
+    internal fun existingViewModel(sessionId: String): ChatViewModel? {
+        val store = stores[resolveKey(sessionId)] ?: return null
+        return store.keys().firstNotNullOfOrNull { store[it] as? ChatViewModel }
+    }
+
     /**
      * Draft → canonical mapping. When a draft ("__new__...") session is
      * persisted, we add `draftKey -> realId` here so lookups via the old key

@@ -53,4 +53,7 @@ data class ChatSessionEntity(
      * in its old section.
      */
     @ColumnInfo(name = "folder_id") val folderId: String? = null,
+    @ColumnInfo(name = "group_assigned_by") val groupAssignedBy: String? = null, // nanoMuse: 用户移出后仍保留手动归属标记。
+    @ColumnInfo(name = "created_by_task_id") val createdByTaskId: String? = null,
+    @ColumnInfo(name = "created_by_run_id") val createdByRunId: String? = null,
 )

@@ -195,23 +195,7 @@ fun SettingsScreen(
                     )
                 }
                 io.github.nanomuse.ui.muse.MuseRowDivider(inset = 16.dp)
-                // nanoMuse: the relay account — signed in shows what is left of the allowance.
-                val cloudAccount = io.github.nanomuse.cloud.NanoMuseCloud.account(context)
-                io.github.nanomuse.ui.muse.MuseRow(
-                    title = stringResource(R.string.nm_cloud_title),
-                    icon = Icons.Outlined.CloudQueue,
-                    value = when {
-                        cloudAccount == null || !io.github.nanomuse.cloud.NanoMuseCloud.isSignedIn(context) -> stringResource(R.string.nm_cloud_row_sign_in)
-                        // Money relays: what is left of the pool, the account page's headline figure;
-                        // a member or an open relay has no pool, so today's spend with who is signed in.
-                        cloudAccount.pricesInMoney && cloudAccount.limited -> stringResource(R.string.nm_cloud_row_remaining, "¥" + io.github.nanomuse.ui.cloud.money(cloudAccount.leftCny))
-                        cloudAccount.pricesInMoney -> cloudAccount.hint + " · ¥" + io.github.nanomuse.ui.cloud.money(cloudAccount.spentTodayCny)
-                        cloudAccount.unlimited -> cloudAccount.hint
-                        else -> stringResource(R.string.nm_cloud_row_remaining, java.text.NumberFormat.getIntegerInstance().format(cloudAccount.remaining))
-                    },
-                    onClick = onCloudClick,
-                )
-                io.github.nanomuse.ui.muse.MuseRowDivider()
+                // Mosaic: no relay account row; the personal build talks to the owner's providers only.
                 io.github.nanomuse.ui.muse.MuseRow(
                     title = stringResource(R.string.settings_manage_providers),
                     icon = Icons.Outlined.Lock,
@@ -251,32 +235,7 @@ fun SettingsScreen(
                     onClick = onHandsClick,
                 )
                 io.github.nanomuse.ui.muse.MuseRowDivider()
-                // nanoMuse: the account's computers, over the hub.
-                run {
-                    val hubDevices by io.github.nanomuse.hub.Hub.devices.collectAsState()
-                    val me = remember { io.github.nanomuse.hub.Hub.deviceId(context) }
-                    val computers = hubDevices.count { it.id != me && it.isComputer }
-                    io.github.nanomuse.ui.muse.MuseRow(
-                        title = stringResource(R.string.nm_pc_title),
-                        icon = Icons.Outlined.Computer,
-                        value = if (computers == 0) stringResource(R.string.nm_pc_none_short) else computers.toString(),
-                        onClick = onComputersClick,
-                    )
-                }
-                io.github.nanomuse.ui.muse.MuseRowDivider()
-                // nanoMuse: the coding agents on the account's computers, over the hub.
-                run {
-                    val hubDevices by io.github.nanomuse.hub.Hub.devices.collectAsState()
-                    val me = remember { io.github.nanomuse.hub.Hub.deviceId(context) }
-                    val withCoding = hubDevices.count { it.id != me && it.online && it.actions.contains("coding.sessions") }
-                    io.github.nanomuse.ui.muse.MuseRow(
-                        title = stringResource(R.string.nm_coding_title),
-                        icon = Icons.Outlined.Terminal,
-                        value = if (withCoding == 0) stringResource(R.string.nm_pc_none_short) else withCoding.toString(),
-                        onClick = onCodingClick,
-                    )
-                }
-                io.github.nanomuse.ui.muse.MuseRowDivider()
+                // Mosaic: no Computers or Coding agents rows; both need the relay's hub.
                 io.github.nanomuse.ui.muse.MuseRow(title = stringResource(R.string.settings_env_vars), icon = Icons.Outlined.Terminal, onClick = onEnvVarsClick)
             }
             io.github.nanomuse.ui.muse.MuseGap()
@@ -301,9 +260,7 @@ fun SettingsScreen(
             io.github.nanomuse.ui.muse.MuseCard {
                 io.github.nanomuse.ui.muse.MuseRow(title = stringResource(R.string.settings_section_appearance), icon = Icons.Outlined.Palette, onClick = onAppearanceClick)
                 io.github.nanomuse.ui.muse.MuseRowDivider()
-                // nanoMuse: data controls — the one switch over what nanoMuse Cloud keeps of the chats.
-                io.github.nanomuse.ui.muse.MuseRow(title = stringResource(R.string.nm_data_title), icon = Icons.Outlined.Storage, onClick = onDataControlsClick)
-                io.github.nanomuse.ui.muse.MuseRowDivider()
+                // Mosaic: no data controls row; it governed what the relay kept of the chats.
                 // nanoMuse: network — the HTTP proxy for own providers and the ChatGPT plan.
                 io.github.nanomuse.ui.muse.MuseRow(title = stringResource(R.string.nm_network_title), icon = Icons.Outlined.Language, onClick = onNetworkClick)
                 io.github.nanomuse.ui.muse.MuseRowDivider()
@@ -314,24 +271,8 @@ fun SettingsScreen(
             // -- About --
             io.github.nanomuse.ui.muse.MuseCard {
                 io.github.nanomuse.ui.muse.MuseRow(title = stringResource(R.string.settings_about_minis), icon = Icons.Outlined.Info, onClick = onAboutClick)
-                io.github.nanomuse.ui.muse.MuseRowDivider()
-                io.github.nanomuse.ui.muse.MuseRow(
-                    title = stringResource(R.string.settings_privacy_policy),
-                    icon = Icons.Outlined.FrontHand,
-                    // nanoMuse: the policy on the site (docs/privacy.md is its source)
-                    onClick = { openExternalUrl(context, io.github.nanomuse.cloud.NanoMuseCloud.PRIVACY_URL) },
-                )
-                io.github.nanomuse.ui.muse.MuseRowDivider()
-                io.github.nanomuse.ui.muse.MuseRow(
-                    title = stringResource(R.string.settings_feedback),
-                    icon = Icons.Outlined.Feedback,
-                    // nanoMuse: GitHub Issues is the one feedback channel (no
-                    // Telegram group, no mailbox), so skip the chooser sheet.
-                    onClick = { openExternalUrl(context, buildBugReportUrl()) },
-                )
-                io.github.nanomuse.ui.muse.MuseRowDivider()
-                // nanoMuse: the installed build and the latest release, with Update when one is out.
-                io.github.nanomuse.ui.settings.VersionRow()
+                // Mosaic: no privacy-policy, feedback or version rows: they open the nanoMuse site and
+                // GitHub, and the version row checks for releases over the network.
             }
 
             Spacer(Modifier.height(24.dp))
@@ -439,7 +380,7 @@ private fun buildBugReportUrl(): String {
         |-------|-------|
         | Platform | Android |
         | OS Version | Android $osVersion (API $sdkInt) |
-        | nanoMuse Version | $versionName (build $versionCode) |
+        | Nicholasx Version | $versionName (build $versionCode) |
         | Device Model | $manufacturer $model |
 
         ## 🔁 Steps to Reproduce
@@ -497,7 +438,7 @@ private fun buildFeedbackMailto(): String {
 
         Screenshot (optional): Please attach a screenshot if relevant.
     """.trimIndent()
-    val subject = java.net.URLEncoder.encode("nanoMuse Feedback", "UTF-8")
+    val subject = java.net.URLEncoder.encode("Nicholasx Feedback", "UTF-8")
     val encodedBody = java.net.URLEncoder.encode(body, "UTF-8")
     return "mailto:dev@openminis.app?subject=$subject&body=$encodedBody"
 }

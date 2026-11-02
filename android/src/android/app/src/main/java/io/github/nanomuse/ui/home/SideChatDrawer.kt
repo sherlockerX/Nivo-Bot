@@ -1,5 +1,7 @@
 package io.github.nanomuse.ui.home
 
+import androidx.compose.material.icons.outlined.Checklist
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,6 +32,7 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
@@ -75,6 +79,7 @@ import java.util.Date
 fun SideChatDrawer(
     agentName: String,
     chatRepository: ChatRepository,
+    providerRepository: com.openminis.app.data.repository.ProviderRepository,
     mainSessionId: String?,
     currentSessionId: String?,
     onOpenMain: () -> Unit,
@@ -86,8 +91,10 @@ fun SideChatDrawer(
     onSystemFiles: (() -> Unit)? = null,
     onDevices: (() -> Unit)? = null,
     onCoding: (() -> Unit)? = null,
+    onIdeas: (() -> Unit)? = null,
 ) {
-    val sessions by chatRepository.observeSessions().collectAsState(initial = emptyList())
+    // Mosaic: subscribe once; the drawer recomposes on every frame of a drag.
+    val sessions by remember(chatRepository) { chatRepository.observeSessions() }.collectAsState(initial = emptyList())
     // nanoMuse: the account's other devices, for the row under the main chat
     val hubConnected by io.github.nanomuse.hub.Hub.connected.collectAsState()
     val hubDevices by io.github.nanomuse.hub.Hub.devices.collectAsState()
@@ -100,6 +107,9 @@ fun SideChatDrawer(
     // nanoMuse: a chat from another device of the account is the same chat here (contract C8) — no
     // badge per chat; the turns written elsewhere carry "From Pixel 8" in the bubble instead
     var query by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
+    var isCreatingGroup by remember { mutableStateOf(false) }
+    var requestChatSelection by remember { mutableStateOf(false) } // nanoMuse: 明确多选入口，不藏在长按菜单内。
     val sideChats = remember(sessions, mainSessionId, query) {
         sessions
             .filter { it.id != mainSessionId }
@@ -112,7 +122,8 @@ fun SideChatDrawer(
             .fillMaxSize()
             .background(ChatColors.background)
             .statusBarsPadding()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .imePadding(),
     ) {
         // nanoMuse: Muse's drawer voice: the agent name big and plain, rows in
         // quiet pills, everything monochrome.
@@ -144,10 +155,12 @@ fun SideChatDrawer(
             Spacer(Modifier.size(14.dp))
             Text(
                 text = stringResource(R.string.nm_drawer_main_chat),
+                modifier = Modifier.weight(1f),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 color = nmInk,
             )
+            mainSessionId?.let { SessionTaskDot(it) }
         }
 
         // nanoMuse: Devices — the account's other Muses, one tap away like a chat (docs/every-device.md)
@@ -210,18 +223,54 @@ fun SideChatDrawer(
             }
         }
 
+        // Mosaic: Ideas, out of the bar since Mosaic took its place there
+        if (onIdeas != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onIdeas)
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+            ) {
+                Icon(Icons.Outlined.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = nmInk)
+                Spacer(Modifier.size(14.dp))
+                Text(
+                    text = stringResource(R.string.nm_tab_ideas),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = nmInk,
+                )
+            }
+        }
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 26.dp, end = 12.dp, top = 14.dp),
         ) {
-            Text(
-                text = stringResource(R.string.nm_drawer_side_chats).uppercase(),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp,
-                color = nmMuted,
-                modifier = Modifier.weight(1f),
-            )
+            if (isSearching) {
+                BasicTextField(
+                    value = query, onValueChange = { query = it }, singleLine = true,
+                    textStyle = LocalTextStyle.current.copy(color = nmInk, fontSize = 15.sp),
+                    cursorBrush = SolidColor(nmInk), modifier = Modifier.weight(1f),
+                    decorationBox = { field ->
+                        Box {
+                            if (query.isEmpty()) Text(stringResource(R.string.nm_drawer_search), color = nmMuted)
+                            field()
+                        }
+                    },
+                )
+            } else {
+                Text(stringResource(R.string.nm_drawer_side_chats), color = nmMuted,
+                    modifier = Modifier.weight(1f), fontSize = 12.sp)
+            }
+            IconButton(onClick = { isSearching = !isSearching; if (!isSearching) query = "" }) {
+                Icon(Icons.Outlined.Search, stringResource(R.string.nm_drawer_search), tint = nmMuted)
+            }
+            IconButton(onClick = { isCreatingGroup = true }) {
+                Icon(Icons.Outlined.Forum, stringResource(R.string.group_new_name_hint), tint = nmMuted)
+            }
             IconButton(onClick = onAllChats) {
                 Icon(
                     Icons.Outlined.Archive,
@@ -230,50 +279,19 @@ fun SideChatDrawer(
                     modifier = Modifier.size(20.dp),
                 )
             }
+            IconButton(onClick = { requestChatSelection = true }) {
+                Icon(Icons.Outlined.Checklist, stringResource(R.string.nm_batch_select), tint = nmMuted)
+            }
         }
 
-        if (sideChats.isEmpty()) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    Icons.Outlined.Forum,
-                    contentDescription = null,
-                    tint = nmMuted,
-                    modifier = Modifier.size(30.dp),
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = stringResource(R.string.nm_drawer_empty_title),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = nmInk,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.nm_drawer_empty_body),
-                    fontSize = 13.sp,
-                    color = nmMuted,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)) {
-                items(sideChats, key = { it.id }) { session ->
-                    SideChatRow(
-                        session = session,
-                        selected = session.id == currentSessionId,
-                        selectedFill = nmRowSelected,
-                        ink = nmInk,
-                        muted = nmMuted,
-                        onClick = { onOpenSession(session.id) },
-                        onSetMain = { onSetMain(session.id) },
-                    )
-                }
-            }
-        }
+        DrawerSessions(
+            sessions = sideChats, repository = chatRepository, providers = providerRepository,
+            currentSessionId = currentSessionId, query = query,
+            isCreatingGroup = isCreatingGroup, onCreatedGroup = { isCreatingGroup = false },
+            onOpen = onOpenSession, onSetMain = onSetMain,
+            requestSelection = requestChatSelection, onSelectionHandled = { requestChatSelection = false },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        )
 
         // Bottom strip: settings · search · new, Muse's circular buttons round a search pill.
         Row(
@@ -306,36 +324,7 @@ fun SideChatDrawer(
                 }
             }
             Spacer(Modifier.size(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(CircleShape)
-                    .background(nmRowSelected)
-                    .padding(horizontal = 14.dp),
-            ) {
-                Icon(Icons.Outlined.Search, contentDescription = null, tint = nmMuted, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.size(8.dp))
-                Box(Modifier.weight(1f)) {
-                    if (query.isEmpty()) {
-                        Text(
-                            stringResource(R.string.nm_drawer_search),
-                            color = nmMuted,
-                            fontSize = 15.sp,
-                        )
-                    }
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(color = nmInk, fontSize = 15.sp),
-                        cursorBrush = SolidColor(nmInk),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.weight(1f))
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -346,54 +335,6 @@ fun SideChatDrawer(
             ) {
                 Icon(Icons.Outlined.Edit, contentDescription = stringResource(R.string.nm_drawer_new_chat), tint = nmInk, modifier = Modifier.size(22.dp))
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun SideChatRow(
-    session: ChatSessionEntity,
-    selected: Boolean,
-    selectedFill: androidx.compose.ui.graphics.Color,
-    ink: androidx.compose.ui.graphics.Color,
-    muted: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-    onSetMain: () -> Unit,
-) {
-    var menu by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 1.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (selected) selectedFill else Color.Transparent)
-                .combinedClickable(onClick = onClick, onLongClick = { menu = true })
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = session.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.nm_drawer_untitled),
-                    fontSize = 15.sp,
-                    color = ink,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.size(10.dp))
-            Text(
-                text = relativeDay(androidx.compose.ui.platform.LocalContext.current, session.updatedAt),
-                fontSize = 12.sp,
-                color = muted,
-            )
-        }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.nm_drawer_set_main)) },
-                onClick = { menu = false; onSetMain() },
-            )
         }
     }
 }

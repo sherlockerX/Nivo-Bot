@@ -194,10 +194,11 @@ object PRootKernel {
         // [T-mcp-integration-android] mcp-servers is global (like memory/skills):
         // binding it here makes the in-PRoot minis-mcp-cli read/write the SAME
         // servers.json the Android Settings UI does (host: minis-global/mcp-servers).
-        listOf("memory", "skills", "shared", "mcp-servers").forEach { subdir ->
+        listOf("memory", "skills", "shared", "mcp-servers", "home").forEach { subdir -> // nanoMuse: 全局home不受当前会话影响。
             val hostDir = File(globalBase, subdir).also { it.mkdirs() }
             bindMounts["/var/minis/$subdir"] = hostDir.absolutePath
         }
+        io.github.nanomuse.sandbox.SharedHome.prepare(context, RootfsManager.getInstance(context).rootfsDir) // nanoMuse: 已安装的镜像也补挂载点。
         // nanoMuse: PRoot has no read-only bind flag, so expose only the disposable Feed mirror.
         bindMounts[FeedSandboxScope.LINUX_ROOT] = FeedSandboxScope.refresh(context).absolutePath
     }
@@ -504,6 +505,10 @@ object PRootKernel {
      * "GMT+8" (which contain an embedded sign).
      */
     fun posixTz(): String {
+        // nanoMuse: 镜像有zoneinfo时保留历史偏移和夏令时，否则兼容旧镜像。
+        val zoneId = TimeZone.getDefault().id
+        val zoneFile = runCatching { File(rootfsManager.rootfsDir, "usr/share/zoneinfo/$zoneId") }.getOrNull()
+        if (zoneFile?.isFile == true) return zoneId
         val offsetMs = TimeZone.getDefault().getOffset(System.currentTimeMillis())
         val secs = offsetMs / 1000L
         val hrs = (secs / 3600).toInt()
@@ -603,6 +608,11 @@ object PRootKernel {
      * ```
      */
     fun buildProotCommand(shellCommand: String): List<String> {
+        return buildProotArgv(listOf("/bin/sh", "-c", shellCommand)) // nanoMuse: 普通shell与显式脚本共用沙盒参数。
+    }
+
+    /** nanoMuse: 以独立argv启动来宾程序，参数不会再被shell解析。 */
+    fun buildProotArgv(argv: List<String>, mounts: Map<String, String> = bindMounts): List<String> {
         check(isBooted) { "PRootKernel.boot() must be called before building commands" }
 
         val cmd = mutableListOf<String>()
@@ -639,7 +649,7 @@ object PRootKernel {
         cmd.add("/root")
 
         // User bind mounts
-        for ((linuxPath, hostPath) in bindMounts) {
+        for ((linuxPath, hostPath) in mounts) {
             cmd.add("-b")
             cmd.add("$hostPath:$linuxPath")
             // Log external-folder binds specifically — these are the ones that
@@ -658,11 +668,7 @@ object PRootKernel {
         }
 
         // Shell command
-        cmd.add("/bin/sh")
-        cmd.add("-c")
-        cmd.add(shellCommand)
-
-        Log.d(TAG, "proot cmd: ${cmd.take(cmd.size - 1).joinToString(" ")} <shellCommand ${shellCommand.length} bytes>")
+        cmd.addAll(argv) // nanoMuse: 不把脚本参数或正文写入进程日志。
         return cmd
     }
 

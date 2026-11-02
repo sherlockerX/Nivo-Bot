@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: pets kept and worn again, and the caterpillar preset. -->
+<resources>
+    <string name="nm_pet_title">Your pets</string>
+    <string name="nm_pet_hint">A pet you replace stays here with its poses and clips. Tap one to wear it again, nothing is made twice. Long-press to remove one.</string>
+    <string name="nm_pet_dragon">Dragon</string>
+    <string name="nm_pet_unnamed">Pet</string>
+    <string name="nm_pet_busy">Poses or clips are still being made for this pet. Switch when they are done.</string>
+    <string name="nm_pet_remove_title">Remove this pet?</string>
+    <string name="nm_pet_remove_body">Its picture, poses and clips are deleted. Having it again means new pictures and clips.</string>
+    <string name="nm_pet_remove">Remove</string>
+    <string name="nm_pet_caterpillar_name">Backpacker Caterpillar</string>
+    <string name="nm_pet_caterpillar_description">A plump, cute green caterpillar on a journey: a travel backpack with a rolled sleeping mat, an explorer\'s hat and round glasses, a confident smile and a wise, thoughtful look</string>
+</resources>

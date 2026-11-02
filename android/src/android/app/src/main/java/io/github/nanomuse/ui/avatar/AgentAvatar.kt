@@ -143,7 +143,7 @@ fun AgentAvatar(
     val motion = rememberInfiniteTransition(label = "avatarMotion")
 
     // Rest: a slow, barely visible breath. Working: a quicker one, plus a bob.
-    val breath by motion.animateFloat(
+    val breath = motion.animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             tween(durationMillis = if (mood == AgentMood.WORKING) 700 else 2600, easing = FastOutSlowInEasing),
@@ -152,7 +152,7 @@ fun AgentAvatar(
         label = "breath",
     )
     // Waiting: a gentle side-to-side tilt, as if listening.
-    val tilt by motion.animateFloat(
+    val tilt = motion.animateFloat(
         initialValue = -1f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(durationMillis = 1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "tilt",
@@ -185,23 +185,24 @@ fun AgentAvatar(
         }
     }
 
-    val scale = when (mood) {
-        AgentMood.WORKING -> 1f + 0.045f * breath
-        AgentMood.HAPPY -> pop.value
-        else -> 1f + 0.018f * breath
-    }
-    val bobPx = if (mood == AgentMood.WORKING) with(density) { (-2.5).dp.toPx() } * breath else 0f
-    val shakePx = with(density) { 3.dp.toPx() } * shake.value
-    val rotation = if (mood == AgentMood.WAITING) 4f * tilt else 0f
+    val bobMax = with(density) { (-2.5).dp.toPx() }
+    val shakeMax = with(density) { 3.dp.toPx() }
 
     val base = modifier
         .size(size)
         .graphicsLayer {
+            // Mosaic: the moving values are read here, at draw time, so the face is not recomposed every frame.
+            val b = breath.value
+            val scale = when (mood) {
+                AgentMood.WORKING -> 1f + 0.045f * b
+                AgentMood.HAPPY -> pop.value
+                else -> 1f + 0.018f * b
+            }
             scaleX = scale
             scaleY = scale
-            translationY = bobPx
-            translationX = shakePx
-            rotationZ = rotation
+            translationY = if (mood == AgentMood.WORKING) bobMax * b else 0f
+            translationX = shakeMax * shake.value
+            rotationZ = if (mood == AgentMood.WAITING) 4f * tilt.value else 0f
         }
         .clip(CircleShape)
     val own = ownClip
@@ -331,6 +332,8 @@ internal fun LoopingClip(key: String, modifier: Modifier = Modifier, open: (andr
         factory = { ctx ->
             android.view.TextureView(ctx).apply {
                 isOpaque = false
+                val texture = this
+                val videoSize = IntArray(2) // Mosaic: kept for a resize of the view
                 surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
                     override fun onSurfaceTextureAvailable(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
                         runCatching {
@@ -340,6 +343,11 @@ internal fun LoopingClip(key: String, modifier: Modifier = Modifier, open: (andr
                             player.isLooping = true
                             player.setVolume(0f, 0f)
                             player.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                            player.setOnVideoSizeChangedListener { _, w, h ->
+                                videoSize[0] = w
+                                videoSize[1] = h
+                                cropToFill(texture, w, h)
+                            }
                             player.setOnPreparedListener { it.start() }
                             player.setOnInfoListener { _, what, _ ->
                                 if (what == android.media.MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) ready = true
@@ -349,7 +357,9 @@ internal fun LoopingClip(key: String, modifier: Modifier = Modifier, open: (andr
                             player.prepareAsync()
                         }
                     }
-                    override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {}
+                    override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) {
+                        cropToFill(texture, videoSize[0], videoSize[1])
+                    }
                     override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {}
                     override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
                         runCatching { player.setSurface(null) }
@@ -360,4 +370,19 @@ internal fun LoopingClip(key: String, modifier: Modifier = Modifier, open: (andr
         },
         modifier = modifier.graphicsLayer { alpha = if (ready) 1f else 0f },
     )
+}
+
+/**
+ * Mosaic: a clip not shaped like its view (a relay's 16:9 Veo or Seedance clip in the round disc)
+ * is cropped to fill, centred, instead of squeezed: a TextureView stretches its picture to its
+ * own bounds, which `setVideoScalingMode` does not change.
+ */
+private fun cropToFill(view: android.view.TextureView, videoWidth: Int, videoHeight: Int) {
+    val w = view.width.toFloat()
+    val h = view.height.toFloat()
+    if (w <= 0f || h <= 0f || videoWidth <= 0 || videoHeight <= 0) return
+    val video = videoWidth.toFloat() / videoHeight
+    val box = w / h
+    val (sx, sy) = if (video > box) video / box to 1f else 1f to box / video
+    view.setTransform(android.graphics.Matrix().apply { setScale(sx, sy, w / 2f, h / 2f) })
 }

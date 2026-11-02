@@ -13,8 +13,15 @@ import org.junit.Test
  * chat turns into a plain sentence and the right button — and the stored line round-trips.
  */
 class RelayRefusalTest {
+    /** 自有供应商可能复用错误码，不能据此弹出 Cloud 的账户或额度提示。 */
+    @Test fun `an own provider using a relay code is not a relay refusal`() {
+        val body = """{"error":{"message":"busy","type":"nanomuse_cloud","code":"provider_busy"}}"""
+        assertNull(RelayRefusal.parse(429, body))
+        assertEquals(RelayRefusal.Kind.BUSY, RelayRefusal.parse(429, body, fromRelay = true)!!.kind)
+    }
+
     private fun relay(status: Int, code: String, message: String = "refused", extra: String = "") =
-        RelayRefusal.parse(status, """{"error":{"message":"$message","type":"nanomuse_cloud","code":"$code"$extra}}""")!!
+        RelayRefusal.parse(status, """{"error":{"message":"$message","type":"nanomuse_cloud","code":"$code"$extra}}""", fromRelay = true)!!
 
     @Test fun `every code the relay sends today has a kind`() {
         val expected = mapOf(
@@ -85,7 +92,7 @@ class RelayRefusalTest {
         assertNull(RelayRefusal.parse(413, "Request too large")) // a 413 from a provider of one's own
         assertNull(RelayRefusal.parse(500, null))
         // the relay's code without the type still counts (an older relay)
-        assertEquals(RelayRefusal.Kind.TOO_LARGE, RelayRefusal.parse(413, """{"error":{"message":"too big","code":"too_large"}}""")!!.kind)
+        assertEquals(RelayRefusal.Kind.TOO_LARGE, RelayRefusal.parse(413, """{"error":{"message":"too big","code":"too_large"}}""", fromRelay = true)!!.kind)
     }
 
     @Test fun `a content check saying no is one kind, from the relay or from a key of one's own, and nothing splits it`() {
@@ -98,7 +105,7 @@ class RelayRefusalTest {
         assertFalse(fromRelay.isAllowance)
         // the same inside a stream: the relay answers 200 and puts the error in a data: line, so the
         // client maps it with status 0; the code alone says what it is
-        assertEquals(RelayRefusal.Kind.CONTENT_REJECTED, RelayRefusal.parse(0, relayBody)!!.kind)
+        assertEquals(RelayRefusal.Kind.CONTENT_REJECTED, RelayRefusal.parse(0, relayBody, fromRelay = true)!!.kind)
         // Bailian's own 400 on a key of one's own: not the relay's shape, the same kind and code
         val bailian = """{"error":{"message":"<400> InternalError.Algo.DataInspectionFailed: Input data may contain inappropriate content.","type":"invalid_request_error","code":"data_inspection_failed"}}"""
         val own = RelayRefusal.parse(400, bailian)!!

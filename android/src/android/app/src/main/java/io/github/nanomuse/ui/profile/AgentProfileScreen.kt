@@ -267,7 +267,7 @@ private data class ActivityEntry(val time: Long, val title: String, val subtitle
 @Composable
 private fun ActivityPane(chatRepository: ChatRepository, onOpenSession: (String) -> Unit) {
     val context = LocalContext.current
-    val sessions by chatRepository.observeSessions().collectAsState(initial = null)
+    val sessions by remember(chatRepository) { chatRepository.observeSessions() }.collectAsState(initial = null) // Mosaic: subscribe once
     val entries by produceState<List<ActivityEntry>?>(initialValue = null, sessions) {
         val list = sessions ?: return@produceState
         value = withContext(Dispatchers.IO) { loadActivity(chatRepository, list) }

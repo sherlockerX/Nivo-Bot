@@ -91,5 +91,6 @@ object AccountScope {
         "minis-global/nanomuse/goals.json",
         "minis-global/nanomuse/avatar",
         "minis-global/shared",
+        "minis-global/home",
     )
 }

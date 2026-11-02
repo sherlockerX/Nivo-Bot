@@ -41,6 +41,7 @@ data class NativeOffloadRequest(
      * to `OFFLOAD_GLOBAL_SESSION_ID` in that case.
      */
     val sessionId: String? = null,
+    val peerPid: Int? = null, // nanoMuse: 来自内核socket凭据，不使用可伪造的请求pid字段。
 )
 
 data class NativeOffloadResult(
@@ -281,6 +282,7 @@ object NativeOffloadServer {
                     env = env,
                     cwd = cwd,
                     sessionId = env["MINIS_CHAT_SESSION_ID"]?.takeIf { it.isNotEmpty() },
+                    peerPid = runCatching { client.peerCredentials.pid }.getOrNull(), // nanoMuse
                 ))
             } catch (e: Exception) {
                 Log.w(TAG, "handler '$name' threw: ${e.message}", e)

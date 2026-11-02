@@ -65,7 +65,7 @@ class MemoryRepository(private val memoryDir: File) {
      * New entries are prepended (newest first).
      * Returns a success/error message string.
      */
-    fun writeMemory(content: String): String {
+    @Synchronized fun writeMemory(content: String): String { // nanoMuse: 并行对话追加记忆时避免读改写覆盖。
         if (content.isBlank()) return "Error: Missing required 'content' parameter"
 
         val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -146,7 +146,7 @@ class MemoryRepository(private val memoryDir: File) {
 
         for ((label, file) in filesToSearch) {
             if (totalLines >= lineCap || byteCapHit) break
-            val content = try { file.readText() } catch (_: Exception) { continue }
+            val content = try { file.readText() } catch (_: Exception) { return "Error: Memory file could not be read: $label" } // nanoMuse: 无法读取不等于没有匹配。
             if (content.isEmpty()) continue
             val budget = lineCap - totalLines
 

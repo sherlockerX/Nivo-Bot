@@ -73,6 +73,11 @@ class DebugRPCHandler(private val context: Context) {
     private suspend fun dispatch(method: String, params: JSONObject): Any {
         return when (method) {
             "rpc.discover" -> DebugMethodRegistry.discover()
+            "debug.uiFixture" -> io.github.nanomuse.chat.DebugUiFixture.seed(context, params) // nanoMuse: 仅隔离验收包可生成离线数据。
+            "debug.uiTimer" -> io.github.nanomuse.chat.DebugUiFixture.timer(context, params) // nanoMuse
+            "debug.uiFoldTrace" -> withContext(Dispatchers.Main) { // nanoMuse: 绘制探针仅在隔离验收包开启。
+                io.github.nanomuse.chat.DebugFoldTrace.command(currentActivity?.get(), params.optString("action", "read"))
+            }
             "debug.appInfo" -> handleAppInfo()
             "debug.screenshot" -> handleScreenshot(params)
             "debug.ls" -> handleLS(params)
@@ -187,6 +192,13 @@ class DebugRPCHandler(private val context: Context) {
                     throw RPCException(-32601, "Method not found: $method. Call 'rpc.discover' to list available methods.")
                 }
                 handleSessionsExec(params)
+            }
+            "debug.scheduled.exec", "debug.notification.exec" -> { // nanoMuse
+                if (!BuildConfig.DEBUG) {
+                    throw RPCException(-32601, "Method not found: $method. Call 'rpc.discover' to list available methods.")
+                }
+                if (method == "debug.scheduled.exec") handleCliExec("minis-scheduled", com.openminis.app.sandbox.offload.ScheduledTaskOffloadHandler(context), params)
+                else handleCliExec("android-notification", com.openminis.app.sandbox.offload.NotificationOffloadHandler(context), params)
             }
             // [T-minis-config-provider-add] DEBUG-only invocation of the
             // ConfigOffloadHandler — parallels debug.modelUse.exec so test
@@ -1259,7 +1271,7 @@ class DebugRPCHandler(private val context: Context) {
 
         AppLogger.info("DebugRPC", "debug.sessions.exec argv=${argvTail.joinToString(" ")}")
         val app = context.applicationContext as com.openminis.app.MinisApp
-        val handler = com.openminis.app.sandbox.offload.SessionsOffloadHandler(app.chatRepository)
+        val handler = com.openminis.app.sandbox.offload.SessionsOffloadHandler(app.chatRepository, app) // Mosaic
         val request = com.openminis.app.sandbox.NativeOffloadRequest(
             pid = -1,
             argv = listOf("minis-sessions-cli") + argvTail,
@@ -1273,6 +1285,18 @@ class DebugRPCHandler(private val context: Context) {
             put("output", result.output)
             put("argv", JSONArray(argvTail))
         }
+    }
+
+    // nanoMuse: DEBUG-only minis-scheduled / android-notification invocation, for checking the
+    // scheduled results and notifications on an emulator without an in-shell prompt.
+    private fun handleCliExec(cli: String, handler: com.openminis.app.sandbox.NativeOffloadHandler, params: JSONObject): JSONObject {
+        val arr = params.optJSONArray("args") ?: throw RPCException(-32602, "args must be an array of strings")
+        val argvTail = List(arr.length()) { arr.optString(it) }
+        AppLogger.info("DebugRPC", "$cli argv=${argvTail.joinToString(" ")}")
+        val result = handler.handle(com.openminis.app.sandbox.NativeOffloadRequest(
+            pid = -1, argv = listOf(cli) + argvTail, env = emptyMap(), cwd = "/", sessionId = null,
+        ))
+        return JSONObject().put("exitCode", result.exitCode).put("output", result.output).put("argv", JSONArray(argvTail))
     }
 
     /**

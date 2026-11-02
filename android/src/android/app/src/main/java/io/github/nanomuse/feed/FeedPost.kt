@@ -6,8 +6,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * One post in the feed. On disk it is `minis-global/nanomuse/feed/YYYY-MM-DD/NN.md`: a YAML-ish
- * front matter (title, type, emoji, source, created, liked) and a Markdown body. Plain files on
+ * One card on the Coach tab. On disk it is `minis-global/nanomuse/feed/YYYY-MM-DD/NN.md`: a YAML-ish
+ * front matter (title, type, emoji, source, created, liked, track, level, prompt, unit) and a Markdown body. Plain files on
  * purpose — the agent can read them back, a backup carries them, and nothing is lost if the app
  * forgets about them.
  */
@@ -15,13 +15,19 @@ data class FeedPost(
     val day: String,          // YYYY-MM-DD
     val index: Int,           // NN within the day
     val title: String,
-    val type: String,         // brief | reminder | idea | goal | memory | note
+    val type: String,         // Mosaic: theory | practice | challenge | review | action | weekly (FeedFlow.TYPES)
     val emoji: String,
     val body: String,
     val source: List<String>,
     val createdAt: Long,
     val liked: Boolean,
     val file: File,
+    // Mosaic: a practice card names the ability it trains, its level and the question to answer.
+    val track: String? = null,
+    val level: Int = 0,
+    val prompt: String = "",
+    /** Mosaic: the unit of the ability's course the card belongs to, as the skill numbers it ("1.2 …"). */
+    val unit: String = "",
 ) {
     val id: String get() = "$day/${"%02d".format(Locale.ROOT, index)}"
 
@@ -33,6 +39,10 @@ data class FeedPost(
         if (source.isNotEmpty()) appendLine("source: ${source.joinToString("; ") { escape(it) }}")
         appendLine("created: ${ISO.format(Date(createdAt))}")
         if (liked) appendLine("liked: true")
+        if (track != null) appendLine("track: $track")
+        if (level > 0) appendLine("level: $level")
+        if (prompt.isNotBlank()) appendLine("prompt: ${escape(prompt)}")
+        if (unit.isNotBlank()) appendLine("unit: ${escape(unit)}")
         appendLine("---")
         appendLine()
         append(body.trimEnd())
@@ -63,6 +73,10 @@ data class FeedPost(
                 createdAt = created,
                 liked = meta["liked"] == "true",
                 file = file,
+                track = meta["track"]?.trim()?.takeIf { it.isNotEmpty() },
+                level = meta["level"]?.trim()?.toIntOrNull() ?: 0,
+                prompt = meta["prompt"]?.let(::unescape).orEmpty(),
+                unit = meta["unit"]?.let(::unescape).orEmpty(),
             )
         }
 

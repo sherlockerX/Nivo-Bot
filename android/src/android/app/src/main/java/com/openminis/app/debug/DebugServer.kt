@@ -20,7 +20,7 @@ import java.net.Socket
  */
 class DebugServer(
     private val context: Context,
-    private val port: Int = 5321,
+    private val port: Int = if (com.openminis.app.BuildConfig.APPLICATION_ID.endsWith(".uitest")) 5322 else 5321, // nanoMuse: 隔离验收不能连到原应用的调试端口。
 ) {
     companion object {
         private const val TAG = "DebugServer"

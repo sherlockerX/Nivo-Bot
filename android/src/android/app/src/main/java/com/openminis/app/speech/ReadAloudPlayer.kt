@@ -93,6 +93,10 @@ class ReadAloudPlayer(context: Context) {
     /** Utterances enqueued but not yet finished; drives [isSpeaking]. */
     private val pending = AtomicInteger(0)
 
+    /** nanoMuse: bumped by [stop]; audio synthesised for an earlier generation is dropped, not played. */
+    @Volatile
+    private var generation = 0
+
     /**
      * [T-android-tts-player-registry] True when THIS player owns the capsule.
      *
@@ -147,7 +151,8 @@ class ReadAloudPlayer(context: Context) {
                     .onFailure { AppLogger.error(TAG, "utterance failed: $it") }
                 // Queue drained → speech is over. Counter rather than
                 // Channel.isEmpty, which is experimental API.
-                if (pending.decrementAndGet() <= 0) {
+                // nanoMuse: never below zero; stop() resets it while one utterance is still in flight.
+                if (pending.updateAndGet { maxOf(0, it - 1) } == 0) {
                     _isSpeaking.value = false
                     if (ownsCapsule()) VoiceOutputState.isSpeaking.value = false
                 }
@@ -165,7 +170,32 @@ class ReadAloudPlayer(context: Context) {
         sentenceBuffer.append(chunk)
         for (sentence in extractCompleteSentences(sentenceBuffer)) {
             enqueue(sentence)
+            replyStarted = true
         }
+        // nanoMuse: the first words of a reply go out at their first comma
+        // instead of waiting for the full stop, so reading starts with the
+        // first phrase. Later sentences keep the usual cut.
+        if (!replyStarted) {
+            firstClauseEnd(sentenceBuffer)?.let { end ->
+                enqueue(sentenceBuffer.substring(0, end).trim())
+                sentenceBuffer.delete(0, end)
+                replyStarted = true
+            }
+        }
+    }
+
+    // nanoMuse: true once this reply has produced its first utterance; reset by stop().
+    private var replyStarted = false
+
+    // nanoMuse: the end of the first clause (after its pause mark) once it has a
+    // few words, outside code and numbers; null while there is none yet.
+    private fun firstClauseEnd(buffer: CharSequence): Int? {
+        for (i in FIRST_CLAUSE_MIN_CHARS until buffer.length - 1) {
+            val ch = buffer[i]
+            if (ch == '`') return null
+            if (ch in FIRST_CLAUSE_PAUSES && !SpeechSentenceSplitter.isIntraNumberSeparator(buffer, i)) return i + 1
+        }
+        return null
     }
 
     /** Emit the buffered tail (a fragment with no terminator). Call at stream end. */
@@ -186,7 +216,18 @@ class ReadAloudPlayer(context: Context) {
     /** Speak [text] as a single utterance, after stopping anything in flight. */
     fun speak(text: String) {
         stop()
-        enqueue(text)
+        // nanoMuse: the person asked for this one, so the read-replies switch does not gate it.
+        enqueue(text, requested = true)
+    }
+
+    // nanoMuse: a whole reply read on request, sentence by sentence, so the
+    // first sentence plays while the rest wait; as one utterance a provider
+    // voice would synthesise all of it before a word is heard.
+    fun readAloud(text: String) {
+        stop()
+        val buffer = StringBuilder(text)
+        val parts = SpeechSentenceSplitter.extractCompleteSentences(buffer, streaming = false) + buffer.toString().trim()
+        parts.filter { it.isNotBlank() }.forEach { enqueue(it, requested = true) }
     }
 
     /**
@@ -207,13 +248,13 @@ class ReadAloudPlayer(context: Context) {
         enqueue(text)
     }
 
-    private fun enqueue(raw: String) {
+    private fun enqueue(raw: String, requested: Boolean = false) {
         // [T-android-tts-capsule] Temporary mute suppresses NEW utterances too
         // (not only current playback) — matching iOS, where `canPlay =
         // isEnabled && !isMuted` gates production. Dropping here rather than at
         // playback keeps a long mute from piling up a backlog that would all
         // blurt out on un-mute.
-        if (!VoiceOutputState.canPlay) return
+        if (!requested && !VoiceOutputState.canPlay) return // nanoMuse: unless the person asked for it
         // [T-android-tts-scope-align] Mic-capture suppression, from iOS
         // canSpeakNow (feedDynamicTTS logs "DROP — read-replies off
         // (capturing)"): while the VAD/recognizer is actively capturing,
@@ -289,10 +330,12 @@ class ReadAloudPlayer(context: Context) {
 
     /** Stop playback and drop everything pending. */
     fun stop() {
+        generation++ // nanoMuse: the sentence being synthesised right now is not played after a stop.
         // A real stop supersedes a capture pause: nothing held is still wanted.
         capturePaused = false
         heldForCapture.clear()
         sentenceBuffer.setLength(0)
+        replyStarted = false // nanoMuse
         while (queue.tryReceive().isSuccess) { /* drain */ }
         // Unblock the worker BEFORE releasing, so the in-flight utterance's
         // suspension completes instead of waiting on callbacks that a released
@@ -409,6 +452,7 @@ class ReadAloudPlayer(context: Context) {
         // indicator while the network request is in flight (iOS
         // voicePlayer.isSynthesizing).
         if (ownsCapsule()) VoiceOutputState.isSynthesizing.value = true
+        val started = generation // nanoMuse
         val data = try {
             withContext(Dispatchers.IO) {
                 voice.synthesize(
@@ -425,6 +469,7 @@ class ReadAloudPlayer(context: Context) {
         } finally {
             VoiceOutputState.isSynthesizing.value = false
         }
+        if (started != generation) return true // nanoMuse: stopped while synthesising; handled, nothing to play.
         if (data.isEmpty()) {
             AppLogger.error(TAG, "provider TTS returned empty audio (model=${modelEntry.model.id})")
             return false
@@ -470,24 +515,33 @@ class ReadAloudPlayer(context: Context) {
                     finish()
                     true
                 }
-                mp.prepare()
-                // [T-android-tts-rom-compat] start() FIRST, speed second, each
-                // in its own guard. The previous order relied on
-                // setPlaybackParams-on-prepared implicitly starting playback —
-                // documented AOSP behaviour, but some OEM MediaPlayer builds
-                // throw IllegalStateException there, and the failure landed in
-                // the OUTER runCatching which skipped the utterance entirely.
-                // Now a ROM that rejects the speed change still plays at 1×;
-                // only the speed is lost, never the audio.
-                mp.start()
-                val speed = VoiceOutputState.speed.value
-                if (speed != 1.0f) {
+                // nanoMuse: prepare off the main thread; a synchronous prepare() per sentence held up the UI.
+                mp.setOnPreparedListener { prepared ->
+                    if (resumed) return@setOnPreparedListener
                     runCatching {
-                        mp.playbackParams = mp.playbackParams.setSpeed(speed)
+                        // [T-android-tts-rom-compat] start() FIRST, speed second, each
+                        // in its own guard. The previous order relied on
+                        // setPlaybackParams-on-prepared implicitly starting playback —
+                        // documented AOSP behaviour, but some OEM MediaPlayer builds
+                        // throw IllegalStateException there, and the failure landed in
+                        // the OUTER runCatching which skipped the utterance entirely.
+                        // Now a ROM that rejects the speed change still plays at 1×;
+                        // only the speed is lost, never the audio.
+                        prepared.start()
+                        val speed = VoiceOutputState.speed.value
+                        if (speed != 1.0f) {
+                            runCatching {
+                                prepared.playbackParams = prepared.playbackParams.setSpeed(speed)
+                            }.onFailure {
+                                AppLogger.error(TAG, "playback speed $speed rejected by this ROM's MediaPlayer, playing at 1×: $it")
+                            }
+                        }
                     }.onFailure {
-                        AppLogger.error(TAG, "playback speed $speed rejected by this ROM's MediaPlayer, playing at 1×: $it")
+                        AppLogger.error(TAG, "MediaPlayer start failed: $it")
+                        finish()
                     }
                 }
+                mp.prepareAsync()
             }.onFailure {
                 AppLogger.error(TAG, "MediaPlayer setup failed: $it")
                 finish()
@@ -632,5 +686,9 @@ class ReadAloudPlayer(context: Context) {
     companion object {
         private const val TAG = "ReadAloud"
         private const val POLL_MS = 80L
+
+        // nanoMuse: the first clause of a reply needs this many characters before its pause mark counts.
+        private const val FIRST_CLAUSE_MIN_CHARS = 4
+        private val FIRST_CLAUSE_PAUSES = charArrayOf('，', ',', '、', '：', ':', '；', ';').toSet()
     }
 }

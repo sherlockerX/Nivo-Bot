@@ -16,13 +16,8 @@
 # check that they match the desktop's (tests/fences.test.mjs, connectors-json.mjs --check).
 name: harness bundle
 
+# Mosaic fork: manual runs only; the runner minutes go to the iOS build.
 on:
-  push:
-    branches: ["**"]
-    paths: ["harness/**", "scripts/connectors-json.mjs", "scripts/providers-json.mjs", "nanomuse/llm/providers.json", "android/src/android/app/src/main/assets/nanomuse/connectors.json", "android/src/android/app/src/main/assets/nanomuse/providers.json", "android/src/android/app/src/main/assets/nanomuse/ideas.*.json", "android/src/ios/NanoMuse/Resources/connectors.json", "android/src/ios/NanoMuse/Resources/providers.json", "android/src/ios/NanoMuse/Resources/ideas.*.json", ".github/workflows/harness.yml"]
-    tags: ["v*"]
-  pull_request:
-    paths: ["harness/**", "scripts/connectors-json.mjs", "scripts/providers-json.mjs", "nanomuse/llm/providers.json", "android/src/android/app/src/main/assets/nanomuse/connectors.json", "android/src/android/app/src/main/assets/nanomuse/providers.json", "android/src/android/app/src/main/assets/nanomuse/ideas.*.json", "android/src/ios/NanoMuse/Resources/connectors.json", "android/src/ios/NanoMuse/Resources/providers.json", "android/src/ios/NanoMuse/Resources/ideas.*.json", ".github/workflows/harness.yml"]
   workflow_dispatch:
     inputs:
       release_tag:

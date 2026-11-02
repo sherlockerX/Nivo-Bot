@@ -64,7 +64,9 @@ class FirstConversation(
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     var phase: Phase
-        get() = prefs.getString(KEY_PHASE, null)?.let { runCatching { Phase.valueOf(it) }.getOrNull() } ?: Phase.NONE
+        // Mosaic: the agent ships named, with its persona, so the ritual never runs; a phase an
+        // earlier build left in the prefs counts for nothing (no intro, no prompt addendum).
+        get() = Phase.NONE
         private set(value) {
             prefs.edit().putString(KEY_PHASE, value.name).apply()
         }
@@ -87,7 +89,8 @@ class FirstConversation(
             return bound == currentSessionId ||
                 (phase == Phase.ASK_USER_NAME && bound.startsWith("__new__") && currentSessionId.startsWith("__new__"))
         }
-        return phase == Phase.NONE && !hasOtherSessions && SoulStore.load(context)?.metadata?.name == SoulMetadata.DEFAULT.name
+        // Mosaic: never started (see [phase]).
+        return false
     }
 
     /** Bind to [currentSessionId] and step into [Phase.ASK_USER_NAME] if this is the start. */

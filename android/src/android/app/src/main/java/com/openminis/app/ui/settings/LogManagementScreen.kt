@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -133,18 +135,23 @@ fun LogManagementScreen(
         SingleChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .height(IntrinsicSize.Min), // nanoMuse: both tabs one size, whatever the translation's length
         ) {
             SegmentedButton(
                 selected = tab == "logs",
                 onClick = { tab = "logs" },
                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-            ) { Text(stringResource(R.string.log_title)) }
+                modifier = Modifier.fillMaxHeight(),
+                icon = {},
+            ) { Text(stringResource(R.string.log_title), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
             SegmentedButton(
                 selected = tab == "config-audit",
                 onClick = { tab = "config-audit" },
                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-            ) { Text(stringResource(R.string.logs_tab_config_changes)) }
+                modifier = Modifier.fillMaxHeight(),
+                icon = {},
+            ) { Text(stringResource(R.string.logs_tab_config_changes), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
         }
 
         if (tab == "config-audit") {

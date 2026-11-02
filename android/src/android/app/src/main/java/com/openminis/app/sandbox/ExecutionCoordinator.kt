@@ -101,13 +101,15 @@ object ExecutionCoordinator {
             Log.w(TAG, "[diag] execute sessionId=$sessionId cmd=${command.take(120).replace('\n', ' ')}")
 
             // Get or create shell — protected by globalLock to avoid duplicate creation
+            prepareTaskTimezone(sessionId) // nanoMuse: 复用Shell也要准备当前时区及必要挂载。
             val shell = getOrCreateShell(sessionId)
+            io.github.nanomuse.routines.ScheduledRunScopes.registerProcess(sessionId, shell.trustedPid()) // nanoMuse: 绑定真实Shell而非来宾环境中的PID。
 
             // Inject user-defined environment variables as a *full snapshot*
             // (T124a). Pass the previously-injected key set so applyEnvironment
             // can `unset` anything the user has since removed from settings;
             // otherwise the long-lived shell would keep stale values.
-            val envVars = envVarRepository?.allAsDict() ?: emptyMap()
+            val envVars = envVarRepository?.allAsDict().orEmpty() + io.github.nanomuse.routines.ScheduledRunScopes.environment(sessionId) // nanoMuse: 在途任务身份按会话注入，结束后由快照差异清除。
             val previousKeys = lastInjectedKeys[sessionId] ?: emptySet()
             if (envVars.isNotEmpty() || previousKeys.isNotEmpty()) {
                 shell.applyEnvironment(envVars, previousKeys = previousKeys)
@@ -138,6 +140,19 @@ object ExecutionCoordinator {
      * Uses globalLock to prevent two coroutines from simultaneously creating
      * a shell for the same session (e.g. if the old shell just died).
      */
+    private suspend fun prepareTaskTimezone(sessionId: String) { // nanoMuse: 新时区必须实际出现在当前Shell，而不只是宿主探测通过。
+        if (!io.github.nanomuse.routines.ScheduledRunScopes.isActive(sessionId)) return
+        check(io.github.nanomuse.routines.ScheduledTimezone.available(appContext)) { "TIMEZONE_DATA_UNAVAILABLE" }
+        val supplemental = io.github.nanomuse.routines.ScheduledTimezone.prepare(appContext) ?: return
+        globalLock.withLock {
+            val existing = shells[sessionId] ?: return@withLock
+            if (existing.debugBindMount("/usr/share/zoneinfo") != supplemental.absolutePath) {
+                shells.remove(sessionId)
+                existing.stop()
+            }
+        }
+    }
+
     private suspend fun getOrCreateShell(sessionId: String): PersistentShell {
         // Fast path: existing alive shell
         val existing = shells[sessionId]
@@ -176,9 +191,13 @@ object ExecutionCoordinator {
      * - Session-level: workspace, attachments, offloads, browser → per-session dirs
      * - Global: memory, skills, shared → shared dirs across all sessions
      */
+    /** nanoMuse: 为独立脚本进程提供会话挂载快照。 */
+    internal fun sessionMounts(sessionId: String): Map<String, String> = buildSessionBindMounts(sessionId)
+
     private fun buildSessionBindMounts(sessionId: String): Map<String, String> {
         val filesDir = appContext.filesDir
         val mounts = linkedMapOf<String, String>()
+        io.github.nanomuse.routines.ScheduledTimezone.prepare(appContext)?.let { mounts["/usr/share/zoneinfo"] = it.absolutePath } // nanoMuse: Task提示词调用持久Shell时同样可使用设备IANA时区。
 
         // [diag] previous attachments mount target — exposes cross-session
         // overwrite of the global bindMounts map (the suspected cause of
@@ -208,7 +227,7 @@ object ExecutionCoordinator {
         // which is why they disagreed). Same trap as the external-mounts note
         // below.
         val globalBase = File(filesDir, "minis-global")
-        listOf("memory", "skills", "shared", "mcp-servers").forEach { subdir ->
+        listOf("memory", "skills", "shared", "mcp-servers", "home").forEach { subdir -> // nanoMuse: 与全局文件解析使用同一home挂载。
             val hostDir = File(globalBase, subdir).also { it.mkdirs() }
             val linuxPath = "/var/minis/$subdir"
             mounts[linuxPath] = hostDir.absolutePath

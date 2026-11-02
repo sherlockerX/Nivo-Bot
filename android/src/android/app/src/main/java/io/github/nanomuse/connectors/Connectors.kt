@@ -56,6 +56,7 @@ object Connectors {
     /** Where a connector stands: not added, added and usable, or added but waiting for a sign-in. */
     fun state(context: Context, connector: Connector, servers: List<MCPRepository.MCPServerConfig>): State {
         val server = servers.firstOrNull { it.id == connector.serverId } ?: return State.Off
+        if (!server.enabled) return State.Off
         val wantsToken = server.oauth?.isConfigured == true || connector.auth is ConnectorAuth.OAuth
         if (wantsToken && !server.headers.containsKey(AUTH_HEADER) && !MCPOAuthStore.isAuthorized(context, server.id)) return State.NeedsSignIn
         return State.Connected

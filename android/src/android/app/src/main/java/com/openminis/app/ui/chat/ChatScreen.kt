@@ -1,5 +1,7 @@
 package com.openminis.app.ui.chat
 
+import io.github.nanomuse.ui.chat.traceStepDrawing // nanoMuse: 仅隔离验收包的绘制后探针。
+
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -129,6 +131,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.StopCircle
@@ -568,6 +571,7 @@ fun ChatScreen(
     val messages by viewModel.uiMessages.collectAsState()
     val hasOlderMessages by viewModel.hasOlderMessages.collectAsState()
     val isStreaming by viewModel.isStreaming.collectAsState()
+    io.github.nanomuse.ui.chat.ConversationReadEffect(viewModel.currentSessionId, nmHome?.isVisible != false) // nanoMuse: 可见且已恢复的会话消费完成标记。
     // nanoMuse: the screen stays on while the agent drives the browser or another app's screen.
     io.github.nanomuse.status.KeepAwake.Effect(isStreaming)
     val canResume by viewModel.canResume.collectAsState()
@@ -575,9 +579,11 @@ fun ChatScreen(
     val nmRemoteRows by io.github.nanomuse.sync.ConversationSync.remoteRows.collectAsState()
     val nmContinueAsk by viewModel.nmContinueAsk.collectAsState() // nanoMuse: "continue?" card replaces the banner while shown
     // nanoMuse: Muse's header carries only the name; the model rows under it are a
-    // Setting (Appearance → Home), off by default on the main chat of the home shell.
+    // Setting (Appearance → Home), off by default in the home shell. Mosaic: one switch for
+    // the main chat and the side chats alike; with the rows off, the ⋯ menu holds model and
+    // thinking in both.
     val nmHeaderModelShown by io.github.nanomuse.ui.chat.rememberHeaderModelShown()
-    val nmHideModelRows = nmHome != null && nmHome.isMainChat && !nmHeaderModelShown
+    val nmHideModelRows = nmHome != null && !nmHeaderModelShown
     val nmAvatarSize by io.github.nanomuse.ui.avatar.rememberAvatarSize() // nanoMuse: Settings → Appearance → Avatar size
     // nanoMuse: the agent's steps (tool pills, reasoning, the bar over the
     // composer) are a Setting (Appearance → Conversation), off by default;
@@ -942,6 +948,15 @@ fun ChatScreen(
     var showThinkingLevelSheet by remember { mutableStateOf(false) }
     var showAttachMenu by remember { mutableStateOf(false) }
     var showChatMenu by remember { mutableStateOf(false) }
+    // nanoMuse: 所有聊天共用内容目录和稳定消息跳转状态。
+    var nmAnchorsOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var nmAnchorPending by remember(sessionId) { mutableStateOf<String?>(null) }
+    var nmAnchorQuery by remember(sessionId) { mutableStateOf("") }
+    var nmAnchorHighlight by remember(sessionId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(nmAnchorHighlight) {
+        if (nmAnchorHighlight != null) { kotlinx.coroutines.delay(2200); nmAnchorHighlight = null }
+    }
+
     var showSkillsSheet by remember { mutableStateOf(false) }
     // [T-mcp-integration-android] MCPs-in-Session sheet visibility.
     var showMcpsSheet by remember { mutableStateOf(false) }
@@ -1848,7 +1863,22 @@ fun ChatScreen(
     // users who had scrolled up to read history and then opened the keyboard
     // to send a follow-up — auto-follow then yanked them away from where
     // they were reading.
-    val imeBottomPx = WindowInsets.ime.getBottom(LocalDensity.current)
+    // nanoMuse: 搜索弹窗拥有自己的焦点，定位时暂停聊天的自动跟随。
+    if (nmAnchorsOpen) io.github.nanomuse.ui.chat.MessageAnchorsSheet(
+        viewModel = viewModel,
+        onDismiss = { nmAnchorsOpen = false; keyboardController?.hide() },
+        onPick = { id, query ->
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
+            nmAnchorsOpen = false
+            userScrolledAway = true
+            lastUserAppendMs = 0L
+            nmAnchorQuery = query
+            nmAnchorPending = viewModel.revealAnchor(id)
+            if (nmAnchorPending == null) android.widget.Toast.makeText(context, R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+        },
+    )
+    val imeBottomPx = if (nmHome?.isVisible == false || nmAnchorsOpen) 0 else WindowInsets.ime.getBottom(LocalDensity.current) // nanoMuse: 侧栏键盘不触发聊天自动滚动。
     LaunchedEffect(imeBottomPx) {
         if (userScrolledAway && isNearBottom.value) userScrolledAway = false
     }
@@ -2288,10 +2318,14 @@ fun ChatScreen(
     // another new chat — only the pane's content key changes — so a
     // `LaunchedEffect(Unit)` would fire for the first draft of the screen's
     // life and never again, leaving every subsequent New Chat unfocused.
+    val nmComposerVisible by androidx.compose.runtime.rememberUpdatedState(nmHome?.isVisible != false) // nanoMuse: 延迟期间以最新可见性为准。
     LaunchedEffect(sessionId) {
-        if (sessionId.startsWith("__new__")) {
+        // nanoMuse: the home shell keeps the chat composed under the other tabs; coming back to one
+        // of them from a pushed screen must not raise the keyboard for the hidden composer.
+        if (sessionId.startsWith("__new__") && nmHome?.isVisible != false) {
             // Small delay to let the layout settle before requesting focus
             kotlinx.coroutines.delay(300)
+            if (!nmComposerVisible) return@LaunchedEffect
             try {
                 inputFocusRequester.requestFocus()
             } catch (e: IllegalStateException) {
@@ -2661,26 +2695,13 @@ fun ChatScreen(
                             // state and the app-wide "needs you" gates; tapping
                             // it opens Settings → Soul (name / icon / style).
                             val nmMood = io.github.nanomuse.ui.avatar.rememberAgentMood(isStreaming, error)
-                            // nanoMuse: side chats inside the home shell show
-                            // their title where the face would be (Muse puts
-                            // the face only on the main chat); the main chat
-                            // gets the big face on its disc.
+                            // nanoMuse: inside the home shell every chat gets the
+                            // face on its disc. Mosaic: side chats too (Muse puts it
+                            // only on the main chat), so the agent's state shows
+                            // wherever it works; a side chat's title moved into the
+                            // name tag's second line.
                             val nmSideChat = nmHome != null && !nmHome.isMainChat
-                            val nmMainChat = nmHome != null && nmHome.isMainChat
-                            if (nmSideChat) {
-                                Text(
-                                    text = sessionTitle?.trim()?.ifEmpty { null }
-                                        ?: stringResource(R.string.nm_drawer_untitled),
-                                    fontSize = 17.sp,
-                                    lineHeight = 21.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = ChatColors.primaryText,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = noFontPad,
-                                    modifier = Modifier.padding(bottom = 1.dp),
-                                )
-                            } else if (nmMainChat) {
+                            if (nmHome != null) {
                                 // nanoMuse: the disc follows Settings → Appearance → Avatar size;
                                 // "hidden" leaves the name tag alone. Tapping the face opens the
                                 // agent's profile page, as in Muse.
@@ -2702,7 +2723,7 @@ fun ChatScreen(
                                 contentDescription = stringResource(R.string.nm_avatar_content_description),
                                 onClick = { io.github.nanomuse.ui.header.openAgentProfile(context) },
                             )
-                            if (!nmSideChat && !nmMainChat) Spacer(Modifier.height(2.dp))
+                            if (nmHome == null) Spacer(Modifier.height(2.dp))
                             // nanoMuse: the pill is the agent's name (Muse's
                             // header), never the session title — that one
                             // stays in the session list and in the chat
@@ -2720,13 +2741,19 @@ fun ChatScreen(
                             // status line says what it is doing (Muse's
                             // "Generating options" / "正在等待批准").
                             val nmStatusLine = io.github.nanomuse.ui.header.rememberNanoMuseStatusLine(isStreaming, nmMood, replying = nmReplying, request = nmRequestBrief)
-                            // nanoMuse: no name pill on side chats — their
-                            // title took the slot above.
-                            if (nmMainChat) {
+                            if (nmHome != null) {
                                 // nanoMuse: Muse's name tag hangs off the chin
                                 // of the face and carries the status as its
                                 // second line; two lines are always reserved so
                                 // the bar never jumps. Tap: the profile page.
+                                // Mosaic: on a side chat an idle tag shows the
+                                // chat's title there instead.
+                                val nmSideTitle = if (nmSideChat) {
+                                    sessionTitle?.trim()?.ifEmpty { null } ?: stringResource(R.string.nm_drawer_untitled)
+                                } else null
+                                // Mosaic: while a task runs the name gives way to how long it has
+                                // been running; the name comes back when the task ends.
+    val nmElapsed = io.github.nanomuse.ui.header.rememberTaskElapsed(viewModel.currentSessionId) // nanoMuse: 与后台任务使用同一会话和时钟。
                                 Box(
                                     modifier = Modifier
                                         .height(io.github.nanomuse.ui.home.PILL_AREA_HEIGHT)
@@ -2734,13 +2761,13 @@ fun ChatScreen(
                                     contentAlignment = Alignment.TopCenter,
                                 ) {
                                     io.github.nanomuse.ui.home.MuseNamePill(
-                                        name = displayTitle,
-                                        statusLine = nmStatusLine,
-                                        statusColor = if (nmMood == io.github.nanomuse.ui.avatar.AgentMood.WAITING) ChatColors.sendButton else ChatColors.secondaryText,
+                                        name = nmElapsed?.let { stringResource(R.string.nm_header_elapsed, it) } ?: displayTitle,
+                                        statusLine = nmStatusLine ?: nmSideTitle,
+                                        statusColor = if (nmStatusLine != null && nmMood == io.github.nanomuse.ui.avatar.AgentMood.WAITING) ChatColors.sendButton else ChatColors.secondaryText,
                                         onClick = { io.github.nanomuse.ui.header.openAgentProfile(context) },
                                     )
                                 }
-                            } else if (!nmSideChat) Text(
+                            } else Text(
                                 text = displayTitle,
                                 fontSize = 16.sp,
                                 lineHeight = 19.sp,
@@ -2760,9 +2787,9 @@ fun ChatScreen(
                                     .padding(horizontal = 12.dp, vertical = 3.dp),
                             )
                             // nanoMuse: outside the home shell the status line
-                            // takes the model rows' slot; on the main chat it
+                            // takes the model rows' slot; in the home shell it
                             // is inside the name tag, so the rows stay put.
-                            if (nmStatusLine != null && !nmMainChat) io.github.nanomuse.ui.header.NanoMuseStatusLine(nmStatusLine, nmMood)
+                            if (nmStatusLine != null && nmHome == null) io.github.nanomuse.ui.header.NanoMuseStatusLine(nmStatusLine, nmMood)
                             // nanoMuse: no model rows under the name unless the Setting asks for them.
                             else if (!nmHideModelRows)
                             // Model picker subtitle: green dot + group +
@@ -3104,6 +3131,48 @@ fun ChatScreen(
                                     Icon(Icons.Default.Edit, contentDescription = null)
                                 },
                             )
+                            // nanoMuse: 主聊天、旁聊和归档打开的聊天均能使用锚点。
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.nm_anchors)) },
+                                onClick = {
+                                    showChatMenu = false
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    nmAnchorsOpen = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            )
+                            // Mosaic: a voice call in this chat.
+                            nmHome?.onStartCall?.let { startCall ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.nm_call_menu)) },
+                                    onClick = {
+                                        showChatMenu = false
+                                        startCall()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Call, contentDescription = null)
+                                    },
+                                )
+                            }
+                            // Mosaic: replies read aloud as they are written; the same
+                            // switch as the voice panel's "Read replies".
+                            val nmReadAloudOn by com.openminis.app.speech.VoiceOutputState.isEnabled.collectAsState()
+                            val nmSetReadAloud: (Boolean) -> Unit = { on ->
+                                com.openminis.app.speech.VoiceOutputState.init(context)
+                                com.openminis.app.speech.VoiceOutputState.setMuted(false)
+                                com.openminis.app.speech.VoiceOutputState.setEnabled(on)
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.nm_chat_menu_read_aloud)) },
+                                onClick = { nmSetReadAloud(!nmReadAloudOn) },
+                                leadingIcon = {
+                                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
+                                },
+                                trailingIcon = {
+                                    SettingsSwitch(checked = nmReadAloudOn, onCheckedChange = nmSetReadAloud)
+                                },
+                            )
                             // nanoMuse: with the model rows off the header, the
                             // picker opens from here.
                             if (nmHideModelRows) {
@@ -3129,6 +3198,34 @@ fun ChatScreen(
                                     },
                                     leadingIcon = {
                                         Icon(Icons.Outlined.Tune, contentDescription = null)
+                                    },
+                                )
+                                // Mosaic: the thinking badge lives in those model rows too,
+                                // so its sheet opens from here; a model that cannot think
+                                // says so instead of leaving the setting nowhere.
+                                val menuThinking by viewModel.thinkingLevel.collectAsState()
+                                val menuCanThink = viewModel.currentModelSupportsReasoning &&
+                                    viewModel.availableThinkingLevels.isNotEmpty()
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(stringResource(R.string.nm_chat_menu_thinking))
+                                            Text(
+                                                if (menuCanThink) menuThinking.localizedName(context)
+                                                else stringResource(R.string.nm_chat_menu_thinking_unsupported),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                            )
+                                        }
+                                    },
+                                    enabled = menuCanThink,
+                                    onClick = {
+                                        showChatMenu = false
+                                        showThinkingLevelSheet = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Lightbulb, contentDescription = null)
                                     },
                                 )
                             }
@@ -3372,14 +3469,12 @@ fun ChatScreen(
                 // Font sizes + lineHeights stay untouched per spec.
                 // nanoMuse: 68dp held the 3-row title; the face (36dp) and the
                 // capsule padding sit on top of that. In the home shell the
-                // main chat's disc (76dp) needs more, a side chat's one-line
-                // title less.
+                // disc (76dp) needs more; Mosaic: side chats wear it too.
                 expandedHeight = when {
                     nmHome == null -> 108.dp
                     // nanoMuse: disc (per the Avatar size setting; 10dp spacer when hidden)
                     // + the two-line name tag area, + the model rows when on.
-                    nmHome.isMainChat -> (nmAvatarSize.disc ?: 10.dp) + 55.dp + (if (nmHideModelRows) 0.dp else 20.dp)
-                    else -> 72.dp
+                    else -> (nmAvatarSize.disc ?: 10.dp) + 55.dp + (if (nmHideModelRows) 0.dp else 20.dp)
                 },
             )
             } // nanoMuse: close the header-fade wrapper
@@ -3396,7 +3491,7 @@ fun ChatScreen(
                 // overlay, so only the bottom bar insets the content. The
                 // header itself is a scrim over the scrolling list.
                 .padding(bottom = padding.calculateBottomPadding())
-                .imePadding()
+                .then(if (nmAnchorsOpen) Modifier else Modifier.imePadding()) // nanoMuse: 弹窗键盘不移动聊天输入框。
                 .onGloballyPositioned { chatPaneWidthPx = it.size.width },
         ) {
         // nanoMuse: merge live steps once so the footer and its reserve agree
@@ -3637,7 +3732,7 @@ fun ChatScreen(
                                     // threw ConcurrentModificationException from
                                     // a later frame's SubList.equals. Copying
                                     // severs the view so it can't comodify.
-                                    buildFlatChatItems(msgs.take(splitIdx), sessionId, showSteps = nmShowSteps) // nanoMuse
+                                    buildFlatChatItems(msgs.take(splitIdx), sessionId, showSteps = nmShowSteps, foldSteps = true) // nanoMuse
                                 }
                                 val buildMs = (System.nanoTime() - tBuildStart) / 1_000_000
                                 frozenRows = rows
@@ -3713,7 +3808,7 @@ fun ChatScreen(
                             } else {
                                 withContext(Dispatchers.Default) {
                                     val merged = mergeStreamingOverlay(msgs, stream)
-                                    buildFlatChatItems(merged, null, fromIndex = splitIdx, seedKeys = frozenKeys, showSteps = nmShowSteps) // nanoMuse
+                                    buildFlatChatItems(merged, null, fromIndex = splitIdx, seedKeys = frozenKeys, showSteps = nmShowSteps, foldSteps = true) // nanoMuse
                                 }
                             }
                             flatItems = if (liveRows.isEmpty()) frozenRows else frozenRows + liveRows
@@ -3736,6 +3831,21 @@ fun ChatScreen(
                         }
                     }
                 }
+                // nanoMuse: 固定标题和正文分开，过程正文复用外层懒加载与稳定身份。
+                val nmStepFolds = io.github.nanomuse.ui.chat.rememberAgentStepsState(sessionId)
+                val nmStepCache = remember(sessionId) { io.github.nanomuse.chat.AgentStepRowsCache() } // nanoMuse: 复用冻结历史片段。
+                val nmStepRows = remember(flatItems, nmStepFolds.expanded) {
+                    io.github.nanomuse.chat.expandAgentStepRows(flatItems, nmStepFolds.expanded, nmStepCache)
+                }
+                // Mosaic: the reply whose steps are open in the sheet; the row is looked up live so it follows streaming.
+                var nmStepsSheetId by remember(sessionId) { mutableStateOf<String?>(null) }
+                val nmStepsSheetRow = nmStepsSheetId?.let { id ->
+                    flatItems.firstOrNull { it is FlatChatItem.AssistantSteps && it.messageId == id } as? FlatChatItem.AssistantSteps
+                }
+                if (nmStepsSheetRow != null) io.github.nanomuse.ui.chat.AgentStepsSheet(
+                    row = nmStepsSheetRow, onDetail = viewModel::openToolDetail, onStop = viewModel::cancelStream,
+                    onDismiss = { nmStepsSheetId = null },
+                )
                 // T304: when a new tool-use item appears at the trailing
                 // edge (head of flatItems with reverseLayout=true), pin
                 // back to the bottom so the just-arrived tool card is
@@ -3816,6 +3926,41 @@ fun ChatScreen(
                 // render time — mirrors iOS isCompactedHistory opacity(0.5).
                 // The lookup uses the underlying message id stripped of any
                 // dedupe suffix (`id#2`) added by buildFlatChatItems.
+                // nanoMuse: 依据实际 LazyColumn key 校准额外提示行，避免锚点偏移到相邻消息。
+                LaunchedEffect(nmAnchorPending, nmStepRows.size) { // nanoMuse: 锚点索引包含展开后的过程行。
+                    val messageId = nmAnchorPending ?: return@LaunchedEffect
+                    val ordered = nmStepRows.asReversed()
+                    val searched = if (nmAnchorQuery.isBlank()) null else ordered.firstOrNull {
+                        it is FlatChatItem.AssistantMarkdownBlock && it.messageId == messageId && it.rawText.contains(nmAnchorQuery, ignoreCase = true)
+                    }?.key
+                    val key = searched ?: ordered.firstOrNull { it.key == "user:$messageId" || it.key == "header:$messageId" }?.key
+                        ?: return@LaunchedEffect
+                    val positions = ordered.mapIndexed { index, row -> row.key to index }.toMap()
+                    try {
+                        repeat(4) {
+                            androidx.compose.runtime.withFrameNanos { }
+                            val info = listState.layoutInfo
+                            val landed = info.visibleItemsInfo.firstOrNull { it.key == key }
+                            if (landed != null) {
+                                // nanoMuse: 长消息已有一部分可见时，也要把目标段落顶部移到标题下方。
+                                tracedScrollToItem("MESSAGE-ANCHOR/top", landed.index,
+                                    landed.size - info.viewportSize.height + info.beforeContentPadding)
+                                nmAnchorHighlight = key
+                                nmAnchorPending = null
+                                return@LaunchedEffect
+                            }
+                            val known = info.visibleItemsInfo.firstOrNull { it.key.toString() in positions }
+                            val extra = known?.let { it.index - positions.getValue(it.key.toString()) } ?: 0
+                            if (info.totalItemsCount > 0) tracedScrollToItem("MESSAGE-ANCHOR", (positions.getValue(key) + extra).coerceIn(0, info.totalItemsCount - 1), 0)
+                        }
+                        nmAnchorPending = null
+                        android.widget.Toast.makeText(context, R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (error: Exception) {
+                        if (error is kotlinx.coroutines.CancellationException) throw error
+                        nmAnchorPending = null
+                        android.widget.Toast.makeText(context, R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
                 val grayedMap = remember(messages) {
                     messages.associate { it.id to it.isCompactedHistory }
                 }
@@ -3826,6 +3971,8 @@ fun ChatScreen(
                     is FlatChatItem.AssistantHeader -> grayedMap[originalMessageId(messageId)] == true
                     is FlatChatItem.AssistantText -> grayedMap[originalMessageId(messageId)] == true
                     is FlatChatItem.AssistantMarkdownBlock -> grayedMap[originalMessageId(messageId)] == true
+                    is FlatChatItem.AssistantSteps -> grayedMap[originalMessageId(messageId)] == true // nanoMuse: 折叠过程沿用历史透明度。
+                    is FlatChatItem.AssistantStepPart -> grayedMap[originalMessageId(messageId)] == true // nanoMuse: 展开片段沿用历史透明度。
                     is FlatChatItem.AssistantThinking -> grayedMap[originalMessageId(messageId)] == true
                     is FlatChatItem.AssistantToolUse -> grayedMap[originalMessageId(messageId)] == true
                     is FlatChatItem.AssistantInfo -> false  // system rows never grayed
@@ -3834,6 +3981,7 @@ fun ChatScreen(
                     is FlatChatItem.NanoMuseAvatarShare -> false // nanoMuse
                     is FlatChatItem.NanoMuseAvatarConfirm -> false // nanoMuse
                     is FlatChatItem.NanoMuseAllowance -> false // nanoMuse
+                    is FlatChatItem.NanoMuseReplyActions -> grayedMap[originalMessageId(messageId)] == true // Mosaic
                     is FlatChatItem.AssistantTyping -> false
                     is FlatChatItem.AssistantError -> grayedMap[originalMessageId(messageId)] == true
                     is FlatChatItem.AssistantLegacyContent -> grayedMap[originalMessageId(messageId)] == true
@@ -3891,6 +4039,11 @@ fun ChatScreen(
                 LaunchedEffect(viewModel, selectionReader) {
                     viewModel.stopStaleReadAloud.collect { selectionReader.stop() }
                 }
+                // Mosaic: replies read aloud, as they are written ("Read replies
+                // aloud" in the ⋯ menu) or from a reply's action row.
+                val nmReplySpeech = io.github.nanomuse.ui.chat.rememberNmReplySpeech()
+                io.github.nanomuse.ui.chat.NmReadRepliesAloud(nmReplySpeech, viewModel, messages)
+                val nmMessagesById = remember(messages) { messages.associateBy { it.id } }
                 val markdownToolbar = remember(context, messageBounds, viewModel, inputFocusRequester, keyboardController, selectionController, selectionReader) {
                     MinisMarkdownTextToolbar(
                         context = context,
@@ -3965,6 +4118,13 @@ fun ChatScreen(
                 val perfFirstLayoutFired = remember(sessionId) { java.util.concurrent.atomic.AtomicBoolean(false) }
                 Box {
                 AlwaysStretchOverscrollBox { sharedEffect ->
+                // nanoMuse: 提示行与展示行来自同次重组，提交后直接定位下一次测量。
+                val lastAssistantHasError = messages.lastOrNull { it.role == "assistant" }?.error?.isNotBlank() == true
+                val nmLastId = messages.lastOrNull()?.id
+                val nmRemoteTail = nmLastId != null && nmLastId.substringBefore('#') in nmRemoteRows
+                val nmResumeShown = canResume && !isStreaming && error == null && !lastAssistantHasError && nmContinueAsk == null && !nmRemoteTail
+                val nmExtraRows = listOf(compactProgress != null, nmRemoteTail, nmResumeShown, nmStarNudge != null && !isStreaming).count { it }
+                SideEffect { nmStepFolds.applyAnchor(listState, nmStepRows, nmExtraRows) }
                 LazyColumn(
                     state = listState,
                     reverseLayout = true,
@@ -3992,6 +4152,7 @@ fun ChatScreen(
                         bottom = bottomChromeHeight + bottomReserve,
                     ),
                     modifier = Modifier
+                        .traceStepDrawing() // nanoMuse: 在Compose延迟布局与绘制完成后采样。
                         .fillMaxWidth()
                         // [T-android-chat-max-content-width] Cap the reading
                         // measure on a wide window, mirroring iOS
@@ -4078,10 +4239,6 @@ fun ChatScreen(
                     // covers that turn, and showing both at once is confusing
                     // (Resume on a turn that hit rate-limit would just retrace
                     // into the same failure).
-                    val lastAssistantHasError = messages
-                        .lastOrNull { it.role == "assistant" }
-                        ?.error
-                        ?.isNotBlank() == true
                     // [T-android-compact-progress] Live compaction status, so a
                     // long-running compact reads as "working" rather than
                     // "hung". Sits above the resume banner because the two are
@@ -4096,14 +4253,12 @@ fun ChatScreen(
                     }
                     // nanoMuse: the last line came from another device (C9) — never this phone's
                     // turn to resume; while that device works, say so in the banner's place.
-                    val nmLastId = messages.lastOrNull()?.id
-                    val nmRemoteTail = nmLastId != null && nmLastId.substringBefore('#') in nmRemoteRows
                     if (nmRemoteTail) {
                         item(key = "__nm_working__", contentType = "nm_working") {
                             io.github.nanomuse.ui.chat.NmWorkingLine(viewModel.realSessionId.ifEmpty { sessionId }, nmLastId)
                         }
                     }
-                    if (canResume && !isStreaming && error == null && !lastAssistantHasError && nmContinueAsk == null && !nmRemoteTail) {
+                    if (nmResumeShown) { // nanoMuse: 与折叠定位使用同一提示行条件。
                         item(key = "__resume_banner__", contentType = "resume_banner") {
                             ResumeBanner(onResume = {
                                 viewModel.resume()
@@ -4135,7 +4290,7 @@ fun ChatScreen(
                         }
                     }
                     items(
-                        items = flatItems.asReversed(),
+                        items = nmStepRows.asReversed(), // nanoMuse: 过程正文按可见区域加载。
                         key = { it.key },
                         contentType = { it.contentType },
                     ) { item ->
@@ -4201,6 +4356,7 @@ fun ChatScreen(
                         Box(
                             modifier = Modifier
                                 .alpha(rowAlpha)
+                                .background(if (item.key == nmAnchorHighlight) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = .65f) else Color.Transparent) // nanoMuse: 短暂突出定位落点。
                                 .then(
                                     if (isNewestItem) {
                                         Modifier.onPlaced {
@@ -4386,6 +4542,21 @@ fun ChatScreen(
                                     )
                                 }
                             } } // nanoMuse: bubble
+                            // nanoMuse: 点击只切换展示行，下一次测量直接保持标题位置。
+                            is FlatChatItem.AssistantSteps -> io.github.nanomuse.ui.chat.AgentStepsFold(
+                                row = item, isExpanded = item.messageId in nmStepFolds.expanded,
+                                onToggle = {
+                                    // Mosaic: steps open in their own sheet; one still expanded in the chat folds back.
+                                    if (item.messageId in nmStepFolds.expanded) {
+                                        userScrolledAway = true
+                                        lastUserAppendMs = 0L
+                                        nmStepFolds.toggle(item, listState)
+                                    } else nmStepsSheetId = item.messageId
+                                },
+                            )
+                            is FlatChatItem.AssistantStepPart -> io.github.nanomuse.ui.chat.AgentStepPart( // nanoMuse: 独立工具或文本片段。
+                                part = item, onDetail = viewModel::openToolDetail, onStop = viewModel::cancelStream,
+                            )
                             is FlatChatItem.AssistantThinking -> {
                                 // T300: hide Deep Thinking block when the user
                                 // currently has thinking turned off — even if
@@ -4514,6 +4685,19 @@ fun ChatScreen(
                                         exhausted = true,
                                     )
                                 }
+                            }
+                            // Mosaic: copy, read aloud, answer again, branch and share under a reply.
+                            is FlatChatItem.NanoMuseReplyActions -> nmMessagesById[item.messageId.substringBefore('#')]?.let { reply ->
+                                io.github.nanomuse.ui.chat.NmReplyActions(
+                                    reply = reply,
+                                    messages = messages,
+                                    viewModel = viewModel,
+                                    speech = nmReplySpeech,
+                                    chatRepository = chatRepository,
+                                    busy = isStreaming,
+                                    onMutate = safeMutate,
+                                    onOpenSession = { onMoveToSession(it) },
+                                )
                             }
                             is FlatChatItem.AssistantTyping -> TypingIndicator()
                             // nanoMuse: a provider that could not be reached (or refused the
@@ -6714,156 +6898,12 @@ fun ChatScreen(
                                     color = if (ttsEnabled) MaterialTheme.colorScheme.primary else ChatColors.secondaryText,
                                 )
                             }
-                            // [T-android-streaming-readaloud] Speak the reply AS
-                            // IT STREAMS. Previously this waited for isStreaming
-                            // to flip false and then spoke the whole finished
-                            // message, so the user heard nothing until
-                            // generation completed — while the sentence-splitting
-                            // machinery built for exactly this sat uncalled.
-                            //
-                            // Now each new chunk of the in-flight assistant
-                            // message is fed to the player, which emits complete
-                            // sentences immediately and flushes the tail at
-                            // stream end (mirrors iOS feedDynamicTTS).
-                            //
-                            // `spokenUpTo` tracks how much of the current
-                            // message has been handed over, so a recomposition
-                            // mid-stream doesn't re-speak the prefix. It resets
-                            // whenever the target message identity changes.
-                            val lastAssistant = messages.lastOrNull { it.role == "assistant" }
-                            val lastAssistantId = lastAssistant?.id
-                            var spokenUpTo by remember(lastAssistantId) { mutableStateOf(0) }
-                            // [T-android-readreplies-sidechannel] Feed the TTS
-                            // from the STREAMING SIDE-CHANNEL, not the messages
-                            // list. The previous effect keyed on
-                            // `lastAssistant?.content` — but under
-                            // T-streaming-side-channel the canonical list stays
-                            // STATIC during a turn (per-token text rides
-                            // streamingById; messages is only rewritten at turn
-                            // end). So the effect fired exactly twice per turn:
-                            //  1. Turn start (empty placeholder): fell through
-                            //     the guard, marked lastSpokenAssistantKey, had
-                            //     no text to feed — spokenUpTo stayed 0.
-                            //  2. Turn end (final content lands): spokenUpTo was
-                            //     still 0, and the key it now compared against
-                            //     was the one IT marked in step 1 —
-                            //     alreadySeen=true, whole message suppressed.
-                            // Net effect: TTS engines bound and initialized on
-                            // every panel entry and speak() was never called
-                            // once — minis-2026-08-16.log has 5 "suppressed"
-                            // lines, 0 "feeding" lines, which is exactly the
-                            // reported "朗读回复开了但没有任何声音". The
-                            // self-poisoning also explains the paradoxical
-                            // `alreadySeen=true streaming=true` entries.
-                            //
-                            // Keys are (id, toggle) ONLY — the effect survives
-                            // the whole turn and collects live deltas inside,
-                            // so the history guard runs once per message
-                            // identity and can no longer poison itself.
-                            LaunchedEffect(lastAssistantId, readReplies) {
-                                if (!readReplies || lastAssistantId == null) return@LaunchedEffect
-                                val key = lastAssistantId.hashCode()
-                                val alreadySeen = com.openminis.app.ui.chat.voice.VoiceModePrefs
-                                    .lastSpokenAssistantKey == key
-                                val liveAtEntry =
-                                    viewModel.streamingById.value.containsKey(lastAssistantId)
-                                // History on entry must not be read aloud: only
-                                // a message that is live right now (or mid-turn
-                                // awaiting its first token) is followed.
-                                if (alreadySeen || (!viewModel.isStreaming.value && !liveAtEntry)) {
-                                    android.util.Log.i(
-                                        "ReadReplies",
-                                        "suppressed: alreadySeen=$alreadySeen " +
-                                            "streamingNow=${viewModel.isStreaming.value} " +
-                                            "(history is never spoken)",
-                                    )
-                                    com.openminis.app.ui.chat.voice.VoiceModePrefs
-                                        .lastSpokenAssistantKey = key
-                                    return@LaunchedEffect
-                                }
-                                com.openminis.app.ui.chat.voice.VoiceModePrefs
-                                    .lastSpokenAssistantKey = key
-                                // [T-android-tts-scope-align] New reply → stop
-                                // the PREVIOUS reply's still-playing speech and
-                                // drop its queue, exactly once per followed
-                                // message. iOS does this on the first text delta
-                                // of a turn (hasClearedTTSForCurrentTurn +
-                                // stopSpeechForThisSession); without it the old
-                                // reply keeps talking and the new one queues
-                                // BEHIND it, minutes late on long replies.
-                                replyTts.stop()
-                                // [T-android-tts-scope-align] Tool-boundary
-                                // flush, from iOS's toolCallStart handler: text
-                                // that streamed just before a tool call and
-                                // never met a terminator must speak BEFORE the
-                                // tool runs, not sit buffered until stream end.
-                                var lastToolCount = 0
-                                kotlinx.coroutines.flow.combine(
-                                    viewModel.streamingById,
-                                    viewModel.isStreaming,
-                                ) { stream, streamingNow ->
-                                    Triple(
-                                        stream[lastAssistantId]?.content,
-                                        streamingNow,
-                                        stream[lastAssistantId]?.toolBlocks ?: emptyList(),
-                                    )
-                                }.collect { (live, streamingNow, toolBlocks) ->
-                                    val toolCount = toolBlocks.size
-                                    if (toolCount > lastToolCount) {
-                                        // Flush first so the half-sentence that
-                                        // preceded the tool call is spoken
-                                        // BEFORE the announcement, not after it.
-                                        replyTts.flush()
-                                        // [T-android-tts-tool-announce] Announce
-                                        // each newly-started tool, mirroring iOS
-                                        // (makeToolSpeech + speakQueued). Without
-                                        // this a listener hears the narration stop
-                                        // dead for however long the tool runs,
-                                        // with no cue as to why — the screen shows
-                                        // a pill, but the whole point of read-aloud
-                                        // is not having to look.
-                                        //
-                                        // Queued, never speak(): that would stop
-                                        // playback and cut off the sentence just
-                                        // flushed above.
-                                        for (i in lastToolCount until toolCount) {
-                                            val b = toolBlocks.getOrNull(i) ?: continue
-                                            replyTts.speakQueued(
-                                                com.openminis.app.speech.ToolSpeech.announcement(
-                                                    name = b.toolName,
-                                                    argsJson = b.toolArgs,
-                                                    title = b.toolTitle.takeIf { it.isNotBlank() },
-                                                )
-                                            )
-                                        }
-                                        lastToolCount = toolCount
-                                    }
-                                    // Turn end drains the side-channel AFTER
-                                    // publishing the final list — fall back to
-                                    // the canonical message so the tail past the
-                                    // last delta still gets spoken.
-                                    val text = live
-                                        ?: viewModel.messages.value
-                                            .lastOrNull { it.id == lastAssistantId }?.content
-                                        ?: return@collect
-                                    if (text.length > spokenUpTo) {
-                                        // [T-android-tts-diag] Kept: a field log
-                                        // must show WHY nothing spoke (or that
-                                        // feeding did happen and the fault is
-                                        // further down, in the player/engine).
-                                        android.util.Log.i(
-                                            "ReadReplies",
-                                            "feeding tts +${text.length - spokenUpTo} chars " +
-                                                "(total=${text.length}) live=${live != null} " +
-                                                "streaming=$streamingNow",
-                                        )
-                                        replyTts.appendText(text.substring(spokenUpTo))
-                                        spokenUpTo = text.length
-                                    }
-                                    // Stream over and side-channel drained —
-                                    // flush the trailing fragment that never got
-                                    // a sentence terminator.
-                                    if (!streamingNow && live == null) replyTts.flush()
+                            // nanoMuse: 语音面板与普通聊天共用最终答复信号，过程说明不播报。
+                            LaunchedEffect(viewModel, ttsEnabled) {
+                                if (!ttsEnabled) return@LaunchedEffect
+                                viewModel.finalReplies.collect { answer ->
+                                    com.openminis.app.ui.chat.voice.VoiceModePrefs.lastSpokenAssistantKey = answer.messageId.hashCode()
+                                    replyTts.readAloud(answer.text)
                                 }
                             }
                             // [T-android-read-replies-pill-metrics] Balancing

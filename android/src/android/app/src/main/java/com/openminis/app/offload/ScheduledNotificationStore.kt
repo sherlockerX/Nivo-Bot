@@ -23,6 +23,7 @@ internal class ScheduledNotificationStore(context: Context) {
 
     fun add(entry: JSONObject) {
         val list = loadAll()
+        for (index in list.length() - 1 downTo 0) if (list.getJSONObject(index).optString("id") == entry.optString("id")) list.remove(index) // nanoMuse: 同一通知替换，而非堆积。
         list.put(entry)
         prefs.edit().putString(KEY, list.toString()).apply()
     }
@@ -54,7 +55,7 @@ internal class ScheduledNotificationStore(context: Context) {
 
     fun loadAll(): JSONArray {
         val raw = prefs.getString(KEY, null) ?: return JSONArray()
-        return try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+        return JSONArray(raw) // nanoMuse: 损坏数据走错误通道，不能报告没有待发通知。
     }
 
     /**

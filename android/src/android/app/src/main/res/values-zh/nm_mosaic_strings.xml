@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic：拼图页与记录编辑器的文案，单独成文件，拉取 nanoMuse 的 nm_strings.xml 时不会冲突。
+     fmt_ 开头的是 java.time 日期格式。 -->
+<resources>
+    <string name="nm_mosaic_recorded_marker">已记录</string>
+    <string name="nm_mosaic_missing_marker">未记录</string>
+    <string name="nm_mosaic_future_marker">未来日期</string>
+    <string name="nm_mosaic_loading_marker">正在加载记录</string>
+    <string name="nm_mosaic_future_no_ring">未来日期不画圈</string>
+    <string name="nm_tab_mosaic">拼图</string>
+    <string name="nm_mosaic_debug_skip_setup">先跳过（调试版）</string>
+
+    <string name="nm_mosaic_scope_day">天</string>
+    <string name="nm_mosaic_scope_week">周</string>
+    <string name="nm_mosaic_scope_month">月</string>
+    <string name="nm_mosaic_scope_quarter">季</string>
+    <string name="nm_mosaic_scope_year">年</string>
+    <string name="nm_mosaic_previous">上一段</string>
+    <string name="nm_mosaic_next">下一段</string>
+    <string name="nm_mosaic_pick_date">选择日期</string>
+    <string name="nm_mosaic_today">今天</string>
+    <string name="nm_mosaic_list_separator">、</string>
+
+    <string name="nm_mosaic_fmt_day">M 月 d 日 · EEE</string>
+    <string name="nm_mosaic_fmt_month_day">M 月 d 日</string>
+    <string name="nm_mosaic_fmt_day_only">d 日</string>
+    <string name="nm_mosaic_fmt_full">yyyy 年 M 月 d 日</string>
+    <string name="nm_mosaic_fmt_year_month">yyyy 年 M 月</string>
+    <string name="nm_mosaic_fmt_month">M 月</string>
+    <string name="nm_mosaic_fmt_weekday">EEE</string>
+    <string name="nm_mosaic_fmt_week_card">EEE d</string>
+    <string name="nm_mosaic_fmt_snippet">MM.dd</string>
+
+    <string name="nm_mosaic_day_sub">%1$d 年</string>
+    <string name="nm_mosaic_day_sub_today">%1$d 年 · 今天</string>
+    <string name="nm_mosaic_week_sub">%1$d 年 · 第 %2$d 周</string>
+    <string name="nm_mosaic_quarter_title">%1$d 年 · 第 %2$d 季度</string>
+    <string name="nm_mosaic_year_title">%1$d 年</string>
+    <plurals name="nm_mosaic_year_places">
+        <item quantity="other">%d 个位置</item>
+    </plurals>
+
+    <string name="nm_mosaic_day_title_today_empty">今天，想留下什么？</string>
+    <string name="nm_mosaic_day_title_today">今天的生活碎片</string>
+    <string name="nm_mosaic_day_title_past">这一天的生活碎片</string>
+    <string name="nm_mosaic_day_title_past_empty">这天没有记录</string>
+    <string name="nm_mosaic_day_title_future">还没到来</string>
+    <string name="nm_mosaic_day_empty_body">一张照片、一句话或一次完成，都会填进一朵云。其余的位置可以空着。</string>
+    <string name="nm_mosaic_day_past_empty_body">还可以给这一天补记。</string>
+    <string name="nm_mosaic_day_future_body">下面是这一天计划的习惯，到了那天才能记录。</string>
+    <plurals name="nm_mosaic_entries">
+        <item quantity="other">%d 条记录</item>
+    </plurals>
+    <string name="nm_mosaic_habits_done">%1$d / %2$d 项习惯已完成</string>
+    <string name="nm_mosaic_action_camera">拍照</string>
+    <string name="nm_mosaic_action_album">相册</string>
+    <string name="nm_mosaic_action_text">一句话</string>
+    <string name="nm_mosaic_habits_today">今日习惯</string>
+    <string name="nm_mosaic_habits_of_day">这一天的习惯</string>
+    <string name="nm_mosaic_habits_none">还没有习惯。添加之后，它会在你选的日子里留出位置。</string>
+    <string name="nm_mosaic_habits_none_planned">这一天没有计划的习惯。</string>
+    <string name="nm_mosaic_view">查看</string>
+    <string name="nm_mosaic_slot_add">为「%1$s」添加记录</string>
+    <string name="nm_mosaic_draft_row">未保存的草稿：%1$s</string>
+    <string name="nm_mosaic_draft_photo">一张照片</string>
+    <string name="nm_mosaic_draft_blank">还没写内容</string>
+    <string name="nm_mosaic_continue">继续编辑</string>
+    <string name="nm_mosaic_deleted">记录已移到回收站</string>
+    <string name="nm_mosaic_undo">撤销</string>
+    <string name="nm_mosaic_menu_edit">编辑</string>
+    <string name="nm_mosaic_menu_cover">设为当天封面</string>
+    <string name="nm_mosaic_menu_delete">删除</string>
+    <string name="nm_mosaic_form_today">今天的形状：%1$s</string>
+    <string name="nm_mosaic_form_day">这一天的形状：%1$s</string>
+    <string name="nm_mosaic_form_change">换一个</string>
+    <string name="nm_mosaic_form_auto">自动（%1$s）</string>
+    <string name="nm_mosaic_form_heart">心形</string>
+    <string name="nm_mosaic_form_diamond">菱形</string>
+    <string name="nm_mosaic_form_flower">花朵</string>
+    <string name="nm_mosaic_form_triangle">三角</string>
+    <string name="nm_mosaic_form_ring">圆环</string>
+    <string name="nm_mosaic_form_star">星形</string>
+    <string name="nm_mosaic_form_jigsaw">拼图块</string>
+    <string name="nm_mosaic_form_cross">十字</string>
+    <string name="nm_mosaic_cloud_add">添加一条记录</string>
+    <string name="nm_mosaic_records_title">记录</string>
+    <string name="nm_mosaic_record_photo">照片</string>
+    <string name="nm_mosaic_recorded_later">%1$s %2$s 补记</string>
+    <string name="nm_mosaic_photo_view">查看完整照片</string>
+    <string name="nm_mosaic_month_a11y">%1$s：%2$d 天有记录。轻点一天可以预览。</string>
+
+    <string name="nm_mosaic_week_title">一周，七个位置</string>
+    <string name="nm_mosaic_week_sub_ongoing">截至%1$s · %2$d 天有记录</string>
+    <string name="nm_mosaic_week_sub_done">7 天中 %1$d 天有记录</string>
+    <string name="nm_mosaic_week_sub_future">这一周还没开始。</string>
+    <string name="nm_mosaic_no_record">没有记录</string>
+    <string name="nm_mosaic_not_yet">还没到来</string>
+    <string name="nm_mosaic_done_only">标记了完成</string>
+    <string name="nm_mosaic_week_summary">这一周的小小积累</string>
+    <string name="nm_mosaic_habit_times">%1$s %2$d 次</string>
+    <string name="nm_mosaic_week_no_habits">这一周还没有完成标记。</string>
+
+    <string name="nm_mosaic_month_title">这个月的拼图</string>
+    <plurals name="nm_mosaic_days_recorded">
+        <item quantity="other">天留下记录</item>
+    </plurals>
+    <string name="nm_mosaic_month_sub_ongoing">截至%1$s · 未来日期保留位置</string>
+    <string name="nm_mosaic_month_sub_done">%1$d / %2$d 天</string>
+    <string name="nm_mosaic_open_day">打开</string>
+
+    <string name="nm_mosaic_quarter_heading">三个月，一段生活</string>
+    <string name="nm_mosaic_quarter_caption">点某一天打开那一天，点月份名进入月视图。</string>
+    <plurals name="nm_mosaic_month_recorded">
+        <item quantity="other">已记录 %d 天</item>
+    </plurals>
+    <string name="nm_mosaic_quarter_sub_ongoing">本季已过去 %1$d 天 · 共 %2$d 天</string>
+    <string name="nm_mosaic_quarter_sub_done">本季共 %1$d 天</string>
+    <string name="nm_mosaic_quarter_pieces">本季片段</string>
+    <string name="nm_mosaic_quarter_pieces_none">本季还没有记录。</string>
+    <string name="nm_mosaic_quarter_chip">第 %1$d 季</string>
+
+    <string name="nm_mosaic_year_heading">这一年的生活形状</string>
+    <string name="nm_mosaic_year_caption">点一个月份进入月视图。</string>
+    <string name="nm_mosaic_year_sub_ongoing">截至%1$s · 已过去 %2$d 天</string>
+    <string name="nm_mosaic_year_sub_done">全年 %1$d 天</string>
+
+    <string name="nm_mosaic_habits_title">习惯</string>
+    <string name="nm_mosaic_habit_add">添加习惯</string>
+    <string name="nm_mosaic_habit_edit">编辑习惯</string>
+    <string name="nm_mosaic_habit_name">名称</string>
+    <string name="nm_mosaic_habit_days">重复</string>
+    <string name="nm_mosaic_habit_rule_note">修改重复日从今天起生效，之前的日子保留原来的计划。</string>
+    <string name="nm_mosaic_every_day">每天</string>
+    <string name="nm_mosaic_workdays">工作日</string>
+    <string name="nm_mosaic_paused">已暂停</string>
+    <string name="nm_mosaic_pause">暂停</string>
+    <string name="nm_mosaic_resume">恢复</string>
+    <string name="nm_mosaic_archive">归档</string>
+    <string name="nm_mosaic_archive_confirm">从今天起不再给「%1$s」留位置，它过去的记录和完成标记都会保留。</string>
+    <string name="nm_mosaic_skip">这天跳过</string>
+    <string name="nm_mosaic_unskip">取消跳过</string>
+    <string name="nm_mosaic_state_done">已完成</string>
+    <string name="nm_mosaic_state_skipped">已跳过</string>
+    <string name="nm_mosaic_state_open">未标记</string>
+    <string name="nm_mosaic_state_not_planned">这天没有计划</string>
+    <string name="nm_mosaic_save">保存</string>
+
+    <string name="nm_mosaic_editor_title">留下一条记录</string>
+    <string name="nm_mosaic_editor_title_edit">编辑记录</string>
+    <string name="nm_mosaic_photo_hint">加一张照片，或者只写一句话。</string>
+    <string name="nm_mosaic_photo_importing">正在导入照片…</string>
+    <string name="nm_mosaic_photo_failed">这张图片读不出来。可以换一张，或只保存文字。</string>
+    <string name="nm_mosaic_photo_replace">换一张</string>
+    <string name="nm_mosaic_photo_remove">移除照片</string>
+    <string name="nm_mosaic_camera_denied">没有相机权限。</string>
+    <string name="nm_mosaic_camera_unavailable">没有可以打开的相机应用。</string>
+    <string name="nm_mosaic_adjust">裁切</string>
+    <string name="nm_mosaic_crop_hint">拖动调整位置，双指缩放。</string>
+    <string name="nm_mosaic_crop_reset">重置</string>
+    <string name="nm_mosaic_text_label">一句话</string>
+    <string name="nm_mosaic_text_hint">发生了什么？</string>
+    <string name="nm_mosaic_text_count">%1$d / %2$d</string>
+    <string name="nm_mosaic_mark_habit">同时标记「%1$s」完成</string>
+    <string name="nm_mosaic_mood">心情</string>
+    <string name="nm_mosaic_energy_a11y">能量 %1$d/5</string>
+    <string name="nm_mosaic_mood_none">暂不填写</string>
+    <string name="nm_mosaic_mood_1">很好</string>
+    <string name="nm_mosaic_mood_2">不错</string>
+    <string name="nm_mosaic_mood_3">平常</string>
+    <string name="nm_mosaic_mood_4">低落</string>
+    <string name="nm_mosaic_mood_5">很糟</string>
+    <string name="nm_mosaic_date">日期</string>
+    <string name="nm_mosaic_save_entry">保存这条记录</string>
+    <string name="nm_mosaic_saved_locally">照片保存在本机。</string>
+    <string name="nm_mosaic_saved">已保存</string>
+    <string name="nm_mosaic_marked_done">已标记完成</string>
+    <string name="nm_mosaic_err_empty">先加一张照片或写一句话。</string>
+    <string name="nm_mosaic_err_future">还没到来的日期不能记录。</string>
+    <string name="nm_mosaic_err_photo_missing">这份草稿的照片已被清理，请重新选择。</string>
+    <string name="nm_mosaic_err_storage">照片没能保存，请检查剩余空间后重试。</string>
+    <string name="nm_mosaic_err_database">没有保存成功。文字和照片都还在，可以重试。</string>
+    <string name="nm_mosaic_err_action">这一步没有完成，请再试一次。</string>
+    <string name="nm_mosaic_leave_title">保留这份草稿？</string>
+    <string name="nm_mosaic_leave_body">下次回到同一个位置时会接着打开。</string>
+    <string name="nm_mosaic_keep">保留</string>
+    <string name="nm_mosaic_discard">丢弃</string>
+    <string name="nm_mosaic_delete_entry">删除这条记录</string>
+    <string name="nm_mosaic_delete_title">删除这条记录？</string>
+    <string name="nm_mosaic_delete_body">删除后可以马上撤销；它会在回收站里保留 7 天再彻底移除。</string>
+</resources>

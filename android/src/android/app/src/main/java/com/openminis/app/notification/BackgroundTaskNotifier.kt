@@ -69,6 +69,10 @@ class BackgroundTaskNotifier(
     fun notifyTaskCompleted(sessionId: String, isError: Boolean = false) {
         if (!backgroundSettings.taskNotificationsEnabled.value) return
         if (isAppForeground()) return
+        // nanoMuse: a scheduled run tells its result through its own task notification (one per run);
+        // the chat-completed one would be a second, stacking entry for the same run.
+        if (io.github.nanomuse.routines.ScheduledRunScopes.isActive(sessionId) ||
+            io.github.nanomuse.routines.ScheduledResult.isSessionless(sessionId)) return
 
         scope.launch {
             try {

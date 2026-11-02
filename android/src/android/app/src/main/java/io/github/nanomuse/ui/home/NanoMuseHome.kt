@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.DrawerValue
@@ -132,19 +134,7 @@ fun NanoMuseHome(
 
     val isMainChat = chatSessionId?.let { MainChat.isMain(context, it) } ?: true
 
-    // Each time the home comes to the foreground: one more distinct day for the star asks'
-    // day counter (StarPrompt), and the relay's nudges policy re-read when a day has passed.
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
-                io.github.nanomuse.community.Nudges.refreshIfStale(context)
-                io.github.nanomuse.community.StarPrompt.dayOpened(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
+    // Mosaic: no star-ask day counter and no daily fetch of the relay's nudges on start.
 
     fun showSession(id: String) {
         focusManager.clearFocus(force = true)
@@ -179,7 +169,8 @@ fun NanoMuseHome(
     // user never sees the setup flash past before their providers are read.
     val providerConfig by providerRepository.config.collectAsState()
     val configLoaded by providerRepository.configLoaded.collectAsState()
-    val sessions by chatRepository.observeSessions().collectAsState(initial = null)
+    // Mosaic: one subscription for the life of the home, not a new query on every recomposition.
+    val sessions by remember(chatRepository) { chatRepository.observeSessions() }.collectAsState(initial = null)
     // contract C12: the account left and took the open chat with it (or the chat was deleted
     // under the home) — the home shows this account's main chat, resolved afresh if need be
     LaunchedEffect(sessions, mainSessionId) {
@@ -195,6 +186,8 @@ fun NanoMuseHome(
         }
     }
     var setupDone by remember { mutableStateOf(FirstRunSetup.isDone(context)) }
+    // Mosaic: a debug build may open the home with no account or key, to try the Mosaic tab.
+    var setupSkipped by remember { mutableStateOf(io.github.nanomuse.ui.mosaic.MosaicDebug.setupSkipped(context)) }
     // A provider of the person's own that could answer: enabled and holding a credential. The
     // Cloud instance is the account, counted through `signedIn` below.
     val cloudId = io.github.nanomuse.cloud.NanoMuseCloud.instance(context)?.id
@@ -207,7 +200,7 @@ fun NanoMuseHome(
     val signedIn by io.github.nanomuse.cloud.NanoMuseCloud.signedIn(context).collectAsState()
     val phase = when {
         !configLoaded || sessions == null || signedIn == null -> HomePhase.LOADING
-        FirstRunSetup.needed(signedIn == true, hasProviders, sessions!!.isNotEmpty(), setupDone) -> HomePhase.SETUP
+        FirstRunSetup.needed(signedIn == true, hasProviders, sessions!!.isNotEmpty(), setupDone) && !setupSkipped -> HomePhase.SETUP
         else -> HomePhase.HOME
     }
     // Once the chat has been shown the setup is over for good: an empty main chat is a draft
@@ -287,6 +280,7 @@ fun NanoMuseHome(
             ?: (9 to 0)
         val task = ScheduledTaskManager(context).create(
             ScheduledTask(
+                origin = "user_idea", // nanoMuse: 只有用户主动点击创建才标记为用户例程。
                 label = idea.title.take(40),
                 timeOfDayHour = h,
                 timeOfDayMinute = m,
@@ -298,30 +292,46 @@ fun NanoMuseHome(
         navController.safeNavigate(Routes.scheduledTaskEdit(task.id))
     }
 
-    /** "Discuss" on a feed card: a side chat that opens on the post. */
-    fun discussPost(post: io.github.nanomuse.feed.FeedPost) {
+    /** A side chat titled [title] that opens with [opener] as the first message. */
+    fun startSideChat(title: String, opener: String) {
         scope.launch {
             val app = context.applicationContext as? com.openminis.app.MinisApp ?: return@launch
             val id = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                io.github.nanomuse.goals.GoalSessions.create(app, post.title.take(40))
+                io.github.nanomuse.goals.GoalSessions.create(app, title.take(40))
             } ?: run {
-                Toast.makeText(context, R.string.nm_feed_routine_needs_model, Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.nm_growth_routine_needs_model, Toast.LENGTH_SHORT).show()
                 return@launch
             }
             showSession(id)
-            val opener = context.getString(R.string.nm_feed_discuss_opener, post.title, post.body.take(1200))
             com.openminis.app.debug.HeadlessChatRunner.prompt(
                 context = app, sessionId = id, text = opener, wait = false, timeoutMs = 10 * 60 * 1000L,
             )
         }
     }
 
+    /** "Discuss" on a Coach card: a side chat that opens on the weekly report; on a training card, with the answer and its review. */
+    fun discussPost(post: io.github.nanomuse.feed.FeedPost) = startSideChat(
+        post.title,
+        if (post.track != null) io.github.nanomuse.growth.GrowthFlow.discussOpener(context, post) // Mosaic
+        else context.getString(R.string.nm_growth_discuss_post, post.title, post.body.take(1200)),
+    )
+
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val drawerShowing = drawerState.currentValue != DrawerValue.Closed || drawerState.targetValue != DrawerValue.Closed
+    LaunchedEffect(drawerShowing) {
+        focusManager.clearFocus(force = true)
+        keyboard?.hide()
+    }
     fun openDrawer() {
         focusManager.clearFocus(force = true)
         scope.launch { drawerState.open() }
     }
-    fun closeDrawer() = scope.launch { drawerState.close() }
+    fun closeDrawer() = scope.launch {
+        focusManager.clearFocus(force = true)
+        keyboard?.hide()
+        drawerState.close()
+    }
 
     // Back: close the drawer → leave a non-chat tab → leave a side chat → (system) leave the app.
     val homeShown = phase == HomePhase.HOME
@@ -346,6 +356,7 @@ fun NanoMuseHome(
                 SideChatDrawer(
                     agentName = agentName,
                     chatRepository = chatRepository,
+                    providerRepository = providerRepository,
                     mainSessionId = mainSessionId,
                     currentSessionId = chatSessionId,
                     onOpenMain = { closeDrawer(); showMain() },
@@ -355,8 +366,13 @@ fun NanoMuseHome(
                     onSettings = { closeDrawer(); navController.safeNavigate(Routes.SETTINGS) },
                     onSetMain = { id -> MainChat.set(context, id); closeDrawer(); showSession(id) },
                     onSystemFiles = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.sysfiles.ROUTE_SYSTEM_FILES) },
-                    onDevices = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) },
-                    onCoding = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.coding.ROUTE_CODING) },
+                    // Mosaic: no Devices or Coding agents rows; both need the relay's hub.
+                    // Mosaic took Ideas' place in the bar; the Ideas page itself is unchanged and opens from here.
+                    onIdeas = {
+                        closeDrawer()
+                        focusManager.clearFocus(force = true)
+                        tab = HomeTab.IDEAS
+                    },
                 )
             }
         },
@@ -401,6 +417,8 @@ fun NanoMuseHome(
                     modifier = Modifier
                         .fillMaxSize()
                         .zIndex(0f)
+                        // 侧栏搜索的键盘不再推动底下的聊天输入区。
+                        .then(if (drawerShowing) Modifier.consumeWindowInsets(WindowInsets.ime) else Modifier)
                         .graphicsLayer { alpha = chatAlpha },
                 ) {
                     val sid = chatSessionId
@@ -425,7 +443,12 @@ fun NanoMuseHome(
                                 navController.safeNavigate(Routes.FILE_PREVIEW)
                             },
                             onModelGroupsClick = { navController.safeNavigate(Routes.MODEL_GROUPS) },
-                            nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }),
+                            nmHome = NmHomeChrome(
+                                isMainChat = isMainChat,
+                                onOpenDrawer = { openDrawer() },
+                                isVisible = chatVisible && !drawerShowing,
+                                onStartCall = { navController.safeNavigate(io.github.nanomuse.call.callRoute(sid)) },
+                            ),
                             // nanoMuse: preserve the full-size blur source, but keep
                             // the chat footer above the bar measured by Scaffold.
                             nmBottomOverlay = bottom,
@@ -481,6 +504,15 @@ fun NanoMuseHome(
                                     onDiscuss = { discussPost(it) },
                                     onEditRoutine = { navController.safeNavigate(Routes.scheduledTaskEdit(it)) },
                                     bottomInset = bottom,
+                                    onOpenSkill = { navController.safeNavigate(Routes.skillDetail(it)) }, // Mosaic
+                                    onOpenSkills = { navController.safeNavigate(Routes.SKILLS) },
+                                    onOpenFolders = { navController.safeNavigate(Routes.MOUNTED_FOLDERS) },
+                                    onChat = { title, opener -> startSideChat(title, opener) },
+                                )
+                                HomeTab.MOSAIC -> io.github.nanomuse.ui.mosaic.MosaicTab(
+                                    header = header,
+                                    onOpenEditor = { navController.safeNavigate(it) },
+                                    bottomInset = bottom,
                                 )
                                 HomeTab.IDEAS -> IdeasTab(
                                     header = header,
@@ -531,11 +563,19 @@ fun NanoMuseHome(
                 signedIn = signedIn == true,
                 hasGroups = hasGroups,
                 hasProviders = hasProviders,
-                onSignIn = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_SIGN_IN) },
+                onSignIn = {}, // Mosaic: no relay sign-in; the welcome page leads to the owner's own provider
                 onAddProvider = { navController.safeNavigate(Routes.ADD_PROVIDER) },
                 onSelectModels = { navController.safeNavigate(Routes.ONBOARDING_MODELS) },
                 onStart = { FirstRunSetup.markDone(context); setupDone = true },
                 onSettings = { navController.safeNavigate(Routes.SETTINGS) },
+                // Lands on the chat like the end of the setup does: the empty main chat focuses
+                // its composer, and on any other tab that focus would raise the keyboard over it.
+                onDebugSkip = if (com.openminis.app.BuildConfig.DEBUG) {
+                    {
+                        io.github.nanomuse.ui.mosaic.MosaicDebug.skipSetup(context)
+                        setupSkipped = true
+                    }
+                } else null,
             )
             HomePhase.HOME -> homeShell()
         }
@@ -572,13 +612,26 @@ private fun TabHeader(
             )
         },
         trailing = {
-            if (tab == HomeTab.FEED) {
+            if (tab == HomeTab.FEED) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Mosaic: the training calendar left of the settings; the page itself shows today.
+                MuseRoundButton(
+                    icon = Icons.Outlined.CalendarMonth,
+                    contentDescription = stringResource(R.string.nm_growth_calendar),
+                    onClick = { FeedUi.calendarOpen.value = true },
+                )
                 MuseRoundButton(
                     icon = Icons.Outlined.Tune,
-                    contentDescription = stringResource(R.string.nm_feed_settings_title),
+                    contentDescription = stringResource(R.string.nm_growth_settings_title), // Mosaic
                     onClick = { FeedUi.settingsOpen.value = true },
                 )
             } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tab == HomeTab.MOSAIC) {
+                    MuseRoundButton(
+                        icon = Icons.Outlined.CalendarMonth,
+                        contentDescription = stringResource(R.string.nm_mosaic_pick_date),
+                        onClick = { io.github.nanomuse.ui.mosaic.MosaicUi.datePickerOpen.value = true },
+                    )
+                }
                 Box {
                 MuseRoundButton(
                     icon = Icons.Filled.MoreHoriz,
@@ -586,12 +639,7 @@ private fun TabHeader(
                     onClick = { menu = true },
                 )
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    if (tab == HomeTab.CHAT) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.nm_coding_title)) },
-                            onClick = { menu = false; navController.safeNavigate(io.github.nanomuse.ui.coding.ROUTE_CODING) },
-                        )
-                    }
+                    // Mosaic: no Coding agents item; it needs the relay's hub.
                     when (tab) {
                         HomeTab.GOALS -> {
                             DropdownMenuItem(

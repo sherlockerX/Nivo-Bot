@@ -37,6 +37,7 @@ sys.path.insert(0, "/usr/local/lib/minis-mcp-cli")
 from transport.http import HTTPTransport, MCPError, expand_env  # noqa: E402
 from utils import config  # noqa: E402
 from utils import deps  # noqa: E402
+from utils import health  # nanoMuse: 探活结果独立于配置，且不记录敏感正文。
 
 TTL_SECONDS = 600          # per-server idle TTL: 10 minutes
 WATCHDOG_INTERVAL = 30     # TTL scan cadence
@@ -248,6 +249,8 @@ class MCPPool:
 
     def __init__(self, on_empty, on_active=None):
         self._pool = {}
+        self._configs = {}  # nanoMuse: 配置保存后不能继续复用旧地址和凭据。
+        self._request_locks = {}
         self._lock = threading.Lock()
         self._on_empty = on_empty
         # [T-mcp-daemon-idle-selfkill] GH#233. Notified whenever the pool holds
@@ -271,7 +274,12 @@ class MCPPool:
 
     def get(self, name):
         with self._lock:
+            cfg = config.get_server(name)
             session = self._pool.get(name)
+            if session is not None and cfg != self._configs.get(name):
+                session.stop()
+                del self._pool[name]
+                session = None
             if session is not None and not session.is_alive():
                 log.warning("[%s] process died, evicting", name)
                 session.stop()
@@ -286,6 +294,7 @@ class MCPPool:
                 log.info("[%s] creating new session", name)
                 session = self._make_session(name, cfg)
                 self._pool[name] = session
+                self._configs[name] = cfg
             self._was_empty = False
         # [T-mcp-daemon-idle-selfkill] Outside the lock: the pool now holds a
         # live session, so cancel any pending exit grace. This is THE fix — the
@@ -293,7 +302,16 @@ class MCPPool:
         self._on_active()
         return session
 
-    def call_with_retry(self, name, fn):
+    def call_with_retry(self, name, fn, refresh=False):
+        # nanoMuse: 重测和配置重建等待同一服务器的在途调用，避免杀死后重放副作用。
+        with self._lock:
+            request_lock = self._request_locks.setdefault(name, threading.RLock())
+        with request_lock:
+            if refresh:
+                self.evict(name)
+            return self._call_locked(name, fn)
+
+    def _call_locked(self, name, fn):
         for attempt in range(2):
             session = self.get(name)
             try:
@@ -409,9 +427,7 @@ class DaemonServer:
                 # next call re-handshakes (fresh initialize + tools/list) —
                 # picks up tools the remote server added after we connected.
                 # [T-mcp-tools-refresh]
-                if data.get("refresh"):
-                    self.pool.evict(server)
-                tools = self.pool.call_with_retry(server, lambda s: s.list_tools())
+                tools = self.pool.call_with_retry(server, lambda s: s.list_tools(), refresh=bool(data.get("refresh")))
                 return {"ok": True, "result": {"server": server, "tools": tools, "count": len(tools)}}
 
             if cmd == "call":
@@ -422,7 +438,7 @@ class DaemonServer:
 
             if cmd == "ping":
                 start = time.time()
-                self.pool.call_with_retry(server, lambda s: s.ping())
+                self.pool.call_with_retry(server, lambda s: s.ping(), refresh=True)
                 elapsed = int((time.time() - start) * 1000)
                 return {"ok": True, "result": {"server": server, "ok": True, "elapsed_ms": elapsed}}
 
@@ -458,6 +474,8 @@ class DaemonServer:
                 conn.sendall((json.dumps({"ok": False, "error": "invalid JSON", "code": "PARSE_ERROR"}) + "\n").encode())
                 return
             resp = self.handle_request(req)
+            if req.get("cmd") in ("ping", "tools", "call") and (resp.get("ok") or resp.get("code") in ("AUTH_REQUIRED", "CONNECTION_ERROR", "TIMEOUT", "STDIO_CRASH")):
+                health.record(req.get("server", ""), resp)  # nanoMuse
             conn.sendall((json.dumps(resp, ensure_ascii=False) + "\n").encode())
         except (OSError, socket.timeout) as exc:
             log.warning("connection error: %s", exc)

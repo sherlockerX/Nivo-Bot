@@ -3,12 +3,17 @@ package io.github.nanomuse.ui.header
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -24,6 +29,8 @@ import com.openminis.app.service.SessionActivityTracker
 import com.openminis.app.ui.theme.ChatColors
 import io.github.nanomuse.deeplink.OwnScheme
 import io.github.nanomuse.ui.avatar.AgentMood
+import kotlinx.coroutines.delay
+import java.util.Locale
 
 /**
  * The one line under the name in the chat header, Muse style: what the agent is doing right now
@@ -126,4 +133,30 @@ fun openAgentProfile(context: Context) {
 /** Opens the avatar studio (the face, its moods, the image model) — the advanced entry behind the profile page. */
 fun openAvatarStudio(context: Context) {
     runCatching { context.startActivity(OwnScheme.intent(context, Uri.parse("minis://settings/avatar"), Intent.FLAG_ACTIVITY_SINGLE_TOP)) }
+}
+
+/** 读取真实任务的单调时钟，离开或重进页面不会重置；空闲时恢复名字。 */
+@Composable
+fun rememberTaskElapsed(sessionId: String): String? {
+    val runs by SessionActivityTracker.conversationRuns.runs.collectAsState()
+    val run = runs[sessionId]
+    var elapsedMs by remember(sessionId) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(sessionId, run?.startedAt) {
+        if (run == null) {
+            elapsedMs = null
+            return@LaunchedEffect
+        }
+        val start = run.startedAt
+        while (true) {
+            val ms = SystemClock.elapsedRealtime() - start
+            elapsedMs = ms
+            delay(1_000L - ms % 1_000L)
+        }
+    }
+    if (run == null) return null
+    val seconds = (elapsedMs ?: (SystemClock.elapsedRealtime() - run.startedAt)) / 1_000L
+    val h = seconds / 3_600L
+    val m = seconds % 3_600L / 60L
+    val s = seconds % 60L
+    return if (h > 0) String.format(Locale.ROOT, "%d:%02d:%02d", h, m, s) else String.format(Locale.ROOT, "%d:%02d", m, s)
 }

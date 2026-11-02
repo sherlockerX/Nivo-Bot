@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="nm_growth_levels">
+        <item>入门</item>
+        <item>基础</item>
+        <item>熟练</item>
+        <item>精通</item>
+        <item>卓越</item>
+    </string-array>
+    <string name="nm_growth_track_principles">原则与判断</string>
+    <string name="nm_growth_track_lenses">多视角分析</string>
+    <string name="nm_growth_track_english">英语表达</string>
+    <string name="nm_growth_track_expression">表达力</string>
+    <string name="nm_growth_track_leadership">领导力</string>
+    <string name="nm_growth_track_habits">习惯与执行力</string>
+
+    <string name="nm_growth_focus_title">正在培养</string>
+    <string name="nm_growth_no_focus">现在没有在练的能力，点这里选一个。</string>
+    <string name="nm_growth_all_done">所有能力都已达到目标，可以添加新能力或提高目标。</string>
+    <string name="nm_growth_progress">升级进度 %1$d/%2$d，平均 %3$s 分</string>
+    <string name="nm_growth_goal">到%1$s换下一个</string>
+    <string name="nm_growth_promote">「%1$s」已达到%2$s。</string>
+    <string name="nm_growth_promote_next">下一个：%1$s。这一项之后会不定期出复习卡。</string>
+    <string name="nm_growth_promote_last">后面没有排队的能力了，可以添加一个继续练。</string>
+    <string name="nm_growth_switch">换到下一个</string>
+    <string name="nm_growth_keep">继续练这个</string>
+
+    <string name="nm_growth_sheet_title">能力与成长</string>
+    <string name="nm_growth_sheet_desc">一次只练一项，按这里的顺序。每天一张理论卡、一张情景演练卡，上一个现实行动回报之后再布置新的。在当前等级上，情景和行动卡最近 6 次点评平均达到 3 分（满分 4 分）且分布在至少 4 天里，就解锁升级挑战；挑战得 3 分及以上升一级。理论卡只点评和复习，不计入升级。换走的能力会不定期出复习卡，复习分数持续偏低会降一级。</string>
+    <string name="nm_growth_challenge_ready">已解锁升级挑战：挑战卡得 3 分及以上就升级</string>
+    <string name="nm_growth_observations">上次总结之后的观察</string>
+    <string name="nm_growth_today">今日已答 %1$d/%2$d</string>
+    <string name="nm_growth_streak">连续 %1$d 天</string>
+    <string name="nm_growth_recall_title">今日回忆，还剩 %1$d 条</string>
+    <string name="nm_growth_recall_show">显示答案</string>
+    <string name="nm_growth_recall_again">忘了</string>
+    <string name="nm_growth_recall_hard">模糊</string>
+    <string name="nm_growth_recall_good">记得</string>
+    <string name="nm_growth_diff_easy">太简单</string>
+    <string name="nm_growth_diff_ok">合适</string>
+    <string name="nm_growth_diff_hard">太难</string>
+    <string name="nm_growth_settings_title">训练设置</string>
+    <string name="nm_growth_settings_desc">卡片怎么出：每项能力用哪个技能训练，出题时读哪些知识。引导语和每天生成的时间在最后。</string>
+    <string name="nm_growth_settings_skills">能力与训练技能</string>
+    <string name="nm_growth_settings_skills_desc">每项能力由一个技能负责：书目、按等级排好的单元、出卡方法和评分标准。点开可以查看或修改，改动从下一张卡起生效。</string>
+    <string name="nm_growth_settings_skill_missing">缺少技能 %1$s，这项能力会按通用方法训练</string>
+    <string name="nm_growth_settings_all_skills">全部技能（已安装 %1$d 个）</string>
+    <string name="nm_growth_settings_knowledge">出题用到的知识</string>
+    <string name="nm_growth_settings_knowledge_desc">生成卡片时读取。挂载的文件夹会告诉智能体，需要时它会打开里面的笔记。</string>
+    <string name="nm_growth_src_user">关于你（USER.md）</string>
+    <string name="nm_growth_src_global">长期记忆（GLOBAL.md）</string>
+    <string name="nm_growth_src_chars">%1$d 字</string>
+    <string name="nm_growth_src_empty">空</string>
+    <string name="nm_growth_src_mosaic">拼图日记（近 7 天）</string>
+    <string name="nm_growth_src_mosaic_value">%2$d 天共 %1$d 条，出题需要时用 minis-jigsaw-cli 读取</string>
+    <string name="nm_growth_src_diary">每日记忆（近 7 天）</string>
+    <string name="nm_growth_src_days">7 天里有 %1$d 天</string>
+    <string name="nm_growth_src_goals">进行中的目标</string>
+    <string name="nm_growth_src_count">%1$d 个</string>
+    <string name="nm_growth_src_habits">拼图日记的习惯</string>
+    <string name="nm_growth_src_habits_value">%1$d 个：%2$s</string>
+    <string name="nm_growth_src_record">成长档案</string>
+    <string name="nm_growth_src_record_value">回答 %1$d 次，已点评 %2$d 次 · 回忆 %3$d 条，今天到期 %4$d 条 · 原则 %5$d 条 · 观察 %6$d 条</string>
+    <string name="nm_growth_src_folders">挂载的文件夹</string>
+    <string name="nm_growth_src_no_folders">还没有。挂载一个笔记文件夹（比如 Obsidian 库），出题就能用上你的笔记。</string>
+    <string name="nm_growth_src_unavailable">暂时无法访问</string>
+    <string name="nm_growth_src_mount">挂载文件夹</string>
+    <string name="nm_growth_settings_steer">引导语</string>
+    <string name="nm_growth_settings_steer_desc">决定训练卡的取材和侧重。这里只出训练卡；想每天收到的论文、新闻和资讯，请放进定时任务。</string>
+    <string name="nm_growth_type_challenge">升级挑战</string>
+    <string name="nm_growth_type_weekly">周报</string>
+    <string name="nm_growth_status_focus">在练</string>
+    <string name="nm_growth_status_queued">排队中</string>
+    <string name="nm_growth_status_maintain">保持中</string>
+    <string name="nm_growth_status_paused">已暂停</string>
+    <string name="nm_growth_set_focus">设为当前</string>
+    <string name="nm_growth_move_up">上移</string>
+    <string name="nm_growth_pause">暂停</string>
+    <string name="nm_growth_resume">恢复</string>
+    <string name="nm_growth_remove">删除</string>
+    <string name="nm_growth_goal_label">练到哪一级换下一个能力</string>
+    <string name="nm_growth_add">添加能力</string>
+    <string name="nm_growth_add_name">名称</string>
+    <string name="nm_growth_add_about">想做到什么</string>
+    <string name="nm_growth_add_save">直接添加</string>
+    <string name="nm_growth_memory">成长记忆</string>
+    <string name="nm_growth_principles">我的原则</string>
+    <string name="nm_growth_empty_file">还没有内容，随着你作答会逐渐写进来。</string>
+
+    <string name="nm_growth_answer_hint">先写下你的回答，点评随后就到。</string>
+    <string name="nm_growth_submit">提交</string>
+    <string name="nm_growth_grading">正在点评…</string>
+    <string name="nm_growth_ungraded">还没点评，点这里重试。</string>
+    <string name="nm_growth_score">%1$d/4 分</string>
+    <string name="nm_growth_type_practice">情景演练</string>
+    <string name="nm_growth_type_review">复习</string>
+    <string name="nm_growth_type_action">现实行动</string>
+    <string name="nm_growth_type_theory">理论</string>
+    <string name="nm_growth_action_hint">做完再回来写：做了什么，对方什么反应，结果如何。</string>
+    <string name="nm_growth_add_design">和 AI 建课</string>
+    <string name="nm_growth_add_desc">直接添加会按通用方法训练。和 AI 建课会新开一个对话：AI 先问清你的情况，再检索选出 10 本书、逐本拆书，写成按等级排好单元的课程；书单会先发给你确认。</string>
+    <string name="nm_growth_design">建课</string>
+    <string name="nm_growth_discuss_intro">我想就教练页的这张卡和你深入讨论。</string>
+    <string name="nm_growth_discuss_where">能力：%1$s · %2$s</string>
+    <string name="nm_growth_discuss_question">问题：%1$s</string>
+    <string name="nm_growth_discuss_answer">我的回答：%1$s</string>
+    <string name="nm_growth_discuss_review">点评（%1$d/4）：%2$s</string>
+    <string name="nm_growth_discuss_ask">先指出最值得深挖的一点，讲清背后的道理，再问我想从哪里继续。</string>
+    <string name="nm_growth_default_steer">从零开始带我练：先打基础，以经典书为主线，多给我能在现实里马上去做的事；点评直接，给出下一步。</string>
+    <string name="nm_growth_build_opener">请按建课框架 /var/minis/skills/growth-course-builder/SKILL.md 为教练页的「%1$s」建课。我想做到：%2$s\n\n课程文件夹：%3$s，技能名：%4$s。文件夹里已经有课程时就是重建。\n\n我的成长记录：%5$s\n\n先问我两三个问题，书单发给我确认之后再拆书。</string>
+    <string name="nm_growth_build_record">当前 %1$s，作答 %2$d 次，本级最近得分：%3$s。</string>
+    <string name="nm_growth_build_memory">成长记忆：%1$s</string>
+    <string name="nm_growth_adjustments">课程调整记录</string>
+    <string name="nm_growth_framework">我的框架：%1$s</string>
+    <string name="nm_growth_course_books">课程：拆书卡 %1$d 张</string>
+    <string name="nm_growth_course_none">还没建课，点“建课”和 AI 一起建。</string>
+    <string name="nm_growth_settings_books">拆书卡 %1$d 张 · 我的框架 %2$d 字</string>
+
+    <!-- 教练页：页面只放今天的卡，往日的卡在日历里。 -->
+    <string name="nm_tab_coach">教练</string>
+    <string name="nm_growth_session_title">教练</string>
+    <string name="nm_growth_routine_label">写训练卡</string>
+    <string name="nm_growth_prompt">写今天的训练卡。</string>
+    <string name="nm_growth_day_today">今天 · %1$s · %2$s</string>
+    <string name="nm_growth_empty_title">今天的训练卡还没写</string>
+    <string name="nm_growth_empty_body">每天 %1$s 自动写，也可以现在就写。</string>
+    <string name="nm_growth_empty_nothing">现在没有在练的能力，所以没有卡可写。点上面的卡片，选一项能力。</string>
+    <string name="nm_growth_write_now">现在写一版</string>
+    <string name="nm_growth_writing">正在写今天的训练卡…</string>
+    <string name="nm_growth_write_failed">这次没有写出卡片：%1$s</string>
+    <string name="nm_growth_fail_no_model">先添加一个模型。</string>
+    <string name="nm_growth_fail_busy">教练还在点评上一个回答，稍后再试。</string>
+    <string name="nm_growth_fail_run">模型请求失败（%1$s）。</string>
+    <string name="nm_growth_fail_no_cards">模型的回复里没有训练卡，再试一次。</string>
+    <string name="nm_growth_fail_nothing">现在没有在练的能力。</string>
+    <string name="nm_growth_routine_needs_model">先添加一个模型。</string>
+    <string name="nm_growth_card_posted">已加入教练页</string>
+    <string name="nm_growth_discuss_post">聊聊教练页上的这一条：\n\n**%1$s**\n\n%2$s</string>
+    <string name="nm_growth_sysfile_about">一段话决定训练卡取材和侧重。每天写卡之前会先读它。这段说明不是文件的一部分。</string>
+    <string name="nm_growth_calendar">训练日历</string>
+    <plurals name="nm_growth_calendar_day">
+        <item quantity="other">%1$d 张卡，已答 %2$d 张</item>
+    </plurals>
+    <string name="nm_growth_calendar_none">这天没有训练卡。</string>
+    <string name="nm_growth_calendar_kept">训练卡保留 %1$d 天。</string>
+    <plurals name="nm_growth_earlier_open">
+        <item quantity="other">往日还有 %1$d 张卡没答，在日历里查看</item>
+    </plurals>
+</resources>

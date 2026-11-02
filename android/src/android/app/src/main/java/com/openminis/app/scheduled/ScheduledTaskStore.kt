@@ -16,6 +16,22 @@ class ScheduledTaskStore(private val context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    init { // nanoMuse: 迁移前先备份，旧任务不推测来源或回填历史成功。
+        synchronized(MUTATION_LOCK) {
+            val raw = prefs.getString(KEY_TASKS, null)
+            val files = context.filesDir
+            if (raw != null && files != null && !prefs.getBoolean("nm_runtime_v2", false)) {
+                runCatching {
+                    io.github.nanomuse.routines.ScheduledRunJournal(java.io.File(files, "minis-global/home")).backupTasks(raw)
+                    val now = System.currentTimeMillis()
+                    write(all().map { task -> task.copy(runtime = task.runtime.copy(
+                        countingSinceMs = task.runtime.countingSinceMs.takeIf { it > 0 } ?: now)) }, durable = true)
+                    check(prefs.edit().putBoolean("nm_runtime_v2", true).commit())
+                }.onFailure { AppLogger.warning(TAG, "Task metadata backup or migration failed") }
+            }
+        }
+    }
+
     fun all(): List<ScheduledTask> {
         val raw = prefs.getString(KEY_TASKS, null) ?: return emptyList()
         return try {
@@ -36,23 +52,38 @@ class ScheduledTaskStore(private val context: Context) {
 
     fun get(taskId: String): ScheduledTask? = all().firstOrNull { it.id == taskId }
 
-    fun upsert(task: ScheduledTask) {
+    fun upsert(task: ScheduledTask, rejectDuplicate: Boolean = false) = synchronized(MUTATION_LOCK) { // nanoMuse: 跨实例串行化读改写。
         val current = all().filter { it.id != task.id }
-        write(current + task)
+        if (rejectDuplicate) require(current.none { io.github.nanomuse.routines.ScheduledTaskIdentity.same(it, task) }) { "An identical scheduled task already exists" }
+        val latest = get(task.id) // nanoMuse: 计划编辑与后台完成竞争时，运行元数据以锁内最新值为准。
+        val replacement = if (latest == null) task else task.copy(runHistory = latest.runHistory,
+            lastFiredAt = latest.lastFiredAt, lastResultPreview = latest.lastResultPreview, lastResultSessionId = latest.lastResultSessionId,
+            consecutiveFailures = latest.consecutiveFailures, totalFailures = latest.totalFailures,
+            runtime = latest.runtime) // nanoMuse: 编辑不能覆盖后台运行状态。
+        write(current + replacement)
     }
 
-    fun delete(taskId: String) {
-        write(all().filter { it.id != taskId })
+    /** nanoMuse: 基于锁内最新记录修改，任务完成不能覆盖用户刚编辑的计划。 */
+    fun mutate(taskId: String, transform: (ScheduledTask) -> ScheduledTask): ScheduledTask? = synchronized(MUTATION_LOCK) {
+        val current = get(taskId) ?: return@synchronized null
+        val updated = transform(current)
+        write(all().filter { it.id != taskId } + updated, durable = true) // nanoMuse: 运行结算持久化后才返回。
+        updated
     }
 
-    fun clear() {
+    fun delete(taskId: String) = synchronized(MUTATION_LOCK) { // nanoMuse
+        write(all().filter { it.id != taskId }, durable = true)
+    }
+
+    fun clear() = synchronized(MUTATION_LOCK) { // nanoMuse
         prefs.edit().remove(KEY_TASKS).apply()
     }
 
-    private fun write(tasks: List<ScheduledTask>) {
+    private fun write(tasks: List<ScheduledTask>, durable: Boolean = false) {
         val arr = JSONArray()
         for (t in tasks) arr.put(t.toJson())
-        prefs.edit().putString(KEY_TASKS, arr.toString()).apply()
+        val editor = prefs.edit().putString(KEY_TASKS, arr.toString())
+        if (durable) check(editor.commit()) { "TASK_STATE_WRITE_FAILED" } else editor.apply() // nanoMuse
     }
 
     /**
@@ -72,6 +103,7 @@ class ScheduledTaskStore(private val context: Context) {
     }
 
     companion object {
+        private val MUTATION_LOCK = Any() // nanoMuse: 所有存储实例共用。
         private const val TAG = "ScheduledTaskStore"
         private const val PREFS_NAME = "minis_scheduled_tasks_prefs"
         private const val KEY_TASKS = "tasks_json"

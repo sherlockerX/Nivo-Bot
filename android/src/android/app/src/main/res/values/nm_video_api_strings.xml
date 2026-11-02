@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: a relay's video generation settings on its provider page. -->
+<resources>
+    <string name="nm_video_api_title">Video generation</string>
+    <string name="nm_video_api_auto">Automatic</string>
+    <string name="nm_video_api_newapi">new-api</string>
+    <string name="nm_video_api_openai">OpenAI</string>
+    <string name="nm_video_api_auto_footer">Automatic: tries the relay\'s /v1/video/generations (new-api) first, then /v1/videos (OpenAI).</string>
+    <string name="nm_video_api_newapi_footer">Always /v1/video/generations, the API of new-api and one-api relays.</string>
+    <string name="nm_video_api_openai_footer">Always /v1/videos, OpenAI\'s video API.</string>
+    <string name="nm_video_api_models">Video models found here: %1$s. One that is missing: open it and turn on Video Output.</string>
+    <string name="nm_video_api_no_models">No video model found here yet. Open a video model and turn on Video Output under output modality.</string>
+</resources>

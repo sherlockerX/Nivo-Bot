@@ -139,7 +139,12 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
     val runNowState: StateFlow<RunNowState?> = _runNowState.asStateFlow()
 
     fun setEnabled(taskId: String, enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) { manager.setEnabled(taskId, enabled) }
+        viewModelScope.launch(Dispatchers.IO) { // nanoMuse: 预检或冲突失败不能产生未捕获异常。
+            try { manager.setEnabled(taskId, enabled) }
+            catch (failure: IllegalArgumentException) {
+                withContext(Dispatchers.Main) { android.widget.Toast.makeText(appContext, failure.message, android.widget.Toast.LENGTH_LONG).show() }
+            }
+        }
     }
 
     fun delete(taskId: String) {
@@ -178,7 +183,7 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
             _runNowState.value = RunNowState(
                 taskId = task.id,
                 status = if (sid != null) RunStatus.STARTED else RunStatus.FAILED,
-                sessionId = sid,
+                sessionId = sid?.takeUnless { io.github.nanomuse.routines.ScheduledResult.isSessionless(it) }, // nanoMuse: 不建会话的脚本运行没有聊天可开。
             )
         }
     }

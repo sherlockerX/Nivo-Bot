@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.openminis.app.auth.OpenAIOAuthManager
@@ -631,17 +634,22 @@ private fun ColumnScope.ApiKeyConfigSection(
             },
         ) {
             SettingsCardBlock {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                // nanoMuse: both options always the same size: equal heights, no check mark taking label room on one side only.
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                     SegmentedButton(
                         selected = !useResponsesAPI,
                         onClick = { useResponsesAPI = false },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    ) { Text(stringResource(R.string.provider_detail_chat_completions)) }
+                        modifier = Modifier.fillMaxHeight(),
+                        icon = {},
+                    ) { Text(stringResource(R.string.provider_detail_chat_completions), textAlign = TextAlign.Center) }
                     SegmentedButton(
                         selected = useResponsesAPI,
                         onClick = { useResponsesAPI = true },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    ) { Text(stringResource(R.string.provider_detail_responses_api)) }
+                        modifier = Modifier.fillMaxHeight(),
+                        icon = {},
+                    ) { Text(stringResource(R.string.provider_detail_responses_api), textAlign = TextAlign.Center) }
                 }
             }
         }

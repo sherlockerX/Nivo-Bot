@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: pets kept and worn again, and the caterpillar preset. -->
+<resources>
+    <string name="nm_pet_title">我的宠物</string>
+    <string name="nm_pet_hint">换下来的宠物会连同姿势和动作视频一起留在这里，点一下就能换回，不用重新生成。长按可以删除。</string>
+    <string name="nm_pet_dragon">小龙</string>
+    <string name="nm_pet_unnamed">宠物</string>
+    <string name="nm_pet_busy">这只宠物的姿势或动作视频还在生成，完成后再切换。</string>
+    <string name="nm_pet_remove_title">删除这只宠物？</string>
+    <string name="nm_pet_remove_body">它的图片、姿势和动作视频会一起删除，之后想要只能重新生成。</string>
+    <string name="nm_pet_remove">删除</string>
+    <string name="nm_pet_caterpillar_name">背包客毛毛虫</string>
+    <string name="nm_pet_caterpillar_description">一只圆滚滚的可爱绿色毛毛虫背包客：背着卷着睡垫的旅行背包，戴着探险帽和圆框眼镜，笑容自信，眼神睿智</string>
+</resources>

@@ -44,7 +44,9 @@ class WeatherOffloadHandler(private val context: Context) : NativeOffloadHandler
         // Otherwise fall back to the legacy `<lat> <lon>` plain-text form.
         val sub = args.positional.firstOrNull()
         if (sub in SUBCOMMANDS) {
-            return handleSubcommand(sub!!, args)
+            return try { handleSubcommand(sub!!, args) } catch (_: Exception) { // nanoMuse: 上游结构缺失通过错误结果返回。
+                NativeOffloadResult(4, JSONObject().put("status", "error").put("error", "INVALID_WEATHER_RESPONSE").put("retryable", true).toString())
+            }
         }
         return handleLegacy(args)
     }
@@ -86,7 +88,8 @@ class WeatherOffloadHandler(private val context: Context) : NativeOffloadHandler
      *  and mirror apple-weather's per-field shape (temperature, feels_like,
      *  humidity, precipitation, wind, conditions). */
     private fun currentBlock(json: JSONObject): JSONObject {
-        val current = json.optJSONObject("current") ?: return JSONObject()
+        val current = json.getJSONObject("current") // nanoMuse: 缺少当前天气不能返回空的成功对象。
+        listOf("time", "temperature_2m", "apparent_temperature", "relative_humidity_2m", "precipitation", "wind_speed_10m", "wind_direction_10m", "weather_code").forEach { require(current.has(it) && !current.isNull(it)) { "Weather response has missing values" } }
         val units = json.optJSONObject("current_units")
         val tempUnit = units?.optString("temperature_2m", "°C") ?: "°C"
         val windUnit = units?.optString("wind_speed_10m", "km/h") ?: "km/h"
@@ -107,7 +110,8 @@ class WeatherOffloadHandler(private val context: Context) : NativeOffloadHandler
     /** Slice the hourly arrays into a list of per-hour records, capped at
      *  [maxHours] (mirrors apple-weather hourly subarray capping). */
     private fun hourlyBlock(json: JSONObject, maxHours: Int): JSONObject {
-        val hourly = json.optJSONObject("hourly") ?: return JSONObject().put("hourly", JSONArray()).put("count", 0)
+        val hourly = json.getJSONObject("hourly") // nanoMuse: 缺少响应分块是上游故障，不是零条天气。
+        requireArrays(hourly, listOf("time", "temperature_2m", "precipitation_probability", "weather_code", "wind_speed_10m"))
         val times = hourly.optJSONArray("time")
         val temps = hourly.optJSONArray("temperature_2m")
         val precips = hourly.optJSONArray("precipitation_probability")
@@ -130,7 +134,8 @@ class WeatherOffloadHandler(private val context: Context) : NativeOffloadHandler
 
     /** Slice daily arrays similarly. apple-weather caps to maxDays. */
     private fun dailyBlock(json: JSONObject, maxDays: Int): JSONObject {
-        val daily = json.optJSONObject("daily") ?: return JSONObject().put("daily", JSONArray()).put("count", 0)
+        val daily = json.getJSONObject("daily") // nanoMuse
+        requireArrays(daily, listOf("time", "temperature_2m_max", "temperature_2m_min", "weather_code", "precipitation_sum", "precipitation_probability_max", "sunrise", "sunset"))
         val times = daily.optJSONArray("time")
         val highs = daily.optJSONArray("temperature_2m_max")
         val lows = daily.optJSONArray("temperature_2m_min")
@@ -168,6 +173,14 @@ class WeatherOffloadHandler(private val context: Context) : NativeOffloadHandler
             .put("alerts", JSONArray())
             .put("count", 0)
             .put("note", "Open-Meteo does not provide weather alerts. For severe-weather alerts use a region-specific service (e.g. NWS in the US, JMA in Japan, NMC in China).")
+
+    private fun requireArrays(block: JSONObject, fields: List<String>) { // nanoMuse: 不用0填补缺失指标。
+        val size = block.getJSONArray("time").length()
+        fields.forEach { field ->
+            val values = block.getJSONArray(field)
+            require(values.length() == size && (0 until size).none { values.isNull(it) }) { "Weather response has missing values" }
+        }
+    }
 
     /** Combined dump matching apple-weather report (current + hourly +
      *  daily + alerts + location). Sliced sub-blocks share the same shape

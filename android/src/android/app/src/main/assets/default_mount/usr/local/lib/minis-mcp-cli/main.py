@@ -49,12 +49,8 @@ LOCK_STALE_SECONDS = 12.0  # reclaim a cold-start lock older than this (crashed 
 
 
 def _log(msg):
-    try:
-        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            f.write("[%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
-    except OSError:
-        pass
+    from utils.bounded_log import append  # nanoMuse: 多进程轮转使用同一文件锁。
+    append(LOG_PATH, msg)
 
 
 def _emit(obj, pretty):
@@ -203,13 +199,14 @@ def maybe_start_daemon():
         with open(PID_FILE, "w", encoding="utf-8") as f:
             f.write(str(os.getpid()))
         import logging
+        from logging.handlers import RotatingFileHandler  # nanoMuse: daemon日志同样限制大小。
         daemon_log = "/var/minis/mcp-servers/mcp-daemon.log"
         try:
             os.makedirs(os.path.dirname(daemon_log), exist_ok=True)
         except OSError:
             pass
         logging.basicConfig(
-            filename=daemon_log,
+            handlers=[RotatingFileHandler(daemon_log, maxBytes=1048576, backupCount=3)],
             level=logging.INFO,
             format="%(asctime)s %(levelname)s %(message)s",
         )

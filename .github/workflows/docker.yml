@@ -6,10 +6,8 @@ name: Docker image
 #   tag vX.Y.Z-rc1  -> :X.Y.Z-rc1 only (a pre-release moves neither :X.Y nor :latest)
 # Pull requests build the amd64 image without pushing (the CI workflow smoke-tests it).
 
+# Mosaic fork: manual runs only; this repository publishes no image.
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:

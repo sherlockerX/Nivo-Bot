@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: the voice call (Alibaba Cloud Model Studio speech in and out). -->
+<resources>
+    <string name="nm_call_menu">Voice call</string>
+    <string name="nm_call_connecting">Connecting</string>
+    <string name="nm_call_listening">Listening</string>
+    <string name="nm_call_hearing">Hearing you</string>
+    <string name="nm_call_thinking">Thinking</string>
+    <string name="nm_call_speaking">Speaking</string>
+    <string name="nm_call_ended">Call ended</string>
+    <string name="nm_call_mute">Mute</string>
+    <string name="nm_call_unmute">Unmute</string>
+    <string name="nm_call_speaker">Speaker</string>
+    <string name="nm_call_hang_up">Hang up</string>
+    <string name="nm_call_settings">Call settings</string>
+    <string name="nm_call_endpoint">WebSocket address</string>
+    <string name="nm_call_endpoint_hint">The default address works for most keys. If Model Studio gave your workspace its own address, use wss://&lt;workspace ID&gt;.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference.</string>
+    <string name="nm_call_asr_model">Speech recognition model</string>
+    <string name="nm_call_tts_model">Speech synthesis model</string>
+    <string name="nm_call_voice">Voice</string>
+    <string name="nm_call_silence">Pause that ends your turn (ms)</string>
+    <string name="nm_call_no_key">A voice call needs an Alibaba Cloud Model Studio (Bailian) API key. Add Bailian under Settings → Manage Providers (OpenAI compatible, address dashscope.aliyuncs.com), turn on real-time speech recognition and synthesis in the Model Studio console, then call again.</string>
+    <string name="nm_call_need_mic">A voice call needs the microphone.</string>
+    <string name="nm_call_allow_mic">Allow the microphone</string>
+    <string name="nm_call_error_mic">The microphone could not be opened. Another app may be using it.</string>
+    <string name="nm_call_error_refused">Model Studio refused the key (HTTP %1$d). Check the key, and that speech recognition and synthesis are turned on for it.</string>
+    <string name="nm_call_error_network">Could not reach Model Studio: %1$s</string>
+    <string name="nm_call_error_task">Model Studio: %1$s</string>
+    <string name="nm_call_error_no_reply">No reply came back. Check the chat model.</string>
+    <string name="nm_call_interrupt">Interrupt</string>
+    <string name="nm_models_voice_in_title">Speech to text</string>
+    <string name="nm_models_voice_out_title">Text to speech</string>
+    <string name="nm_models_voice_system">Built into the phone</string>
+    <string name="nm_models_voice_footer">Used for voice input, read-aloud and the quick test. A speech model typed in by hand can be picked once its name says what it does (qwen3-asr-flash, fun-asr-realtime, cosyvoice-v3-flash, qwen3-tts-flash). The voice call keeps its own Model Studio models in its settings.</string>
+</resources>

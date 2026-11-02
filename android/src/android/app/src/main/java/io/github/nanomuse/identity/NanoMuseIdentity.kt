@@ -1,6 +1,12 @@
 package io.github.nanomuse.identity
 
 import android.content.Context
+import androidx.compose.ui.graphics.asAndroidBitmap
+import io.github.nanomuse.avatar.AvatarStore
+import io.github.nanomuse.avatar.OwnClip
+import io.github.nanomuse.ui.avatar.AgentMood
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import android.graphics.Bitmap
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -21,8 +27,7 @@ object NanoMuseIdentity {
     /** The current name, read from disk so receivers and services get the live value. */
     fun name(context: Context): String {
         val cached = SoulStore.cachedMetadata.value.name.trim()
-        val onDisk = SoulStore.load(context)?.metadata?.name?.trim()
-        return (onDisk ?: cached).ifEmpty { SoulMetadata.DEFAULT.name }
+        return cached.ifEmpty { SoulMetadata.DEFAULT.name }
     }
 
     /** True until the user (or the agent) has renamed it. */
@@ -30,20 +35,32 @@ object NanoMuseIdentity {
 
     @Volatile private var cachedFace: Bitmap? = null
 
-    /**
-     * The idle built-in face rasterised for `setLargeIcon`; null if the drawable cannot be inflated.
-     * Rasterised once per process: the foreground service rebuilds its notification on every
-     * tool change. Any [Context] will do since the drawable is not themed.
-     */
-    fun face(context: Context): Bitmap? {
-        cachedFace?.let { return it }
-        val bitmap = runCatching {
-            ContextCompat.getDrawable(context.applicationContext, R.drawable.nm_avatar_idle)
-                ?.toBitmap(FACE_PX, FACE_PX)
-        }.getOrNull()
-        cachedFace = bitmap
-        return bitmap
+    private val revisionState = MutableStateFlow(0L)
+    val revision: StateFlow<Long> = revisionState
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var initialized = false
+
+    /** 后台缩放当前宠物，通知构建只读取小图缓存。 */
+    @Synchronized
+    fun init(context: Context) {
+        if (initialized) return
+        initialized = true
+        val app = context.applicationContext
+        scope.launch {
+            combine(AvatarStore.current, OwnClip.poster, OwnClip.moodPosters,
+                com.openminis.app.service.SessionActivityTracker.activeSessions) { face, poster, moodPosters, active ->
+                val mood = if (active.isEmpty()) AgentMood.IDLE else AgentMood.WORKING
+                moodPosters[mood] ?: poster ?: face?.forMood(mood)
+            }.collect { selected ->
+                cachedFace = selected?.asAndroidBitmap()?.let { Bitmap.createScaledBitmap(it, FACE_PX, FACE_PX, true) }
+                    ?: ContextCompat.getDrawable(app, R.drawable.nm_avatar_idle)?.toBitmap(FACE_PX, FACE_PX)
+                revisionState.value++
+            }
+        }
     }
+
+    /** 当前宠物的小图快照，界面线程不再读盘或解码。 */
+    fun face(context: Context): Bitmap? = cachedFace
 
     /** Puts the face on a notification the way Muse does: the agent is the sender. */
     fun NotificationCompat.Builder.withFace(context: Context): NotificationCompat.Builder {

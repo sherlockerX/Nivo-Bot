@@ -48,7 +48,8 @@ fun NanoMuseBlock(language: String, code: String) {
     when {
         language == GoalFlow.BLOCK_GOAL && json != null -> GoalCreatedCard(json)
         language == GoalFlow.BLOCK_UPDATE && json != null -> GoalUpdateCard(json)
-        language == io.github.nanomuse.feed.FeedFlow.BLOCK && json != null -> FeedPostedCard(json)
+        // Mosaic: "Added to Coach" only for a block that became a card; any other falls through to its text.
+        language == io.github.nanomuse.feed.FeedFlow.BLOCK && json != null && io.github.nanomuse.feed.FeedFlow.isCoachCard(json) -> FeedPostedCard(json)
         language == io.github.nanomuse.avatar.AvatarFlow.BLOCK_OPTIONS && json != null -> io.github.nanomuse.ui.avatar.AvatarOptionsFenceCard(json)
         // The first conversation's naming block is for the app (FirstConversation.afterTurn), not for the eye.
         language == io.github.nanomuse.onboarding.FirstConversation.BLOCK -> Unit
@@ -177,7 +178,7 @@ private fun GoalUpdateCard(o: JSONObject) {
     }
 }
 
-/** A feed post the model just wrote: its tile, title and a first line; tap → the Feed tab. */
+/** A training card the model just wrote: its tile, title and a first line; tap → the Coach tab. */
 @Composable
 private fun FeedPostedCard(o: JSONObject) {
     val title = o.optString("title")
@@ -194,7 +195,7 @@ private fun FeedPostedCard(o: JSONObject) {
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(R.string.nm_feed_card_posted),
+                    stringResource(R.string.nm_growth_card_posted),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

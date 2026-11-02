@@ -45,7 +45,9 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
     override fun handle(request: NativeOffloadRequest): NativeOffloadResult {
         val args = OffloadArgs(
             request.argv.drop(1),
-            booleanFlags = setOf("disabled", "h", "help"),
+            booleanFlags = setOf("disabled", "h", "help", "auto-disable-on-failure", "log-stdout", "require-output",
+                "debug", "session-output", "silent", "dry-notify"), // nanoMuse
+            literalValueFlags = setOf("script-arg"),
         )
         // [T-offload-defaults-batch-android] Help only on explicit
         // --help/-h; no subcommand defaults to `list`.
@@ -60,6 +62,33 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
                 "enable" -> handleSetEnabled(args, true)
                 "disable" -> handleSetEnabled(args, false)
                 "run" -> handleRun(args)
+                "report" -> { // nanoMuse: 只接受仍在本次任务上下文中的上报；--result 交出通知正文。
+                    NativeOffloadResult(0, io.github.nanomuse.routines.ScheduledRunScopes.report(request.sessionId, request.env,
+                        args.get("status"), args.get("reason"), request.peerPid, args.get("result")))
+                }
+                "update" -> handleUpdate(args) // nanoMuse
+                "settings" -> { // nanoMuse: 全局静音时段。
+                    args.get("quiet-hours")?.let { io.github.nanomuse.routines.ScheduledResultNotifier.setQuietHours(context, it) }
+                    NativeOffloadResult(0, JSONObject().put("quiet_hours", io.github.nanomuse.routines.ScheduledResultNotifier.quietHours(context)).toString())
+                }
+                "logs" -> { // nanoMuse: 查询主机落盘日志，不通过Shell读取或执行脚本。
+                    val format = args.get("format") ?: "json"
+                    require(format in setOf("json", "text")) { "INVALID_FORMAT" }
+                    val last = args.get("last")?.let { it.toIntOrNull() ?: throw IllegalArgumentException("INVALID_LIMIT") } ?: 20
+                    val result = io.github.nanomuse.routines.ScheduledRunRecorder.journal(context).query(
+                        requireNotNull(args.get("id")) { "--id required" }, last, args.get("since"))
+                    val text = "status: ${result.getString("status")}\nqueried: ${result.getJSONObject("queried")}\n" +
+                        result.optJSONArray("runs")?.let { rows -> (0 until rows.length()).joinToString("\n") { index ->
+                            val row = rows.getJSONObject(index)
+                            "${row.optLong("started_at_ms")} ${row.optString("outcome")} exit=${row.opt("exit_code")} run=${row.optString("run_id")}"
+                        } }.orEmpty()
+                    NativeOffloadResult(0, if (format == "text") text else result.toString())
+                }
+                "probe" -> { // nanoMuse: 无副作用预检。
+                    val task = requireNotNull(manager.get(requireNotNull(args.get("id")) { "--id required" })) { "Task not found" }
+                    val result = io.github.nanomuse.routines.ScheduledScript.probe(context, task)
+                    NativeOffloadResult(if (result.getBoolean("can_run")) 0 else 4, result.toString())
+                }
                 else -> NativeOffloadResult(2, "minis-scheduled: unknown subcommand '$sub'\n$HELP")
             }
         } catch (e: IllegalArgumentException) {
@@ -90,7 +119,7 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
         } else emptySet()
         val target = parseTarget(args)
         val prompt = args.get("prompt", "p") ?: ""
-        if (target !is ScheduledTargetMode.RerunMessage && prompt.isBlank()) {
+        if (target !is ScheduledTargetMode.RerunMessage && prompt.isBlank() && args.get("script") == null) {
             throw IllegalArgumentException("--prompt required (except for rerun target)")
         }
         val task = ScheduledTask(
@@ -107,9 +136,19 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
             enabled = !args.hasFlag("disabled"),
             startDateMs = args.get("start")?.let { parseDate(it) },
             endDateMs = args.get("end")?.let { parseDate(it) },
+            scriptId = args.get("script"), autoDisableOnFailure = args.hasFlag("auto-disable-on-failure"), // nanoMuse
+            scriptArgs = args.getAll("script-arg"), requireOutput = args.hasFlag("require-output"), logStdout = args.hasFlag("log-stdout"), origin = "user_cli",
+            notifyPolicy = parsePolicy(args.get("notify")) ?: "on_change", notifyTitle = args.get("notify-title")?.takeIf { it.isNotBlank() }, // nanoMuse
+            notifySilent = args.hasFlag("silent"), sessionOutput = args.hasFlag("session-output"), debug = args.hasFlag("debug"),
         )
+        task.scriptId?.let { io.github.nanomuse.routines.ScheduledProcess.argv(it, task.scriptArgs) } // nanoMuse: 即使禁用保存也校验参数。
+        require(!args.hasFlag("script-arg")) { "SCRIPT_ARG_INVALID" }
+        require(task.scriptId != null || task.scriptArgs.isEmpty()) { "SCRIPT_ARG_INVALID" }
+        if (task.enabled && task.scriptId != null) require(io.github.nanomuse.routines.ScheduledScript.probe(context, task).getBoolean("can_run")) { "Script preflight failed; use probe or save --disabled" }
         manager.create(task)
         val out = JSONObject().put("created", taskJson(task))
+        if (task.scriptId == null && Regex("(?i)(\\bexec\\b|\\bpython[23]?\\s+|\\b(?:sh|bash)\\s+|\\.(?:py|sh)\\b)").containsMatchIn(prompt)) // nanoMuse: 仅建议，不猜测脚本或阻止提示词任务。
+            out.put("advice", "This task appears to run a script; use --script for exit-code and failure detection.")
         return NativeOffloadResult(0, out.toString(2))
     }
 
@@ -132,14 +171,51 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
         val task = manager.get(id) ?: return NativeOffloadResult(1, "minis-scheduled: no task with id=$id")
         // Fire immediately, off-schedule. Blocks until the agent loop finishes
         // (ScheduledAgentRunner waits internally). Mirrors the editor "Run now".
-        val sessionId = runBlocking {
-            com.openminis.app.scheduled.ScheduledAgentRunner.run(context, task)
+        var resultCode = 1 // nanoMuse: 取得会话ID只代表启动，不代表脚本成功。
+        var resultStatus = "start_failed"
+        var actualExitCode: Int? = null // nanoMuse: CLI退出码与脚本真实退出码分开。
+        var receipt: io.github.nanomuse.routines.ScheduledCompletion? = null
+        val dryNotify = args.hasFlag("dry-notify") // nanoMuse: 执行并记录，但不推送。
+        val started = runBlocking {
+            com.openminis.app.scheduled.ScheduledAgentRunner.run(context, task, onResult = { result ->
+                receipt = result
+                resultCode = result.cliExitCode()
+                resultStatus = result.status
+                actualExitCode = result.exitCode
+            }, dryNotify = dryNotify)
         }
+        val produced = receipt?.result
         val out = JSONObject()
             .put("id", id)
-            .put("ran", sessionId != null)
-            .apply { if (sessionId != null) put("sessionId", sessionId) }
-        return NativeOffloadResult(if (sessionId != null) 0 else 1, out.toString(2))
+            .put("ran", started != null)
+            .put("status", resultStatus).put("exit_code", actualExitCode ?: JSONObject.NULL)
+            .put("outcome", receipt?.outcome?.wire ?: "failure").put("run_id", receipt?.runId ?: JSONObject.NULL)
+            .put("state_write_error", receipt?.stateWriteError ?: false) // nanoMuse: 全部来自本轮，不重读共享last状态。
+            .put("sessionId", receipt?.sessionId ?: JSONObject.NULL) // nanoMuse: 不建会话的脚本运行为 null。
+            .put("result_source", produced?.source ?: "none")
+            .put(if (task.debug || dryNotify) "result" else "result_preview", // nanoMuse: 调试运行把结果直接交给命令行。
+                produced?.text?.let { if (task.debug || dryNotify) it else it.take(200) } ?: JSONObject.NULL)
+            .put("log_path", "/var/minis/home/logs/scheduled/$id/")
+        receipt?.notify?.write(out)
+        return NativeOffloadResult(resultCode, out.toString(2))
+    }
+
+    // nanoMuse: 修改已有任务的通知与会话设置，不改计划，不重排闹钟。
+    private fun handleUpdate(args: OffloadArgs): NativeOffloadResult {
+        val id = args.get("id") ?: throw IllegalArgumentException("--id required")
+        val policy = parsePolicy(args.get("notify"))
+        fun toggle(name: String): Boolean? = args.getBool(name) ?: if (args.hasFlag(name)) true else null
+        val updated = manager.store().mutate(id) { task ->
+            task.copy(notifyPolicy = policy ?: task.notifyPolicy,
+                notifyTitle = args.get("notify-title")?.let { it.ifBlank { null } } ?: task.notifyTitle,
+                notifySilent = toggle("silent") ?: task.notifySilent, sessionOutput = toggle("session-output") ?: task.sessionOutput,
+                debug = toggle("debug") ?: task.debug)
+        } ?: return NativeOffloadResult(1, "minis-scheduled: no task with id=$id")
+        return NativeOffloadResult(0, JSONObject().put("updated", taskJson(updated)).toString(2))
+    }
+
+    private fun parsePolicy(value: String?): String? = value?.lowercase()?.also {
+        require(it in io.github.nanomuse.routines.ScheduledResultNotifier.POLICIES) { "--notify must be always|on_change|on_failure|never" }
     }
 
     // ── parsing helpers ──
@@ -218,6 +294,15 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
         put("target", t.targetMode.encode())
         if (t.modelId != null) put("model", t.modelId)
         put("enabled", t.enabled)
+        put("script_id", t.scriptId ?: JSONObject.NULL) // nanoMuse: CLI可检查脚本类型和连续失败策略。
+        put("script_args", JSONArray(t.scriptArgs)).put("require_output", t.requireOutput).put("log_stdout", t.logStdout).put("origin", t.origin) // nanoMuse
+        val state = io.github.nanomuse.routines.ScheduledRunRecorder.state(t)
+        state.keys().forEach { key -> put(key, state.get(key)) }
+        put("outcome_kind", if (t.scriptId == null) "self_report" else "exit_code")
+        put("consecutive_failures", t.consecutiveFailures).put("total_failures", t.totalFailures)
+        put("auto_disable_on_failure", t.autoDisableOnFailure).put("failure_threshold", t.failureThreshold)
+        put("notify_policy", t.notifyPolicy).put("notify_title", t.notifyTitle ?: JSONObject.NULL).put("silent", t.notifySilent) // nanoMuse
+        put("session_output", t.sessionOutput).put("debug", t.debug)
         t.nextTriggerMs()?.let { put("nextTriggerMs", it) }
         if (t.startDateMs != null) put("startDateMs", t.startDateMs)
         if (t.endDateMs != null) put("endDateMs", t.endDateMs)
@@ -233,14 +318,34 @@ class ScheduledTaskOffloadHandler(private val context: Context) : NativeOffloadH
 
             (no subcommand)  Same as `list` (default subcommand)
             list
-            create --time HH:MM [--time HH:MM ...] --prompt "..." [--label L]
+            create --time HH:MM [--time HH:MM ...] [--prompt "..." | --script NAME.sh] [--label L]
                    [--repeat once|daily|weekdays|custom --days mon,tue,...]
                    [--target new|follow-up|rerun --session <id> --message <id>]
                    [--model <modelId>] [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--disabled]
             delete  --id <taskId>
             enable  --id <taskId>
             disable --id <taskId>
-            run     --id <taskId>          fire immediately, off-schedule
+            run     --id <taskId> [--dry-notify]   fire immediately, off-schedule; --dry-notify runs and logs without notifying
+            probe   --id <taskId>          inspect script/interpreter or model credentials without running
+            report  [--status success|failure [--reason TEXT]] [--result TEXT]  report from the current task run;
+                    --result hands over the text shown as the notification body; in a script run it takes
+                    precedence over stdout, and report prints nothing (exit 0 means it was accepted)
+            logs    --id <taskId> [--last N] [--since YYYY-MM-DD] [--format json|text]
+            update  --id <taskId> [--notify P] [--notify-title T] [--silent=true|false] [--session-output=true|false] [--debug=true|false]
+            settings [--quiet-hours HH:MM-HH:MM|off]   notifications arrive silently in these hours (default 01:00-08:00)
+            Script options: --script-arg VALUE (repeatable, max 16), --require-output, --log-stdout.
+            Notification options: --notify always|on_change|on_failure|never (default on_change: an unchanged
+            result within 6 hours is not sent again), --notify-title T, --silent (no sound).
+            Each task keeps one chat of its own under Scheduled tasks, made on its first run; every run, script
+            or prompt, adds its result there (--session-output is still accepted and changes nothing).
+            --debug: no notification, no chat for script runs, failures not counted.
+
+            One run sends at most one notification, and each task keeps at most one in the shade.
+            For prompt tasks the final reply is the notification body: reply NO_OUTPUT when there is nothing to show.
+
+            Scripts live in /var/minis/home/bin and may be .sh or .py. Their actual
+            exit code is returned by run. Failures only warn by default; create
+            with --auto-disable-on-failure to opt in to pausing after repeated failures.
 
             A task may fire at several times of day: repeat --time on create to
             add more. list prints them as "times"; a task with one time keeps

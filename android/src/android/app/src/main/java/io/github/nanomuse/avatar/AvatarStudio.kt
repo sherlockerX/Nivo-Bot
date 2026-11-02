@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import java.io.File
 
@@ -211,7 +212,7 @@ object AvatarStudio {
             val prepared = result.mapCatching { bmp ->
                 val f = File.createTempFile("candidate-$gen-$i-", ".png", dir)
                 pending = f
-                AvatarStore.write(f, bmp)
+                AvatarStore.writeTemporary(f, bmp)
                 Slot.Ready(AvatarStore.decodeBitmap(f) ?: bmp, File(dir, "$i.png"))
             }
             synchronized(candidateLock) {
@@ -219,7 +220,11 @@ object AvatarStudio {
                 // the replacement lock. A stale draw never touches the published PNG path.
                 if (gen != generation || !jobContext.isActive) return
                 val slot = prepared.mapCatching { ready ->
-                    check(pending!!.renameTo(ready.file)) { "could not save candidate $i" }
+                    // 同目录替换已有候选图，兼容目标文件已存在的平台。
+                    java.nio.file.Files.move(
+                        pending!!.toPath(), ready.file.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    )
                     ready
                 }.getOrElse { e ->
                     AppLogger.warning(TAG, "candidate $i failed: ${e.message}")
@@ -240,9 +245,22 @@ object AvatarStudio {
     fun adopt(context: Context, index: Int) {
         val slot = _slots.value.getOrNull(index) as? Slot.Ready ?: return
         val ep = ImageGen.endpoint(context)
-        AvatarStore.adopt(slot.bitmap, description.value, style.value.id, ep?.model.orEmpty())
+        val prompt = description.value
+        val styleId = style.value.id
         _selected.value = null
-        generateMoods(context)
+        // Mosaic: writing the PNG and decoding the set again stay off the main thread, one change at a time.
+        // Until the poses start, progress reads as running (total 0), so whoever waits for them does not
+        // see the previous, finished state; nothing to pose clears it.
+        val placeholder = MoodProgress(0, 0, emptyList(), running = true)
+        _moodProgress.value = placeholder
+        scope.launch {
+            faceLock.withLock {
+                AvatarWardrobe.keepCurrent() // Mosaic: the face it replaces stays wearable
+                AvatarStore.adopt(slot.bitmap, prompt, styleId, ep?.model.orEmpty())
+            }
+            generateMoods(context)
+            _moodProgress.compareAndSet(placeholder, null)
+        }
     }
 
     /** Pose the current face for each mood. Skips moods that already have a picture. */
@@ -271,8 +289,16 @@ object AvatarStudio {
     fun reset(context: Context) {
         moodJob?.cancel()
         _moodProgress.value = null
-        AvatarStore.reset()
+        scope.launch {
+            faceLock.withLock {
+                AvatarWardrobe.keepCurrent() // Mosaic: back to the dragon without losing this one
+                AvatarStore.reset()
+            }
+        }
     }
+
+    /** Mosaic: adopt and reset rewrite the same files; they never overlap. */
+    private val faceLock = kotlinx.coroutines.sync.Mutex()
 
     fun clearMoodProgress() { if (_moodProgress.value?.running == false) _moodProgress.value = null }
 

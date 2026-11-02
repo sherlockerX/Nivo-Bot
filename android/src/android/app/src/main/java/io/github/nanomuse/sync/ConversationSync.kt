@@ -177,7 +177,9 @@ object ConversationSync {
     }
 
     /** Signed in, and the switch is on, and the relay has not refused the key. */
-    fun active(context: Context): Boolean = !halted && _enabled.value && NanoMuseCloud.isSignedIn(context)
+    // Mosaic: no sync in the personal build, even for a Cloud sign-in left from an earlier install.
+    fun active(context: Context): Boolean =
+        !io.github.nanomuse.community.MOSAIC_OFFLINE && !halted && _enabled.value && NanoMuseCloud.isSignedIn(context)
 
     // ── triggers ──────────────────────────────────────────────────────────
 

@@ -434,6 +434,9 @@ class MinisApp : Application(), ImageLoaderFactory {
         // the comment there for why an exception at this point permanently
         // breaks the Application and produces the GH#147 crash loop.
         skillRepository = SkillRepository(this)
+        // Mosaic: the personal build's starting skills, installed once (assets/preset/skills).
+        runCatching { io.github.nanomuse.preset.Preset.installSkills(this, skillRepository) }
+            .onFailure { Log.e("MinisApp", "preset skills failed: ${it.message}", it) }
         mcpRepository = MCPRepository(this)
         io.github.nanomuse.connectors.Connectors.refreshStaleAsync(this) // nanoMuse: connectors' OAuth tokens near their end → refreshed, headers rewritten
         memoryRepository = MemoryRepository(java.io.File(filesDir, "minis-global/memory"))
@@ -462,6 +465,9 @@ class MinisApp : Application(), ImageLoaderFactory {
         // file to read. Safe no-op on subsequent launches — never
         // overwrites existing user edits. Cache refresh primes the
         // synchronous metadata read-path (chat header / system prompt).
+        // Mosaic: seed USER / GLOBAL / feed preferences and rename a soul left from nanoMuse first.
+        runCatching { io.github.nanomuse.preset.Preset.ensureFiles(this) }
+            .onFailure { Log.e("MinisApp", "preset files failed: ${it.message}", it) }
         com.openminis.app.agent.SoulStore.ensureExists(this)
         com.openminis.app.agent.SoulStore.refreshCache(this)
 
@@ -551,14 +557,16 @@ class MinisApp : Application(), ImageLoaderFactory {
         NativeOffloadServer.register("minis-model-use", ModelUseOffloadHandler(this, providerRepository))
         // nanoMuse: nanomuse-media — pictures and clips through the user's image / video models.
         NativeOffloadServer.register("nanomuse-media", io.github.nanomuse.media.MediaOffloadHandler(this))
+        // Mosaic: nanomuse-mosaic — the life log for the agent; its last days follow into the prompt.
+        NativeOffloadServer.register("nanomuse-mosaic", io.github.nanomuse.mosaic.MosaicOffloadHandler(this))
+        NativeOffloadServer.register("minis-jigsaw-cli", io.github.nanomuse.mosaic.JigsawOffloadHandler(this)) // nanoMuse: 拼图只读查询，与旧命令并存。
+        io.github.nanomuse.mosaic.MosaicAgent.prime(this)
         // nanoMuse: nanomuse-hands — the phone's screen as a hand (screenshot → screen model → gesture).
         NativeOffloadServer.register("nanomuse-hands", io.github.nanomuse.hands.HandsOffloadHandler(this))
-        // nanoMuse: nanomuse-pc — the phone drives the user's other devices (shell, files, browser, screen, tasks).
-        NativeOffloadServer.register("nanomuse-pc", io.github.nanomuse.reach.ReachOffloadHandler(this))
+        // Mosaic: no nanomuse-pc; driving other devices needs the relay's hub.
         // nanoMuse: nanomuse-backup — a backup with the page's saved choices, so a scheduled task can run one (#560).
         NativeOffloadServer.register("nanomuse-backup", io.github.nanomuse.backup.BackupOffloadHandler(this))
-        // nanoMuse: join the hub, so the user's other devices can reach this phone and it can reach them.
-        io.github.nanomuse.hub.Hub.autoStart(this)
+        // Mosaic: no hub; the personal build has no relay account and no other devices.
         // T-config: minis-config — agent-facing settings management
         // (read/write registered ConfigFields with audit + revert).
         // Mirrors iOS `config_offload_register()` in ISHKernel.m.
@@ -573,7 +581,7 @@ class MinisApp : Application(), ImageLoaderFactory {
         // (writes a 17-byte exit-0 stub at /usr/local/bin/minis-sessions-cli
         // so PATH lookup succeeds; PRoot intercepts the execve before
         // the stub runs and routes to this handler).
-        NativeOffloadServer.register("minis-sessions-cli", SessionsOffloadHandler(chatRepository))
+        NativeOffloadServer.register("minis-sessions-cli", SessionsOffloadHandler(chatRepository, this)) // Mosaic: delete 的保护检查需要应用上下文。
         // [T-android-scheduled-tasks-full] minis-scheduled — create/list/run
         // timed AI tasks (new chat / follow-up / re-run), mirroring the in-app
         // Scheduled Tasks editor and the iOS Shortcuts intent set.
@@ -661,9 +669,13 @@ class MinisApp : Application(), ImageLoaderFactory {
         // nanoMuse: remembered approvals + the approval gate's background notification.
         io.github.nanomuse.guard.Grants.init(this)
         io.github.nanomuse.feed.FeedFlow.init(this) // nanoMuse
+        io.github.nanomuse.routines.RoutineHeartbeat.init(this) // nanoMuse: 恢复十分钟补查与漏跑时间槽。
+        io.github.nanomuse.chat.TurnTimingStore.init(this) // nanoMuse: 轮次计时不依赖聊天界面生命周期。
+        io.github.nanomuse.chat.DailyEventJournal.init(this) // nanoMuse: 只投影持久消息，不伪造历史日志。
         io.github.nanomuse.chat.RoutineWakes.init(this) // nanoMuse: which chat rows a routine sent
+        io.github.nanomuse.identity.NanoMuseIdentity.init(this) // nanoMuse: 通知缓存随形象变化刷新。
         io.github.nanomuse.avatar.AvatarStore.init(this) // nanoMuse: the user's own face, if any
-        io.github.nanomuse.cloud.ProfileSync.init(this) // nanoMuse: the name and face the account's devices share
+        // Mosaic: no ProfileSync; the name and face stay on this phone.
         io.github.nanomuse.account.AccountData.init(this) // nanoMuse: whose chat is whose (contract C12)
         io.github.nanomuse.sync.ConversationSync.init(this) // nanoMuse: the conversations, the same on every device
         io.github.nanomuse.avatar.AvatarStudio.init(this) // nanoMuse: the feed's files and its built-in routine

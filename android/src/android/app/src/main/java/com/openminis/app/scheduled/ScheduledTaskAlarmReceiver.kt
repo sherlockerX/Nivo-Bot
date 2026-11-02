@@ -62,38 +62,8 @@ class ScheduledTaskAlarmReceiver : BroadcastReceiver() {
                         AppLogger.info(TAG, "task $taskId disabled — skipping fire")
                         return@withTimeout
                     }
-                    // Schedule the next occurrence FIRST so a long-running
-                    // prompt doesn't block tomorrow's fire even if we crash.
-                    manager.rescheduleNext(taskId)
-
-                    // [GH#197] waitForCompletion=false is load-bearing, not a
-                    // tweak. With the default (true) this call suspends until
-                    // the whole agent loop finishes — up to RUN_TIMEOUT_MS
-                    // (10 min) — and because HeadlessChatRunner.prompt/retry
-                    // are `withContext(Dispatchers.Main)`, that wait also
-                    // lands back on the main thread. pending.finish() then
-                    // sits behind it, blowing far past the ~10s budget a
-                    // manifest-declared receiver gets, so the system ANRs the
-                    // process and kills it — taking every PRoot sandbox child
-                    // with it. The UI "Run now" path already passes false
-                    // (638f3eb0b); the alarm path silently kept the default.
-                    //
-                    // Nothing is lost by not waiting: run() still resolves the
-                    // session and starts the foreground service (which holds
-                    // the wake lock) before returning, and mark-fired plus the
-                    // completion notification are finished off ScheduledAgent-
-                    // Runner's app-scoped bgScope, which outlives this
-                    // receiver.
-                    // nanoMuse: [GH#557] firedTriggerAtMs attributes the run
-                    // to the armed time; rescheduleNext above has already
-                    // re-armed, and because that is computed after the fired
-                    // instant, the next trigger is the next of the times.
-                    ScheduledAgentRunner.run(
-                        appContext,
-                        task,
-                        waitForCompletion = false,
-                        firedTriggerAtMs = triggerAtMs,
-                    )
+                    // nanoMuse: 任务闹钟与心跳使用同一持久化领取入口。
+                    io.github.nanomuse.routines.RoutineHeartbeat.fire(appContext, task, triggerAtMs)
                 }
             } catch (t: Throwable) {
                 // Includes TimeoutCancellationException. The task stays

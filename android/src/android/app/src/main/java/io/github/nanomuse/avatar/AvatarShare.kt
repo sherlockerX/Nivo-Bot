@@ -114,7 +114,7 @@ object AvatarShare {
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             letterSpacing = 0.02f
         }
-        c.drawText("nanoMuse", 72f * s, h - 96f * s, brand)
+        c.drawText("Nicholasx", 72f * s, h - 96f * s, brand)
         val tag = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0x99000000.toInt()
             textSize = 28f * s
@@ -150,13 +150,13 @@ object AvatarShare {
     fun share(context: Context, palette: Palette, agentName: String) {
         val bitmap = render(context, palette, agentName)
         val dir = File(context.cacheDir, "share").apply { mkdirs() }
-        val file = File(dir, "nanomuse-avatar-${palette.id}.png")
+        val file = File(dir, "nicholasx-avatar-${palette.id}.png") // Mosaic: the name the recipient sees
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_TEXT, context.getString(R.string.nm_avatar_share_bubble, agentName) + "\nhttps://github.com/nano-muse/nanoMuse")
+            putExtra(Intent.EXTRA_TEXT, context.getString(R.string.nm_avatar_share_bubble, agentName)) // Mosaic: no repository link
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         val chooser = Intent.createChooser(send, context.getString(R.string.nm_avatar_share_title)).apply {

@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -56,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,6 +102,8 @@ fun ScheduledTaskEditScreen(
 
     var label by remember { mutableStateOf("") }
     var prompt by remember { mutableStateOf("") }
+    var scriptId by remember { mutableStateOf<String?>(null) } // nanoMuse: 编辑与立即运行保留脚本任务类型。
+    var originalTask by remember { mutableStateOf<ScheduledTask?>(null) } // nanoMuse: 即时执行不丢失参数及任务来源。
     var repeatMode by remember { mutableStateOf(ScheduledRepeatMode.DAILY) }
     var customDays by remember { mutableStateOf<Set<Int>>(emptySet()) }
     // nanoMuse: [GH#557] every time of day the task fires at, earliest
@@ -131,6 +136,8 @@ fun ScheduledTaskEditScreen(
         val existing = vm.get(taskId) ?: run { onBack(); return@LaunchedEffect }
         label = existing.label
         prompt = existing.prompt
+        scriptId = existing.scriptId // nanoMuse
+        originalTask = existing
         repeatMode = existing.repeatMode
         customDays = existing.customDays
         // nanoMuse: [GH#557]
@@ -192,10 +199,15 @@ fun ScheduledTaskEditScreen(
             vm.listModels().firstOrNull { it.entryId == eid }?.modelId
         },
         startDateMs = startDateMs, endDateMs = endDateMs,
-    )
+    ).copy(scriptId = scriptId, scriptArgs = originalTask?.scriptArgs.orEmpty(),
+        requireOutput = originalTask?.requireOutput ?: false, logStdout = originalTask?.logStdout ?: false,
+        origin = originalTask?.origin ?: "user_ui", runtime = originalTask?.runtime ?: io.github.nanomuse.routines.ScheduledRuntime(),
+        hidden = originalTask?.hidden ?: false, goalId = originalTask?.goalId, intervalMinutes = originalTask?.intervalMinutes, // nanoMuse
+        notifyPolicy = originalTask?.notifyPolicy ?: "on_change", notifyTitle = originalTask?.notifyTitle,
+        notifySilent = originalTask?.notifySilent ?: false, sessionOutput = originalTask?.sessionOutput ?: false, debug = originalTask?.debug ?: false)
 
     // re-run replays the chosen message, so prompt isn't required there.
-    val needsPrompt = targetKind != TargetKind.RERUN
+    val needsPrompt = targetKind != TargetKind.RERUN && scriptId == null // nanoMuse
     val targetOk = when (targetKind) {
         TargetKind.NEW -> true
         TargetKind.FOLLOW_UP -> targetSessionId != null
@@ -265,7 +277,10 @@ fun ScheduledTaskEditScreen(
             canSave = canSave,
             onRunNow = { vm.runNow(currentTask()) },
             onSave = {
-                scope.launch { vm.upsert(currentTask(), isNew = isNew); onBack() }
+                scope.launch { // nanoMuse: 重复或无效计划显示错误，不让未捕获异常终止页面。
+                    try { vm.upsert(currentTask(), isNew = isNew); onBack() }
+                    catch (failure: IllegalArgumentException) { android.widget.Toast.makeText(context, failure.message, android.widget.Toast.LENGTH_LONG).show() }
+                }
             },
             onDelete = {
                 if (taskId != null) scope.launch { vm.delete(taskId); onBack() }
@@ -408,18 +423,26 @@ private fun EditFormBody(
             SectionLabel(stringResource(R.string.scheduled_task_field_target))
             Spacer(Modifier.height(8.dp))
             val targetOpts = listOf(
-                TargetKind.NEW to R.string.scheduled_task_target_new,
+                TargetKind.NEW to R.string.nm_sched_target_own, // Mosaic: 每个任务固定一个对话。
                 TargetKind.FOLLOW_UP to R.string.scheduled_task_target_followup,
                 TargetKind.RERUN to R.string.scheduled_task_target_rerun,
             )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            // nanoMuse: options of one size on any screen: equal heights, no check mark on one side only.
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 targetOpts.forEachIndexed { idx, (kind, resId) ->
                     SegmentedButton(
                         selected = targetKind == kind,
                         onClick = { onTargetKindChange(kind) },
                         shape = SegmentedButtonDefaults.itemShape(idx, targetOpts.size),
-                    ) { Text(stringResource(resId), fontSize = 13.sp) }
+                        modifier = Modifier.fillMaxHeight(),
+                        icon = {},
+                    ) { Text(stringResource(resId), fontSize = 13.sp, textAlign = TextAlign.Center) }
                 }
+            }
+            if (targetKind == TargetKind.NEW) { // Mosaic
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.nm_sched_target_own_note), fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (targetKind != TargetKind.NEW) {
                 Spacer(Modifier.height(8.dp))
@@ -502,13 +525,16 @@ private fun EditFormBody(
                 ScheduledRepeatMode.WEEKDAYS to R.string.scheduled_task_repeat_weekdays,
                 ScheduledRepeatMode.CUSTOM to R.string.scheduled_task_repeat_custom,
             )
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            // nanoMuse: options of one size on any screen: equal heights, no check mark on one side only.
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 options.forEachIndexed { idx, (mode, resId) ->
                     SegmentedButton(
                         selected = repeatMode == mode,
                         onClick = { onRepeatModeChange(mode) },
                         shape = SegmentedButtonDefaults.itemShape(idx, options.size),
-                    ) { Text(stringResource(resId), fontSize = 13.sp) }
+                        modifier = Modifier.fillMaxHeight(),
+                        icon = {},
+                    ) { Text(stringResource(resId), fontSize = 13.sp, textAlign = TextAlign.Center) }
                 }
             }
             if (repeatMode == ScheduledRepeatMode.CUSTOM) {

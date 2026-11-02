@@ -40,7 +40,10 @@ class RiskApprovalNotifier(
 
         val open = PendingIntent.getActivity(
             context, request.id.hashCode(),
-            OwnScheme.intent(context, Uri.parse("minis://session/${request.sessionId}"), Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            // A scheduled script without a chat is approved from whatever chat opens.
+            if (io.github.nanomuse.routines.ScheduledResult.isSessionless(request.sessionId))
+                context.packageManager.getLaunchIntentForPackage(context.packageName) ?: Intent()
+            else OwnScheme.intent(context, Uri.parse("minis://session/${request.sessionId}"), Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         fun action(decision: RiskDecision, code: Int): PendingIntent = PendingIntent.getBroadcast(

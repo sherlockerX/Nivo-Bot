@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: a relay's video generation settings on its provider page. -->
+<resources>
+    <string name="nm_video_api_title">视频生成</string>
+    <string name="nm_video_api_auto">自动</string>
+    <string name="nm_video_api_newapi">new-api</string>
+    <string name="nm_video_api_openai">OpenAI</string>
+    <string name="nm_video_api_auto_footer">自动：先试中转站的 /v1/video/generations（new-api 格式），不行再试 /v1/videos（OpenAI 格式）。</string>
+    <string name="nm_video_api_newapi_footer">固定用 /v1/video/generations，new-api 和 one-api 类中转站的接口。</string>
+    <string name="nm_video_api_openai_footer">固定用 /v1/videos，OpenAI 的视频接口。</string>
+    <string name="nm_video_api_models">这里认出的视频模型：%1$s。没认出来的，点开它，在输出模态里打开“视频输出”。</string>
+    <string name="nm_video_api_no_models">这里还没认出视频模型。点开视频模型，在输出模态里打开“视频输出”。</string>
+</resources>

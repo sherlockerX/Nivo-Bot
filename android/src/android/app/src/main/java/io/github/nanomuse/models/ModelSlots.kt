@@ -190,7 +190,9 @@ object ModelSlots {
         val cfg = repo(context)?.config?.value ?: return emptyList()
         val all = cfg.modelEntries.filter {
             it.providerInstanceId == inst.id && !it.isHidden && it.model.isTextOutput &&
-                !ImageGen.looksLikeImageModel(it.model.id) && !VideoGen.looksLikeVideoModel(it.model.id)
+                !ImageGen.looksLikeImageModel(it.model.id) && !VideoGen.looksLikeVideoModel(it.model.id) &&
+                // Mosaic: a speech model (qwen3-asr-flash, cosyvoice-v3-flash…) is picked under Voice, not as the chat model.
+                com.openminis.app.data.model.VoiceModality.inferDedicatedVoiceModality(it.model.id, it.model.displayName) == null
         }
         if (!isCloud(context, inst)) return all
         val lane = NanoMuseCloud.chatLaneIds(context)
@@ -267,7 +269,7 @@ object ModelSlots {
                 val rec = MediaModels.defaultVideoModel(context, inst)
                 val ids = MediaModels.availableVideoModels(context, inst)
                     ?: repo(context)?.config?.value?.modelEntries
-                        ?.filter { it.providerInstanceId == inst.id && !it.isHidden && VideoGen.looksLikeVideoModel(it.model.id) }
+                        ?.filter { it.providerInstanceId == inst.id && !it.isHidden && VideoGen.isVideoModel(it.model) }
                         ?.map { it.model.id }.orEmpty().ifEmpty { listOf(rec) }
                 ids.map { Option(inst, it, recommended = it.equals(rec, ignoreCase = true)) }
             }

@@ -1,5 +1,7 @@
 # The Android app
 
+Local Nicholasx builds: [provider setup, timing, sandbox and CLI fixes](android-local-fixes.md).
+
 `android/` is nanoMuse for the phone: [OpenMinis](https://github.com/OpenMinis/OpenMinis)
 1.13 (GPL-3.0): a native app whose agent runs **on the phone**, with a Linux shell, a
 browser, MCP servers, skills and scheduled tasks inside the APK, with nanoMuse's own
@@ -396,3 +398,53 @@ like the Python package's version does.
 | `connectors/`, `ui/connectors/` | The connectors catalogue (`ConnectorsCatalogue` reads the asset), MCP authorization discovery + registration (`McpAuthDiscovery`), connecting and token refresh (`Connectors`), what this phone connected as published to the profile and what the other devices did (`SharedConnectors`), the Settings → Connectors page |
 | `ui/cloud/` | Sign-in, the Account screen, the Devices section |
 | `res/values*/nm_strings.xml` | Every nanoMuse string in the seventeen languages the app has (English, 简体中文, 繁體中文, German, Spanish, Filipino, French, Indonesian, Japanese, Korean, Malay, Polish, Brazilian Portuguese, Romanian, Russian, Thai, Turkish); every file carries the same keys, apart from the two the English file marks `translatable="false"` (the relay address example and the product name `nanoMuse Cloud`), and a missing one falls back to English |
+
+
+## Local Nicholasx interaction updates
+
+In this local build, open the drawer and use Search beside **Side chats**. Its keyboard belongs to the drawer; it does not resize the underlying chat composer. Tap the group icon beside Search to create a group. Long-press a conversation for pinning, title/category editing, title regeneration, duplication, export, grouping, selection and deletion. A pulsing yellow dot marks running work. Green and red mark unread results and disappear when that chat is opened; a visible chat is already read when it finishes.
+
+Thinking, tool calls and the notes preceding a tool call appear in a collapsed **Thinking and execution** row. Tap to inspect the process. Final answer text and errors remain outside it. In a provider, either connection Save button submits the address, URL suffix, user-agent setting and the API key currently being edited together. A save failure keeps the draft and shows a message. Video-capable models have a Video output switch; the provider's Video generation section chooses the relay API format.
+
+Enable **Read replies aloud** in the chat menu to hear only the final answer. Playback starts after the model's normal completion signal. This avoids speaking intermediate narration that later turns into a tool call; interrupted, cancelled and truncated replies are not read automatically. The voice input panel follows the same rule. The dedicated call screen retains its streaming call behaviour.
+
+The agent uses `minis-jigsaw-cli` to read complete life-log text, timestamps, per-record mood/energy and historical habit states for weekly, monthly, quarterly and yearly reviews. It does not read picture tables or files, or return picture information. The older `nanomuse-mosaic records` command remains available; use the commands below for complete structured data.
+
+A compensating heartbeat aims to check overdue routines every ten minutes, alongside the existing task alarms. Both use the same persisted claim so they do not dispatch the same time slot concurrently. Pending starts survive process restarts; missed repetitions are coalesced. Android may defer alarms in idle mode, and force-stopping the app prevents background execution until it is opened again. Exact alarms and the phone's background permissions still matter. See [Android AlarmManager](https://developer.android.com/reference/android/app/AlarmManager). The heartbeat makes no model request when no routine is due.
+
+Notification large icons follow the selected pet or imported clip poster and refresh an existing ongoing notification when the pet changes. Initialization and thumbnail scaling run in the background. The Android small status-bar icon remains the app's monochrome icon.
+
+
+## Mosaic record markers and read-only queries {#mosaic-records-agent-access}
+
+Week, month, quarter and year calendars circle date numbers in green when a saved life record exists, and red for today or earlier dates without one. Future dates and dates whose data is still loading have no status ring. Drafts and habit checkmarks alone do not count as diary records; a saved picture-only record does count. Today and selection outlines remain visible.
+
+The phone agent can run these commands in the sandbox:
+
+```sh
+minis-jigsaw-cli list --start 2026-10-21 --end 2026-10-27
+minis-jigsaw-cli get --date 2026-10-27
+minis-jigsaw-cli stats --start 2026-10-01 --end 2026-10-31
+minis-jigsaw-cli export --start 2026-10-01 --end 2026-10-31 --format md
+```
+
+Ranges include both endpoints, cover at most 366 days and accept --from/--to aliases. Defaults are today in Asia/Shanghai and the preceding six days. The diary date is the calendar date chosen in the app, including a manually changed date; it is not reconstructed from creation time. Creation and update timestamps use ISO format in Asia/Shanghai.
+
+JSON returns an ascending `days` array including empty dates. Every day includes `text`, `mood`, `mood_label`, `mood_score`, `habits`, `created_at`, `updated_at` and `records`. Missing values are explicit nulls. `records` preserves each entry and its complete text, timestamps and mood; day-level text joins the entries with newlines. Day-level mood preserves the daily setting, including a cleared value, or uses the last record when no daily setting exists. Raw moods retain the app scale of 1 (great) to 5 (bad); energy reverses that scale, with 5 highest. Habits distinguish done, skipped and unmarked states using the schedule in effect on that date.
+
+List and export page whole days, default 31, with --limit 1..366 and --offset. Read `next_offset` until null, using `has_more` to identify unfinished ranges; Markdown includes a next-page hint. Quarterly and yearly reviews must consume all pages. Stats always covers the entire range and reports future_days separately from missing diary days. Text is never silently shortened; an oversized result returns an error asking for a smaller range or page.
+
+Commands are read-only, support no mutation or deletion, and reject --out or implicit file export. Results go to stdout. The command makes no network requests and does not log record contents. It does not query pictures, paths or EXIF. Ask the agent to review a period of life records using text and mood only.
+
+
+## Conversation anchors and running tasks {#conversation-anchors-and-running-tasks}
+
+Every main, side and archive-opened chat has Conversation anchors in its top-right menu. Questions automatically lists prompts and bookmarked replies; Bookmarks lists saved messages. Search examines text in the current conversation. Selecting a result jumps to its original message or matching reply block and briefly highlights it. The bookmark button below a reply and the buttons in the directory toggle the same local state.
+
+Bookmarks store message identities locally, not duplicate text or model context. Database source IDs preserve targets across merged assistant messages and reloads. Jumping to older content expands only the needed history window. Indexing makes no model requests. The search sheet handles its own keyboard without shifting the underlying composer.
+
+Completion dots represent unread results and disappear on entering that chat. A visible, resumed chat is already read when its task finishes; hidden and background chats are not. Conversations without a valid group appear under Ungrouped, including pinned conversations in the archive list.
+
+The running notification has no loading bar. Its collapsed form shows the task count and a compact preview; expanded text lists each running conversation with its request preview and independently measured duration. Starting another task does not reset existing clocks, and finished tasks stop timing. The current pet remains visible. Updates reuse one notification silently; Android 16 promotion uses standard BigTextStyle rather than a progress style. Available display space depends on the OS and device.
+
+The diary toolbar calendar and record-date editor use the same green/red recording rings as the other calendar views. They support month navigation, date input and Today. Future dates have no ring, and editing still prevents future dates. The picker queries daily saved-record counts without loading pictures or record text.

@@ -28,6 +28,9 @@ object SessionActivityTracker {
 
     private val _activeSessions = MutableStateFlow<Set<String>>(emptySet())
     val activeSessions: StateFlow<Set<String>> = _activeSessions.asStateFlow()
+    // nanoMuse: 每个对话独立保存结果，避免最后结束的任务覆盖其他对话状态。
+    val conversationRuns = io.github.nanomuse.chat.ConversationRunLedger() // nanoMuse: 会话独立计时和已读结果。
+    val taskOutcomes: StateFlow<Map<String, Boolean>> = conversationRuns.outcomes
 
     /**
      * T166: sessions the user is currently *present in* (composing /
@@ -295,7 +298,9 @@ object SessionActivityTracker {
      * loop's cancel callback — captured here so the notification's Stop
      * action can fan out to every running session.
      */
-    fun setActive(sessionId: String, onStop: (() -> Unit)? = null) {
+    @Synchronized fun setActive(sessionId: String, onStop: (() -> Unit)? = null, brief: String = "") { // nanoMuse: 保存本轮请求摘要。
+        io.github.nanomuse.chat.TurnTimingStore.begin(sessionId, System.currentTimeMillis(), SystemClock.elapsedRealtime()) // nanoMuse
+        conversationRuns.start(sessionId, SystemClock.elapsedRealtime(), brief) // nanoMuse
         val wasIdle = !shouldRunService()
         // [T-android-live-update-completed] Capture BEFORE mutating: a run
         // "begins" only on the empty → non-empty edge. A second concurrent
@@ -331,16 +336,34 @@ object SessionActivityTracker {
         }
     }
 
+    /** nanoMuse: 脚本不能夺取正在聊天的会话状态或停止回调。 */
+    @Synchronized fun tryStartExclusive(sessionId: String, onStop: () -> Unit, brief: String): Boolean {
+        if (io.github.nanomuse.chat.SessionDeleteGuard.isDeleting(sessionId)) return false // nanoMuse: 删除门闩与脚本独占检查共用Tracker锁。
+        if (sessionId in _activeSessions.value) return false
+        setActive(sessionId, onStop, brief)
+        return true
+    }
+
+    /** nanoMuse: 释放独占必须匹配原停止回调，不能清除后来取得占用的会话。 */
+    @Synchronized fun releaseExclusive(sessionId: String, owner: () -> Unit, failed: Boolean) {
+        if (streamCancellers[sessionId] !== owner) return
+        if (failed) markStreamError(sessionId)
+        setInactive(sessionId)
+    }
+
     /**
      * Marks a session as inactive. Stops the foreground service if no
      * sessions remain active *and* the user is no longer present in any
      * chat.
      */
-    fun setInactive(sessionId: String) {
+    @Synchronized fun setInactive(sessionId: String) { // nanoMuse: 多对话并发更新不能覆盖其他会话。
         val wasActive = sessionId in _activeSessions.value
         _activeSessions.value = _activeSessions.value - sessionId
         synchronized(streamCancellers) { streamCancellers.remove(sessionId) }
         val wasError = synchronized(pendingErrorFlag) { pendingErrorFlag.remove(sessionId) }
+        // nanoMuse: 只有实际执行过的任务才能产生完成标记，限制缓存大小。
+        if (wasActive) conversationRuns.finish(sessionId, wasError) // nanoMuse: 已经查看的结果不再留完成点。
+        if (wasActive) io.github.nanomuse.chat.TurnTimingStore.finish(sessionId, System.currentTimeMillis(), SystemClock.elapsedRealtime(), wasError) // nanoMuse
         Log.d(TAG, "Session deactivated: $sessionId (total: ${_activeSessions.value.size})")
 
         if (_activeSessions.value.isEmpty()) {

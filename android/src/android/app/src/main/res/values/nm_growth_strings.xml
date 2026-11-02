@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Growth training on the feed: one ability at a time, levels from answers and their reviews. -->
+    <string-array name="nm_growth_levels">
+        <item>Beginner</item>
+        <item>Foundation</item>
+        <item>Proficient</item>
+        <item>Advanced</item>
+        <item>Expert</item>
+    </string-array>
+    <string name="nm_growth_track_principles">Principles and judgement</string>
+    <string name="nm_growth_track_lenses">Seeing from several angles</string>
+    <string name="nm_growth_track_english">English</string>
+    <string name="nm_growth_track_expression">Expression</string>
+    <string name="nm_growth_track_leadership">Leadership</string>
+    <string name="nm_growth_track_habits">Habits and execution</string>
+
+    <string name="nm_growth_focus_title">Now training</string>
+    <string name="nm_growth_no_focus">Nothing is in training. Tap here and pick an ability.</string>
+    <string name="nm_growth_all_done">Every ability has reached its goal. Add a new one or raise the goal.</string>
+    <string name="nm_growth_progress">%1$d of %2$d toward the next level, average %3$s</string>
+    <string name="nm_growth_goal">move on at %1$s</string>
+    <string name="nm_growth_promote">%1$s has reached %2$s.</string>
+    <string name="nm_growth_promote_next">Next up: %1$s. It keeps getting a review card now and then.</string>
+    <string name="nm_growth_promote_last">Nothing else is queued. Add an ability to keep going.</string>
+    <string name="nm_growth_switch">Move on</string>
+    <string name="nm_growth_keep">Keep going</string>
+
+    <string name="nm_growth_sheet_title">Abilities</string>
+    <string name="nm_growth_sheet_desc">One ability is trained at a time, in this order. Each day brings a theory card and a scenario, and a real-life task once the last one is reported. 6 reviewed answers to scenarios and real-life tasks at the current level, averaging 3 of 4 or better over 4 days, unlock a level check; 3 or more on it raises the level. Theory cards are reviewed and recalled but do not count. An ability you moved on from gets a review card now and then and drops a level if its reviews fall.</string>
+    <string name="nm_growth_challenge_ready">Level check unlocked: 3 or more on it raises the level</string>
+    <string name="nm_growth_observations">Observations since the last summary</string>
+    <string name="nm_growth_today">Today %1$d of %2$d answered</string>
+    <string name="nm_growth_streak">%1$d days in a row</string>
+    <string name="nm_growth_recall_title">Recall, %1$d left today</string>
+    <string name="nm_growth_recall_show">Show the answer</string>
+    <string name="nm_growth_recall_again">Forgot</string>
+    <string name="nm_growth_recall_hard">Vague</string>
+    <string name="nm_growth_recall_good">Remembered</string>
+    <string name="nm_growth_diff_easy">Too easy</string>
+    <string name="nm_growth_diff_ok">About right</string>
+    <string name="nm_growth_diff_hard">Too hard</string>
+    <string name="nm_growth_settings_title">Training settings</string>
+    <string name="nm_growth_settings_desc">How the cards are made: the skill behind each ability and the knowledge the agent reads. The steering sentence and the daily time come last.</string>
+    <string name="nm_growth_settings_skills">Abilities and their skills</string>
+    <string name="nm_growth_settings_skills_desc">Each ability is trained by a skill: its books, its units level by level, how its cards are made and its rubric. Tap one to read or edit it; a change counts from the next card.</string>
+    <string name="nm_growth_settings_skill_missing">Skill %1$s is missing, so this ability is trained with general practice</string>
+    <string name="nm_growth_settings_all_skills">All skills, %1$d installed</string>
+    <string name="nm_growth_settings_knowledge">Knowledge the cards draw on</string>
+    <string name="nm_growth_settings_knowledge_desc">Read when the cards are written. Mounted folders are named to the agent, and it opens a note there when a card needs one.</string>
+    <string name="nm_growth_src_user">About you (USER.md)</string>
+    <string name="nm_growth_src_global">Long-term memory (GLOBAL.md)</string>
+    <string name="nm_growth_src_chars">%1$d characters</string>
+    <string name="nm_growth_src_empty">empty</string>
+    <string name="nm_growth_src_mosaic">Diary, last 7 days</string>
+    <string name="nm_growth_src_mosaic_value">%1$d entries over %2$d days, read with minis-jigsaw-cli when a card needs it</string>
+    <string name="nm_growth_src_diary">Daily memory, last 7 days</string>
+    <string name="nm_growth_src_days">%1$d of 7 days</string>
+    <string name="nm_growth_src_goals">Active goals</string>
+    <string name="nm_growth_src_count">%1$d</string>
+    <string name="nm_growth_src_habits">Habits in the diary</string>
+    <string name="nm_growth_src_habits_value">%1$d: %2$s</string>
+    <string name="nm_growth_src_record">Growth record</string>
+    <string name="nm_growth_src_record_value">%1$d answers, %2$d reviewed · %3$d to recall, %4$d due today · %5$d principles · %6$d observations</string>
+    <string name="nm_growth_src_folders">Mounted folders</string>
+    <string name="nm_growth_src_no_folders">None yet. Mount a notes folder, an Obsidian vault for example, and the cards can draw on your notes.</string>
+    <string name="nm_growth_src_unavailable">not reachable</string>
+    <string name="nm_growth_src_mount">Mount a folder</string>
+    <string name="nm_growth_settings_steer">Steering sentence</string>
+    <string name="nm_growth_settings_steer_desc">Steers what the training cards draw on and stress. This page writes training cards only; papers, news and anything else you want each day go in a scheduled task.</string>
+    <string name="nm_growth_type_challenge">Level check</string>
+    <string name="nm_growth_type_weekly">Weekly report</string>
+    <string name="nm_growth_status_focus">training</string>
+    <string name="nm_growth_status_queued">up next</string>
+    <string name="nm_growth_status_maintain">keeping up</string>
+    <string name="nm_growth_status_paused">paused</string>
+    <string name="nm_growth_set_focus">Train now</string>
+    <string name="nm_growth_move_up">Move up</string>
+    <string name="nm_growth_pause">Pause</string>
+    <string name="nm_growth_resume">Resume</string>
+    <string name="nm_growth_remove">Remove</string>
+    <string name="nm_growth_goal_label">Move on to the next ability at</string>
+    <string name="nm_growth_add">Add an ability</string>
+    <string name="nm_growth_add_name">Name</string>
+    <string name="nm_growth_add_about">What you want to be able to do</string>
+    <string name="nm_growth_add_save">Just add</string>
+    <string name="nm_growth_memory">Growth memory</string>
+    <string name="nm_growth_principles">My principles</string>
+    <string name="nm_growth_empty_file">Nothing yet. It fills in as you answer.</string>
+
+    <string name="nm_growth_answer_hint">Write your answer first. The review follows.</string>
+    <string name="nm_growth_submit">Submit</string>
+    <string name="nm_growth_grading">Reviewing your answer…</string>
+    <string name="nm_growth_ungraded">Not reviewed yet. Tap to try again.</string>
+    <string name="nm_growth_score">%1$d of 4</string>
+    <string name="nm_growth_type_practice">Scenario</string>
+    <string name="nm_growth_type_review">Review</string>
+    <string name="nm_growth_type_action">In real life</string>
+    <string name="nm_growth_type_theory">Theory</string>
+    <string name="nm_growth_action_hint">Do it first, then come back: what you did, how the other side reacted, what came of it.</string>
+    <string name="nm_growth_add_design">Build the course with AI</string>
+    <string name="nm_growth_add_desc">Just add trains it with the general method. Build the course opens a chat: the AI asks where you are, researches and picks 10 books, breaks each one down and writes a course with units by level. It sends you the book list to confirm first.</string>
+    <string name="nm_growth_design">Build the course</string>
+    <string name="nm_growth_discuss_intro">I want to talk this card from my coach through in depth.</string>
+    <string name="nm_growth_discuss_where">Ability: %1$s · %2$s</string>
+    <string name="nm_growth_discuss_question">Question: %1$s</string>
+    <string name="nm_growth_discuss_answer">My answer: %1$s</string>
+    <string name="nm_growth_discuss_review">Review (%1$d of 4): %2$s</string>
+    <string name="nm_growth_discuss_ask">Start with the one point most worth digging into and the reasoning behind it, then ask me where I want to go from there.</string>
+    <string name="nm_growth_default_steer">Train me from the ground up: basics first, classic books as the backbone, and plenty of things I can go and do in real life. Blunt reviews, with the next step.</string>
+    <string name="nm_growth_build_opener">Build the course for “%1$s” on my Coach page, following the course framework at /var/minis/skills/growth-course-builder/SKILL.md. What I want to be able to do: %2$s\n\nCourse folder: %3$s. Skill name: %4$s. If a course is already there, this is a rebuild.\n\nMy growth record: %5$s\n\nAsk me two or three questions first, and send me the book list to confirm before you write the book cards.</string>
+    <string name="nm_growth_build_record">now %1$s, %2$d answers, recent scores at this level: %3$s.</string>
+    <string name="nm_growth_build_memory">Growth memory: %1$s</string>
+    <string name="nm_growth_adjustments">Course adjustments</string>
+    <string name="nm_growth_framework">My framework: %1$s</string>
+    <string name="nm_growth_course_books">Course: %1$d book cards</string>
+    <string name="nm_growth_course_none">No course yet. Tap Build the course to make one with AI.</string>
+    <string name="nm_growth_settings_books">%1$d book cards · framework %2$d characters</string>
+
+    <!-- The Coach tab: today's cards on the page, earlier days in the calendar. -->
+    <string name="nm_tab_coach">Coach</string>
+    <string name="nm_growth_session_title">Coach</string>
+    <string name="nm_growth_routine_label">Write the training cards</string>
+    <string name="nm_growth_prompt">Write today\'s training cards.</string>
+    <string name="nm_growth_day_today">Today · %1$s · %2$s</string>
+    <string name="nm_growth_empty_title">No training cards today yet</string>
+    <string name="nm_growth_empty_body">They are written every day at %1$s. You can also write them now.</string>
+    <string name="nm_growth_empty_nothing">Nothing is in training, so there are no cards to write. Tap the card above and pick an ability.</string>
+    <string name="nm_growth_write_now">Write them now</string>
+    <string name="nm_growth_writing">Writing today\'s cards…</string>
+    <string name="nm_growth_write_failed">No cards were written: %1$s</string>
+    <string name="nm_growth_fail_no_model">add a model first.</string>
+    <string name="nm_growth_fail_busy">the coach is still reviewing an answer. Try again in a moment.</string>
+    <string name="nm_growth_fail_run">the model request failed (%1$s).</string>
+    <string name="nm_growth_fail_no_cards">the reply held no training cards. Try again.</string>
+    <string name="nm_growth_fail_nothing">nothing is in training.</string>
+    <string name="nm_growth_routine_needs_model">Add a model first.</string>
+    <string name="nm_growth_card_posted">Added to Coach</string>
+    <string name="nm_growth_discuss_post">Let\'s talk about this one from my Coach page:\n\n**%1$s**\n\n%2$s</string>
+    <string name="nm_growth_sysfile_about">One paragraph that steers the training cards: what they draw on and what they stress. The daily cards read it before they are written. This note is not part of the file.</string>
+    <string name="nm_growth_calendar">Training calendar</string>
+    <plurals name="nm_growth_calendar_day">
+        <item quantity="one">%1$d card, %2$d answered</item>
+        <item quantity="other">%1$d cards, %2$d answered</item>
+    </plurals>
+    <string name="nm_growth_calendar_none">No training cards on this day.</string>
+    <string name="nm_growth_calendar_kept">Cards are kept for %1$d days.</string>
+    <plurals name="nm_growth_earlier_open">
+        <item quantity="one">%1$d card from an earlier day still waits for your answer. Open the calendar</item>
+        <item quantity="other">%1$d cards from earlier days still wait for your answer. Open the calendar</item>
+    </plurals>
+</resources>

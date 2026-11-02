@@ -12,7 +12,7 @@ package com.openminis.app.sandbox.offload
  *
  * Short flags (`-h`) are matched literally by [hasFlag].
  */
-internal class OffloadArgs(argv: List<String>, booleanFlags: Set<String> = emptySet()) {
+internal class OffloadArgs(argv: List<String>, booleanFlags: Set<String> = emptySet(), literalValueFlags: Set<String> = emptySet()) { // nanoMuse: 脚本参数保持字面值。
     val positional: List<String>
     private val flags: Set<String>
     private val values: Map<String, String>
@@ -51,7 +51,8 @@ internal class OffloadArgs(argv: List<String>, booleanFlags: Set<String> = empty
                     // flag. Without the declared-boolean set, `--compact foo`
                     // would greedily consume `foo` as the value of `--compact`
                     // and swallow the positional.
-                    if (key in effectiveBooleanFlags || next == null || next.startsWith("-")) {
+                    // nanoMuse: a negative number (`--id -1784427964`) is a value, not a flag.
+                    if (key !in literalValueFlags && (key in effectiveBooleanFlags || next == null || (next.startsWith("-") && next.toLongOrNull() == null)) || next == null) {
                         fs.add(key)
                     } else {
                         vs[key] = next

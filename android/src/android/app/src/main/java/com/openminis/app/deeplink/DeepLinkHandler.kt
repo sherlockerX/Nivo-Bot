@@ -203,12 +203,13 @@ object DeepLinkHandler {
             "media" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.media.ROUTE_MEDIA_MODELS) // nanoMuse: image & video models
             "models" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.models.ROUTE_MODELS) // nanoMuse: Settings → Models
             "hands", "screen" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.hands.ROUTE_HANDS) // nanoMuse: the screen as a hand
-            "computers", "pc" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.reach.ROUTE_COMPUTERS) // nanoMuse: the account's computers
-            "cloud", "devices" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) // nanoMuse: the account and its devices on the hub
-            "coding", "agents" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.coding.ROUTE_CODING) // nanoMuse: the coding agents on the account's computers
+            // Mosaic: no computers / cloud / devices / coding links; those pages are not reachable.
             "profile" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.profile.ROUTE_AGENT_PROFILE) // nanoMuse: the face links here
             "network", "proxy" -> DeepLinkAction.OpenSettingsScreen(io.github.nanomuse.ui.net.ROUTE_NETWORK) // nanoMuse: the proxy for own providers
             "background" -> DeepLinkAction.OpenSettingsScreen(Routes.BACKGROUND)
+            // nanoMuse: a scheduled task's notification opens its run records, not a chat.
+            "scheduled_tasks", "scheduled-tasks", "routines" ->
+                DeepLinkAction.OpenSettingsScreen(if (arg != null) Routes.scheduledTaskRuns(arg) else Routes.SCHEDULED_TASKS)
             "backup" -> DeepLinkAction.OpenSettingsScreen(Routes.BACKUP) // nanoMuse: Settings → Backup and restore (#560)
             "about" -> DeepLinkAction.OpenSettingsScreen(Routes.ABOUT)
             "permissions" -> DeepLinkAction.OpenPermissionSettings

@@ -40,12 +40,12 @@ object SandboxPaths {
     /** Whether [file]'s real location is under one of the sandbox's host roots. */
     fun inside(context: Context, file: File): Boolean = inside(file, roots(context))
 
-    /** Pure: [file] under one of [roots] once both are canonical (symlinks followed). */
+    /** 解析符号链接后按路径段检查边界，兼容 Android 和宿主机的路径分隔符。 */
     fun inside(file: File, roots: List<File>): Boolean {
-        val real = runCatching { file.canonicalPath }.getOrNull() ?: return false
+        val real = runCatching { file.canonicalFile.toPath() }.getOrNull() ?: return false
         return roots.any { root ->
-            val base = runCatching { root.canonicalPath }.getOrNull() ?: return@any false
-            real == base || real.startsWith(base.trimEnd('/') + "/")
+            val base = runCatching { root.canonicalFile.toPath() }.getOrNull() ?: return@any false
+            real.startsWith(base)
         }
     }
 

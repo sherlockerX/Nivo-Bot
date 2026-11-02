@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_drawer_delete_count">Delete %1$d conversations?</string>
+    <string name="nm_task_running">Task running</string>
+    <string name="nm_task_failed">Task failed</string>
+    <string name="nm_task_completed">Task completed</string>
+    <string name="nm_steps_running">Thinking and working (%1$d tools)</string>
+    <string name="nm_steps_finished">Thinking and execution (%1$d tools)</string>
+    <string name="nm_steps_jump_first">First step</string>
+    <string name="nm_steps_jump_latest">Latest step</string>
+    <string name="nm_provider_save_failed">Could not save connection settings. Your edits are kept. Please try again.</string>
+</resources>

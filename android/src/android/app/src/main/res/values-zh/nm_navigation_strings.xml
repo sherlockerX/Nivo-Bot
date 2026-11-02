@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_ungrouped">未分组</string>
+    <string name="nm_notif_active_chats">%1$d 条对话进行中</string>
+    <string name="nm_notif_chat_fallback">对话</string>
+    <string name="nm_notif_ready">已就绪</string>
+    <string name="nm_notif_waiting">等待你的下一条消息</string>
+    <string name="nm_anchors">对话锚点</string>
+    <string name="nm_anchor_add">添加书签</string>
+    <string name="nm_anchor_remove">取消书签</string>
+    <string name="nm_anchor_directory">问题目录</string>
+    <string name="nm_anchor_saved">书签</string>
+    <string name="nm_anchor_search">搜索当前对话</string>
+    <string name="nm_anchor_empty">没有匹配的消息</string>
+    <string name="nm_anchor_loading">正在读取书签</string>
+    <string name="nm_anchor_unavailable">这条消息已不存在</string>
+    <string name="nm_anchor_save_failed">书签保存失败，请重试</string>
+    <string name="nm_anchor_user">我的提问</string>
+    <string name="nm_anchor_assistant">回复</string>
+    <string name="nm_calendar_input">输入日期</string>
+    <string name="nm_calendar_grid">显示日历</string>
+    <string name="nm_calendar_date_hint">YYYY-MM-DD</string>
+    <string name="nm_calendar_invalid">请输入可选择的有效日期</string>
+</resources>

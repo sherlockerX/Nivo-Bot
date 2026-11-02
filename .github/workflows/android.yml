@@ -4,10 +4,8 @@ name: Android
 # Android tree. Debug-signed only: no keystore and no secrets are involved;
 # release builds happen on a developer machine with scripts/release-apk.sh.
 
+# Mosaic fork: manual runs only; this repository builds Android on the developer's machine and spends its runner minutes on iOS.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:

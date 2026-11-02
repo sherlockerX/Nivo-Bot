@@ -18,7 +18,10 @@ import java.util.Locale
 object FeedStore {
     private const val TAG = "Feed"
     private const val MAX_POSTS_PER_DAY = 12
-    private const val KEEP_DAYS = 30
+    /** Mosaic: the calendar is the training record, so days are kept longer than the feed kept them (30). */
+    const val KEEP_DAYS = 90
+    /** File names are two digits, and a number is never handed out twice in a day (see [append]). */
+    private const val MAX_INDEX = 99
 
     private lateinit var root: File
     private lateinit var prefsFile: File
@@ -45,12 +48,14 @@ object FeedStore {
             ?.sortedByDescending { it.name }
             ?.flatMap { day -> day.listFiles()?.mapNotNull(FeedPost::parse).orEmpty().sortedWith(DAY_ORDER) }
             .orEmpty()
+            .filter(FeedFlow::isCoachPost) // Mosaic
         _posts.value = all
         _preferences.value = runCatching { prefsFile.takeIf { it.exists() }?.readText() }.getOrNull()
             ?.trim().orEmpty().ifEmpty { defaultPreferences() }
     }
 
-    fun defaultPreferences(): String = appContext.getString(R.string.nm_feed_default_preferences)
+    // Mosaic: the page coaches now; the default sentence steers the training, not a news feed.
+    fun defaultPreferences(): String = appContext.getString(R.string.nm_growth_default_steer)
 
     fun savePreferences(text: String) {
         runCatching {
@@ -60,36 +65,38 @@ object FeedStore {
         _preferences.value = text.trim().ifEmpty { defaultPreferences() }
     }
 
-    fun setLiked(post: FeedPost, liked: Boolean) {
-        val updated = post.copy(liked = liked)
-        runCatching { post.file.writeText(updated.serialize()) }
-            .onSuccess { refreshSandbox() }
-            .onFailure { AppLogger.warning(TAG, "like not saved: ${it.message}") }
-        _posts.value = _posts.value.map { if (it.file == post.file) updated else it }
-    }
-
     fun delete(post: FeedPost) {
         runCatching { post.file.delete() }
             .onSuccess { refreshSandbox() }
         _posts.value = _posts.value.filterNot { it.file == post.file }
     }
 
-    /** Writes a batch of posts for today, continuing today's numbering. Returns what was written. */
+    /**
+     * Writes a batch of posts for today, continuing today's numbering. Returns what was written.
+     * Mosaic: a post's number is its id, and answers are kept by id, so a number used by a deleted
+     * card (still named in the growth record) is not handed out again; the day's limit counts the
+     * cards that are there, not the numbers used.
+     */
     fun append(drafts: List<Draft>, now: Long = System.currentTimeMillis()): List<FeedPost> {
         if (drafts.isEmpty()) return emptyList()
         val day = DAY.format(Date(now))
         val dir = File(root, day).apply { mkdirs() }
-        var next = (dir.listFiles()?.mapNotNull { FeedPost.parse(it)?.index }?.maxOrNull() ?: 0) + 1
+        val present = dir.listFiles()?.mapNotNull { FeedPost.parse(it)?.index }.orEmpty()
+        val answered = io.github.nanomuse.growth.GrowthStore.responses.value.keys
+            .mapNotNull { id -> id.takeIf { it.startsWith("$day/") }?.substringAfter('/')?.toIntOrNull() }
+        var next = ((present + answered).maxOrNull() ?: 0) + 1
+        var room = MAX_POSTS_PER_DAY - present.size
         val written = mutableListOf<FeedPost>()
         for (d in drafts) {
-            if (next > MAX_POSTS_PER_DAY) break
+            if (room <= 0 || next > MAX_INDEX) break
             val file = File(dir, "%02d.md".format(Locale.ROOT, next))
             val post = FeedPost(
                 day = day, index = next, title = d.title.trim().take(80), type = d.type, emoji = d.emoji,
                 body = d.body.trim(), source = d.source, createdAt = now, liked = false, file = file,
+                track = d.track, level = d.level, prompt = d.prompt.trim(), unit = d.unit.trim(),
             )
             runCatching { file.writeText(post.serialize()) }
-                .onSuccess { written += post; next++ }
+                .onSuccess { written += post; next++; room-- }
                 .onFailure { AppLogger.warning(TAG, "post not written: ${it.message}") }
         }
         prune()
@@ -119,6 +126,10 @@ object FeedStore {
         val emoji: String,
         val body: String,
         val source: List<String>,
+        val track: String? = null, // Mosaic: the ability a practice card trains
+        val level: Int = 0,
+        val prompt: String = "",
+        val unit: String = "", // Mosaic: the course unit, "1.2 …"
     )
 
     private val DAY = SimpleDateFormat("yyyy-MM-dd", Locale.US)

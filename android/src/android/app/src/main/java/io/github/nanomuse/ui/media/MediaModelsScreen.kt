@@ -216,7 +216,9 @@ fun MediaModelsScreen(
                     selected = videoInstance == inst.id,
                     onSelect = {
                         videoInstance = inst.id
-                        if (videoModel.isBlank()) videoModel = MediaModels.DEFAULT_VIDEO_MODEL
+                        // Mosaic: a model the new provider does not list gives way to its own default (a relay has no Wan)
+                        val offered = MediaModels.availableVideoModels(context, inst).orEmpty()
+                        if (videoModel.isBlank() || (offered.isNotEmpty() && videoModel !in offered)) videoModel = MediaModels.defaultVideoModel(context, inst)
                         MediaModels.saveVideo(context, inst.id, videoModel)
                     },
                 )
@@ -225,7 +227,7 @@ fun MediaModelsScreen(
                 ModelList(
                     header = stringResource(R.string.nm_media_models_on, videoInst.label),
                     models = videoModels.orEmpty(),
-                    recommended = MediaModels.DEFAULT_VIDEO_MODEL,
+                    recommended = MediaModels.defaultVideoModel(context, videoInst), // Mosaic: the provider's own
                     selected = videoModel,
                     checking = videoChecking,
                     empty = stringResource(R.string.nm_media_video_none_found),
@@ -234,7 +236,7 @@ fun MediaModelsScreen(
                 )
                 ModelField(
                     value = videoModel,
-                    placeholder = MediaModels.DEFAULT_VIDEO_MODEL,
+                    placeholder = MediaModels.defaultVideoModel(context, videoInst), // Mosaic
                     onChange = { videoModel = it; MediaModels.saveVideo(context, videoInst.id, it) },
                 )
                 SettingsSwitchRow(

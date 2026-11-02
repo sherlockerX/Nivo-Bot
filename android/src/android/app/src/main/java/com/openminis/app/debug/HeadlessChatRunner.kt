@@ -158,8 +158,11 @@ internal object HeadlessChatRunner {
         thinkingLevel: ThinkingLevel? = null,
         wait: Boolean,
         timeoutMs: Long,
+        scheduledRunId: String? = null, // nanoMuse: 只有调度器持有的在途身份可进入该会话。
     ): PromptResult = withContext(Dispatchers.Main) {
         val vm = viewModel(context, sessionId)
+        if (!io.github.nanomuse.routines.ScheduledRunScopes.canStartChat(sessionId, scheduledRunId))
+            return@withContext PromptResult("Error", "TARGET_BUSY", false)
         // Apply per-call thinking override BEFORE sendMessage so streamMessage
         // picks up the new level. Caller passes null to keep the VM's existing
         // setting (default OFF for a fresh VM, last user-set value otherwise).
@@ -213,7 +216,10 @@ internal object HeadlessChatRunner {
             )
         }
         for (att in attachments) vm.addAttachment(att)
-        vm.sendMessage(text)
+        if (scheduledRunId != null && vm.nmHasUnfinishedStream()) return@withContext PromptResult("Error", "TARGET_BUSY", false) // nanoMuse
+        val priorAssistantIds = if (scheduledRunId != null) app(context).chatRepository.dao.assistantMessageIds(sessionId).toSet() else emptySet() // nanoMuse
+        val requestedJob = vm.nmTaskDispatch(scheduledRunId) { vm.sendMessage(text) } // nanoMuse: 固定句柄覆盖挂起的准备阶段和实际模型工作。
+        if (scheduledRunId != null && requestedJob == null) return@withContext PromptResult("Error", "DISPATCH_NOT_STARTED", false)
         if (!wait) return@withContext PromptResult(status = "Running", responseText = null, timedOut = false)
 
         // Wait for isStreaming to be false (sendMessage flips it true synchronously
@@ -224,7 +230,7 @@ internal object HeadlessChatRunner {
             // Either dropped (e.g. compacting in flight) or completed before we
             // returned to the suspension point — fall through to drain.
         }
-        val finished = withTimeoutOrNull(timeoutMs) {
+        val finished = if (scheduledRunId != null) awaitScheduledJob(vm, requestedJob, timeoutMs) else withTimeoutOrNull(timeoutMs) { // nanoMuse
             // Skip the initial false (if we were called before sendMessage flipped true)
             if (vm.isStreaming.value) {
                 // Wait for the next false transition.
@@ -237,12 +243,13 @@ internal object HeadlessChatRunner {
         // depend on the in-memory UI list (which may not have flushed yet).
         val app = app(context)
         val msgs = app.chatRepository.dao.loadMessages(sessionId)
-        val lastAssistant = msgs.lastOrNull { it.role == "assistant" }
+        val lastAssistant = msgs.lastOrNull { it.role == "assistant" && it.id !in priorAssistantIds } // nanoMuse: 未开始回答时不返回上一轮正文。
         val responseText = lastAssistant?.let { extractText(it.partsJson) }
         PromptResult(
-            status = if (finished) "Completed" else "Timeout",
+            status = if (!finished) "Timeout" else if (scheduledRunId != null && requestedJob?.isCancelled == true) "Aborted" else if (vm.error.value != null || lastAssistant?.errorInfo != null) "Error" else "Completed", // nanoMuse: 等待本轮真实Job，取消不算完成。
             responseText = responseText,
             timedOut = !finished,
+            messageTextBytes = responseText?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0,
         )
     }
 
@@ -252,9 +259,12 @@ internal object HeadlessChatRunner {
         messageId: String?,
         wait: Boolean,
         timeoutMs: Long,
+        scheduledRunId: String? = null, // nanoMuse
     ): PromptResult = withContext(Dispatchers.Main) {
         val app = app(context)
         val vm = viewModel(context, sessionId)
+        if (!io.github.nanomuse.routines.ScheduledRunScopes.canStartChat(sessionId, scheduledRunId))
+            return@withContext PromptResult("Error", "TARGET_BUSY", false)
         val targetMsgId = messageId ?: run {
             val msgs = app.chatRepository.dao.loadMessages(sessionId)
             msgs.lastOrNull { it.role == "user" }?.id
@@ -283,7 +293,10 @@ internal object HeadlessChatRunner {
                 retriedMessageId = targetMsgId,
             )
         }
-        vm.retryFromMessage(targetMsgId)
+        if (scheduledRunId != null && vm.nmHasUnfinishedStream()) return@withContext PromptResult("Error", "TARGET_BUSY", false) // nanoMuse
+        val priorAssistantIds = if (scheduledRunId != null) all.filter { it.role == "assistant" }.map { it.id }.toSet() else emptySet() // nanoMuse
+        val requestedJob = vm.nmTaskDispatch(scheduledRunId) { vm.retryFromMessage(targetMsgId) } // nanoMuse
+        if (scheduledRunId != null && requestedJob == null) return@withContext PromptResult("Error", "DISPATCH_NOT_STARTED", false)
         if (!wait) {
             return@withContext PromptResult(
                 status = "Retrying",
@@ -293,21 +306,22 @@ internal object HeadlessChatRunner {
                 retriedMessageId = targetMsgId,
             )
         }
-        val finished = withTimeoutOrNull(timeoutMs) {
+        val finished = if (scheduledRunId != null) awaitScheduledJob(vm, requestedJob, timeoutMs) else withTimeoutOrNull(timeoutMs) { // nanoMuse
             if (vm.isStreaming.value) {
                 vm.isStreaming.first { !it }
             }
             true
         } ?: false
         val msgs = app.chatRepository.dao.loadMessages(sessionId)
-        val lastAssistant = msgs.lastOrNull { it.role == "assistant" }
+        val lastAssistant = msgs.lastOrNull { it.role == "assistant" && it.id !in priorAssistantIds } // nanoMuse
         val responseText = lastAssistant?.let { extractText(it.partsJson) }
         PromptResult(
-            status = if (finished) "Completed" else "Timeout",
+            status = if (!finished) "Timeout" else if (scheduledRunId != null && requestedJob?.isCancelled == true) "Aborted" else if (vm.error.value != null || lastAssistant?.errorInfo != null) "Error" else "Completed", // nanoMuse
             responseText = responseText,
             timedOut = !finished,
             deletedMessageCount = deletedCount,
             retriedMessageId = targetMsgId,
+            messageTextBytes = responseText?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0,
         )
     }
 
@@ -550,12 +564,28 @@ internal object HeadlessChatRunner {
         } catch (_: Exception) { partsJson.ifEmpty { null } }
     }
 
+    // nanoMuse: 取消和超时停止实际任务并等待清理，不把UI提前置false当作已停止。
+    private suspend fun awaitScheduledJob(vm: com.openminis.app.ui.chat.ChatViewModel, job: kotlinx.coroutines.Job?, timeoutMs: Long): Boolean {
+        if (job == null) return false
+        try {
+            val finished = withTimeoutOrNull(timeoutMs) { job.join(); true } ?: false
+            if (!finished) vm.nmStopAndAwait(job)
+            return finished
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            withContext(kotlinx.coroutines.NonCancellable) { vm.nmStopAndAwait(job) }
+            throw cancelled
+        }
+    }
+
     data class PromptResult(
         val status: String,
         val responseText: String?,
         val timedOut: Boolean,
+        val exitCode: Int? = null, // nanoMuse: 显式脚本任务保存真实退出码。
         val deletedMessageCount: Int = 0,
         val retriedMessageId: String? = null,
+        val scriptOutput: io.github.nanomuse.routines.ScheduledProcessResult? = null, // nanoMuse: 原始捕获与落库计量分离。
+        val messageTextBytes: Long = 0,
     )
 
     data class CompactResult(

@@ -65,6 +65,13 @@ object RoutineWakes {
     fun claim(sessionId: String, messageId: String) {
         val wake = synchronized(lock) { pending.remove(sessionId) } ?: return
         if (System.currentTimeMillis() - wake.at > CLAIM_WINDOW_MS) return
+        bind(messageId, wake)
+    }
+
+    /** Mosaic: a script run writes its own routine row and no model turn follows: bind it at once, nothing to tell the model. */
+    fun mark(messageId: String, label: String) = bind(messageId, Wake(label.trim().take(60), System.currentTimeMillis()))
+
+    private fun bind(messageId: String, wake: Wake) {
         val next = LinkedHashMap(_wakes.value)
         next[messageId] = wake
         while (next.size > KEEP) next.remove(next.keys.first())
@@ -76,7 +83,7 @@ object RoutineWakes {
 
     /** What the model is told for this one turn (not shown to the person; English like the rest of the system prompt). */
     private fun framing(wake: Wake): String = buildString {
-        appendLine("## This turn is a routine's, not a message the person typed (nanoMuse)")
+        appendLine("## This turn is a routine's, not a message the person typed (Nicholasx)")
         append("The routine \"${wake.label}\" they set up fired at ${wake.time} and sent the next message on their behalf. ")
         append("Do what it asks, then write to them as the one who brings it up: open with the result or the point itself, ")
         append("do not thank them for asking or say \"as requested\", and keep it as short as the task allows. ")

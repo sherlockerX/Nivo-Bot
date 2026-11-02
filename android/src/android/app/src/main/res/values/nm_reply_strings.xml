@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mosaic: the action row under a reply, and reading replies aloud. -->
+<resources>
+    <string name="nm_chat_menu_read_aloud">Read replies aloud</string>
+    <string name="nm_reply_copy">Copy</string>
+    <string name="nm_reply_read">Read aloud</string>
+    <string name="nm_reply_stop_reading">Stop reading</string>
+    <string name="nm_reply_regenerate">Answer again</string>
+    <string name="nm_reply_branch">Branch from here</string>
+    <string name="nm_reply_branch_title">%1$s (branch)</string>
+    <string name="nm_reply_branch_untitled">Branch</string>
+    <string name="nm_reply_branch_done">Continuing in a new chat</string>
+    <string name="nm_reply_branch_failed">Could not make the branch</string>
+    <string name="nm_reply_share">Share</string>
+    <string name="nm_reply_share_image">Share as image</string>
+    <string name="nm_reply_share_text">Share as text</string>
+    <string name="nm_reply_share_save">Save to Photos</string>
+    <string name="nm_reply_share_saved">Saved to Pictures/Nicholasx</string>
+    <string name="nm_reply_share_failed">Could not make the image</string>
+    <string name="nm_reply_share_footer">Written by AI</string>
+    <string name="nm_reply_share_close">Close</string>
+</resources>

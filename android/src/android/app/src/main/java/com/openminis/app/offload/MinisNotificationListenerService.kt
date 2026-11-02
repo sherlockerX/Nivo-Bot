@@ -58,6 +58,13 @@ class MinisNotificationListenerService : NotificationListenerService() {
         /** True once the system has bound our listener (implies access granted). */
         fun isConnected(): Boolean = connected
 
+        /** nanoMuse: 仅取消调用方明确选择的通知，不越过系统监听权限。 */
+        fun cancelKeys(keys: List<String>): Int {
+            val service = instance ?: return 0
+            keys.forEach { service.cancelNotification(it) }
+            return keys.size
+        }
+
         /**
          * Block (up to [timeoutMs]) until [onNotificationPosted] fires for
          * `(pkg, id)`. Returns true if observed, false on timeout. If the
