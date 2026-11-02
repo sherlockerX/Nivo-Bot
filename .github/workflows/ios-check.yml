@@ -9,6 +9,13 @@ name: iOS · build check
 # cheap. No secrets: CODE_SIGNING_ALLOWED=NO, so a fork's pull request can run it too.
 
 on:
+  # Mosaic fork: the iOS port is pushed straight to master, so every push of iOS code is checked.
+  push:
+    branches: [master]
+    paths:
+      - 'android/src/ios/**'
+      - 'android/deps/**'
+      - '.github/workflows/ios-check.yml'
   pull_request:
     paths:
       - 'android/src/ios/**'
