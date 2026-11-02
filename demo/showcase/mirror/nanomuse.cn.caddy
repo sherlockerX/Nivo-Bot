@@ -1,0 +1,80 @@
+# nanomuse.cn — the project site, mirrored from github.com/nano-muse/nano-muse.github.io by
+# sync.sh (every minute, from the systemd timer). Certificates come the ordinary way, HTTP-01:
+# both names point straight at this box, nothing in front. Installed into sites.d/ by install.sh.
+
+www.nanomuse.cn {
+	redir https://nanomuse.cn{uri} permanent
+}
+
+nanomuse.cn {
+	root * /srv/www/nanomuse.cn
+	encode zstd gzip
+
+	# the access log, for the daily counts traffic.py keeps (visits, downloads, referrers): JSON
+	# lines, rolled at 20 MB, kept a week and no longer. docker-compose.yml mounts logs/caddy here.
+	# Rolled files stay uncompressed so traffic.py can finish reading one by its inode.
+	log {
+		output file /var/log/caddy/nanomuse.cn.log {
+			roll_size 20MiB
+			roll_keep 20
+			roll_keep_for 168h
+			roll_uncompressed
+		}
+		format json
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# a year of HTTPS-only for this host (its subdomains are not promised)
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# the checkout's dotfiles never reach the export, but the door stays shut anyway
+	@hidden path /.*
+	respond @hidden 404
+
+	# /web is the gateway's: with the kept Muses on (WEB_ENABLED=1) a sign-in page, after which
+	# the browser goes to <slug>.s.nanomuse.dev (the gateway's session domain; nanomuse.cn has
+	# no wildcard record); with them off, as on the project's server since 0.1.26, a redirect
+	# to the showcase site — the demo on the simulated phone. The gateway is the showcase's,
+	# on the edge network of this Caddy — see demo/showcase/README.md.
+	@web path /web /web/* /api/web/*
+	handle @web {
+		reverse_proxy gateway:8000
+	}
+
+	# the release mirror (release-sync.py): the newest releases' packages, for a download that
+	# does not have to reach GitHub. Whole files as they are — no compression to get in the way
+	# of a resumed download — with a listing, since the names carry the version. Dot-files
+	# (the sync's .lock) are neither listed nor served.
+	handle_path /dl/* {
+		root * /srv/www/dl
+		header Cache-Control "public, max-age=3600"
+		file_server browse {
+			hide .*
+		}
+	}
+
+	# pages: ten minutes, like GitHub Pages; assets are replaced in place across versions, so a day
+	# (the docs site's assets under /docs/assets carry a hash in the name)
+	header Cache-Control "public, max-age=600"
+	@assets path /assets/* /docs/assets/*
+	header @assets Cache-Control "public, max-age=86400"
+
+	# the docs (website/, VitePress, published under /docs): links without .html, served the
+	# way GitHub Pages serves them — /docs/cloud is /docs/cloud.html
+	@docs path /docs/*
+	try_files @docs {path} {path}.html {path}/index.html
+
+	file_server
+
+	# an address that is not there: the site's own page (404.html in the repository), with
+	# the status kept
+	handle_errors 404 {
+		root * /srv/www/nanomuse.cn
+		rewrite * /404.html
+		file_server
+	}
+}

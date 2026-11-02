@@ -1,0 +1,48 @@
+[project]
+name = "nanomuse-showcase-gateway"
+version = "0.3.0"
+description = "Hands a visitor of the nanoMuse showcase a private, short-lived nanoMuse and meters what it spends"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "websockets>=13",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+showcase-gateway = "showcase_gateway.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["showcase_gateway"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+# the same strictness as the runtime's root pyproject.toml; the mirror's two scripts next door
+# are checked with the gateway (`mypy` from this directory, as .github/workflows/showcase.yml runs it)
+[tool.mypy]
+python_version = "3.11"
+files = ["showcase_gateway", "tests", "../mirror/traffic.py", "../mirror/release-sync.py"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unreachable = true

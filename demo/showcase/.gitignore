@@ -1,0 +1,7 @@
+# MobileGym's companion dataset, downloaded on the server (see README)
+data/
+# a locally built site for development
+site/dist/
+# other sites on this Caddy: their site blocks and the files they serve (README, "Other sites")
+sites.d/
+www/

@@ -1,0 +1,10 @@
+[Unit]
+Description=nanoMuse site traffic: every ten minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,433 @@
+/* The page around the phone. Same tokens as the project site (nano-muse.github.io/style.css).
+   MobileGym's own stylesheet (mobilegym.css, their styles.css as it is) is loaded before this one
+   and owns the stage: .hero-demo, .demo-layout, .demo-phone-wrap, .phone-rig, #demo-frame, the
+   Gesture Guide, the State Builder dock and drawer, Power off. This file adds the bezel around the
+   screen, fits the whole stage into one screen (page.js sets --nm-scale from the room there is),
+   styles the column beside the phone, and provides the few utility classes their markup and
+   script expect from Tailwind. Light only: the stage is light once the phone is on, and black
+   before. */
+:root {
+  --bg: #ffffff;
+  --bg-2: #f5f5f7;
+  --fg: #1d1d1f;
+  --fg-2: #6e6e73;
+  --line: #e5e5ea;
+  --action: #0a66e4;
+  --action-fg: #ffffff;
+  --card: #ffffff;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --top-h: 44px;
+  --stage-pad: 16px;
+  --bezel: 10px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; height: 100%; }
+body {
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* one screen: the stage is scaled to fit, nothing to scroll to */
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 var(--font);
+}
+/* mobilegym.css sets Charter on the body and Inter on headings; the page keeps one family */
+h1, h2, h3 { font-family: inherit; }
+a { color: var(--action); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* every phrase exists twice; the document's data-lang picks one */
+i.en, i.zh { font-style: normal; }
+html[data-lang="en"] .zh, html[data-lang="zh"] .en { display: none; }
+
+/* ---- ?embed=1: the frame on the project site (nanomuse.cn). The site has the header; this
+   page shows the stage alone, from the top edge (page.js). */
+html[data-embed] { --top-h: 0px; }
+html[data-embed] .top { display: none; }
+
+/* ---- ?theme=dark (embed only; the site's theme switch sends it over postMessage): our own
+   surfaces in the site's dark tokens. MobileGym's chrome keeps its light keys and drawer; only
+   its captions are lifted so they read on the dark stage. The phone itself is unchanged. */
+html[data-theme="dark"] {
+  --bg: #121212;
+  --bg-2: #1f1f1f;
+  --fg: #e8e8e8;
+  --fg-2: #9c9c9c;
+  --line: #2c2c2c;
+  --action: #58a6ff;
+  --card: #1a1a1a;
+  color-scheme: dark;
+}
+html[data-theme="dark"] .status.warn { color: #f0b35b; }
+html[data-theme="dark"] .btn.primary { color: #121212; }
+/* their stage is paper-light once booted, and their guide and dock are white cards; in the
+   dark theme the stage is the page's own dark and the cards go dark with it, so the text colours
+   below have something to sit on */
+html[data-theme="dark"] .hero-demo.is-booted { background: var(--bg); }
+html[data-theme="dark"] .gesture-guide,
+html[data-theme="dark"] .state-dock { background: rgba(31, 31, 31, 0.92); border-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="dark"] .gesture-guide-icon { background: #2a2a2a; border-color: rgba(255, 255, 255, 0.14); color: #e8e8e8; }
+html[data-theme="dark"] .gesture-guide,
+html[data-theme="dark"] .gesture-guide-label,
+html[data-theme="dark"] .state-dock-tab,
+html[data-theme="dark"] .hero-demo-poweroff { color: #d6d6d6; }
+html[data-theme="dark"] .gesture-guide-eyebrow,
+html[data-theme="dark"] .gesture-guide-meta,
+html[data-theme="dark"] .gesture-guide-desc,
+html[data-theme="dark"] .state-dock-eyebrow { color: #9c9c9c; }
+html[data-theme="dark"] .gesture-guide-head { border-bottom-color: rgba(255, 255, 255, 0.1); }
+html[data-theme="dark"] .state-dock-divider { background: rgba(255, 255, 255, 0.14); }
+html[data-theme="dark"] .state-dock-tab:hover,
+html[data-theme="dark"] .hero-demo-poweroff:hover { background: rgba(255, 255, 255, 0.08); color: #ffffff; }
+html[data-theme="dark"] .state-dock-tab[aria-selected="true"],
+html[data-theme="dark"] .nm-dock-app[aria-pressed="true"] { background: #e8e8e8; color: #121212; }
+
+/* the Tailwind utilities MobileGym's rig markup and state-builder.js use (their page compiles
+   Tailwind; this one does not) */
+.hidden { display: none; }
+.inline-flex { display: inline-flex; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.block { display: block; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.border-0 { border: 0; }
+.overflow-hidden { overflow: hidden; }
+.bg-black { background: #000; }
+.pointer-events-none { pointer-events: none; }
+
+/* ---- top bar */
+.top {
+  flex: none;
+  height: var(--top-h);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  z-index: 20;
+}
+.brand { display: inline-flex; align-items: center; gap: 8px; color: var(--fg); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+.brand:hover { text-decoration: none; }
+.where { color: var(--fg-2); font-size: 13px; padding-left: 14px; border-left: 1px solid var(--line); }
+.links { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13px; }
+.links a { color: var(--fg-2); }
+.links a:hover { color: var(--fg); text-decoration: none; }
+.lang {
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-2);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.lang:hover { color: var(--fg); border-color: var(--fg-2); }
+
+/* ---- the stage: MobileGym's hero, with our column in its row.
+   Their .hero-demo is a full-height centred flex column; .demo-layout the centred row holding the
+   phone wrap. Here the hero is the rest of the screen under the top bar, and the row holds the
+   phone (with the room its chrome needs) and the panel. */
+/* their stage names its own text colour (a light theme's); the headings in the column inherit it,
+   so the page's colour is said again here for the dark theme */
+.hero-demo { flex: 1; min-height: 0; padding: var(--stage-pad) 20px; color: var(--fg); }
+.hero-demo .demo-layout {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  width: 100%;
+  max-width: 1440px;
+  height: 100%;
+}
+/* page.js sets --nm-scale and the margins (the room for the Gesture Guide, the dock and the
+   bezel, scaled; the phantom space of the unscaled layout box taken back) */
+.hero-demo .demo-layout .demo-phone-wrap {
+  --phone-scale: var(--nm-scale, 1);
+  flex: none;
+  transform-origin: center top;
+  transform: scale(var(--phone-scale));
+  margin: 0;
+  padding: 0;
+  transition: none;
+}
+/* the panel takes the width the phone leaves (page.js reads its min-width when it scales the
+   phone), two columns wide and never past 880px */
+.hero-demo .demo-layout > .side { flex: 1 1 760px; min-width: 600px; max-width: 880px; }
+
+/* Power off, top right of the stage (their .hero-demo-actions, without their brand links) */
+.rig-actions { position: absolute; top: 8px; right: 18px; z-index: 3; }
+.hero-demo-poweroff { opacity: 0; transition: opacity 240ms ease 400ms, color 200ms ease, background 200ms ease; }
+.hero-demo.is-booted .hero-demo-poweroff { opacity: 1; }
+
+/* ---- the phone: MobileGym's rig (the screen is the frame) with a bezel around it, as a phone
+   has, so the screen sits inside something. Hidden before the phone is on (their black void). */
+.phone-rig::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--bezel));
+  border-radius: calc(44px + var(--bezel));
+  background: #121316;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 30px 60px -15px rgba(0, 0, 0, 0.45),
+    0 12px 24px -10px rgba(0, 0, 0, 0.3);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 540ms cubic-bezier(0.4, 0, 0.2, 1) 200ms;
+}
+.hero-demo.is-booted .phone-rig::before { opacity: 1; }
+/* the screen: clipped to its corners whatever the compositor does with a scaled frame */
+.hero-demo #demo-frame,
+.hero-demo.is-booted #demo-frame {
+  box-shadow: none;
+  clip-path: inset(0 round 44px);
+  isolation: isolate;
+}
+#demo-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+/* the side keys, on the bezel's edge; hidden until the phone is on */
+.side-key { position: absolute; width: 3px; background: #2a2c32; border: 0; pointer-events: none; opacity: 0; transition: opacity 540ms cubic-bezier(0.4, 0, 0.2, 1) 200ms; }
+.hero-demo.is-booted .side-key { opacity: 1; }
+/* their chrome keeps its distance from the screen; with the bezel it is measured from that */
+@media (min-width: 1280px) {
+  .hero-demo .phone-rig .gesture-guide { right: calc(100% + 24px); }
+  .hero-demo .phone-rig .state-dock { left: calc(100% + 24px); }
+  .hero-demo .phone-rig .state-dock-hint { left: calc(100% + 16px); top: calc(100% + 16px); }
+}
+
+/* nanoMuse first in the dock (compose.mjs puts it above their State Builder tabs): the launcher
+   icon — the mark on a white tile — lit while nanoMuse is the app on the screen */
+.nm-dock-app .state-dock-tab-icon-img {
+  background: #fff;
+  border: 1px solid rgba(28, 25, 23, 0.12);
+  padding: 2px;
+}
+.nm-dock-app .state-dock-tab-icon-img img { object-fit: contain; }
+.nm-dock-app[aria-pressed="true"] { background: #1c1917; }
+.nm-dock-app[aria-pressed="true"] .state-dock-tab-icon-img { border-color: transparent; }
+
+/* the boot button that fills the screen before the phone is on (state-builder.js swaps it for
+   the phone's frame; the page presses it for the visitor) */
+.boot {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #0c0a09;
+  color: #a8a29e;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+.boot:hover { color: #fff; }
+/* a keyboard visitor sees where they are: the ring lights up, as under the pointer; a mouse
+   click leaves no ring behind (focus-visible) */
+.boot:focus { outline: none; }
+.boot:focus-visible { color: #fff; }
+.boot:focus-visible .boot-ring { border-color: #d6d3d1; outline: 2px solid #d6d3d1; outline-offset: 4px; }
+.boot-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  border: 2px solid #57534e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+.boot:hover .boot-ring { border-color: #d6d3d1; transform: scale(1.05); }
+
+/* the State Builder drawer opens beside the dock; page.js sets its left/top from the phone's
+   position (their stylesheet assumes the phone is centred in the row, which it is not here) */
+.state-drawer { max-height: calc(100svh - var(--top-h) - 2 * var(--stage-pad)); }
+
+/* ---- the panel beside the phone: two columns, the words (status, headline, the notice with
+   the downloads, the buttons, the fine print) and the lines to try, no taller than the stage,
+   so the whole of it is in view at once and nothing in it scrolls. Only when a window is
+   shorter than the lines need (under about 600px of stage) do the lines scroll inside their
+   column; the words stay. */
+.side {
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 12fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 18px;
+  max-height: 100%;
+  opacity: 0;
+  transition: opacity 540ms cubic-bezier(0.4, 0, 0.2, 1) 320ms;
+}
+.hero-demo.is-booted .side { opacity: 1; }
+.intro { display: flex; flex-direction: column; min-height: 0; }
+.groups { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* the fade along the lower edge of the lines' column while there is more of it below, in a
+   window too short for all of them (page.js sets the class) */
+.groups.more::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  height: 36px;
+  margin-top: -36px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+.status {
+  margin: 0 0 6px;
+  min-height: 1.4em;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+.status.live { color: var(--fg); }
+.status.warn { color: #b45309; }
+.status.flash { color: var(--action); }
+.side h1 {
+  margin: 0 0 14px;
+  font-size: clamp(19px, 1.6vw, 24px);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 750;
+}
+/* the demo notice: the phone is a simulator, the app is the real thing */
+.notice {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--action) 35%, var(--line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--action) 6%, var(--card));
+}
+.notice p { margin: 0 0 7px; font-size: 12.5px; line-height: 1.4; color: var(--fg); }
+.notice b { font-weight: 700; }
+/* every platform the project ships, in one run of text */
+.notice .platforms { font-size: 12px; line-height: 1.45; color: var(--fg-2); }
+.notice .platforms a { color: var(--fg); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--fg) 30%, transparent); text-underline-offset: 2px; }
+.notice .platforms a:hover { color: var(--action); text-decoration-color: currentColor; }
+.notice-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.notice .btn { padding: 5px 11px; font-size: 12.5px; text-decoration: none; }
+.btn.primary { color: #fff; background: var(--action); border-color: var(--action); }
+.btn.primary:hover { filter: brightness(1.06); }
+.group {
+  flex: none;
+  padding: 10px 12px 10px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+}
+.group:last-child { margin-bottom: 0; }
+.group h2 { margin: 0 0 4px; font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.group .why { margin: 0 0 6px; color: var(--fg-2); font-size: 12.5px; }
+/* a note under the lines: what the visitor does at that point */
+.group .chip + .why { margin: 7px 0 0; }
+.group.off { opacity: 0.55; }
+.chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 5px 0 0;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--fg);
+  background: var(--bg-2);
+  border: 1px solid transparent;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.chip:hover { border-color: var(--action); background: color-mix(in srgb, var(--action) 8%, var(--bg-2)); }
+.chip:active { transform: scale(0.99); }
+.chip.sent { border-color: var(--action); }
+.chip:disabled { cursor: default; opacity: 0.6; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 2px 0 10px; }
+.btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--fg-2); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.how { margin-left: auto; font-size: 12.5px; color: var(--fg-2); }
+.how:hover { color: var(--action); }
+.fine { margin: auto 0 0; color: var(--fg-2); font-size: 11px; line-height: 1.45; }
+.fine a { color: inherit; text-decoration: underline; }
+
+/* shorter windows: the same panel, tighter */
+@media (max-height: 900px) {
+  .side h1 { margin-bottom: 10px; font-size: clamp(17px, 1.4vw, 20px); }
+  .group { padding: 8px 10px 8px; margin-bottom: 8px; border-radius: 14px; }
+  .notice { padding: 7px 10px; margin-bottom: 8px; border-radius: 14px; }
+  .notice p { font-size: 12px; margin-bottom: 5px; }
+  .notice .platforms { font-size: 11.5px; }
+  .notice .btn { padding: 4px 10px; font-size: 12px; }
+  .group h2 { font-size: 13.5px; }
+  .chip { margin-top: 4px; padding: 5px 10px; font-size: 13px; }
+  .actions { margin-bottom: 6px; }
+  .fine { font-size: 10.5px; line-height: 1.4; }
+}
+
+/* ---- narrower windows: below 1280px their chrome folds under the phone (gesture keys and dock
+   as pills, the drawer in the flow); the phone and the panel stay side by side down to 1000px */
+@media (max-width: 1279px) {
+  .hero-demo { padding-top: var(--stage-pad); }
+  .hero-demo.is-booted { padding-top: var(--stage-pad); }
+  .hero-demo .demo-layout { flex-direction: row; gap: 32px; }
+  .hero-demo .demo-layout .demo-phone-wrap { padding-bottom: 162px; }
+  .hero-demo .phone-rig .gesture-guide { top: calc(100% + 24px); }
+  .hero-demo .phone-rig .state-dock { top: calc(100% + 86px); left: 50%; }
+  .hero-demo .phone-rig .state-dock-hint { left: 50%; top: calc(100% + 148px); }
+  .hero-demo .demo-layout > .side { flex: 1 1 640px; min-width: 560px; }
+  .side { gap: 14px; }
+  .state-drawer { position: absolute; left: 0; top: 0; width: min(420px, 100%); max-height: 100%; height: auto; transform: none; }
+}
+/* ---- phones and small windows: one column, the phone at its own size over its pills, the
+   drawer, then the panel (its words, then its lines). Taller than the window on a phone, so
+   the page itself scrolls; nothing inside it does. */
+@media (max-width: 999px) {
+  body { height: auto; min-height: 100%; overflow: auto; }
+  .hero-demo { padding: var(--stage-pad) 12px 24px; }
+  .hero-demo .demo-layout { flex-direction: column; align-items: center; gap: 20px; height: auto; }
+  .hero-demo .demo-layout > .side { flex: none; width: min(560px, 100%); min-width: 0; max-width: none; }
+  .side { display: flex; flex-direction: column; gap: 0; max-height: none; }
+  .intro { display: contents; } /* the words, then the lines, then the fine print */
+  .groups { overflow: visible; }
+  .fine { order: 1; margin-top: 12px; }
+  .state-drawer { position: relative; width: min(420px, calc(100vw - 32px)); max-height: 70svh; }
+  .where { display: none; }
+  /* the phone fills the width here: Power off takes a row of its own above it, not the status bar */
+  .hero-demo { padding-top: calc(var(--stage-pad) + 28px); }
+  .rig-actions { top: 4px; right: 12px; }
+}
+@media (max-width: 480px) {
+  .top { padding: 0 12px; }
+  .links a:not(:last-of-type) { display: none; }
+}
+
+/* reduce motion: the fades and the ring's growth happen at once; nothing moves on its own */
+@media (prefers-reduced-motion: reduce) {
+  .hero-demo *, .hero-demo *::before, .hero-demo *::after {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .boot:hover .boot-ring, .chip:active { transform: none; }
+}

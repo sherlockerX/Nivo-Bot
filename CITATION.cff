@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use nanoMuse in your work, please cite the paper (preferred-citation below)."
+title: "nanoMuse: an open-source personal agent for every device you own"
+type: software
+authors:
+  - name: "nanoMuse Contributors"
+repository-code: "https://github.com/nano-muse/nanoMuse"
+url: "https://nanomuse.cn/"
+license: GPL-3.0-or-later
+version: 1.0.6
+date-released: 2026-10-23
+keywords:
+  - personal agent
+  - AI assistant
+  - on-device
+  - Android
+  - GUI agent
+  - cross-device
+  - approvals
+  - tool use
+preferred-citation:
+  type: generic
+  title: "nanoMuse: An Open-Source Personal Agent for Every Device You Own"
+  authors:
+    - family-names: Liu
+      given-names: Guangyi
+    - family-names: Liu
+      given-names: Yong
+    - family-names: Zhang
+      given-names: Jiangning
+  year: 2026
+  month: 10
+  url: "https://arxiv.org/abs/2610.08699"
+  identifiers:
+    - type: other
+      value: "arXiv:2610.08699"
+      description: "The arXiv preprint"

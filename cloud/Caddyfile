@@ -1,0 +1,38 @@
+{
+	# Let's Encrypt writes to this address when a certificate is about to expire
+	# and could not be renewed. Empty is allowed; scripts/self-host.sh fills it in.
+	email "{$ACME_EMAIL}"
+}
+
+{$CLOUD_DOMAIN} {
+	# compressed, except the operator's samples export: it is sent whole with its length,
+	# and a download that gets re-encoded on the way has none
+	@compressible not path /v1/admin/samples/export
+	encode @compressible zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# A chat request may carry a few screenshots and one frame of the hub a file, so
+	# the body limit sits just above the relay's MAX_REQUEST_BYTES (16 MiB) and
+	# HUB_FRAME_LIMIT; the relay answers 413 with its own message before Caddy would.
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy relay:8787 {
+		# Chat streams (SSE) and the hub's WebSocket must not be buffered.
+		flush_interval -1
+		# the relay keys its per-address limits on this; the visitor's own header is replaced
+		header_up X-Forwarded-For {remote_host}
+		# 10 minutes idle: a hub socket pings every 25 s, a long chat answer streams
+		transport http {
+			read_timeout 10m
+			write_timeout 10m
+		}
+	}
+}

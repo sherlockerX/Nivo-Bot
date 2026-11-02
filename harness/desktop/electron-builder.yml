@@ -1,0 +1,120 @@
+# electron-builder: the installers of nanoMuse Desktop — the desktop built on DeepSeek
+# Harness. `npm run dist` here after scripts/prepare-dsh.mjs has staged dsh/ (and, for the
+# hands, after scripts/desktop-app/build-runtime.py --target harness/desktop/runtime has put
+# the runtime at runtime/); .github/workflows/desktop-app.yml does all of it per platform.
+# Nothing is signed by a developer certificate unless the Apple secrets are in the
+# environment: Windows asks for "Run anyway"; on macOS the workflow runs `--dir` and
+# scripts/desktop-app/package-mac.sh, which ad-hoc signs (or signs and notarizes) the
+# bundle and writes the zip and an APFS dmg (docs/desktop.md).
+# The appId is the one the previous desktop app (desktop/app, retired in 0.1.30) carried, so
+# this one installs over it and keeps its place in the system's permission lists.
+appId: io.github.nanomuse.desktop
+productName: nanoMuse
+executableName: nanomuse-desktop
+copyright: GPL-3.0-or-later · the nanoMuse community · built on DeepSeek Harness (MIT)
+artifactName: nanoMuse-Desktop-${version}-${os}-${arch}.${ext}
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - out/**
+  - resources/**
+  - package.json
+  - "!**/*.map"
+extraResources:
+  # the harness and the bundle, real files (the Loader reads them, native addons included).
+  # electron-builder drops a node_modules folder at the root of what it copies, so the
+  # folder is named as the destination and copied from inside.
+  - from: dsh/node_modules
+    to: dsh/node_modules
+    filter: ["**/*"]
+  - from: dsh/package.json
+    to: dsh/package.json
+  - from: dsh/dsh.json
+    to: dsh/dsh.json
+  # the runtime for the hands; an empty folder when it was not built
+  - from: runtime
+    to: runtime
+    filter: ["**/*"]
+asar: true
+# the operator's native addon (@computer-use/nut-js → libnut's prebuilt .node per platform) is
+# loaded with require() from a real file, not from inside the archive (src/operator.ts)
+asarUnpack:
+  - "**/node_modules/@computer-use/**"
+compression: normal
+npmRebuild: false
+nodeGypRebuild: false
+publish: null
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+    # the same unpacked app as an archive: for machines where the AppImage cannot mount
+    # (no FUSE, or fusermount not permitted — `--appimage-extract-and-run` is the other way)
+    # and the .deb does not apply; unpack anywhere and run ./nanomuse-desktop (docs/desktop.md)
+    - target: tar.gz
+      arch: [x64]
+  artifactName: nanoMuse-Desktop-${version}-linux-x64.${ext}
+  category: Utility
+  # the icon set, one PNG per size (resources/icons/<n>x<n>.png, made from app-icon.png): the deb
+  # installs each under /usr/share/icons/hicolor/<n>x<n>/apps/. A single 1024px PNG landed only in
+  # hicolor/1024x1024, a size the theme index does not list, and GNOME showed a gear (0.1.35).
+  icon: resources/icons
+  synopsis: an open-source personal agent for every device you own; the desktop built on DeepSeek Harness
+  desktop:
+    entry:
+      StartupWMClass: nanomuse-desktop
+deb:
+  depends: ["libgtk-3-0", "libnotify4", "libnss3", "libxss1", "libxtst6", "xdg-utils", "libatspi2.0-0", "libuuid1", "libsecret-1-0", "xdotool"]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/app-icon.png
+  # electron-updater's feed: with a publish config in place electron-builder writes the update
+  # metadata (latest.yml: the version, the installer's name and its SHA-512) and the
+  # .exe.blockmap next to the installer, and `npm run dist` passes --publish never so nothing
+  # is uploaded from the build: the workflow attaches the three files to the GitHub release,
+  # from which the download mirror picks them up.
+  # The generic provider only shapes the metadata: the file URLs in latest.yml are relative
+  # names, so the same pair serves from GitHub and from nanomuse.cn/dl/win alike. Never a
+  # publisher certificate (docs/desktop.md): the SHA-512 is the installer's own integrity.
+  publish:
+    provider: generic
+    url: "https://nanomuse.cn/dl/win/"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: nanoMuse
+  # electron-builder keeps files with these extensions out of the installer's 7z archive and
+  # writes them into the installer one by one instead, and when it does it skips every
+  # node_modules folder. The default list has .mp4, so the face's clips under
+  # resources/dsh/node_modules/dsh-nanomuse/assets/ were in neither place: the Windows install
+  # had no dragon-*.mp4 and the face above the chat stood still (1.0.0; Linux and macOS, which
+  # do not go through NSIS, had them). Nothing here is big enough to be worth the exception:
+  # everything goes into the archive. tests/installer.test.mjs keeps this line, and the
+  # workflow checks the installer for the clips.
+  preCompressedFileExtensions: []
+mac:
+  # the zip and dmg come from scripts/desktop-app/package-mac.sh; `npm run dist` alone leaves
+  # the unpacked .app (the workflow passes --dir)
+  target:
+    - target: dir
+      arch: [arm64, x64]
+  icon: resources/app-icon.png
+  category: public.app-category.productivity
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  identity: null
+  # "nanoMuse Computer Use.app" — the helper that holds Screen Recording and Accessibility and
+  # takes the screenshots and moves the mouse (mac/computer-use/, built by its build.sh in the
+  # workflow before electron-builder runs). extraFiles land under Contents/; a bundle in
+  # Contents/Helpers is nested code, which package-mac.sh signs before the outer app.
+  # Nothing is signed here (identity: null), so the helper arrives as build.sh left it.
+  extraFiles:
+    - from: mac/computer-use/build/nanoMuse Computer Use.app
+      to: Helpers/nanoMuse Computer Use.app
+      filter: ["**/*"]

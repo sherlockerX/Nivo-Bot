@@ -1,0 +1,40 @@
+# cloud.nanomuse.cn — nanoMuse Cloud (the sign-in relay and the hub), served by
+# the showcase's Caddy next to nanomuse.cn. Goes into demo/showcase/sites.d/;
+# the relay container (cloud/deploy/nanomuse-hk/docker-compose.yml) is on the
+# same `showcase_edge` network as `nanomuse-relay`. Certificate the ordinary
+# way, HTTP-01: the name points straight at this box.
+
+cloud.nanomuse.cn {
+	# compressed, except the operator's samples export: it is sent whole with its length,
+	# and a download that gets re-encoded on the way has none — the browser gave up on it
+	@compressible not path /v1/admin/samples/export
+	encode @compressible zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# a year of HTTPS-only for this host (its subdomains are not promised)
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# The console at /app is a small static app; the API is JSON. A chat
+	# request may carry a few screenshots and one frame of the hub a file,
+	# so the body limit sits just above MAX_REQUEST_BYTES (16 MiB) and
+	# HUB_FRAME_LIMIT rather than at Caddy's default; the relay answers 413
+	# with its own message before Caddy would.
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy nanomuse-relay:8787 {
+		# Chat streams (SSE) and the hub's WebSocket must not be buffered.
+		flush_interval -1
+		# 10 minutes idle: a hub socket pings every 25 s, a long chat answer
+		# streams; nothing legitimate sits silent longer than this.
+		transport http {
+			read_timeout 10m
+			write_timeout 10m
+		}
+	}
+}

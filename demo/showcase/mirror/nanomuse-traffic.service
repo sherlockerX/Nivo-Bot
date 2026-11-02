@@ -1,0 +1,18 @@
+# One pass of the traffic counter (mirror/traffic.py): the site's access log since the last run
+# into /var/lib/nanomuse-traffic/traffic.db, plus GitHub's stars and release download counts.
+# nanomuse-traffic.timer runs it every ten minutes; install.sh links the script to
+# /usr/local/bin/nanomuse-traffic. `nanomuse-traffic --report` shows the last two weeks.
+[Unit]
+Description=nanoMuse site traffic: count the day's visits and downloads
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# TRAFFIC_* / GITHUB_TOKEN overrides, if any (see traffic.py); absent is fine
+EnvironmentFile=-/etc/default/nanomuse-site-mirror
+StateDirectory=nanomuse-traffic
+ExecStart=/usr/local/bin/nanomuse-traffic
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min

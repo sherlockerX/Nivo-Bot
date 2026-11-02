@@ -1,0 +1,107 @@
+# The showcase's front door. Two names:
+#
+#   SITE_HOST         the page around the phone (/, with MobileGym + the nanoMuse app at
+#                     /phone.html), plus /api/demo/*, /api/trial* and /llm/trial/*; nanoMuse
+#                     Web's /web/ and /api/web/* are the project site's (mirror/nanomuse.cn.caddy)
+#   *.SESSION_DOMAIN  one hostname per visitor session, everything relayed to the gateway
+#
+# Certificates come from Let's Encrypt through Cloudflare's DNS API for both names: the wildcard
+# cannot be had any other way, and the site may sit behind Cloudflare's proxy, where HTTP-01
+# is not dependable. Behind the proxy the visitor's address arrives in X-Forwarded-For; Caddy
+# believes it only from Cloudflare's own ranges (fetched by the cloudflare-ip module), so the
+# gateway's per-visitor limits see visitors, not Cloudflare.
+{
+	email {$ACME_EMAIL}
+	servers {
+		trusted_proxies cloudflare {
+			interval 12h
+			timeout 15s
+		}
+	}
+}
+
+(cloudflare_dns) {
+	tls {
+		dns cloudflare {$CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 1.0.0.1
+	}
+}
+
+{$SITE_HOST} {
+	import cloudflare_dns
+	encode zstd gzip
+	# nothing here takes more than an attachment; a body beyond this is cut off, not buffered
+	request_body {
+		max_size 64MB
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# a year of HTTPS-only for this host (its subdomains are not promised)
+		Strict-Transport-Security "max-age=31536000"
+		# who may put this site in a frame: itself (the phone at /phone.html sits in the page)
+		# and the project's pages that embed the showcase, the same list as EMBEDDERS in
+		# site/page/page.js; any other site gets a blank frame, and a click-jacked sign-in
+		# with it. Scripts and styles are not restricted here: the page's own script is inline.
+		Content-Security-Policy "frame-ancestors 'self' https://nanomuse.cn https://www.nanomuse.cn https://nano-muse.github.io"
+		-Server
+	}
+
+	# the showcase API, trial credentials for the phone app, and the model proxy the trials use
+	handle /api/demo/* {
+		reverse_proxy gateway:8000
+	}
+	handle /api/trial* {
+		reverse_proxy gateway:8000
+	}
+	handle /llm/trial/* {
+		reverse_proxy gateway:8000 {
+			flush_interval -1
+		}
+	}
+
+	# MobileGym's companion dataset (app media, theme widgets). Optional; see README.
+	handle_path /cdn/* {
+		root * /srv/cdn
+		header Cache-Control "public, max-age=2592000, immutable"
+		file_server
+	}
+
+	handle {
+		root * /srv/site
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		# the pages themselves are revalidated on every visit (ETag), so a new build is seen at
+		# once — the phone's page is loaded in a frame and would otherwise be served from the
+		# browser's heuristic cache for days
+		@pages path / /index.html /phone.html /page/*
+		header @pages Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+*.{$SESSION_DOMAIN} {
+	import cloudflare_dns
+	header {
+		# the web app in the phone's frame answers on this host, under the site, under the
+		# pages that embed the site: every ancestor must be in the list. Added (+) rather than
+		# set, so a policy the runtime puts on a file of its own (a sandbox on a page the agent
+		# wrote) stays beside it; a browser enforces both. ? leaves a header the runtime set.
+		+Content-Security-Policy "frame-ancestors 'self' https://{$SITE_HOST} https://nanomuse.cn https://www.nanomuse.cn https://nano-muse.github.io"
+		?X-Content-Type-Options nosniff
+		?Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	request_body {
+		max_size 64MB
+	}
+	reverse_proxy gateway:8000
+}
+
+# Other sites on the same box — the project site's mirror at nanomuse.cn, for one (see mirror/).
+# One file per site in sites.d/, which git ignores; what they serve lives under /srv/www
+# (WWW_ROOT in docker-compose.yml). An empty sites.d/ is fine: a glob that matches nothing is
+# a warning, not an error.
+import /etc/caddy/sites.d/*.caddy

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN" data-lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nanoMuse · 在线体验</title>
+    <meta
+      name="description"
+      content="A simulated phone in your browser with a nanoMuse of your own on it, for a while: a new look, the apps on the phone operated for you, memory, reminders."
+    />
+    <link rel="icon" href="/page/mark.svg" />
+    <!-- MobileGym's own stylesheet (its phone rig, gesture guide and State Builder), then ours -->
+    <link rel="stylesheet" href="/page/mobilegym.css" />
+    <link rel="stylesheet" href="/page/page.css" />
+    <script>
+      // the language before the first paint, so nothing flashes: the page that embeds this one
+      // (?lang=), else a remembered choice, else the browser's. ?embed=1 is the frame on the
+      // project site: no header of its own (page.js).
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search);
+          if (q.get("embed") === "1") {
+            document.documentElement.setAttribute("data-embed", "1");
+            if (q.get("theme") === "dark") document.documentElement.setAttribute("data-theme", "dark");
+          }
+          var p = q.get("lang");
+          var s = p === "zh" || p === "en" ? p : localStorage.getItem("nm-lang");
+          var l = s ? (s === "zh" ? "zh" : "en") : /^zh/i.test(navigator.language || "") ? "zh" : "en";
+          document.documentElement.setAttribute("data-lang", l);
+          document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
+          document.title = l === "zh" ? "nanoMuse · 在线体验" : "nanoMuse · Try it in the browser";
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="top">
+      <a class="brand" href="https://nanomuse.cn/"><img src="/page/mark.svg" alt="" width="24" height="24" /><span>nanoMuse</span></a>
+      <span class="where"><i class="en">Try it in the browser</i><i class="zh">在线体验</i></span>
+      <nav class="links">
+        <a href="https://nanomuse.cn/#download"><i class="en">Get the app</i><i class="zh">下载</i></a>
+        <a href="https://github.com/nano-muse/nanoMuse">GitHub</a>
+        <button class="lang" id="lang" type="button" aria-label="Switch language"><i class="en">中文</i><i class="zh">EN</i></button>
+      </nav>
+    </header>
+
+    <!-- MobileGym's live-simulator stage, as on mobilegym.dev: the phone (360×800), the Gesture
+         Guide on its left, the State Builder dock on its right with its drawer, Power off at the
+         top. Its markup comes in at build time (compose.mjs); ours is the bezel around the screen
+         and the column beside the phone. The whole stage fits one screen (page.js scales the phone
+         to the room there is). -->
+    <section id="demo" class="hero-demo" aria-label="nanoMuse on a simulated phone">
+      <div class="rig-actions">
+        <button type="button" id="demo-poweroff-btn" class="hero-demo-poweroff hidden">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+          <span>Power off</span>
+        </button>
+      </div>
+
+      <div class="demo-layout ui">
+        <div class="demo-phone-wrap">
+          <div class="phone-rig relative" style="width: 360px; height: 800px">
+            <!-- the side keys sit on the bezel's edge (page.css draws the bezel around the screen) -->
+            <span class="side-key" style="right: -13px; top: 170px; height: 74px; border-radius: 0 2px 2px 0"></span>
+            <span class="side-key" style="left: -13px; top: 132px; height: 32px; border-radius: 2px 0 0 2px"></span>
+            <span class="side-key" style="left: -13px; top: 185px; height: 55px; border-radius: 2px 0 0 2px"></span>
+            <span class="side-key" style="left: -13px; top: 254px; height: 55px; border-radius: 2px 0 0 2px"></span>
+
+            <!-- the screen itself; state-builder.js swaps the boot button for the phone's frame -->
+            <div id="demo-frame" class="relative overflow-hidden bg-black" style="width: 360px; height: 800px; border-radius: 44px">
+              <button type="button" id="demo-boot-btn" class="ui boot">
+                <span class="boot-ring">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+                </span>
+                <span class="hero-boot-label"><i class="en">Click to start</i><i class="zh">点击开机</i></span>
+              </button>
+            </div>
+
+            <!--@mobilegym:state-dock-->
+            <!--@mobilegym:gesture-guide-->
+          </div>
+        </div>
+
+        <!--@mobilegym:state-drawer-->
+
+        <!-- the panel: two columns beside the phone (the words, then the lines to try), one
+             under the other on a phone; the whole of it is in view, nothing scrolls (page.css) -->
+        <aside class="side">
+          <div class="intro">
+            <p class="status" id="status" aria-live="polite"><i class="en">Starting the phone…</i><i class="zh">手机启动中…</i></p>
+            <h1>
+              <i class="en">A phone in your browser, with a nanoMuse of your own on it.</i>
+              <i class="zh">浏览器里的一台手机，装着一个属于你的 nanoMuse。</i>
+            </h1>
+            <div class="notice" role="note">
+              <p>
+                <i class="en"><b>A demo in a simulator.</b> The phone and its apps are MobileGym's re-creations, and this nanoMuse is the lite web app. The apps for your own devices do far more; install one of them.</i>
+                <i class="zh"><b>这是模拟器里的演示。</b>手机和应用是 MobileGym 重做的，这个 nanoMuse 是精简版网页应用。装在你自己设备上的 App 能做的多得多，请安装一个。</i>
+              </p>
+              <!-- every platform the project ships; the links go to GitHub's "latest" release and to
+                   the docs, never to one version's own files, so they do not go stale -->
+              <p class="platforms">
+                <i class="en">
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">Android (APK)</a> ·
+                  <a href="https://testflight.apple.com/join/ZHexbDqc">iPhone and iPad (TestFlight)</a>, a beta that passed Apple's beta review; <a href="https://nanomuse.cn/docs/ios">the iOS page of the docs</a> has the details ·
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">macOS (Apple Silicon and Intel)</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">Windows</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">Linux</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/pkgs/container/nanomuse">Docker image</a> with the web console, for a server of yours (<a href="https://nanomuse.cn/docs/self-hosting">self-hosting</a>)
+                </i>
+                <i class="zh">
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">Android（APK）</a> ·
+                  <a href="https://testflight.apple.com/join/ZHexbDqc">iPhone 和 iPad（TestFlight）</a>，测试版，已通过 Apple 的 beta 审核；细节见<a href="https://nanomuse.cn/docs/zh/ios">文档的 iOS 一页</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">macOS（Apple Silicon 和 Intel）</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">Windows</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/releases/latest">Linux</a> ·
+                  <a href="https://github.com/nano-muse/nanoMuse/pkgs/container/nanomuse">Docker 镜像</a>，带网页控制台，跑在你自己的服务器上（<a href="https://nanomuse.cn/docs/zh/self-hosting">自部署</a>）
+                </i>
+              </p>
+              <div class="notice-actions">
+                <a class="btn primary" href="https://nanomuse.cn/#download"><i class="en">All downloads</i><i class="zh">全部下载</i></a>
+                <a class="btn" href="https://github.com/nano-muse/nanoMuse/releases/latest"><i class="en">Latest release</i><i class="zh">最新版本</i></a>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="open" type="button"><i class="en">Show nanoMuse</i><i class="zh">打开 nanoMuse</i></button>
+              <button class="btn" id="reset" type="button"><i class="en">Start over</i><i class="zh">重新开始</i></button>
+              <a class="how" href="https://github.com/nano-muse/nanoMuse/blob/main/demo/showcase/README.md"><i class="en">How this runs</i><i class="zh">这是怎么跑起来的</i></a>
+            </div>
+
+            <p class="fine">
+              <i class="en">
+                nanoMuse is a non-profit community project, free software under GPL-3.0-or-later. The phone, the gesture keys and the State
+                Builder are <a href="https://github.com/Purewhiter/mobilegym">MobileGym</a>'s (Apache-2.0; its optional companion data CC BY-NC 4.0); the
+                apps on it are re-creations for an agent to practise on, not the real services, and no trademark holder is affiliated.
+                Muse is a trademark of Meta Platforms, Inc.; nanoMuse is not affiliated with or endorsed by Meta.
+                What the showcase server keeps about a visit, and for how long, is on the <a href="https://nanomuse.cn/docs/privacy">privacy page</a>.
+              </i>
+              <i class="zh">
+                nanoMuse 是非营利的社区项目，自由软件，许可证 GPL-3.0-or-later。这台手机、手势键和 State Builder 来自
+                <a href="https://github.com/Purewhiter/mobilegym">MobileGym</a>（Apache-2.0；其可选的配套数据为 CC BY-NC 4.0），手机里的应用是为了让智能体练习而重做的，不是真实服务，与各商标持有者无关。
+                Muse 是 Meta Platforms, Inc. 的商标；nanoMuse 与 Meta 无关，也未获其认可。
+                体验服务器会记下哪些访问信息、保存多久，写在<a href="https://nanomuse.cn/docs/zh/privacy">隐私页</a>。
+              </i>
+            </p>
+          </div>
+
+          <!-- The lines to try: one set per language, not translations of each other. The
+               English set stays on the phone's apps an international visitor knows (Spotify,
+               Weather, Messages, Reddit, X); the Chinese set on the ones a Chinese visitor uses
+               (微信, 铁路12306, 天气). The look, the memory and the reminder are the same
+               idea in both. Every line here was run end to end on the showcase's models and
+               finished within the session's share; a line that needs a tap from the visitor
+               says so under it. The texts are in demo/showcase/README.md (The lines). -->
+          <div class="groups">
+            <div class="group" id="group-look">
+              <h2><i class="en">A new look</i><i class="zh">换个形象</i></h2>
+              <p class="why hidden" id="look-why"></p>
+              <button class="chip en" type="button" data-text="Change your look to an orange cat with round glasses">Change your look to an orange cat with round glasses</button>
+              <button class="chip zh" type="button" data-text="换个形象：一只戴圆框眼镜的橘猫">换个形象：一只戴圆框眼镜的橘猫</button>
+              <p class="why"><i class="en">It draws four faces; pick one and it draws the rest of them from it.</i><i class="zh">它会画出四张脸，选一张，其余的表情都从这张画出来。</i></p>
+            </div>
+
+            <div class="group">
+              <h2><i class="en">Let it use the phone</i><i class="zh">让它操作这台手机</i></h2>
+              <button class="chip en" type="button" data-text="Open Spotify and play Bad Habits by Ed Sheeran">Open Spotify and play Bad Habits by Ed Sheeran</button>
+              <button class="chip en" type="button" data-text="Open the Weather app: will it rain in Beijing tomorrow?">Open the Weather app: will it rain in Beijing tomorrow?</button>
+              <button class="chip en" type="button" data-text="In Messages, reply to the latest text with: Thanks, got it">In Messages, reply to the latest text with: Thanks, got it</button>
+              <button class="chip zh" type="button" data-text="打开微信，看看张伟最新发来的消息说了什么">打开微信，看看张伟最新发来的消息说了什么</button>
+              <button class="chip zh" type="button" data-text="在微信里回复张伟：好啊，几点出发？">在微信里回复张伟：好啊，几点出发？</button>
+              <button class="chip zh" type="button" data-text="打开手机上的铁路12306，查一下明天上海到南京最早的一班车">打开手机上的铁路12306，查一下明天上海到南京最早的一班车</button>
+              <button class="chip zh" type="button" data-text="打开天气，看看北京明天会不会下雨">打开天气，看看北京明天会不会下雨</button>
+              <p class="why"><i class="en">Before anything is sent, it stops and asks; tap Allow once or Deny on the phone.</i><i class="zh">发出去之前它会停下来问你，在手机上点「允许一次」或「拒绝」。</i></p>
+            </div>
+
+            <div class="group">
+              <h2><i class="en">Two apps, one answer</i><i class="zh">两个应用，一个答案</i></h2>
+              <button class="chip en" type="button" data-text="Look at the first post in the Reddit feed and what is trending on X, then tell me in two lines what people are talking about">Look at the first post in the Reddit feed and what is trending on X, then tell me in two lines what people are talking about</button>
+              <button class="chip zh" type="button" data-text="张伟约我明天徒步。先在天气里看一眼北京明天会不会下雨，不下雨就在微信里回他：好啊，几点出发？">张伟约我明天徒步。先在天气里看一眼北京明天会不会下雨，不下雨就在微信里回他：好啊，几点出发？</button>
+              <p class="why"><i class="en">This one takes a minute or two.</i><i class="zh">这句要跑两三分钟；回复发出前它同样会先问你。</i></p>
+            </div>
+
+            <div class="group">
+              <h2><i class="en">Remember, remind</i><i class="zh">记住、提醒</i></h2>
+              <button class="chip en" type="button" data-text="Remember: I have an iced americano every morning">Remember: I have an iced americano every morning</button>
+              <button class="chip en" type="button" data-text="What do I usually drink in the morning?">What do I usually drink in the morning?</button>
+              <button class="chip en" type="button" data-text="Remind me in 2 minutes to stand up and stretch">Remind me in 2 minutes to stand up and stretch</button>
+              <button class="chip zh" type="button" data-text="记住：我每天早上要喝一杯冰美式">记住：我每天早上要喝一杯冰美式</button>
+              <button class="chip zh" type="button" data-text="我早上一般喝什么？">我早上一般喝什么？</button>
+              <button class="chip zh" type="button" data-text="2 分钟后提醒我站起来活动一下">2 分钟后提醒我站起来活动一下</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- MobileGym's scripts: the State Builder and the power / gesture keys; then the page's own -->
+    <script src="/page/state-builder.js"></script>
+    <script src="/page/boot-hero.js"></script>
+    <script src="/page/page.js"></script>
+  </body>
+</html>

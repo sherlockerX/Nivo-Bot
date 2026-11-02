@@ -1,0 +1,17 @@
+# One pass of the release mirror (nanomuse.cn/dl); nanomuse-release-mirror.timer runs it every
+# fifteen minutes. Installed by install.sh, which links release-sync.py to
+# /usr/local/bin/nanomuse-release-mirror.
+[Unit]
+Description=nanoMuse release mirror (nanomuse.cn/dl): fetch new releases from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# WWW_ROOT / MIRROR_* overrides, if any (see release-sync.py); absent is fine
+EnvironmentFile=-/etc/default/nanomuse-site-mirror
+ExecStart=/usr/local/bin/nanomuse-release-mirror
+# a release is a gigabyte or so of packages; give it the time, not the whole box
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=45min

@@ -1,0 +1,10 @@
+node_modules/
+out/
+dist/
+# staged by scripts/prepare-dsh.mjs and scripts/desktop-app/build-runtime.py --target
+dsh/
+runtime/
+# the macOS helper app, built by mac/computer-use/build.sh
+mac/computer-use/build/
+*.log
+*.tsbuildinfo

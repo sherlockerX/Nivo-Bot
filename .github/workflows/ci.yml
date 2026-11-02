@@ -1,0 +1,268 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Which trees the push touched. Jobs below are skipped, not omitted, when theirs did not
+  # change: a skipped required check still satisfies branch protection, a missing one blocks
+  # the merge forever. Tag pushes run everything.
+  changes:
+    name: what changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      web: ${{ steps.filter.outputs.web }}
+      relay: ${{ steps.filter.outputs.relay }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            python:
+              - "nanomuse/**"
+              - "tests/**"
+              - "scripts/**"
+              - "config/**" # config.example.toml: the tests read it, the image carries it
+              - "pyproject.toml"
+              - "Dockerfile"
+              - ".dockerignore"
+              - ".github/workflows/ci.yml"
+            web:
+              - "web/**"
+              - "nanomuse/server/static/**"
+              - ".github/workflows/ci.yml"
+            relay:
+              - "cloud/**"
+              - ".github/workflows/ci.yml"
+      # Every npm lock file in the repository, on every pull request, whatever it touched:
+      # a private mirror's host must never land in one. harness.yml repeats it for tag builds
+      # and pages.yml for the site; pnpm-lock.yaml records integrity hashes, not URLs.
+      - name: Lock files resolve against the public registry only
+        run: |
+          if grep -HoE '"resolved": "https?://[^/]+' web/package-lock.json harness/desktop/package-lock.json website/package-lock.json cloud/console/package-lock.json | grep -v 'registry.npmjs.org'; then
+            echo "a package-lock.json resolves packages from a host other than registry.npmjs.org (a private mirror leaked in); regenerate it against the public registry" >&2
+            exit 1
+          fi
+
+  test:
+    name: ${{ matrix.os }} · py${{ matrix.python-version }}
+    needs: changes
+    # No `if:` on this job. A matrix job skipped as a whole reports one check named with the raw
+    # template, never `ubuntu-latest · py3.12`, and a required check that never appears blocks
+    # the merge of every docs-only change. The job runs; its steps skip together instead.
+    env:
+      RUN: ${{ needs.changes.outputs.python == 'true' || github.ref_type == 'tag' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    # Windows is not a supported platform yet (the shell tool assumes a POSIX shell); it runs
+    # so we can see how far off it is, but cannot fail the build.
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.12"
+            experimental: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RUN == 'true'
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        if: env.RUN == 'true'
+        with:
+          enable-cache: true
+
+      - name: Install
+        if: env.RUN == 'true'
+        shell: bash
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev]"
+
+      - name: Install bubblewrap (the sandbox tests run for real on Linux)
+        if: env.RUN == 'true' && (runner.os == 'Linux')
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+          bwrap --version
+          # Ubuntu 24.04 leaves unprivileged user namespaces without capabilities unless an
+          # AppArmor profile covers the binary; the runner has none for bwrap, so a network
+          # namespace cannot be set up ("loopback: Failed RTM_NEWADDR"). Load the stock
+          # profile, as docs/sentinel.md tells users to; fall back to lifting the restriction.
+          echo "apparmor_restrict_unprivileged_userns=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo n/a)"
+          if ! bwrap --unshare-all --ro-bind / / -- /bin/true 2>/dev/null; then
+            sudo apt-get install -y -qq apparmor-profiles apparmor-utils >/dev/null 2>&1 || true
+            if [ -f /usr/share/apparmor/extra-profiles/bwrap-userns-restrict ]; then
+              sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/ \
+                && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict \
+                && echo "loaded the bwrap-userns-restrict profile" || true
+            fi
+            bwrap --unshare-all --ro-bind / / -- /bin/true 2>/dev/null \
+              || { sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true; }
+          fi
+          bwrap --unshare-all --ro-bind / / -- /bin/true && echo "bubblewrap works here" || echo "bubblewrap cannot create a namespace here; the boxed tests will skip"
+
+      - name: Ruff lint
+        if: env.RUN == 'true'
+        run: uv run ruff check nanomuse tests scripts
+
+      - name: Ruff format
+        if: env.RUN == 'true'
+        run: uv run ruff format --check nanomuse tests scripts
+
+      - name: Mypy
+        if: env.RUN == 'true'
+        run: uv run mypy
+
+      - name: Tests (no live LLM calls)
+        if: env.RUN == 'true'
+        run: uv run python -m pytest -q -m "not live"
+
+      - name: Package builds and installs
+        if: env.RUN == 'true' && (matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12')
+        shell: bash
+        run: |
+          uv build
+          uv venv --python 3.12 /tmp/smoke
+          uv pip install --python /tmp/smoke/bin/python dist/*.whl
+          /tmp/smoke/bin/nanomuse version
+
+  relay:
+    name: relay · ruff and pytest
+    needs: changes
+    # Same shape as `test`: the job always runs so the check always appears; its steps skip
+    # together when nothing under cloud/ changed.
+    env:
+      RUN: ${{ needs.changes.outputs.relay == 'true' || github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cloud
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RUN == 'true'
+
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        if: env.RUN == 'true'
+        with:
+          enable-cache: true
+
+      - name: Install
+        if: env.RUN == 'true'
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+
+      - name: Ruff lint
+        if: env.RUN == 'true'
+        run: uv run ruff check .
+
+      - name: Ruff format
+        if: env.RUN == 'true'
+        run: uv run ruff format --check .
+
+      - name: Tests
+        if: env.RUN == 'true'
+        run: uv run python -m pytest -q
+
+      # The admin console (cloud/console, Vite + React) is built into
+      # nanomuse_cloud/console/admin and committed; the build must match the sources.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.RUN == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cloud/console/package-lock.json
+
+      - name: Admin console · install, check, build
+        if: env.RUN == 'true'
+        working-directory: cloud/console
+        run: |
+          npm ci
+          npm run check
+          npm run build
+
+      - name: Admin console build is committed
+        if: env.RUN == 'true' && github.actor != 'dependabot[bot]'
+        run: |
+          if [ -n "$(git status --porcelain nanomuse_cloud/console/admin)" ]; then
+            echo "cloud/nanomuse_cloud/console/admin is out of date: run 'cd cloud/console && npm run build' and commit the result"
+            git status --porcelain nanomuse_cloud/console/admin
+            exit 1
+          fi
+
+  web:
+    name: web app build
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: web
+      - name: Lint
+        run: npm run lint
+        working-directory: web
+      - name: Unit tests
+        run: npm test
+        working-directory: web
+      - name: Type-check and build
+        run: npm run build
+        working-directory: web
+      - name: Built app is committed
+        # a dependency bump changes the bundle by definition; the rebuild lands right after
+        # the merge (see CONTRIBUTING.md, "Releasing")
+        if: github.actor != 'dependabot[bot]'
+        run: |
+          if [ -n "$(git status --porcelain nanomuse/server/static)" ]; then
+            echo "nanomuse/server/static is out of date: run 'cd web && npm run build' and commit the result"
+            git status --porcelain nanomuse/server/static
+            exit 1
+          fi
+
+  docker:
+    name: docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [changes, test]
+    if: needs.changes.outputs.python == 'true' || github.ref_type == 'tag'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: nanomuse:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test
+        run: docker run --rm nanomuse:ci version

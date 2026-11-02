@@ -1,0 +1,10 @@
+[Unit]
+Description=nanoMuse Cloud: daily SQLite backup at 04:10 UTC
+
+[Timer]
+OnCalendar=*-*-* 04:10:00 UTC
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
