@@ -388,7 +388,7 @@ enum NanoMuseFeedFlow {
         status.failure = nil
         Task { @MainActor in
             defer { status.writing = false }
-            func fail(_ why: String) { status.failure = String(format: AppLocalized("No cards were written: %@"), why) }
+            @MainActor func fail(_ why: String) { status.failure = String(format: AppLocalized("No cards were written: %@"), why) }
             guard !NanoMuseGrowthFlow.plan(NanoMuseFeedStore.shared.posts).isEmpty else { return fail(AppLocalized("nothing is in training.")) }
             guard let r = await ensureRoutine() else { return fail(AppLocalized("add a model first.")) }
             guard NanoMuseGrowthFlow.grading.isEmpty else { return fail(AppLocalized("the coach is still reviewing an answer. Try again in a moment.")) }
