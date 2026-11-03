@@ -102,10 +102,11 @@ struct NanoMuseGrowthState: Equatable {
 final class NanoMuseGrowthStore: ObservableObject {
     static let shared = NanoMuseGrowthStore()
 
-    static let focus = "focus"
-    static let queued = "queued"
-    static let maintain = "maintain"
-    static let paused = "paused"
+    // The statuses are plain constants, read by NanoMuseGrowthState off the main actor too.
+    nonisolated static let focus = "focus"
+    nonisolated static let queued = "queued"
+    nonisolated static let maintain = "maintain"
+    nonisolated static let paused = "paused"
     static let maxLevel = 5
     static let window = 6
     static let recallPerDay = 5
