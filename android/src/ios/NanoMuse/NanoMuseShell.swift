@@ -38,6 +38,9 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
     case chat, feed, ideas, goals, library
     var id: String { rawValue }
 
+    /// The bar's glyphs. Ideas opens from the drawer, as in the Android build, where Mosaic took its place in the bar.
+    static var bar: [NanoMuseTab] { allCases.filter { $0 != .ideas } }
+
     var title: String {
         switch self {
         case .chat: return AppLocalized("tab.chat") // its own key: 聊天 as on Android, not upstream's 闲聊
@@ -90,6 +93,9 @@ struct NanoMuseRoot: View {
     /// `nil` while the answer still hangs on the session list, so a fresh install never shows the
     /// shell for a frame before the welcome page.
     private var needsSetup: Bool? {
+        // As in the Android build: once Start or Skip for now was tapped, the setup stays away,
+        // with or without a provider; adding one waits under Settings.
+        if setupDone { return false }
         let cloudId = NanoMuseCloud.instance?.id
         let providers = store.instances.contains { $0.isEnabled && $0.hasAnyCredential && $0.id != cloudId }
         if let hasSessions {
@@ -144,10 +150,10 @@ struct NanoMuseRoot: View {
             NanoMuseStar.shared.dayOpened()
         }
         .nmOnChange(of: scenePhase) { phase in
-            // C1: one more day with the app, counted when it comes to the front; C2: the release check, when stale.
+            // C1: one more day with the app, counted when it comes to the front. The personal
+            // build has no release check, as on Android.
             guard phase == .active else { return }
             NanoMuseStar.shared.dayOpened()
-            NanoMuseUpdateCheck.shared.checkIfStale()
         }
         .task {
             hasSessions = !NanoMuseSync.shared.visible(await ChatStore.shared.listSessions()).isEmpty // C12: another account's chats do not count
@@ -350,6 +356,8 @@ struct NanoMuseHomeView: View {
     @ObservedObject private var allowance = NanoMuseAllowance.shared
     /// The composer's voice panel stands in for the keyboard: the bottom bar leaves the same way.
     @ObservedObject private var voiceMode = VoiceModePreference.shared
+    /// Read replies aloud, the switch in the main chat's ••• menu.
+    @ObservedObject private var voiceOutput = VoiceOutputState.shared
     /// "Rename chat" from the main chat's ••• menu.
     @StateObject private var rename = NanoMuseRenamePrompt()
 
@@ -450,8 +458,7 @@ struct NanoMuseHomeView: View {
                     main.pin(id)
                     tab = .chat
                 },
-                onDevices: { showDevices = true },
-                onCoding: { showCoding = true },
+                onIdeas: { tab = .ideas },
                 onSystemFiles: { showSystemFiles = true },
                 onAllChats: { showClassic = true },
                 onSettings: { showNanoMuseSettings = true }
@@ -706,13 +713,22 @@ struct NanoMuseHomeView: View {
         }
     }
 
-    /// Android: the Chat room's ••• menu — this chat's own entries, then the shared rows.
+    /// Android: the Chat room's ••• menu, in the Android build's order: this chat's own entries
+    /// only; Settings and System files are in the drawer, routines in the Goals room.
     private var chatMenu: some View {
-        Menu {
+        let vm = (main.liveId ?? main.chatId).flatMap { ViewModelCache.shared.get(for: $0) }
+        return Menu {
             Button { chatAction(.newChat) } label: { Label(AppLocalized("New Chat"), systemImage: "square.and.pencil") }
             // Android: rename from the room's menu; a chat that has not been sent yet has no row to name.
             if let id = main.chatId, !main.isDraft {
                 Button { rename.open(id) } label: { Label(AppLocalized("Rename chat"), systemImage: "pencil") }
+            }
+            // Read replies aloud: one switch for every chat, as the side chat's menu has it.
+            Toggle(isOn: Binding(get: { voiceOutput.isEnabled }, set: { on in
+                voiceOutput.isEnabled = on
+                if on { vm?.speechPlayerExpanded = true }
+            })) {
+                Label(AppLocalized("Speak Responses"), systemImage: "speaker.wave.2")
             }
             if !NanoMuseAppearance.shared.headerModel {
                 Button { chatAction(.model) } label: { Label(AppLocalized("Model"), systemImage: "cpu") }
@@ -722,13 +738,13 @@ struct NanoMuseHomeView: View {
             Button { chatAction(.terminal) } label: { Label(AppLocalized("Open Terminal"), systemImage: "terminal") }
             Button { chatAction(.browser) } label: { Label(AppLocalized("Open Browser"), systemImage: "safari") }
             Button { chatAction(.files) } label: { Label(AppLocalized("Browse Chat Files"), systemImage: "folder") }
+            Divider()
+            Button { chatAction(.skills) } label: { Label(AppLocalized("Skills in Session"), systemImage: "puzzlepiece.extension") }
+            Button { chatAction(.mcps) } label: { Label(AppLocalized("MCPs in Session"), systemImage: "wrench.and.screwdriver") }
+            if vm?.memoryEnabled ?? true {
+                Button { chatAction(.memories) } label: { Label(AppLocalized("Memories in Session"), systemImage: "brain.head.profile") }
+            }
             Button { chatAction(.tokenUsage) } label: { Label(AppLocalized("Token Usage"), systemImage: "chart.bar") }
-            Divider()
-            Button { showCoding = true } label: { Label(AppLocalized("Coding agents"), systemImage: "chevron.left.forwardslash.chevron.right") }
-            Button { showRoutines = true } label: { Label(AppLocalized("All routines"), systemImage: "clock") }
-            Button { showSystemFiles = true } label: { Label(AppLocalized("System files"), systemImage: "doc.text") }
-            Divider()
-            Button { showNanoMuseSettings = true } label: { Label(AppLocalized("Settings"), systemImage: "gearshape") }
         } label: {
             NanoMuseRoundDisc(symbol: "ellipsis")
         }
@@ -920,7 +936,7 @@ struct NanoMuseBottomBar: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(NanoMuseTab.allCases) { tab in
+            ForEach(NanoMuseTab.bar) { tab in
                 let isSelected = selected == tab
                 Button {
                     onPick(tab)
@@ -1140,9 +1156,9 @@ struct NanoMusePageSheet<Content: View>: View {
 // MARK: - Drawer
 
 /// The side drawer (Android: SideChatDrawer): the agent's name, the main
-/// chat, Devices and Coding agents, the side chats with the archive glyph
-/// to the full list, and a bottom strip — settings · system files · search
-/// · new side chat.
+/// chat, Ideas, the side chats with the archive glyph to the full list, and
+/// a bottom strip: settings · system files · search · new side chat. As in
+/// the Android build, Devices and Coding agents have no row here.
 struct NanoMuseDrawer: View {
     @Binding var isOpen: Bool
     var agentName: String
@@ -1152,13 +1168,12 @@ struct NanoMuseDrawer: View {
     var onOpenSession: (String) -> Void
     var onNewChat: () -> Void
     var onPinMain: (String) -> Void
-    var onDevices: () -> Void
-    var onCoding: () -> Void
+    /// Ideas, out of the bar since Mosaic took its place there.
+    var onIdeas: () -> Void
     var onSystemFiles: () -> Void
     var onAllChats: () -> Void
     var onSettings: () -> Void
 
-    @ObservedObject private var hub = NanoMuseHub.shared
     @ObservedObject private var sync = NanoMuseSync.shared
     @StateObject private var rename = NanoMuseRenamePrompt()
     @State private var sessions: [ChatSession] = []
@@ -1219,19 +1234,6 @@ struct NanoMuseDrawer: View {
 
     private var mainSelected: Bool { currentId == nil || currentId == mainId }
 
-    /// Android: "Off" when the hub is off, "Only this one" when no other device is online, else the count.
-    private var devicesLine: String {
-        if !hub.enabled { return AppLocalized("Off") }
-        let online = hub.others.filter(\.online).count
-        if online == 0 { return AppLocalized("Only this one") }
-        return String(format: AppLocalized("%d devices"), online)
-    }
-
-    /// Computers online whose runtime can show and steer coding agents (Cursor, Codex, Claude Code).
-    private var codingComputers: Int {
-        hub.others.filter { $0.online && $0.isComputer && ($0.actions.isEmpty || $0.actions.contains("coding.sessions")) }.count
-    }
-
     private func panel(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(agentName)
@@ -1245,16 +1247,9 @@ struct NanoMuseDrawer: View {
                 close()
                 onOpenMain()
             }
-            fixedRow(AppLocalized("Devices"), symbol: "laptopcomputer.and.iphone", value: devicesLine) {
+            fixedRow(AppLocalized("Ideas"), symbol: "lightbulb") {
                 close()
-                onDevices()
-            }
-            // Android: the row shows once a computer that can list coding agents is online, with their count.
-            if codingComputers > 0 {
-                fixedRow(AppLocalized("Coding agents"), symbol: "terminal", value: "\(codingComputers)") {
-                    close()
-                    onCoding()
-                }
+                onIdeas()
             }
 
             HStack {

@@ -48,6 +48,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 ### iOS, local Nicholasx build
 
 - Brought the Coach tab to the iPhone as it is on Android: the Feed tab became Coach, with the ability in training and today's recall at the top, today's training cards with their questions, answers, reviews and difficulty feedback, the training calendar and the training settings in the header, the abilities sheet with course building, and a reason on the page when *Write them now* writes no card. The preset skills, courses, memory files and steering sentence install once on first launch, as on Android ([ios-local-port.md](docs/ios-local-port.md)).
+- Matched the iPhone's shell to the Android build: Ideas moved from the bar into the drawer, which lost its Devices and Coding agents rows; new chats start Ungrouped with automatic grouping off by default; the main chat's ••• menu follows Android's order and gained Speak Responses and the session's skills, MCP servers and memories; Settings dropped nanoMuse Cloud, Computers, Coding agents, Data controls, the privacy, feedback and version rows and the release check; and the first run offers only *Add your own model provider* or *Skip for now*, and does not come back for a missing provider once passed.
 
 ### Cloud
 

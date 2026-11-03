@@ -146,7 +146,7 @@ struct MinisApp: App {
         // into a group the user already created, only when the model is
         // confident, only once per chat, and never over a hand-filed session
         // (setFolderIfUnfiled). Android defaults ON to match.
-        UserDefaults.standard.register(defaults: ["autoGroupingEnabled": true])
+        UserDefaults.standard.register(defaults: ["autoGroupingEnabled": false]) // nanoMuse: off by default, as in the Android build: new chats start Ungrouped
         // [T-voice-input-mode-preference-ios] Pin the lazy static to the real
         // launch instant.
         _ = Self.processLaunchedAt

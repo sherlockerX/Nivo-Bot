@@ -1917,6 +1917,9 @@ struct AIChatView: View {
         case .browser: showBrowserSheet = true // nanoMuse:
         case .files: showFileBrowser = true // nanoMuse:
         case .tokenUsage: showTokenUsage = true // nanoMuse:
+        case .skills: showSessionSkills = true // nanoMuse:
+        case .mcps: showSessionMCPs = true // nanoMuse:
+        case .memories: showSessionMemory = true // nanoMuse:
         } // nanoMuse:
     } // nanoMuse:
 

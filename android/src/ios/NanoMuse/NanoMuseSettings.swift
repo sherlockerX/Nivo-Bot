@@ -18,10 +18,10 @@ struct NanoMuseSettingsHomeView: View {
     var onAllSettings: (() -> Void)? = nil
 
     @ObservedObject private var store = ProviderConfigStore.shared
-    @ObservedObject private var hub = NanoMuseHub.shared
-    @ObservedObject private var updates = NanoMuseUpdateCheck.shared // C2: the installed build and the latest release
-    @Environment(\.openURL) private var openURL
 
+    // The rows follow the Android build: no nanoMuse Cloud, Computers, Coding agents or Data
+    // controls (the personal build has no account and no hub), and About without the links or
+    // the release check. iCloud Sync stays, the iPhone's own.
     var body: some View {
         NanoMusePage(title: AppLocalized("Settings")) {
             modelCard
@@ -36,7 +36,6 @@ struct NanoMuseSettingsHomeView: View {
                 NanoMuseCaption(text: AppLocalized("Providers, model groups, skills, appearance and the rest of the OpenMinis settings."))
             }
         }
-        .onAppear { updates.checkIfStale() }
     }
 
     // MARK: Card 1 — the model
@@ -76,8 +75,6 @@ struct NanoMuseSettingsHomeView: View {
             }
             .buttonStyle(.plain)
             NanoMuseRowDivider()
-            NanoMuseLinkRow(title: NanoMuseCloud.label, value: cloudLine) { NanoMuseCloudView() }
-            NanoMuseRowDivider()
             NanoMuseLinkRow(title: AppLocalized("Manage Providers")) { ProviderInstancesView() }
             NanoMuseRowDivider()
             NanoMuseLinkRow(title: AppLocalized("Image & video models")) { NanoMuseMediaModelsView() }
@@ -86,18 +83,7 @@ struct NanoMuseSettingsHomeView: View {
         }
     }
 
-    /// Android: "Sign in" until signed in; then what is left of the allowance (in yuan on a relay that
-    /// prices in money, the account page's headline figure; tokens on an older relay), or who is
-    /// signed in when there is no ceiling.
-    private var cloudLine: String {
-        _ = store.instances
-        guard NanoMuseCloud.isSignedIn, let account = NanoMuseCloud.account else { return AppLocalized("Sign in") }
-        return account.leftLine ?? account.hint
-    }
-
     // MARK: Card 2 — the agent
-
-    private var computers: Int { hub.others.filter(\.isComputer).count }
 
     private var agentCard: some View {
         NanoMuseCard {
@@ -120,10 +106,6 @@ struct NanoMuseSettingsHomeView: View {
                 NanoMuseRowDivider()
                 // Android's Hands row; on iPhone the page explains why the switch is not here.
                 NanoMuseLinkRow(title: AppLocalized("Hands"), value: AppLocalized("Not on iPhone")) { NanoMuseHandsView() }
-                NanoMuseRowDivider()
-                NanoMuseLinkRow(title: AppLocalized("Computers"), value: computers == 0 ? AppLocalized("None") : "\(computers)") { NanoMuseComputersView() }
-                NanoMuseRowDivider()
-                NanoMuseLinkRow(title: AppLocalized("Coding agents")) { NanoMuseCodingView() }
                 NanoMuseRowDivider()
                 NanoMuseLinkRow(title: AppLocalized("Environment Variables")) { EnvironmentVariablesView() }
             }
@@ -163,8 +145,6 @@ struct NanoMuseSettingsHomeView: View {
         NanoMuseCard {
             NanoMuseLinkRow(title: AppLocalized("Appearance")) { NanoMuseAppearanceView() }
             NanoMuseRowDivider()
-            NanoMuseLinkRow(title: AppLocalized("Data controls")) { NanoMuseDataControlsView() }
-            NanoMuseRowDivider()
             NanoMuseLinkRow(title: AppLocalized("Network")) { NanoMuseNetworkView() }
             NanoMuseRowDivider()
             NanoMuseLinkRow(title: AppLocalized("Logs")) { LogManagementView() }
@@ -176,39 +156,6 @@ struct NanoMuseSettingsHomeView: View {
     private var aboutCard: some View {
         NanoMuseCard {
             NanoMuseLinkRow(title: AppLocalized("About nanoMuse")) { AboutView() }
-            NanoMuseRowDivider()
-            NanoMuseActionRow(title: AppLocalized("Privacy Policy")) {
-                openURL(NanoMuseLinks.privacy)
-            }
-            NanoMuseRowDivider()
-            NanoMuseActionRow(title: AppLocalized("Feedback")) {
-                openURL(NanoMuseLinks.newIssue())
-            }
-            NanoMuseRowDivider()
-            // C2: the installed build and the latest release (NanoMuseUpdateCheck); "Update" when a newer one is out.
-            NanoMuseActionRow(
-                title: AppLocalized("Version"),
-                value: updates.installedLine,
-                titleColor: .primary,
-                chevron: false
-            ) {
-                if updates.latestIsNewer { openURL(updates.releasePage) } else { Task { @MainActor in await updates.checkNow() } }
-            }
-            HStack(spacing: 8) {
-                Text(updates.latestLine)
-                    .font(.footnote)
-                    .foregroundStyle(updates.latestIsNewer ? NanoMuseTones.action : Color.secondary)
-                    .lineLimit(2)
-                Spacer(minLength: 8)
-                if updates.latestIsNewer {
-                    Button(AppLocalized("Update")) { openURL(updates.releasePage) }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(NanoMuseTones.action)
-                        .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
         }
     }
 }

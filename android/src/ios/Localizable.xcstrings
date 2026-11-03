@@ -1739,6 +1739,23 @@
         }
       }
     },
+    "A message the agent sends itself at a set time: the training cards every morning, anything you schedule." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A message the agent sends itself at a set time: the training cards every morning, anything you schedule."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "智能体在设定的时间发给自己的消息：每天早上的训练卡，以及你安排的任何事。"
+          }
+        }
+      }
+    },
     "Abilities" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1888,6 +1905,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加能力"
+          }
+        }
+      }
+    },
+    "Add your own model provider" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add your own model provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加自己的模型服务商"
           }
         }
       }
@@ -2143,6 +2177,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "忘了"
+          }
+        }
+      }
+    },
+    "Goals and a coach" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goals and a coach"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目标和教练"
           }
         }
       }
@@ -2432,6 +2483,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "现实行动"
+          }
+        }
+      }
+    },
+    "It checks in on what you are working towards and writes your training cards every day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It checks in on what you are working towards and writes your training cards every day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跟进你正在努力的目标，每天为你写训练卡"
           }
         }
       }
@@ -19038,6 +19106,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已完成 %lld"
+          }
+        }
+      }
+    },
+    "Your personal agent: it grows with you and works with you." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your personal agent: it grows with you and works with you."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的贴身智能体，陪你成长，和你一起做事。"
           }
         }
       }

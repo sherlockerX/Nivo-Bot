@@ -3,10 +3,11 @@
 //  nanoMuse
 //
 //  The first run, the way Android does it (ui/onboarding/FirstRunSetup.kt):
-//  Welcome (the account) → Password (only after a sign-in that created the
-//  account) → Which model answers → Notifications → Meet <name>. Android's
-//  Hands page does not exist on iPhone (no accessibility service to grant);
-//  the phone page asks for notifications instead, which routines need.
+//  Welcome (a provider of one's own, or skip) → Choose models → Notifications
+//  → Meet <name>. The personal build has no account, so the Password and
+//  Which model answers pages show only on a phone signed in from before.
+//  Android's Hands page does not exist on iPhone (no accessibility service to
+//  grant); the phone page asks for notifications instead, which routines need.
 //
 //  Then the first conversation (onboarding/FirstConversation.kt): no form.
 //  The app speaks first (scripted, zero tokens), asks what to call the
@@ -83,7 +84,6 @@ struct NanoMuseFirstRunView: View {
     @State private var sourceChosen = NanoMuseFirstRun.sourceChosen
     @State private var notificationsSeen = NanoMuseFirstRun.notificationsSeen
     @State private var passwordAnswered = false
-    @State private var showSignIn = false
     @State private var showOwnKey = false
     @State private var showGroups = false
     @State private var agentName = SoulStore.cachedMetadata.name
@@ -141,12 +141,6 @@ struct NanoMuseFirstRunView: View {
             .animation(.easeInOut(duration: 0.26), value: stage)
         }
         .background(NanoMuseTones.surface.ignoresSafeArea())
-        .sheet(isPresented: $showSignIn) { NavigationStack { NanoMuseCloudView() } }
-        // Signed in: the sheet has done its job and goes, so the next page (the password, the
-        // source) is in view at once instead of behind the account page.
-        .nmOnChange(of: signedIn) { now in
-            if now, showSignIn { showSignIn = false }
-        }
         .sheet(isPresented: $showOwnKey) { NanoMuseOwnKeySheet { _ in } }
         .sheet(isPresented: $showGroups) { NavigationStack { ModelGroupsView() } }
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
@@ -154,27 +148,23 @@ struct NanoMuseFirstRunView: View {
         }
     }
 
-    // The first page: the app's tile (docs/brand.md: the sign-in page stands for the app, not the
-    // agent), one line on what it is, the notice, and the door, the account, with a way past it
-    // for a key of one's own.
+    // The first page, as in the Android build: the app's tile, one line on what it is, and one
+    // door, a model provider of one's own, with a way past it; no account and no relay notice.
+    // Skip for now ends the setup for good; a provider can be added later under Settings.
     private var welcomePage: some View {
         NanoMuseSetupPage(
             hero: { NanoMuseBrandMark(size: 96) },
             title: AppLocalized("Welcome to nanoMuse"),
-            subtitle: AppLocalized("An open-source personal agent for every device you own."),
-            primaryLabel: AppLocalized("Sign in · free"),
-            onPrimary: { showSignIn = true },
-            secondaryLabel: AppLocalized("Use your own API key instead"),
-            onSecondary: { NanoMuseFirstRun.markSourceChosen(); sourceChosen = true; showOwnKey = true },
-            finePrint: AppLocalized("One account keeps your devices together and carries the free model use; nothing is charged. Your own API key can be added right after."),
-            learnMore: URL(string: "https://github.com/nano-muse/nanoMuse/blob/main/docs/cloud.md")
+            subtitle: AppLocalized("Your personal agent: it grows with you and works with you."),
+            primaryLabel: AppLocalized("Add your own model provider"),
+            onPrimary: { NanoMuseFirstRun.markSourceChosen(); sourceChosen = true; showOwnKey = true },
+            secondaryLabel: AppLocalized("Skip for now"),
+            onSecondary: { NanoMuseFirstRun.markDone(); onStart() },
+            finePrint: AppLocalized("Your key stays on this phone and is sent only to the provider you chose.")
         ) {
             NanoMuseFeatureRow(symbol: "bubble.left.and.bubble.right", title: AppLocalized("Chat, pictures, video"), subtitle: AppLocalized("A capable model, image and video generation, tools, skills and memory, on your phone"))
-            NanoMuseFeatureRow(symbol: "desktopcomputer", title: AppLocalized("Reach: your computers, from here"), subtitle: AppLocalized("Pair a Mac, Windows or Linux machine and give it work from the phone"))
-            // Android's third row is Hands (it uses the phone); the iPhone has no such service, so: goals and the feed.
-            NanoMuseFeatureRow(symbol: "calendar.badge.clock", title: AppLocalized("Goals and a daily feed"), subtitle: AppLocalized("It checks in on what you are working towards and writes you a short post every morning"))
-            NanoMuseNoticeCard(title: AppLocalized("Free, open source, non-profit"), body: AppLocalized("nanoMuse is a non-profit open-source community project, free, forever. The model comes with a free allowance paid by the developer; after that, your own key. Nothing is sold; what the relay keeps is in the privacy policy, and Settings → Data controls is yours."))
-                .padding(.top, 8)
+            // Android's second row is Hands (it uses the phone); the iPhone has no such service, so: goals and the coach.
+            NanoMuseFeatureRow(symbol: "graduationcap", title: AppLocalized("Goals and a coach"), subtitle: AppLocalized("It checks in on what you are working towards and writes your training cards every day"))
         }
     }
 
@@ -298,7 +288,7 @@ struct NanoMuseNotificationsPage: View {
             finePrint: AppLocalized("Everything else works without it. It lives under iOS Settings → nanoMuse whenever you want it."),
             busy: busy
         ) {
-            NanoMuseFeatureRow(symbol: "clock", title: AppLocalized("Routines"), subtitle: AppLocalized("A message the agent sends itself at a set time: the feed every morning, anything you schedule."))
+            NanoMuseFeatureRow(symbol: "clock", title: AppLocalized("Routines"), subtitle: AppLocalized("A message the agent sends itself at a set time: the training cards every morning, anything you schedule."))
             NanoMuseFeatureRow(symbol: "target", title: AppLocalized("Goal check-ins"), subtitle: AppLocalized("It asks how a goal is going, when you said it should."))
         }
         .task { await refresh() }
