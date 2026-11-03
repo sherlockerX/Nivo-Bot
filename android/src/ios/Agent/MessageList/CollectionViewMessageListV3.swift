@@ -469,7 +469,8 @@ private struct BridgedAssistantFooterV3: View {
         let showError = message.error != nil
         let showResume = bridge.canResume && message.error == nil
         let showUsageRow = message.streamInterruptCount > 0 || bridge.showUsage
-        return showTyping || showError || showResume || showUsageRow
+        let nmActions = NanoMuseReplyActions.visible(message, active: bridge.isActiveMessage) // nanoMuse:
+        return showTyping || showError || showResume || showUsageRow || nmActions
     }
 
     var body: some View {
@@ -503,6 +504,8 @@ private struct BridgedAssistantFooterV3: View {
                     Spacer()
                 }
             }
+
+            NanoMuseReplyActions(message: message, active: bridge.isActiveMessage) // nanoMuse: bookmark, copy, read, again, branch, share
         }
         .padding(.horizontal, hasFooterContent ? 16 : 0) // nanoMuse: inside the width cap, so the footer's edges meet the composer's on an iPad (see BridgedAssistantHeaderV3)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1704,6 +1707,15 @@ extension CollectionViewMessageListV3 {
             }
             .store(in: &subscriptions)
 
+            // nanoMuse: a message picked in the conversation anchors (NanoMuseAnchorsSheet).
+            NotificationCenter.default.publisher(for: .nanoMuseJumpToMessage)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] note in
+                    guard let id = note.object as? UUID else { return }
+                    self?.nmScrollToMessage(id)
+                }
+                .store(in: &subscriptions)
+
             // 1. Messages → snapshot
             //    Skip while isLoadingSession — binding 3 handles the post-load apply.
             //    This prevents a redundant apply when $messages and $isLoadingSession
@@ -2627,7 +2639,7 @@ extension CollectionViewMessageListV3 {
                     // persisted tool block, bypassing the saved "Show steps" choice after a
                     // reset/relaunch. Filter the snapshot itself; active turns still show all.
                     let active = message.id == messages.last?.id && vm.isProcessing
-                    for block in NanoMuseSteps.visibleBlocks(
+                    for block in NanoMuseSteps.cellBlocks( // nanoMuse: the hidden steps keep one cell, the fold line
                         message.blocks,
                         active: active,
                         showSteps: showSteps
@@ -2646,6 +2658,7 @@ extension CollectionViewMessageListV3 {
                         || message.error != nil
                         || message.streamInterruptCount > 0
                         || (cellBridges[message.id]?.showUsage == true)
+                        || NanoMuseReplyActions.shows(message) // nanoMuse: every finished reply carries its action row
                     if needsFooter {
                         newItems.append(.assistantFooter(message.id))
                     }
@@ -3782,8 +3795,8 @@ extension CollectionViewMessageListV3 {
                     return CGFloat(20 + lineCount * 16)
                 default: return 36  // Tool capsules (execute, browser, etc.): no wrapper pad
                 }
-            case .assistantFooter:
-                return 4
+            case .assistantFooter(let msgId):
+                return NanoMuseReplyActions.estimatedHeight(messages.first { $0.id == msgId }) // nanoMuse: 4 without the action row
             }
         }
 
@@ -4091,6 +4104,23 @@ extension CollectionViewMessageListV3 {
                     self.syncScrollFlags()
                 }
             }
+        }
+
+        /// nanoMuse: a message picked in the anchors sheet: its row at the top, as the up button
+        /// lands on a question, then the scroll buttons re-synced the same two ways. A list that
+        /// does not hold the message does nothing.
+        func nmScrollToMessage(_ id: UUID) {
+            guard let cv = viewController?.collectionView, let ds = dataSource,
+                  let item = ds.snapshot().itemIdentifiers.first(where: { item in
+                      switch item {
+                      case .wholeMessage(let mid), .assistantHeader(let mid): return mid == id
+                      default: return false
+                      }
+                  }),
+                  let ip = ds.indexPath(for: item) else { return }
+            cv.scrollToItem(at: ip, at: .top, animated: true)
+            DispatchQueue.main.async { [weak self] in self?.syncScrollFlags() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.syncScrollFlags() }
         }
 
         /// Compact dump of the isWithinBottom inputs for ScrollDiag logs.

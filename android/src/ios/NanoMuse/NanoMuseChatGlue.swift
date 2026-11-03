@@ -25,6 +25,8 @@ enum NanoMuseChatAction: String {
     case newChat, model, clearChat, terminal, browser, files, tokenUsage
     /// The session's skills, MCP servers and memories, as in the Android build's chat menu.
     case skills, mcps, memories
+    /// Conversation anchors: the questions, the bookmarks, a search of this chat (NanoMuseAnchorsSheet).
+    case anchors
 
     static func post(_ action: NanoMuseChatAction, session: String) {
         NotificationCenter.default.post(name: .nanoMuseChatAction, object: session, userInfo: ["action": action.rawValue])

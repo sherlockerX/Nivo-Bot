@@ -24,10 +24,16 @@ struct AssistantBlockView: View {
     // nanoMuse: "Show the agent's steps" (Settings → Chat) is off by default — a finished
     // message keeps to the conversation; the steps of the message still running stay visible.
     @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
+    @Environment(\.nmStepsUnfolded) private var nmUnfolded // nanoMuse: the steps sheet shows every block
 
     var body: some View {
-        if NanoMuseSteps.hidden(block.kind, active: isActiveMessage, showSteps: showSteps) {
-            EmptyView()
+        if !nmUnfolded, NanoMuseSteps.hidden(block.kind, active: isActiveMessage, showSteps: showSteps) {
+            // nanoMuse: the first hidden block stands for all of them as the fold line (NanoMuseStepsFold).
+            if NanoMuseSteps.foldAnchor(message.blocks, active: isActiveMessage, showSteps: showSteps) == block.id {
+                NanoMuseStepsFold(message: message)
+            } else {
+                EmptyView()
+            }
         } else {
             kindView
         }

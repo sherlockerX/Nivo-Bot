@@ -4,6 +4,23 @@
     "" : {
 
     },
+    "%@ (branch)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (branch)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（分支）"
+          }
+        }
+      }
+    },
     "%@ cannot be reached from this network" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1926,6 +1943,23 @@
         }
       }
     },
+    "Add bookmark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add bookmark"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加书签"
+          }
+        }
+      }
+    },
     "Add your own model provider" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1973,6 +2007,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部技能（已安装 %d 个）"
+          }
+        }
+      }
+    },
+    "Answer again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answer again"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新回答"
+          }
+        }
+      }
+    },
+    "Bookmarks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bookmarks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书签"
+          }
+        }
+      }
+    },
+    "Branch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Branch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分支对话"
+          }
+        }
+      }
+    },
+    "Branch from here" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Branch from here"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从这里分支"
           }
         }
       }
@@ -2058,6 +2160,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "教练"
+          }
+        }
+      }
+    },
+    "Conversation anchors" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversation anchors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对话锚点"
+          }
+        }
+      }
+    },
+    "Could not make the branch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not make the branch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没能创建分支"
+          }
+        }
+      }
+    },
+    "Could not make the image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not make the image"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片生成失败"
           }
         }
       }
@@ -2194,6 +2347,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有能力都已达到目标，可以添加新能力或提高目标。"
+          }
+        }
+      }
+    },
+    "First step" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First step"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一步"
           }
         }
       }
@@ -2623,6 +2793,23 @@
         }
       }
     },
+    "Latest step" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latest step"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新一步"
+          }
+        }
+      }
+    },
     "Let's talk about this one from my Coach page:\n\n**%@**\n\n%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2912,6 +3099,23 @@
         }
       }
     },
+    "No matching messages" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching messages"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的消息"
+          }
+        }
+      }
+    },
     "No training cards on this day." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3150,6 +3354,23 @@
         }
       }
     },
+    "On, every step stays in the chat. Off, a finished reply folds its thinking and tools into one line that opens them in a sheet; a reply still running shows its steps either way. This device only." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On, every step stays in the chat. Off, a finished reply folds its thinking and tools into one line that opens them in a sheet; a reply still running shows its steps either way. This device only."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开时，每一步都留在对话里。关闭时，已完成的回复把思考和工具收成一行，点开在单独的面板里查看；正在进行的回复照常显示步骤。只对这台设备生效。"
+          }
+        }
+      }
+    },
     "One ability is trained at a time, in this order. Each day brings a theory card and a scenario, and a real-life task once the last one is reported. 6 reviewed answers to scenarios and real-life tasks at the current level, averaging 3 of 4 or better over 4 days, unlock a level check; 3 or more on it raises the level. Theory cards are reviewed and recalled but do not count. An ability you moved on from gets a review card now and then and drops a level if its reviews fall." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3269,6 +3490,40 @@
         }
       }
     },
+    "Questions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问题目录"
+          }
+        }
+      }
+    },
+    "Read aloud" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read aloud"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "朗读"
+          }
+        }
+      }
+    },
     "Read when the cards are written. Mounted folders are named to the agent, and it opens a note there when a card needs one." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3316,6 +3571,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "记得"
+          }
+        }
+      }
+    },
+    "Remove bookmark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove bookmark"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消书签"
           }
         }
       }
@@ -3447,6 +3719,23 @@
         }
       }
     },
+    "Search this conversation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search this conversation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索当前对话"
+          }
+        }
+      }
+    },
     "Select chats" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3460,6 +3749,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "多选对话"
+          }
+        }
+      }
+    },
+    "Share as image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share as image"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享为图片"
+          }
+        }
+      }
+    },
+    "Share as text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share as text"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享文字"
           }
         }
       }
@@ -3545,6 +3868,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "决定训练卡的取材和侧重。这里只出训练卡；想每天收到的论文、新闻和资讯，请放进定时任务。"
+          }
+        }
+      }
+    },
+    "Stop reading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop reading"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止朗读"
           }
         }
       }
@@ -3647,6 +3987,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每天 %@ 自动写，也可以现在就写。"
+          }
+        }
+      }
+    },
+    "Thinking and execution (%d tools)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking and execution (%d tools)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考与执行过程（%d 个工具）"
           }
         }
       }
@@ -3800,6 +4157,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "训练设置"
+          }
+        }
+      }
+    },
+    "Turn time %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn time %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本轮用时 %@"
           }
         }
       }
@@ -6400,6 +6774,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在写今天的训练卡…"
+          }
+        }
+      }
+    },
+    "Written by AI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Written by AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内容由 AI 生成"
+          }
+        }
+      }
+    },
+    "You" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的提问"
           }
         }
       }

@@ -1920,6 +1920,7 @@ struct AIChatView: View {
         case .skills: showSessionSkills = true // nanoMuse:
         case .mcps: showSessionMCPs = true // nanoMuse:
         case .memories: showSessionMemory = true // nanoMuse:
+        case .anchors: break // nanoMuse: NanoMuseChatHooks opens the anchors sheet itself
         } // nanoMuse:
     } // nanoMuse:
 

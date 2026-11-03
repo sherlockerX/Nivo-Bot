@@ -326,12 +326,18 @@ struct NanoMuseChatHooks: ViewModifier {
     /// button's path), for a voice prompt the Action Button asked for.
     let voice: VoiceInputViewModel
     let enterVoice: () -> Void
+    /// A reply's steps, the anchors, a reply shared: asked for by the cells and the menu (NanoMuseChatSheets).
+    @ObservedObject private var sheets = NanoMuseChatSheets.shared
 
     func body(content: Content) -> some View {
         content
             .onReceive(NotificationCenter.default.publisher(for: .nanoMuseChatAction)) { note in
                 guard let action = NanoMuseChatAction.from(note, for: vm.nmSessionKey) else { return }
-                perform(action)
+                if action == .anchors {
+                    sheets.open(.anchors, session: vm.nmSessionKey)
+                } else {
+                    perform(action)
+                }
             }
             .onReceive(NanoMuseVoicePrompt.shared.$pending) { _ in
                 // A request for this chat, or for the chat that is open when the Muse shell is
@@ -345,8 +351,13 @@ struct NanoMuseChatHooks: ViewModifier {
                 // a message went out (any path: the pill, a card's pick, a flow) or a turn ended —
                 // the composer must be there a second later
                 if !readOnly { composer.expect(running ? "a message went out" : "the turn ended") }
+                // the turn's time, shown over the reply's actions (NanoMuseReplyActions)
+                if running { NanoMuseTurnTimes.began(vm) } else { NanoMuseTurnTimes.ended(vm) }
             }
             .onReceive(NanoMusePresence.shared.$revision) { _ in vm.nmApplyPresence() }
             .onReceive(vm.$messages) { _ in vm.nmApplyPresence() }
+            .sheet(item: sheets.binding(for: vm)) { request in
+                NanoMuseChatSheetContent(request: request, vm: vm)
+            }
     }
 }
