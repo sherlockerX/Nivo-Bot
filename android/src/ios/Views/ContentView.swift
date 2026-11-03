@@ -8072,3 +8072,14 @@ private struct ForceSyncToastBanner: View {
     }
 }
 
+// nanoMuse: the drawer's Export writes a chat with the session list's own JSON and plain-text writers.
+extension ContentView {
+    static func nmExport(_ sessions: [ChatSession], json: Bool, to url: URL) async throws {
+        if json {
+            _ = try await streamExportAsJSON(sessions, to: url, progress: { _, _ in })
+        } else {
+            _ = try await streamExportAsPlainText(sessions, to: url, progress: { _, _ in })
+        }
+    }
+}
+

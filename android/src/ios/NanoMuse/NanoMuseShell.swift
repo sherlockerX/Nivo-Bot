@@ -1156,9 +1156,10 @@ struct NanoMusePageSheet<Content: View>: View {
 // MARK: - Drawer
 
 /// The side drawer (Android: SideChatDrawer): the agent's name, the main
-/// chat, Ideas, the side chats with the archive glyph to the full list, and
-/// a bottom strip: settings · system files · search · new side chat. As in
-/// the Android build, Devices and Coding agents have no row here.
+/// chat, Ideas, the side chats under a header of search · new group · all
+/// chats · select (NanoMuseDrawerSessions), and a bottom strip: settings ·
+/// system files · new side chat. As in the Android build, Devices and Coding
+/// agents have no row here.
 struct NanoMuseDrawer: View {
     @Binding var isOpen: Bool
     var agentName: String
@@ -1175,11 +1176,12 @@ struct NanoMuseDrawer: View {
     var onSettings: () -> Void
 
     @ObservedObject private var sync = NanoMuseSync.shared
-    @StateObject private var rename = NanoMuseRenamePrompt()
     @State private var sessions: [ChatSession] = []
     @State private var query = ""
+    @State private var searching = false
+    @State private var selecting = false
+    @State private var creatingGroup = false
     @State private var dragOffset: CGFloat = 0
-    @State private var deleteCandidate: String?
     /// Reduce Motion on: the panel fades in instead of sliding in from the edge.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The agent's name follows Dynamic Type, capped as the header's lines are (NanoMuseHeaderMetrics).
@@ -1252,99 +1254,53 @@ struct NanoMuseDrawer: View {
                 onIdeas()
             }
 
-            HStack {
-                Text(AppLocalized("Side chats"))
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
+            // Android: "Side chats" (the search field while searching), then search, a new group,
+            // all chats and selecting several.
+            HStack(spacing: 0) {
+                if searching {
+                    TextField(AppLocalized("Search"), text: $query)
+                        .font(.subheadline)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } else {
+                    Text(AppLocalized("Side chats"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                headerButton(symbol: "magnifyingglass", label: AppLocalized("Search")) {
+                    searching.toggle()
+                    if !searching { query = "" }
+                }
+                headerButton(symbol: "folder.badge.plus", label: AppLocalized("New Group")) { creatingGroup = true }
+                headerButton(symbol: "archivebox", label: AppLocalized("All chats")) {
                     close()
                     onAllChats()
-                } label: {
-                    Image(systemName: "archivebox")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(AppLocalized("All chats")))
+                headerButton(symbol: "checklist", label: AppLocalized("Select chats")) { selecting = true }
             }
             .padding(.leading, 20)
-            .padding(.trailing, 10)
+            .padding(.trailing, 6)
             .padding(.top, 14)
 
-            if filtered.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.secondary)
-                    Text(AppLocalized("Start a side chat"))
-                        .font(.body.weight(.medium))
-                    Text(AppLocalized("Side chats are an optional way to keep conversations organised by topic."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                Spacer(minLength: 0)
-            } else {
-                List {
-                    ForEach(filtered) { session in
-                        Button {
-                            close()
-                            onOpenSession(session.id)
-                        } label: {
-                            row(session)
-                        }
-                        .listRowBackground(session.id == currentId ? NanoMuseTones.fill : Color.clear)
-                        .contextMenu {
-                            Button {
-                                close()
-                                onPinMain(session.id)
-                            } label: {
-                                Label(AppLocalized("Make this the main chat"), systemImage: "house")
-                            }
-                            Button {
-                                rename.open(session.id)
-                            } label: {
-                                Label(AppLocalized("Rename chat"), systemImage: "pencil")
-                            }
-                            Divider()
-                            Button(role: .destructive) {
-                                deleteCandidate = session.id
-                            } label: {
-                                Label(AppLocalized("Delete chat"), systemImage: "trash")
-                            }
-                        } preview: {
-                            // The default preview lifts the List cell, which the system lays out
-                            // wider than the drawer; the drawer then clips it at its edge and the
-                            // chat shows through. An explicit preview does not: the system sets it
-                            // 16 pt in from the edge, so it is the panel's width less 16 pt each side.
-                            row(session)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                .frame(width: width - 32, alignment: .leading)
-                                .background(NanoMuseTones.surface)
-                        }
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .nmRenameAlert(rename)
-                .alert(AppLocalized("Delete chat"), isPresented: Binding(get: { deleteCandidate != nil }, set: { if !$0 { deleteCandidate = nil } })) {
-                    Button(AppLocalized("Cancel"), role: .cancel) {}
-                    Button(AppLocalized("Delete"), role: .destructive) {
-                        if let id = deleteCandidate {
-                            NanoMuseChatDelete.delete(id)
-                            sessions.removeAll { $0.id == id }
-                        }
-                        deleteCandidate = nil
-                    }
-                } message: {
-                    Text(AppLocalized("The chat and its messages are removed from this device. With sync on, the other devices remove it too."))
-                }
-            }
+            NanoMuseDrawerSessions(
+                sessions: filtered,
+                query: query.trimmingCharacters(in: .whitespacesAndNewlines),
+                currentId: currentId,
+                width: width,
+                selecting: $selecting,
+                creatingGroup: $creatingGroup,
+                onOpen: { id in
+                    close()
+                    onOpenSession(id)
+                },
+                onPinMain: { id in
+                    close()
+                    onPinMain(id)
+                },
+                onChanged: { refresh() }
+            )
+            .frame(maxHeight: .infinity)
 
             Divider()
             HStack(spacing: 4) {
@@ -1356,18 +1312,7 @@ struct NanoMuseDrawer: View {
                     close()
                     onSystemFiles()
                 }
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                    TextField(AppLocalized("Search"), text: $query)
-                        .font(.subheadline)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(NanoMuseTones.fill, in: Capsule())
+                Spacer(minLength: 0)
                 stripButton(symbol: "square.and.pencil", label: AppLocalized("New side chat")) {
                     close()
                     onNewChat()
@@ -1377,6 +1322,18 @@ struct NanoMuseDrawer: View {
             .padding(.vertical, 8)
         }
         .background(NanoMuseTones.surface.ignoresSafeArea())
+    }
+
+    private func headerButton(symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 34, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(label))
     }
 
     private func fixedRow(_ title: String, symbol: String, value: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
@@ -1414,30 +1371,6 @@ struct NanoMuseDrawer: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text(label))
-    }
-
-    private func row(_ session: ChatSession) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text((session.title?.isEmpty == false ? session.title : nil) ?? AppLocalized("New chat"))
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                // C8: a chat that arrived through sync is an ordinary chat in this list; the
-                // device shows under each of its bubbles ("From Pixel 8"), not here.
-                if let last = session.lastMessage, !last.isEmpty {
-                    Text(last)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-            Text(Self.when(session.updatedAt))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-        .contentShape(Rectangle())
     }
 
     private func close() {

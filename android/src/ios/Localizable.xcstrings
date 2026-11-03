@@ -1055,6 +1055,23 @@
         }
       }
     },
+    "%d selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d selected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已选 %d 项"
+          }
+        }
+      }
+    },
     "%d thinking rules" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2092,6 +2109,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每日记忆（近 7 天）"
+          }
+        }
+      }
+    },
+    "Delete %d conversations?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete %d conversations?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除这 %d 条对话？"
           }
         }
       }
@@ -3413,6 +3447,23 @@
         }
       }
     },
+    "Select chats" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select chats"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多选对话"
+          }
+        }
+      }
+    },
     "Show the answer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3749,6 +3800,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "训练设置"
+          }
+        }
+      }
+    },
+    "Ungrouped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ungrouped"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未分组"
           }
         }
       }
