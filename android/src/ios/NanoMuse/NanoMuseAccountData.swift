@@ -340,6 +340,8 @@ final class NanoMuseAccountData {
 
     private func reloadStores() {
         NanoMuseFeedStore.shared.reload()
+        NanoMuseGrowthStore.shared.reload()
+        NanoMuseFeedStatus.shared.failure = nil
         NanoMuseGoalStore.shared.reload()
         NanoMuseFaceStore.shared.reload()
         NanoMuseOwnClip.shared.rescan()

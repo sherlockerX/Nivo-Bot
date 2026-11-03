@@ -41,7 +41,7 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .chat: return AppLocalized("tab.chat") // its own key: 聊天 as on Android, not upstream's 闲聊
-        case .feed: return AppLocalized("Feed")
+        case .feed: return AppLocalized("Coach")
         case .ideas: return AppLocalized("Ideas")
         case .goals: return AppLocalized("Goals")
         case .library: return AppLocalized("Library")
@@ -51,7 +51,7 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .chat: return "bubble.left"
-        case .feed: return "doc.text"
+        case .feed: return "graduationcap"
         case .ideas: return "lightbulb"
         case .goals: return "checkmark.square"
         case .library: return "square.grid.2x2"
@@ -61,7 +61,7 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
     var selectedSymbol: String {
         switch self {
         case .chat: return "bubble.left.fill"
-        case .feed: return "doc.text.fill"
+        case .feed: return "graduationcap.fill"
         case .ideas: return "lightbulb.fill"
         case .goals: return "checkmark.square.fill"
         case .library: return "square.grid.2x2.fill"
@@ -752,7 +752,7 @@ struct NanoMuseHomeView: View {
             NanoMuseFeedRoom(
                 chrome: chrome,
                 onDiscuss: { post in discussPost(post) },
-                onOpenSession: { id in openSideChat(id) }
+                onChat: { title, opener in startSideChat(title: title, opener: opener) }
             )
         case .ideas:
             NanoMuseIdeasRoom(
@@ -800,15 +800,20 @@ struct NanoMuseHomeView: View {
         editingRoutine = routine
     }
 
-    /// "Discuss" on a feed card: a side chat that opens on the post.
+    /// "Discuss" on a Coach card: a side chat that opens on the weekly report; on a training card, with the answer and its review.
     private func discussPost(_ post: NanoMusePost) {
+        startSideChat(title: post.title, opener: NanoMuseFeedFlow.discussOpener(post))
+    }
+
+    /// A side chat that opens with this first message (a card talked through, an ability's course built).
+    private func startSideChat(title: String, opener: String) {
         Task { @MainActor in
             let vm = ViewModelCache.shared.createDraft()
             let id = await vm.ensureSessionReturningId()
-            await ChatStore.shared.updateSessionTitle(id, title: String(post.title.prefix(40)))
+            await ChatStore.shared.updateSessionTitle(id, title: String(title.prefix(40)))
             ViewModelCache.shared.cacheDraft(vm, sessionId: id)
             openSideChat(id)
-            vm.nmSendNow(NanoMuseFeedFlow.discussOpener(post))
+            vm.nmSendNow(opener)
         }
     }
 

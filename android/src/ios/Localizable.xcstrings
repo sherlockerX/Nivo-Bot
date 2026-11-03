@@ -122,6 +122,23 @@
         }
       }
     },
+    "%@ has reached %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has reached %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」已达到%2$@。"
+          }
+        }
+      }
+    },
     "%@ is out. Tap to update" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -604,6 +621,142 @@
         }
       }
     },
+    "%d answers, %d reviewed · %d to recall, %d due today · %d principles · %d observations" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d answers, %d reviewed · %d to recall, %d due today · %d principles · %d observations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答 %1$d 次，已点评 %2$d 次 · 回忆 %3$d 条，今天到期 %4$d 条 · 原则 %5$d 条 · 观察 %6$d 条"
+          }
+        }
+      }
+    },
+    "%d book cards · framework %d characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d book cards · framework %d characters"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拆书卡 %1$d 张 · 我的框架 %2$d 字"
+          }
+        }
+      }
+    },
+    "%d card from an earlier day still waits for your answer. Open the calendar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d card from an earlier day still waits for your answer. Open the calendar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "往日还有 %d 张卡没答，在日历里查看"
+          }
+        }
+      }
+    },
+    "%d card, %d answered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d card, %d answered"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d 张卡，已答 %2$d 张"
+          }
+        }
+      }
+    },
+    "%d cards from earlier days still wait for your answer. Open the calendar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d cards from earlier days still wait for your answer. Open the calendar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "往日还有 %d 张卡没答，在日历里查看"
+          }
+        }
+      }
+    },
+    "%d cards, %d answered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d cards, %d answered"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d 张卡，已答 %2$d 张"
+          }
+        }
+      }
+    },
+    "%d characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d characters"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 字"
+          }
+        }
+      }
+    },
+    "%d days in a row" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d days in a row"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连续 %d 天"
+          }
+        }
+      }
+    },
     "%d h %d min" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -788,6 +941,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%d 分鐘"
+          }
+        }
+      }
+    },
+    "%d of %d toward the next level, average %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d of %d toward the next level, average %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级进度 %1$d/%2$d，平均 %3$@ 分"
+          }
+        }
+      }
+    },
+    "%d of 4" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d of 4"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d/4 分"
+          }
+        }
+      }
+    },
+    "%d of 7 days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d of 7 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 天里有 %d 天"
           }
         }
       }
@@ -1535,6 +1739,1536 @@
         }
       }
     },
+    "Abilities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abilities"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能力与成长"
+          }
+        }
+      }
+    },
+    "Abilities and their skills" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abilities and their skills"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能力与训练技能"
+          }
+        }
+      }
+    },
+    "Ability: %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ability: %@ · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能力：%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "About right" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About right"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合适"
+          }
+        }
+      }
+    },
+    "About you (USER.md)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About you (USER.md)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于你（USER.md）"
+          }
+        }
+      }
+    },
+    "Active goals" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active goals"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进行中的目标"
+          }
+        }
+      }
+    },
+    "Add a model first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a model first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先添加一个模型。"
+          }
+        }
+      }
+    },
+    "add a model first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "add a model first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先添加一个模型。"
+          }
+        }
+      }
+    },
+    "Add an ability" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add an ability"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加能力"
+          }
+        }
+      }
+    },
+    "Added to Coach" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added to Coach"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入教练页"
+          }
+        }
+      }
+    },
+    "All skills, %d installed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All skills, %d installed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部技能（已安装 %d 个）"
+          }
+        }
+      }
+    },
+    "Build the course" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build the course"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建课"
+          }
+        }
+      }
+    },
+    "Build the course for “%@” on my Coach page, following the course framework at /var/minis/skills/growth-course-builder/SKILL.md. What I want to be able to do: %@\n\nCourse folder: %@. Skill name: %@. If a course is already there, this is a rebuild.\n\nMy growth record: %@\n\nAsk me two or three questions first, and send me the book list to confirm before you write the book cards." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build the course for “%@” on my Coach page, following the course framework at /var/minis/skills/growth-course-builder/SKILL.md. What I want to be able to do: %@\n\nCourse folder: %@. Skill name: %@. If a course is already there, this is a rebuild.\n\nMy growth record: %@\n\nAsk me two or three questions first, and send me the book list to confirm before you write the book cards."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请按建课框架 /var/minis/skills/growth-course-builder/SKILL.md 为教练页的「%1$@」建课。我想做到：%2$@\n\n课程文件夹：%3$@，技能名：%4$@。文件夹里已经有课程时就是重建。\n\n我的成长记录：%5$@\n\n先问我两三个问题，书单发给我确认之后再拆书。"
+          }
+        }
+      }
+    },
+    "Build the course with AI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build the course with AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和 AI 建课"
+          }
+        }
+      }
+    },
+    "Cards are kept for %d days." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cards are kept for %d days."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "训练卡保留 %d 天。"
+          }
+        }
+      }
+    },
+    "Coach" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coach"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "教练"
+          }
+        }
+      }
+    },
+    "Course adjustments" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Course adjustments"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "课程调整记录"
+          }
+        }
+      }
+    },
+    "Course: %d book cards" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Course: %d book cards"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "课程：拆书卡 %d 张"
+          }
+        }
+      }
+    },
+    "Daily memory, last 7 days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily memory, last 7 days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日记忆（近 7 天）"
+          }
+        }
+      }
+    },
+    "Do it first, then come back: what you did, how the other side reacted, what came of it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do it first, then come back: what you did, how the other side reacted, what came of it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "做完再回来写：做了什么，对方什么反应，结果如何。"
+          }
+        }
+      }
+    },
+    "Each ability is trained by a skill: its books, its units level by level, how its cards are made and its rubric. Tap one to read or edit it; a change counts from the next card." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each ability is trained by a skill: its books, its units level by level, how its cards are made and its rubric. Tap one to read or edit it; a change counts from the next card."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每项能力由一个技能负责：书目、按等级排好的单元、出卡方法和评分标准。点开可以查看或修改，改动从下一张卡起生效。"
+          }
+        }
+      }
+    },
+    "empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "empty"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空"
+          }
+        }
+      }
+    },
+    "Every ability has reached its goal. Add a new one or raise the goal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every ability has reached its goal. Add a new one or raise the goal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有能力都已达到目标，可以添加新能力或提高目标。"
+          }
+        }
+      }
+    },
+    "Forgot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forgot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忘了"
+          }
+        }
+      }
+    },
+    "Growth memory" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Growth memory"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成长记忆"
+          }
+        }
+      }
+    },
+    "Growth memory: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Growth memory: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成长记忆：%@"
+          }
+        }
+      }
+    },
+    "Growth record" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Growth record"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成长档案"
+          }
+        }
+      }
+    },
+    "growth.level.1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beginner"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入门"
+          }
+        }
+      }
+    },
+    "growth.level.2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foundation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础"
+          }
+        }
+      }
+    },
+    "growth.level.3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proficient"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "熟练"
+          }
+        }
+      }
+    },
+    "growth.level.4" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "精通"
+          }
+        }
+      }
+    },
+    "growth.level.5" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expert"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卓越"
+          }
+        }
+      }
+    },
+    "growth.track.english" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "English"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英语表达"
+          }
+        }
+      }
+    },
+    "growth.track.expression" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expression"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表达力"
+          }
+        }
+      }
+    },
+    "growth.track.habits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Habits and execution"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "习惯与执行力"
+          }
+        }
+      }
+    },
+    "growth.track.leadership" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leadership"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "领导力"
+          }
+        }
+      }
+    },
+    "growth.track.lenses" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seeing from several angles"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多视角分析"
+          }
+        }
+      }
+    },
+    "growth.track.principles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Principles and judgement"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原则与判断"
+          }
+        }
+      }
+    },
+    "How the cards are made: the skill behind each ability and the knowledge the agent reads. The steering sentence and the daily time come last." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the cards are made: the skill behind each ability and the knowledge the agent reads. The steering sentence and the daily time come last."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卡片怎么出：每项能力用哪个技能训练，出题时读哪些知识。引导语和每天生成的时间在最后。"
+          }
+        }
+      }
+    },
+    "I want to talk this card from my coach through in depth." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I want to talk this card from my coach through in depth."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我想就教练页的这张卡和你深入讨论。"
+          }
+        }
+      }
+    },
+    "In real life" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In real life"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现实行动"
+          }
+        }
+      }
+    },
+    "Just add" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just add"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接添加"
+          }
+        }
+      }
+    },
+    "Just add trains it with the general method. Build the course opens a chat: the AI asks where you are, researches and picks 10 books, breaks each one down and writes a course with units by level. It sends you the book list to confirm first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just add trains it with the general method. Build the course opens a chat: the AI asks where you are, researches and picks 10 books, breaks each one down and writes a course with units by level. It sends you the book list to confirm first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接添加会按通用方法训练。和 AI 建课会新开一个对话：AI 先问清你的情况，再检索选出 10 本书、逐本拆书，写成按等级排好单元的课程；书单会先发给你确认。"
+          }
+        }
+      }
+    },
+    "Keep going" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep going"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续练这个"
+          }
+        }
+      }
+    },
+    "keeping up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "keeping up"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保持中"
+          }
+        }
+      }
+    },
+    "Knowledge the cards draw on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Knowledge the cards draw on"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出题用到的知识"
+          }
+        }
+      }
+    },
+    "Let's talk about this one from my Coach page:\n\n**%@**\n\n%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let's talk about this one from my Coach page:\n\n**%@**\n\n%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊聊教练页上的这一条：\n\n**%1$@**\n\n%2$@"
+          }
+        }
+      }
+    },
+    "Level check" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Level check"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级挑战"
+          }
+        }
+      }
+    },
+    "Level check unlocked: 3 or more on it raises the level" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Level check unlocked: 3 or more on it raises the level"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已解锁升级挑战：挑战卡得 3 分及以上就升级"
+          }
+        }
+      }
+    },
+    "Long-term memory (GLOBAL.md)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Long-term memory (GLOBAL.md)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长期记忆（GLOBAL.md）"
+          }
+        }
+      }
+    },
+    "Mount a folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mount a folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挂载文件夹"
+          }
+        }
+      }
+    },
+    "Mounted folders" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mounted folders"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "挂载的文件夹"
+          }
+        }
+      }
+    },
+    "Move on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move on"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "换到下一个"
+          }
+        }
+      }
+    },
+    "move on at %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "move on at %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到%@换下一个"
+          }
+        }
+      }
+    },
+    "Move on to the next ability at" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move on to the next ability at"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "练到哪一级换下一个能力"
+          }
+        }
+      }
+    },
+    "Move up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move up"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上移"
+          }
+        }
+      }
+    },
+    "My answer: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My answer: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的回答：%@"
+          }
+        }
+      }
+    },
+    "My framework: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My framework: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的框架：%@"
+          }
+        }
+      }
+    },
+    "My principles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My principles"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的原则"
+          }
+        }
+      }
+    },
+    "Next month" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next month"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下个月"
+          }
+        }
+      }
+    },
+    "Next up: %@. It keeps getting a review card now and then." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next up: %@. It keeps getting a review card now and then."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一个：%@。这一项之后会不定期出复习卡。"
+          }
+        }
+      }
+    },
+    "No cards were written: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cards were written: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次没有写出卡片：%@"
+          }
+        }
+      }
+    },
+    "No course yet. Tap Build the course to make one with AI." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No course yet. Tap Build the course to make one with AI."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没建课，点“建课”和 AI 一起建。"
+          }
+        }
+      }
+    },
+    "No training cards on this day." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No training cards on this day."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这天没有训练卡。"
+          }
+        }
+      }
+    },
+    "No training cards today yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No training cards today yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的训练卡还没写"
+          }
+        }
+      }
+    },
+    "None yet. Mount a notes folder, an Obsidian vault for example, and the cards can draw on your notes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None yet. Mount a notes folder, an Obsidian vault for example, and the cards can draw on your notes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有。挂载一个笔记文件夹（比如 Obsidian 库），出题就能用上你的笔记。"
+          }
+        }
+      }
+    },
+    "not reachable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not reachable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时无法访问"
+          }
+        }
+      }
+    },
+    "Not reviewed yet. Tap to try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not reviewed yet. Tap to try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没点评，点这里重试。"
+          }
+        }
+      }
+    },
+    "Nothing else is queued. Add an ability to keep going." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing else is queued. Add an ability to keep going."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "后面没有排队的能力了，可以添加一个继续练。"
+          }
+        }
+      }
+    },
+    "Nothing is in training, so there are no cards to write. Tap the card above and pick an ability." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing is in training, so there are no cards to write. Tap the card above and pick an ability."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在没有在练的能力，所以没有卡可写。点上面的卡片，选一项能力。"
+          }
+        }
+      }
+    },
+    "nothing is in training." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nothing is in training."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在没有在练的能力。"
+          }
+        }
+      }
+    },
+    "Nothing is in training. Tap here and pick an ability." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing is in training. Tap here and pick an ability."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在没有在练的能力，点这里选一个。"
+          }
+        }
+      }
+    },
+    "Nothing yet. It fills in as you answer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing yet. It fills in as you answer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有内容，随着你作答会逐渐写进来。"
+          }
+        }
+      }
+    },
+    "now %@, %d answers, recent scores at this level: %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "now %@, %d answers, recent scores at this level: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前 %1$@，作答 %2$d 次，本级最近得分：%3$@。"
+          }
+        }
+      }
+    },
+    "Now training" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now training"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在培养"
+          }
+        }
+      }
+    },
+    "Observations since the last summary" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observations since the last summary"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次总结之后的观察"
+          }
+        }
+      }
+    },
+    "On the iPhone the cards are written when the app is open; at the set time the phone reminds you to open it. Nothing runs while the app is asleep." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On the iPhone the cards are written when the app is open; at the set time the phone reminds you to open it. Nothing runs while the app is asleep."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 iPhone 上，训练卡只在 App 打开时写；到了设定时间，手机会提醒你打开。App 休眠时不会运行。"
+          }
+        }
+      }
+    },
+    "One ability is trained at a time, in this order. Each day brings a theory card and a scenario, and a real-life task once the last one is reported. 6 reviewed answers to scenarios and real-life tasks at the current level, averaging 3 of 4 or better over 4 days, unlock a level check; 3 or more on it raises the level. Theory cards are reviewed and recalled but do not count. An ability you moved on from gets a review card now and then and drops a level if its reviews fall." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One ability is trained at a time, in this order. Each day brings a theory card and a scenario, and a real-life task once the last one is reported. 6 reviewed answers to scenarios and real-life tasks at the current level, averaging 3 of 4 or better over 4 days, unlock a level check; 3 or more on it raises the level. Theory cards are reviewed and recalled but do not count. An ability you moved on from gets a review card now and then and drops a level if its reviews fall."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次只练一项，按这里的顺序。每天一张理论卡、一张情景演练卡，上一个现实行动回报之后再布置新的。在当前等级上，情景和行动卡最近 6 次点评平均达到 3 分（满分 4 分）且分布在至少 4 天里，就解锁升级挑战；挑战得 3 分及以上升一级。理论卡只点评和复习，不计入升级。换走的能力会不定期出复习卡，复习分数持续偏低会降一级。"
+          }
+        }
+      }
+    },
+    "One paragraph that steers the training cards: what they draw on and what they stress. The daily cards read it before they are written. This note is not part of the file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One paragraph that steers the training cards: what they draw on and what they stress. The daily cards read it before they are written. This note is not part of the file."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一段话决定训练卡取材和侧重。每天写卡之前会先读它。这段说明不是文件的一部分。"
+          }
+        }
+      }
+    },
+    "Pause" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停"
+          }
+        }
+      }
+    },
+    "paused" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "paused"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已暂停"
+          }
+        }
+      }
+    },
+    "Post details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卡片详情"
+          }
+        }
+      }
+    },
+    "Previous month" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous month"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上个月"
+          }
+        }
+      }
+    },
+    "Question: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Question: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问题：%@"
+          }
+        }
+      }
+    },
+    "Read when the cards are written. Mounted folders are named to the agent, and it opens a note there when a card needs one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read when the cards are written. Mounted folders are named to the agent, and it opens a note there when a card needs one."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成卡片时读取。挂载的文件夹会告诉智能体，需要时它会打开里面的笔记。"
+          }
+        }
+      }
+    },
+    "Recall, %d left today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recall, %d left today"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日回忆，还剩 %d 条"
+          }
+        }
+      }
+    },
+    "Remembered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remembered"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记得"
+          }
+        }
+      }
+    },
+    "Review (%d of 4): %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review (%d of 4): %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点评（%1$d/4）：%2$@"
+          }
+        }
+      }
+    },
+    "Review card" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review card"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复习"
+          }
+        }
+      }
+    },
+    "Reviewing your answer…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reviewing your answer…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在点评…"
+          }
+        }
+      }
+    },
     "Routine · %1$@ · %2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1590,6 +3324,431 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "例程 · %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Scenario" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scenario"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情景演练"
+          }
+        }
+      }
+    },
+    "Show the answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show the answer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示答案"
+          }
+        }
+      }
+    },
+    "Skill %@ is missing, so this ability is trained with general practice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skill %@ is missing, so this ability is trained with general practice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少技能 %@，这项能力会按通用方法训练"
+          }
+        }
+      }
+    },
+    "Start with the one point most worth digging into and the reasoning behind it, then ask me where I want to go from there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the one point most worth digging into and the reasoning behind it, then ask me where I want to go from there."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先指出最值得深挖的一点，讲清背后的道理，再问我想从哪里继续。"
+          }
+        }
+      }
+    },
+    "Steering sentence" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steering sentence"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引导语"
+          }
+        }
+      }
+    },
+    "Steers what the training cards draw on and stress. This page writes training cards only; papers, news and anything else you want each day go in a scheduled task." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steers what the training cards draw on and stress. This page writes training cards only; papers, news and anything else you want each day go in a scheduled task."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "决定训练卡的取材和侧重。这里只出训练卡；想每天收到的论文、新闻和资讯，请放进定时任务。"
+          }
+        }
+      }
+    },
+    "Submit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Submit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提交"
+          }
+        }
+      }
+    },
+    "the coach is still reviewing an answer. Try again in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the coach is still reviewing an answer. Try again in a moment."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "教练还在点评上一个回答，稍后再试。"
+          }
+        }
+      }
+    },
+    "the model request failed (%@)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the model request failed (%@)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型请求失败（%@）。"
+          }
+        }
+      }
+    },
+    "the reply held no training cards. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the reply held no training cards. Try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型的回复里没有训练卡，再试一次。"
+          }
+        }
+      }
+    },
+    "Theory" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theory"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "理论"
+          }
+        }
+      }
+    },
+    "They are written every day at %@. You can also write them now." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They are written every day at %@. You can also write them now."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 %@ 自动写，也可以现在就写。"
+          }
+        }
+      }
+    },
+    "Today %d of %d answered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %d of %d answered"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日已答 %1$d/%2$d"
+          }
+        }
+      }
+    },
+    "Today · %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today · %@ · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天 · %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Too easy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too easy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太简单"
+          }
+        }
+      }
+    },
+    "Too hard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too hard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太难"
+          }
+        }
+      }
+    },
+    "Train me from the ground up: basics first, classic books as the backbone, and plenty of things I can go and do in real life. Blunt reviews, with the next step." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Train me from the ground up: basics first, classic books as the backbone, and plenty of things I can go and do in real life. Blunt reviews, with the next step."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从零开始带我练：先打基础，以经典书为主线，多给我能在现实里马上去做的事；点评直接，给出下一步。"
+          }
+        }
+      }
+    },
+    "Train now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Train now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设为当前"
+          }
+        }
+      }
+    },
+    "training" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "training"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在练"
+          }
+        }
+      }
+    },
+    "Training calendar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Training calendar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "训练日历"
+          }
+        }
+      }
+    },
+    "Training settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Training settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "训练设置"
+          }
+        }
+      }
+    },
+    "up next" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "up next"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排队中"
+          }
+        }
+      }
+    },
+    "Vague" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vague"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模糊"
+          }
+        }
+      }
+    },
+    "Weekly report" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly report"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周报"
+          }
+        }
+      }
+    },
+    "What you want to be able to do" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you want to be able to do"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想做到什么"
           }
         }
       }
@@ -4020,6 +6179,91 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "語音提示給 nanoMuse"
+          }
+        }
+      }
+    },
+    "Write the training cards" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write the training cards"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写训练卡"
+          }
+        }
+      }
+    },
+    "Write them now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write them now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在写一版"
+          }
+        }
+      }
+    },
+    "Write today's training cards." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write today's training cards."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写今天的训练卡。"
+          }
+        }
+      }
+    },
+    "Write your answer first. The review follows." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write your answer first. The review follows."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先写下你的回答，点评随后就到。"
+          }
+        }
+      }
+    },
+    "Writing today's cards…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing today's cards…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在写今天的训练卡…"
           }
         }
       }

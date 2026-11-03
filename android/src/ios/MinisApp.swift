@@ -134,6 +134,7 @@ struct MinisApp: App {
         NanoMuseScheduler.registerBackgroundTask()
         Task { @MainActor in NanoMuseModelMenu.startFollowingPicks() } // nanoMuse: a pick in a chat's picker moves to the front of the Cloud group
         Task { @MainActor in NanoMuseProxy.refreshHosts() } // nanoMuse: the provider hosts Settings → Network's proxy routes
+        Task { @MainActor in NanoMusePreset.apply() } // nanoMuse: the personal build's skills, courses and memory files, once each
         // [T-auto-grouping-default-on] Auto-grouping ships ON. `bool(forKey:)`
         // returns false for an unregistered key, so the default has to be
         // registered here rather than expressed at the (multiple) read sites —

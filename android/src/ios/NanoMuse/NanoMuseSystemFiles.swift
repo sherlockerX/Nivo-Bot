@@ -44,7 +44,7 @@ enum NanoMuseSystemFile: String, CaseIterable, Identifiable {
         case .soul: return AppLocalized("This is the agent's persona: the values and habits it tries to hold to in every conversation, its name, and the style it answers in. It starts from a template that ships with nanoMuse; the agent may refine it over time and tells you when it does. You can edit it at any time. This note is not part of the file.")
         case .user: return AppLocalized("The agent keeps this file as its working notes about you: your name, how you like to be addressed, your timezone, and the context it needs to be useful, such as what you are working on. It fills it in over time from your conversations and reads it at the start of each one. It reflects the agent's current understanding, so it can be incomplete or out of date. You can edit anything here, and the agent will follow what you write. This note is not part of the file.")
         case .memory: return AppLocalized("Durable notes the agent keeps across conversations: the things worth remembering, in its own words, plus anything you imported from another assistant. The day-by-day diary lives beside it in the memory folder. Read at the start of every conversation when memory is on. This note is not part of the file.")
-        case .feed: return AppLocalized("One paragraph that steers the feed: what you want more of, what to skip, how long posts should be. The daily feed routine reads it before writing. This note is not part of the file.")
+        case .feed: return AppLocalized("One paragraph that steers the training cards: what they draw on and what they stress. The daily cards read it before they are written. This note is not part of the file.")
         case .heartbeat: return AppLocalized("When the agent wakes up on its own: every routine and every goal check, with its schedule and how the last run went. Rendered from the routines, so it is read-only here; change them from Goals → Routines. This note is not part of the file.")
         }
     }
@@ -121,7 +121,7 @@ enum NanoMuseSystemFiles {
         }
         let feedId = NanoMuseFeedFlow.routineId
         if let feed = all.first(where: { $0.id == feedId }) {
-            s += "\n## " + AppLocalized("Feed") + "\n"
+            s += "\n## " + AppLocalized("Coach") + "\n"
             s += "- \(feed.enabled ? "[x]" : "[ ]") \(feed.label) · \(feed.cadence)" + lastRun(feed) + "\n"
         }
         return s

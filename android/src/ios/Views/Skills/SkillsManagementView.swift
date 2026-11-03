@@ -1201,3 +1201,9 @@ private struct ActivityView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
+// nanoMuse: the Coach's training settings open one skill's page; SkillDetailView stays private to this file.
+struct NanoMuseSkillDetailLink: View {
+    let skillId: String
+    var body: some View { SkillDetailView(skillId: skillId) }
+}
+

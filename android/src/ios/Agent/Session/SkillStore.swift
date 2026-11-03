@@ -1601,6 +1601,28 @@ Do not create extraneous files: README.md, INSTALLATION_GUIDE.md, CHANGELOG.md, 
         ensureFakefsMetadata(for: linuxSkillFile, isDirectory: false)
     }
 
+    // nanoMuse: a preset course ships files besides SKILL.md (books/B01…); each is written next to
+    // SKILL.md and mirrored into the rootfs the way syncToRootfs mirrors SKILL.md (NanoMusePreset).
+    /// One file of a preset skill: a missing file is added; one already there is replaced only
+    /// when `replaceUntouchedSince` is given and the file has not changed since then.
+    func nmWritePresetFile(skillId: String, relativePath: String, content: String, replaceUntouchedSince: Date?) {
+        guard !relativePath.isEmpty, !relativePath.hasPrefix("/"), !relativePath.contains("..") else { return }
+        let target = skillsDir.appendingPathComponent(skillId).appendingPathComponent(relativePath)
+        if fm.fileExists(atPath: target.path) {
+            guard let since = replaceUntouchedSince,
+                  let modified = (try? fm.attributesOfItem(atPath: target.path))?[.modificationDate] as? Date,
+                  modified.timeIntervalSince(since) <= 2 else { return }
+        }
+        try? fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? content.write(to: target, atomically: true, encoding: .utf8)
+        let mirror = rootfsSkillsDir.appendingPathComponent(skillId).appendingPathComponent(relativePath)
+        try? fm.createDirectory(at: mirror.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? content.write(to: mirror, atomically: true, encoding: .utf8)
+        let linuxPath = "/var/minis/skills/\(skillId)/\(relativePath)"
+        ensureParentDirsInMetaDB(for: linuxPath)
+        ensureFakefsMetadata(for: linuxPath, isDirectory: false)
+    }
+
     // MARK: - Fakefs meta.db helpers
 
     private static let SQLITE_TRANSIENT_PTR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
