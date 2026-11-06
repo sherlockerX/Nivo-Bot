@@ -132,13 +132,22 @@ struct ModelEntry: Identifiable, Codable, Hashable {
     /// Effective model as seen by the rest of the app: `baseModel` with `overrides` applied.
     /// New override fields: add them to the memberwise rebuild below.
     var model: LLMModel {
-        guard !overrides.isEmpty else { return baseModel }
+        // nanoMuse: 专用语音名称先于宽泛的视觉族推断，手动设置的模态仍优先。
+        var effectiveBase = baseModel
+        if overrides.modalityOverride == nil,
+           let modality = NanoMuseVoiceModels.inferredModality(
+               id: baseModel.id,
+               displayName: overrides.displayName ?? baseModel.displayName
+           ) {
+            effectiveBase.modalityOverride = modality
+        }
+        guard !overrides.isEmpty else { return effectiveBase }
         // LLMModel.displayName is a `let`, so rebuild via memberwise init to apply any override.
         return LLMModel(
             id: baseModel.id,
             displayName: overrides.displayName ?? baseModel.displayName,
             provider: baseModel.provider,
-            modalityOverride: overrides.modalityOverride ?? baseModel.modalityOverride,
+            modalityOverride: overrides.modalityOverride ?? effectiveBase.modalityOverride,
             contextWindow: overrides.contextWindow ?? baseModel.contextWindow,
             maxOutputTokens: overrides.maxOutputTokens ?? baseModel.maxOutputTokens,
             supportsReasoning: overrides.supportsReasoning ?? baseModel.supportsReasoning,

@@ -4,6 +4,10 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### iOS, local Nicholasx build
+
+- Added Model Studio speech recognition and synthesis, saved voice model selections, and exposed speech input and output in Models. Added a foreground voice call screen with mute, speaker routing, interruption and call settings. Calls reuse the current conversation and read only confirmed final answers; reasoning and tool progress stay silent.
+
 ### Android, local Nicholasx build
 
 - Added scoped drawer multi-selection and guarded transactional deletion. Limited automatic routine grouping to saved user-task provenance, preserved unknown historical chats, enforced normalized group-name uniqueness with a non-merging migration, and excluded the protected system group from manual and suggested moves.

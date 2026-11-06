@@ -1859,6 +1859,7 @@ struct AIChatView: View {
             onSkills: { showSessionSkills = true },
             onMCPs: { showSessionMCPs = true },
             onMemories: { showSessionMemory = true },
+            onVoiceCall: { NanoMuseChatAction.post(.voiceCall, session: vm.nmSessionKey) }, // nanoMuse: 旁聊通话入口。
             setSpeakEnabled: { enabled in
                 cached.vm.speakEnabled = enabled
                 // Keep the persisted "Read replies" preference in lockstep.
@@ -1920,7 +1921,7 @@ struct AIChatView: View {
         case .skills: showSessionSkills = true // nanoMuse:
         case .mcps: showSessionMCPs = true // nanoMuse:
         case .memories: showSessionMemory = true // nanoMuse:
-        case .anchors: break // nanoMuse: NanoMuseChatHooks opens the anchors sheet itself
+        case .anchors, .voiceCall: break // nanoMuse: 独立修饰器负责锚点和通话弹层。
         } // nanoMuse:
     } // nanoMuse:
 
@@ -5484,6 +5485,7 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let onSkills: () -> Void
     let onMCPs: () -> Void
     let onMemories: () -> Void
+    let onVoiceCall: () -> Void // nanoMuse: 旁聊通话入口。
     let setSpeakEnabled: (Bool) -> Void
     let setEnhancedCache: (Bool) -> Void
     let setFastMode: (Bool) -> Void
@@ -5611,6 +5613,11 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
             sessionGroup.append(UIAction(title: AppLocalized("Memories in Session"),
                                          image: UIImage(systemName: "brain.head.profile")) { _ in coordinator.parent.onMemories() })
         }
+        // nanoMuse: 通话复用当前聊天和主聊的呈现路径。
+        sessionGroup.append(UIAction(title: AppLocalized("Voice call"),
+                                     image: UIImage(systemName: "phone")) { _ in
+            coordinator.parent.onVoiceCall()
+        })
         sessionGroup.append(UIAction(title: AppLocalized("Speak Responses"),
                                      image: UIImage(systemName: "speaker.wave.2"),
                                      state: key.speakEnabled ? .on : .off) { _ in

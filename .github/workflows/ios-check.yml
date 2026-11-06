@@ -89,7 +89,7 @@ jobs:
           set -o pipefail
           mkdir -p build
           xcodebuild build \
-            -project Minis.xcodeproj -scheme Minis -configuration Debug \
+            -project Minis.xcodeproj -scheme Minis -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
@@ -106,6 +106,28 @@ jobs:
             echo "::error::warnings in NanoMuse/ (see above)"
             exit 1
           fi
+
+      # 未配置Apple签名时仍输出可供后续签名的设备包，文件名明确标记未签名。
+      - name: Package unsigned IPA
+        working-directory: android/src/ios
+        run: |
+          set -euo pipefail
+          test -d build/DerivedData/Build/Products/Release-iphoneos/Minis.app
+          mkdir -p build/unsigned/Payload
+          ditto build/DerivedData/Build/Products/Release-iphoneos/Minis.app build/unsigned/Payload/Minis.app
+          (cd build/unsigned && zip -qry ../nanoMuse-unsigned.ipa Payload)
+          shasum -a 256 build/nanoMuse-unsigned.ipa > build/nanoMuse-unsigned.ipa.sha256
+          printf 'Unsigned iOS device package. Requires signing before installation.\nCommit: %s\n' "$GITHUB_SHA" > build/UNSIGNED-README.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nanoMuse-ios-unsigned-${{ github.run_number }}
+          path: |
+            android/src/ios/build/nanoMuse-unsigned.ipa
+            android/src/ios/build/nanoMuse-unsigned.ipa.sha256
+            android/src/ios/build/UNSIGNED-README.txt
+          retention-days: 14
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

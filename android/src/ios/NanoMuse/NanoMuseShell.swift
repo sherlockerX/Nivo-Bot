@@ -724,6 +724,7 @@ struct NanoMuseHomeView: View {
                 Button { rename.open(id) } label: { Label(AppLocalized("Rename chat"), systemImage: "pencil") }
             }
             Button { chatAction(.anchors) } label: { Label(AppLocalized("Conversation anchors"), systemImage: "bookmark") }
+            Button { chatAction(.voiceCall) } label: { Label(AppLocalized("Voice call"), systemImage: "phone") }
             // Read replies aloud: one switch for every chat, as the side chat's menu has it.
             Toggle(isOn: Binding(get: { voiceOutput.isEnabled }, set: { on in
                 voiceOutput.isEnabled = on

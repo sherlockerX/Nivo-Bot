@@ -1645,6 +1645,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         // Enabled AND not muted AND not capturing. `canPlay` folds in the temporary
         // mute (capsule speaker) on top of the full on/off `isEnabled`.
         VoiceOutputState.shared.canPlay && !VoiceModePreference.shared.isCapturing
+            && !NanoMuseCallSession.isActive // nanoMuse: 通话独占朗读输出。
     }
 
     /// True when a configured cloud TTS model is selected (not the offline System
@@ -4733,6 +4734,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     }
 
     private func runAgentLoop(resumingAt existingMsgIdx: Int? = nil, committedBlocks: Int? = nil) async throws {
+        let nmCallGeneration = NanoMuseCallSession.generation(for: self) // nanoMuse: 锁定本轮通话代次。
         // REPRO-DIAG(2026-05-16): bump global round counter and emit a clear
         // BEGIN/END marker so the user can grep `ROUND \d+` to slice the log
         // by attempt. A "round" = one runAgentLoop invocation, which is
@@ -5767,6 +5769,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 }
 
                 // Flush any remaining unspoken text (streaming TTS already spoke most sentences)
+                // nanoMuse: 仅交付已确认完成且无工具调用的最终答案，禁止朗读过程说明。
+                if !canResume { NanoMuseCallSession.acceptFinalAnswer(streamResult.assistantText, from: self, generation: nmCallGeneration) }
                 let remainingSpeak: String
                 if streamResult.spokenTextOffset < streamResult.assistantText.count {
                     let startIdx = streamResult.assistantText.index(streamResult.assistantText.startIndex, offsetBy: streamResult.spokenTextOffset)

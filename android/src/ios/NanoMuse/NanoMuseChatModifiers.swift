@@ -335,7 +335,7 @@ struct NanoMuseChatHooks: ViewModifier {
                 guard let action = NanoMuseChatAction.from(note, for: vm.nmSessionKey) else { return }
                 if action == .anchors {
                     sheets.open(.anchors, session: vm.nmSessionKey)
-                } else {
+                } else if action != .voiceCall {
                     perform(action)
                 }
             }
@@ -356,6 +356,7 @@ struct NanoMuseChatHooks: ViewModifier {
             }
             .onReceive(NanoMusePresence.shared.$revision) { _ in vm.nmApplyPresence() }
             .onReceive(vm.$messages) { _ in vm.nmApplyPresence() }
+            .modifier(NanoMuseCallHost(vm: vm, readOnly: readOnly, voice: voice))
             .sheet(item: sheets.binding(for: vm)) { request in
                 NanoMuseChatSheetContent(request: request, vm: vm)
             }

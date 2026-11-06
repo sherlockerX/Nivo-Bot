@@ -10,17 +10,42 @@ import SwiftUI
 // direction, and returns the first usable provider. Falls back to the offline
 // System provider when nothing in the group is usable (or no group is set).
 
-/// In-memory voice model override — like an input method's current selection.
-/// Set by the Voice Model Selector, takes precedence over the configured group,
-/// and is NOT persisted: it resets to the configured default on cold start.
+// nanoMuse: 输入与输出选择保存在本设备，重新启动后仍优先于分组，不写入同步配置。
+/// 设备本地语音模型选择，nil表示继续采用已配置分组或System。
 @MainActor
 final class VoiceSelectionStore: ObservableObject {
     static let shared = VoiceSelectionStore()
-    /// Selected ModelEntry id for ASR (nil = use configured group / System).
-    @Published var inputEntryId: String?
-    /// Selected ModelEntry id for TTS.
-    @Published var outputEntryId: String?
-    private init() {}
+    private static let INPUT_ENTRY_KEY = "voice.input.overrideEntryId"
+    private static let OUTPUT_ENTRY_KEY = "voice.output.overrideEntryId"
+    private let defaults: UserDefaults
+
+    /// 语音转文字的模型标识，支持System的在线和离线变体。
+    @Published var inputEntryId: String? {
+        didSet {
+            guard oldValue != inputEntryId else { return }
+            persist(inputEntryId, key: Self.INPUT_ENTRY_KEY)
+        }
+    }
+    /// 文字转语音的模型标识，保留具体System音色的复合标识。
+    @Published var outputEntryId: String? {
+        didSet {
+            guard oldValue != outputEntryId else { return }
+            persist(outputEntryId, key: Self.OUTPUT_ENTRY_KEY)
+        }
+    }
+
+    /// 可注入独立的偏好域，测试时无需读写用户的真实语音选择。
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        inputEntryId = defaults.string(forKey: Self.INPUT_ENTRY_KEY)
+        outputEntryId = defaults.string(forKey: Self.OUTPUT_ENTRY_KEY)
+    }
+
+    /// 清除覆盖时移除键，使下次启动恢复分组和System的既有回退路径。
+    private func persist(_ entryId: String?, key: String) {
+        if let entryId { defaults.set(entryId, forKey: key) }
+        else { defaults.removeObject(forKey: key) }
+    }
 }
 
 /// In-memory composer input-mode (voice vs text), shared across ALL chat
@@ -363,8 +388,8 @@ enum VoiceProviderResolver {
 
     static let systemEntryId = SystemVoiceProvider.builtinProviderId
 
-    /// Resolved ASR entry: in-memory override first, else the configured group.
-    /// Whether this entry ID refers to the built-in System voice provider.
+    // nanoMuse: 持久化选择和分组成员共用System复合标识识别。
+    /// 判断标识是否属于手机自带的语音服务。
     static func isSystemEntry(_ entryId: String?) -> Bool {
         guard let eid = entryId else { return false }
         return eid == systemEntryId || eid.hasPrefix(systemEntryId + "/")
@@ -381,20 +406,15 @@ enum VoiceProviderResolver {
         return suffix.contains(".") ? suffix : nil
     }
 
-    /// The System TTS voice identifier for the currently-resolved output selection
-    /// (override → configured group member), or nil to auto-select by language.
+    // nanoMuse: 具体System音色只取当前有效选择，显式自动音色不再被分组音色覆盖。
+    /// 当前有效选择的System音色标识，nil表示按语言自动选取。
     static func resolvedSystemOutputVoiceId() -> String? {
-        if let vid = selectedSystemVoiceId(VoiceSelectionStore.shared.outputEntryId) {
-            return vid
+        if let selected = effectiveOverrideEntryId(direction: .output) {
+            return selectedSystemVoiceId(selected)
         }
-        // Also honor a specific System voice pinned as a member of the configured
-        // output group (first system member that names a concrete voice).
-        guard let gid = ProviderConfigStore.shared.voiceOutputGroupId,
-              let group = ProviderConfigStore.shared.group(for: gid) else { return nil }
-        for mid in group.memberEntryIds {
-            if let vid = selectedSystemVoiceId(mid) { return vid }
-        }
-        return nil
+        return selectedSystemVoiceId(resolveEntry(
+            groupId: ProviderConfigStore.shared.voiceOutputGroupId, direction: .output
+        )?.id)
     }
 
     /// Which System ASR variant the user selected. Offline = on-device (privacy,
@@ -403,43 +423,33 @@ enum VoiceProviderResolver {
     /// available.
     enum SystemInputMode { case auto, online, offline }
 
-    /// Resolve the System ASR mode from the current input selection (override id
-    /// first, else a System member pinned in the configured input group). Reads the
-    /// "…/system-asr-online" / "…/system-asr-offline" suffix; anything else = .auto.
+    // nanoMuse: 无效覆盖和被跳过的分组成员不再影响实际System识别模式。
+    /// 当前有效System选择的识别模式，没有明确变体时采用自动选择。
     static func resolvedSystemInputMode() -> SystemInputMode {
-        func mode(_ id: String?) -> SystemInputMode? {
-            guard let id else { return nil }
+        func mode(_ id: String?) -> SystemInputMode {
+            guard let id else { return .auto }
             if id.hasSuffix("/system-asr-online")  { return .online }
             if id.hasSuffix("/system-asr-offline") { return .offline }
-            return nil
+            return .auto
         }
-        if let m = mode(VoiceSelectionStore.shared.inputEntryId) { return m }
-        if let gid = ProviderConfigStore.shared.voiceInputGroupId,
-           let group = ProviderConfigStore.shared.group(for: gid) {
-            for mid in group.memberEntryIds { if let m = mode(mid) { return m } }
+        if let selected = effectiveOverrideEntryId(direction: .input) {
+            return mode(selected)
         }
-        return .auto
+        return mode(resolveEntry(
+            groupId: ProviderConfigStore.shared.voiceInputGroupId, direction: .input
+        )?.id)
     }
 
+    // nanoMuse: 页面、语音输入与朗读共用同一套持久化覆盖和分组回退规则。
+    /// 有效的语音转文字模型，明确选择System时由调用方使用系统引擎。
     static func resolvedInputEntry() -> ModelEntry? {
-        let sel = VoiceSelectionStore.shared.inputEntryId
-        if isSystemEntry(sel) { return nil }
-        if let direct = usableEntry(sel, direction: .input) { return direct }
-        // Override didn't resolve (entry missing/disabled/no provider) → fall back
-        // to the configured voice group's first usable member.
-        let fallback = resolveEntry(groupId: ProviderConfigStore.shared.voiceInputGroupId, direction: .input)
-        if sel != nil {
-            logger.info("inputEntryId override '\(sel!)' not usable → fallback to \(fallback?.model.displayName ?? "System")")
-        }
-        return fallback
+        resolvedEntry(direction: .input)
     }
 
-    /// Resolved TTS entry: in-memory override first, else the configured group.
+    // nanoMuse: 与输入侧一致，失效的本地选择回退到分组或System。
+    /// 有效的文字转语音模型，明确选择System时由调用方使用系统引擎。
     static func resolvedOutputEntry() -> ModelEntry? {
-        let sel = VoiceSelectionStore.shared.outputEntryId
-        if isSystemEntry(sel) { return nil }
-        return usableEntry(sel, direction: .output)
-            ?? resolveEntry(groupId: ProviderConfigStore.shared.voiceOutputGroupId, direction: .output)
+        resolvedEntry(direction: .output)
     }
 
     /// Display name of the currently-resolved ASR engine (for UI). `includeInstance`
@@ -458,7 +468,8 @@ enum VoiceProviderResolver {
     /// input group), or nil when the offline System / a bare override is in use.
     static func inputGroupName() -> String? {
         let store = ProviderConfigStore.shared
-        let sel = VoiceSelectionStore.shared.inputEntryId
+        // nanoMuse: 本地选择已失效时，芯片也显示实际生效的回退分组。
+        let sel = effectiveOverrideEntryId(direction: .input)
         // Show the group name when: (1) no override (following the group), or
         // (2) the override is a member of the configured group (picked a specific
         // model within it). Don't show when the override is the System sentinel or
@@ -482,6 +493,47 @@ enum VoiceProviderResolver {
 
     // MARK: - Resolution
 
+    // nanoMuse: 只有该方向可用的覆盖才参与选择状态和System变体解析。
+    /// 规范化后的有效本地覆盖标识，不可用时返回nil以继续采用分组。
+    static func effectiveOverrideEntryId(direction: VoiceDirection) -> String? {
+        let selected = direction == .input
+            ? VoiceSelectionStore.shared.inputEntryId
+            : VoiceSelectionStore.shared.outputEntryId
+        guard let selected,
+              let entry = usableEntry(selected, direction: direction) else { return nil }
+        return isSystemEntry(selected) ? selected : entry.id
+    }
+
+    // nanoMuse: 保存System前缀的无效或反方向标识不能绕过分组回退。
+    /// 校验System复合标识的方向，保留旧标识和具体已下载或未下载的系统音色。
+    static func isUsableSystemEntryId(_ entryId: String, direction: VoiceDirection) -> Bool {
+        guard isSystemEntry(entryId) else { return false }
+        if entryId == systemEntryId { return true }
+        let suffix = String(entryId.dropFirst(systemEntryId.count + 1))
+        switch direction {
+        case .input:
+            return ["system-asr", "system-asr-online", "system-asr-offline", "input"].contains(suffix)
+        case .output:
+            return suffix == "system-tts" || suffix == "output" || suffix.contains(".")
+        }
+    }
+
+    // nanoMuse: 失效覆盖不阻断分组，分组所有成员均失效时返回nil交给System。
+    /// 返回该方向实际生效的模型，显式System覆盖继续保留原有nil语义。
+    private static func resolvedEntry(direction: VoiceDirection) -> ModelEntry? {
+        let store = ProviderConfigStore.shared
+        let selected = effectiveOverrideEntryId(direction: direction)
+        if isSystemEntry(selected) { return nil }
+        let groupId = direction == .input ? store.voiceInputGroupId : store.voiceOutputGroupId
+        let memberIds = groupId.flatMap { store.group(for: $0)?.memberEntryIds } ?? []
+        guard let entryId = NanoMuseVoiceModels.preferredEntryId(
+            overrideEntryId: selected,
+            groupMemberEntryIds: memberIds,
+            canUse: { usableEntry($0, direction: direction) != nil }
+        ) else { return nil }
+        return usableEntry(entryId, direction: direction)
+    }
+
     private static func voiceCredentialOK(_ instance: ProviderInstance) -> Bool {
         // The built-in System engine needs no credential (offline / on-device), so
         // it's always usable; cloud instances need a stored credential.
@@ -489,17 +541,23 @@ enum VoiceProviderResolver {
         return instance.hasAnyCredential
     }
 
-    /// Validate a directly-selected entry id (override) for the direction.
-    /// Accepts both dedicated voice models (audio-only) AND multimodal models
-    /// that can serve this direction (audio+text input for ASR, audio output for
-    /// TTS) — the latter use chat-based transcription at runtime.
-    private static func usableEntry(_ entryId: String?, direction: VoiceDirection) -> ModelEntry? {
+    // nanoMuse: 统一过滤已隐藏模型、禁用实例、缺少凭证及不支持该方向的提供方。
+    /// 校验直接选择和分组成员，System虚拟模型无需凭证且允许隐藏标记。
+    static func usableEntry(_ entryId: String?, direction: VoiceDirection) -> ModelEntry? {
         let store = ProviderConfigStore.shared
-        guard let entryId, let entry = store.entry(for: entryId),
+        guard let entryId else { return nil }
+        if isSystemEntry(entryId) {
+            guard isUsableSystemEntryId(entryId, direction: direction) else { return nil }
+            if entryId == systemEntryId { return direction == .input ? .systemASR : .systemTTS }
+        }
+        guard let entry = store.entry(for: entryId),
+              !entry.isHidden || isSystemEntry(entry.providerInstanceId),
               canServe(entry.model, direction: direction),
               let instance = store.instance(for: entry.providerInstanceId),
               instance.isEnabled, voiceCredentialOK(instance),
-              VoiceProviderFactory.make(for: instance) != nil else { return nil }
+              let provider = VoiceProviderFactory.make(for: instance) else { return nil }
+        let canServeDirection = direction == .input ? provider.supportsVoiceInput : provider.supportsVoiceOutput
+        guard canServeDirection else { return nil }
         return entry
     }
 
@@ -525,25 +583,15 @@ enum VoiceProviderResolver {
     private static func resolveEntries(groupId: String?, direction: VoiceDirection) -> [ModelEntry] {
         let store = ProviderConfigStore.shared
         guard let groupId, let group = store.group(for: groupId) else { return [] }
-        return group.memberEntryIds.compactMap { entryId -> ModelEntry? in
-            guard let entry = store.entry(for: entryId),
-                  canServe(entry.model, direction: direction),
-                  let instance = store.instance(for: entry.providerInstanceId),
-                  instance.isEnabled, voiceCredentialOK(instance),
-                  VoiceProviderFactory.make(for: instance) != nil else { return nil }
-            return entry
-        }
+        // nanoMuse: 分组与直接选择共用可用性判断，避免页面显示和运行时回退分歧。
+        return group.memberEntryIds.compactMap { usableEntry($0, direction: direction) }
     }
 
-    /// Ordered ASR fail-over candidates: the in-memory override first (if usable),
-    /// then every usable member of the configured input group, ordered per the
-    /// group's routing strategy — `.fallback` keeps group order, `.loadBalance`
-    /// rotates the start position by `loadBalanceSeed` so separate capture
-    /// sessions spread across members (mirrors ModelGroupRouter's sessionId
-    /// hashing for text chat). An explicit System override returns [] — the
-    /// caller uses the offline System engine directly, same as before.
+    // nanoMuse: 候选顺序读取有效的持久化覆盖，失效覆盖继续跟随分组。
+    /// 语音输入候选先采用有效的本地覆盖，再采用分组顺序或负载均衡顺序。
+    /// 明确选择System时返回空数组，由调用方直接采用系统引擎。
     static func resolvedInputCandidates(loadBalanceSeed: Int = 0) -> [ModelEntry] {
-        let sel = VoiceSelectionStore.shared.inputEntryId
+        let sel = effectiveOverrideEntryId(direction: .input)
         if isSystemEntry(sel) { return [] }
         var out: [ModelEntry] = []
         if let override = usableEntry(sel, direction: .input) {
@@ -569,12 +617,15 @@ enum VoiceProviderResolver {
         return p
     }
 
-    /// Ordered TTS fail-over candidates: the in-memory override first (if usable),
-    /// then every usable member of the configured output group. The cloud player
-    /// tries each in turn and only reports failure when ALL fail.
+    // nanoMuse: 明确选择System时不再把云端分组成员加入朗读候选。
+    /// System覆盖只保留系统候选，使已进入朗读队列的段落也能继续播放。
     static func resolvedOutputCandidates() -> [ModelEntry] {
+        let selected = effectiveOverrideEntryId(direction: .output)
+        if isSystemEntry(selected), let system = usableEntry(selected, direction: .output) {
+            return [system]
+        }
         var out: [ModelEntry] = []
-        if let override = usableEntry(VoiceSelectionStore.shared.outputEntryId, direction: .output) {
+        if let override = usableEntry(selected, direction: .output) {
             out.append(override)
         }
         for e in resolveEntries(groupId: ProviderConfigStore.shared.voiceOutputGroupId, direction: .output)

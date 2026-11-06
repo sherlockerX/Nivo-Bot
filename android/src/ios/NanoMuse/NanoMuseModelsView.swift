@@ -34,6 +34,7 @@ struct NanoMuseModelsView: View {
             if chatChanged {
                 NanoMuseCaption(text: AppLocalized("Applies to the main chat and to new chats; a side chat keeps its model."))
             }
+            NanoMuseVoiceModelsSection()
             // The account's models as a source. Off, nanoMuse Cloud leaves the pickers and the
             // automatic order; the sign-in stays. Not a delete: the Cloud instance is the account.
             if NanoMuseCloud.isSignedIn {

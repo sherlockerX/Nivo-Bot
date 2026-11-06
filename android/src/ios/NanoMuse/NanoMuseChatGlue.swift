@@ -27,6 +27,8 @@ enum NanoMuseChatAction: String {
     case skills, mcps, memories
     /// Conversation anchors: the questions, the bookmarks, a search of this chat (NanoMuseAnchorsSheet).
     case anchors
+    /// 全屏语音通话。
+    case voiceCall
 
     static func post(_ action: NanoMuseChatAction, session: String) {
         NotificationCenter.default.post(name: .nanoMuseChatAction, object: session, userInfo: ["action": action.rawValue])
@@ -76,6 +78,7 @@ extension AIChatViewModel {
         if let draft = draftId, let real = sessionId, draft != real { nmRebind(from: draft, to: real) }
         let key = nmSessionKey
         var parts: [String] = []
+        if let call = NanoMuseCallSession.prompt(for: self) { parts.append(call) }
         if let user = NanoMuseSystemFiles.userPromptFragment() { parts.append(user) }
         if let goal = NanoMuseGoalFlow.systemAddendum(session: key) { parts.append(goal) }
         if let feed = NanoMuseFeedFlow.systemAddendum(session: key) { parts.append(feed) }
@@ -114,6 +117,7 @@ extension AIChatViewModel {
             let msg = ChatMessage(role: .assistant, content: assistant, blocks: [AssistantBlock(kind: .text, content: assistant)])
             messages.append(msg)
             agentMessages.append(AgentMessage(role: .assistant, parts: [.text(assistant)]))
+            NanoMuseCallSession.acceptFinalAnswer(assistant, from: self, generation: NanoMuseCallSession.generation(for: self))
         }
         guard !agentMessages.isEmpty else { return }
         inputText = ""
