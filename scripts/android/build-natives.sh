@@ -44,8 +44,10 @@ fi
 
 if [ $force = 1 ] || [ ! -f "$LIBS/rclone.aar" ]; then
   echo "== rclone.aar (gomobile)"
-  command -v gomobile >/dev/null || go install golang.org/x/mobile/cmd/gomobile@latest
-  command -v gobind >/dev/null || go install golang.org/x/mobile/cmd/gobind@latest
+  # 与rclone模块固定的x/mobile版本一致，避免最新工具改变构建结果。
+  mobile_version="${GOMOBILE_VERSION:-v0.0.0-20260813181013-1960c775504c}"
+  go install "golang.org/x/mobile/cmd/gomobile@$mobile_version"
+  go install "golang.org/x/mobile/cmd/gobind@$mobile_version"
   gomobile init
   (cd "$NM_ANDROID" && bash deps/build_rclone_android.sh)
   mkdir -p "$LIBS"

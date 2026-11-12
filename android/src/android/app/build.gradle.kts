@@ -45,6 +45,10 @@ android {
         check(project.findProperty("nm.requireReleaseKey") != "true" || keystoreProperties.isFile) {
             "Release signing requires android/keystore.properties"
         }
+        // nanoMuse：正式签名与显式未签名模式互斥，避免CI产物含义不清。
+        check(project.findProperty("nm.requireReleaseKey") != "true" || project.findProperty("nm.unsignedRelease") != "true") {
+            "Release signing and unsigned release cannot be requested together"
+        }
         if (keystoreProperties.isFile) {
             val props = Properties()
             keystoreProperties.inputStream().use { props.load(it) }
@@ -108,8 +112,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // nanoMuse: project key if present, debug key otherwise (see signingConfigs).
-            signingConfig = signingConfigs.findByName("nanomuse") ?: signingConfigs.getByName("debug")
+            // nanoMuse：CI无正式证书时显式生成未签名包，本地默认签名行为保持兼容。
+            signingConfig = if (project.findProperty("nm.unsignedRelease") == "true") null
+                else signingConfigs.findByName("nanomuse") ?: signingConfigs.getByName("debug")
         }
     }
 

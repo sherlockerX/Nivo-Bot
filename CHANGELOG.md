@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Enabled automatic Android APK builds for Android changes and pull requests, added isolated Debug and explicit unsigned Release downloads, package and signature verification, checksums, test reports, and optional manually requested release signing through GitHub Secrets.
+
 - Rebuilt the ten READMEs as Nivo Bot product introductions with an original cover, six illustrated feature pages, a horizontal GIF tour and a connected daily-use example; preserved GPL and DCO terms and moved upstream history into a linked provenance archive with final nanoMuse acknowledgements.
 
 ## [2.0.0] - 2026-11-12

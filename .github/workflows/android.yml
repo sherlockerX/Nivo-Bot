@@ -1,119 +1,146 @@
-name: Android
+name: Android · Nivo APK
 
-# A debug APK (arm64-v8a) for every push and pull request that touches the
-# Android tree. Debug-signed only: no keystore and no secrets are involved;
-# release builds happen on a developer machine with scripts/release-apk.sh.
-
-# Mosaic fork: manual runs only; this repository builds Android on the developer's machine and spends its runner minutes on iOS.
+# 仅在Android相关源码变更时自动打包，文档维护不占用构建分钟数。
 on:
+  push:
+    branches: [master, main]
+    paths: &android-paths
+      - 'android/src/android/**'
+      - 'android/src/shared/**'
+      - 'android/deps/**'
+      - 'android/scripts/prepare_android_sandbox.sh'
+      - 'scripts/android/**'
+      - '.gitmodules'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths: *android-paths
   workflow_dispatch:
+    inputs:
+      signed_release:
+        description: '使用已配置的NIVO_ANDROID_* Secrets生成正式签名APK'
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: read
 
 env:
   NDK_VERSION: 27.2.12479018
+  BUILD_TOOLS_VERSION: 35.0.0
+  GOMOBILE_VERSION: v0.0.0-20260813181013-1960c775504c
 
 jobs:
-  # The path filter is a job, not `on.push.paths`, so the build is reported as skipped rather
-  # than absent when the Android tree is untouched: branch protection requires this check,
-  # and a check that never reports would block every docs-only pull request.
-  changes:
-    name: what changed
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      android: ${{ steps.filter.outputs.android }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: filter
-        with:
-          filters: |
-            android:
-              - "android/**"
-              - "scripts/android/**"
-              - "scripts/rebrand.py"
-              - "scripts/gen-android-icons.py"
-              - ".github/workflows/android.yml"
-
-  debug-apk:
-    name: debug APK · arm64-v8a
-    needs: changes
-    if: needs.changes.outputs.android == 'true' || github.event_name == 'workflow_dispatch'
+  build:
+    name: APK · arm64 · tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive # android/deps/proot (our fork)
+          persist-credentials: false
+
+      - name: Test CI helpers
+        run: python3 -m unittest discover -s scripts/android -p test_ci_helpers.py -v
+
+      # Android不依赖iSH，避免递归拉取整个iOS依赖树。
+      - name: Android native source
+        run: git submodule update --init android/deps/proot
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          # gomobile@latest wants the current Go; GOTOOLCHAIN=auto below lets `go` fetch a
-          # newer one when it asks for it (setup-go v6+ pins the toolchain otherwise).
-          go-version: "1.26"
+          go-version: '1.26'
           cache-dependency-path: android/deps/rclone-mobile/go.sum
 
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: platforms;android-36 build-tools;35.0.0 cmake;3.22.1 ndk;${{ env.NDK_VERSION }}
+          packages: platforms;android-36 build-tools;${{ env.BUILD_TOOLS_VERSION }} cmake;3.22.1 ndk;${{ env.NDK_VERSION }}
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
 
-      - name: Native artifacts (proot, Alpine rootfs, rclone.aar)
+      - name: Native dependency cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            android/src/android/app/src/main/assets/proot-aarch64
+            android/src/android/app/src/main/assets/alpine-minirootfs.tar.gz
+            android/src/android/app/src/main/jniLibs/arm64-v8a
+            android/src/android/app/libs/rclone.aar
+          key: nivo-android-native-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ env.GOMOBILE_VERSION }}-${{ hashFiles('.gitmodules', 'android/deps/proot/**', 'android/deps/talloc/**', 'android/deps/build_proot.sh', 'android/deps/build_rclone_android.sh', 'android/deps/rclone-mobile/**', 'android/scripts/prepare_android_sandbox.sh', 'scripts/android/build-natives.sh', 'scripts/android/env.sh') }}
+
+      - name: Build native inputs
         env:
           GOTOOLCHAIN: auto
         run: |
+          set -euo pipefail
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           export GOROOT="$(go env GOROOT)" GOPATH="$(go env GOPATH)"
-          export PATH="$GOPATH/bin:$PATH" # gomobile / gobind land there
+          export PATH="$GOPATH/bin:$PATH"
           bash scripts/android/build-natives.sh
 
-      - name: assembleDebug
+      # 只有显式手动选择正式签名才读取Secrets，PR不接触签名材料。
+      - name: Prepare requested release signing
+        if: github.event_name == 'workflow_dispatch' && inputs.signed_release
+        env:
+          NIVO_ANDROID_KEYSTORE_BASE64: ${{ secrets.NIVO_ANDROID_KEYSTORE_BASE64 }}
+          NIVO_ANDROID_STORE_PASSWORD: ${{ secrets.NIVO_ANDROID_STORE_PASSWORD }}
+          NIVO_ANDROID_KEY_ALIAS: ${{ secrets.NIVO_ANDROID_KEY_ALIAS }}
+          NIVO_ANDROID_KEY_PASSWORD: ${{ secrets.NIVO_ANDROID_KEY_PASSWORD }}
+        run: python3 scripts/android/ci-signing.py
+
+      - name: Build APKs and run regression tests
+        env:
+          SIGNED_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_release }}
+          NICHOLASX_STORE_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_release && secrets.NIVO_ANDROID_STORE_PASSWORD || '' }}
+          NICHOLASX_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_release && secrets.NIVO_ANDROID_KEY_PASSWORD || '' }}
         working-directory: android/src/android
         run: |
+          set -euo pipefail
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          ./gradlew :app:assembleDebug --console=plain --no-daemon
+          signing=(-Pnm.unsignedRelease=true)
+          if [[ "$SIGNED_RELEASE" == true ]]; then signing=(-Pnm.requireReleaseKey=true); fi
+          bash gradlew --console=plain --no-daemon --max-workers=2 -Pnm.uiTest=true "${signing[@]}" :app:assembleDebug :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.provider.*' --tests 'com.openminis.app.sandbox.*' --tests 'com.openminis.app.ui.chat.*' --tests 'com.openminis.app.ui.sessions.*' :app:compileDebugAndroidTestKotlin :app:assembleRelease
 
-      # Our unit tests (io.github.nanomuse.*: the guards, the hub client, the sandbox paths, the
-      # strings' parity), plus the upstream provider and sandbox tests, the two OpenMinis packages
-      # our edits touch (#333, #334, #335). Same Gradle invocation as AGENTS.md; the compiled
-      # classes are warm.
-      - name: Unit tests
-        working-directory: android/src/android
-        run: |
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' \
-            --tests 'com.openminis.app.provider.*' --tests 'com.openminis.app.sandbox.*' \
-            --console=plain --no-daemon
+      - name: Verify packages and prepare downloads
+        env:
+          SIGNED_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.signed_release }}
+        run: python3 scripts/android/ci-artifacts.py
 
-      # The on-device tests cannot run here (no emulator), but the source set must keep
-      # compiling or io.github.nanomuse.reach.ReachHubInstrumentedTest never runs anywhere (#332).
-      - name: androidTest compiles
-        working-directory: android/src/android
-        run: |
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          ./gradlew :app:compileDebugAndroidTestKotlin --console=plain --no-daemon
-
-      - name: Badging
-        run: |
-          bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-          "$bt/aapt" dump badging android/src/android/app/build/outputs/apk/debug/app-debug.apk | grep -E "^package:|application-label:|native-code"
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - name: APK downloads
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: nanoMuse-debug-apk
-          path: android/src/android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
+          name: Nivo-Android-${{ github.run_number }}-${{ github.run_attempt }}
+          path: build/ci-android/
+          retention-days: 30
           if-no-files-found: error
+          compression-level: 0
+
+      - name: Test reports and diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Nivo-Android-reports-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            android/src/android/app/build/reports/tests/
+            android/src/android/app/build/test-results/
+            android/src/android/app/build/outputs/mapping/release/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Remove temporary signing material
+        if: always()
+        run: python3 scripts/android/ci-signing.py --cleanup

@@ -2,6 +2,8 @@
 
 本指南针对`sherlockerX/Nicholasx`分支，保留上游Android目录和协议。iOS、Web运行端和云端不在本次构建验证范围。
 
+GitHub上的自动触发、APK下载、测试范围和可选签名配置见[Android自动打包](android-ci.md)。
+
 ## 工具链与路径
 
 |项目|配置|
