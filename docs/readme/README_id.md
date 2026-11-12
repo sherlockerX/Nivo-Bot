@@ -1,138 +1,180 @@
-> **Fork Nivo Bot:** Mulai dari [OPEN_SOURCE.md](../../OPEN_SOURCE.md) dan [situs produk](../../site/README.md). README hulu dipertahankan untuk atribusi; unduhan, layanan, dan komunitasnya milik nanoMuse, bukan fork ini.
+# Nivo Bot
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: agen pribadi sumber terbuka untuk setiap perangkat yang kamu miliki">
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+</p>
+
+**Chat AI, tugas, fokus, catatan harian dan pelatihan pengembangan diri dalam satu ruang kerja Android.**
+
+<p align="center">
+  <a href="../../README.md">English</a> |
+  <a href="README_zh.md">简体中文</a> |
+  <a href="README_zh-TW.md">繁體中文</a> |
+  <a href="README_es.md">Español</a> |
+  <a href="README_fr.md">Français</a> |
+  <a href="README_id.md">Bahasa Indonesia</a> |
+  <a href="README_ja.md">日本語</a> |
+  <a href="README_ko.md">한국어</a> |
+  <a href="README_ru.md">Русский</a> |
+  <a href="README_vi.md">Tiếng Việt</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/README.md">English</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh.md">简体中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh-TW.md">繁體中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_es.md">Español</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_fr.md">Français</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_id.md">Bahasa Indonesia</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ja.md">日本語</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ko.md">한국어</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ru.md">Русский</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_vi.md">Tiếng Việt</a>
-</p>
-<p align="center">
-  <a href="https://trendshift.io/repositories/286894?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-286894" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/286894/daily?language=Swift" alt="nano-muse%2FnanoMuse | Trendshift" width="250" height="55"/></a>
-</p>
-<p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/stargazers"><img src="https://img.shields.io/github/stars/nano-muse/nanoMuse?style=flat&label=stars" alt="Bintang GitHub"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/releases"><img src="https://img.shields.io/github/downloads/nano-muse/nanoMuse/total?label=downloads" alt="Unduhan"></a>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-  <a href="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml"><img src="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml/badge.svg?branch=main" alt="Test Suite"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/nano-muse/nanoMuse?label=license" alt="GPL-3.0-or-later"></a>
-  <a href="https://arxiv.org/abs/2610.08699"><img src="https://img.shields.io/badge/arXiv-2610.08699-b31b1b" alt="Makalah di arXiv"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
+  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
   <br>
-  <a href="https://demo.nanomuse.dev/"><img src="https://img.shields.io/badge/Coba-demo.nanomuse.dev-0a66e4" alt="Coba di browser"></a>
-  <a href="https://nanomuse.cn/"><img src="https://img.shields.io/badge/Situs_web-nanomuse.cn-0a66e4" alt="Situs web"></a>
-  <a href="https://discord.gg/bkTySmm28X"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://nivo.8666886.xyz/">Situs web</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Laporan masalah</a> · <a href="../../OPEN_SOURCE.md">Berkontribusi</a>
 </p>
 
-**nanoMuse adalah agen pribadi sumber terbuka untuk setiap perangkat yang kamu miliki.** Satu agen dengan nama dan rupa sendiri, seperti [Muse](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/) dari Meta: ia mengerjakan sesuatu alih-alih sekadar menjawab pertanyaan, terus bekerja saat aplikasinya ditutup, mengingatmu, dan berhenti untuk bertanya sebelum melakukan apa pun yang tidak bisa kamu batalkan.
+Nivo Bot adalah ruang kerja AI untuk keseharian. Mulai dari percakapan, ubah langkah berikutnya menjadi tugas, berikan waktu fokus dan simpan pengalaman untuk ditinjau kembali.
 
-*nano* berarti satu paket lengkap yang cukup kecil untuk kamu jalankan dan pasang sendiri: aplikasi ponsel, aplikasi desktop, konsol web, dan relay yang menghubungkan semuanya ada di repositori ini, di bawah GPL-3.0-or-later. **[Gratis, sumber terbuka, nirlaba. Mari bangun bersama.](../../CONTRIBUTING.md)** Masuk dan kamu mendapat jatah gratis pemakaian model di relay komunitas (pengembang yang membayarnya); kalau habis, [pakai kunci sendiri](../own-key.md). Relay yang sama bisa berjalan di servermu, jadi tidak ada data yang harus keluar dari rumahmu. Versi terbaru: **1.0.6 Beacon**, [catatan rilis](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.6) · [coba di browser](https://demo.nanomuse.dev/).
+Gratis, sumber terbuka dan nirlaba. Pilih penyedia model Anda; permintaannya mungkin berbayar. TTS Android membaca balasan dengan mesin suara ponsel.
 
-> [!NOTE]
-> **nanoMuse terus berkembang**
->
-> Agen pribadi seharusnya tidak hanya hidup di cloud milik orang lain, maka nanoMuse menjadi alternatif sumber terbuka yang murah: berjalan di perangkatmu sendiri, dengan model pilihanmu dan relay yang bisa kamu pasang sendiri. Kami ingin membangunnya bersama pengembang dan pengguna di seluruh dunia, supaya setiap orang benar-benar memiliki agen pribadinya sendiri. Buka sebuah [issue](https://github.com/nano-muse/nanoMuse/issues/new/choose) atau kirim [pull request](../../CONTRIBUTING.md); keduanya membantu nanoMuse menjadi lebih baik.
+## Jelajahi Nivo
 
-https://github.com/user-attachments/assets/c7694d5a-9450-4f99-9254-5d70560d7565
+<p align="center">
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+</p>
 
-<p align="center"><a href="https://nanomuse.cn/media/film/nanomuse-film-en-web.mp4">English</a> · <a href="https://nanomuse.cn/media/film/nanomuse-film-zh-web.mp4">中文</a> · <a href="https://nanomuse.cn/#film">nanomuse.cn</a></p>
-
-## 🗞️ Kabar
-
-- `2026-10-13` ⭐ 1.000 bintang di GitHub, delapan belas hari setelah rilis pertama, dengan empat hari di daftar Swift GitHub Trending di sepanjang jalan ([Trendshift](https://trendshift.io/repositories/286894): ketujuh pada 7 Oktober, keempat pada 10 Oktober). Terima kasih untuk setiap percobaan, setiap laporan, dan setiap pull request. Kami terus berjalan: satu versi setiap beberapa hari, dan [peta jalan](../roadmap.md) menyebutkan apa yang berikutnya.
-- `2026-10-09` 🚀 Versi [1.0.0 Keel](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.0) sudah tersedia, untuk ponsel, desktop, dan peramban; dipasang di atas versi sebelumnya dengan data tetap utuh, dan catatan rilisnya memuat setiap perubahan.
-- `2026-10-08` 🤗 Makalah kami masuk [Hugging Face Daily Papers](https://huggingface.co/papers/2610.08699), peringkat ketiga di daftar 8 Oktober; pertanyaan dan komentar silakan disampaikan di halaman makalah.
-- `2026-10-07` 📄 Makalah kami tersedia di [arXiv](https://arxiv.org/abs/2610.08699): *nanoMuse: An Open-Source Personal Agent for Every Device You Own*, oleh Guangyi Liu, Yong Liu, dan Jiangning Zhang (Universitas Zhejiang); sitasinya ada di akhir halaman ini.
-- `2026-09-25` 🎉 nanoMuse dirilis di GitHub di bawah GPL-3.0-or-later: aplikasi Android yang dibangun di atas OpenMinis 1.13; relay, aplikasi desktop, dan aplikasi iPhone menyusul dalam beberapa hari berikutnya.
-
-Semua versi: [releases](https://github.com/nano-muse/nanoMuse/releases).
-
-## Pemasangan
-
-| | |
-|---|---|
-| **Browser** | [demo.nanomuse.dev](https://demo.nanomuse.dev/): sebuah nanoMuse di ponsel simulasi, setelah masuk. Ini demo; aplikasi di bawah inilah yang sebenarnya |
-| **Android** 8.0+, arm64 | [nanoMuse-1.0.6-arm64.apk](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-1.0.6-arm64.apk): setiap versi ditandatangani dengan kunci yang sama dan dipasang menimpa versi sebelumnya |
-| **iPhone / iPad** | [TestFlight](https://testflight.apple.com/join/ZHexbDqc): versi beta yang sudah lolos tinjauan beta Apple; pasang dari tautan ini · [iOS](../ios.md) |
-| **macOS** 12+ | [Apple Silicon](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-arm64.dmg) · [Intel](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-x64.dmg). Belum dinotarisasi: klik kanan → *Open* saat pertama kali |
-| **Windows** 10+ | [nanoMuse-Desktop-1.0.6-win-x64.exe](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-win-x64.exe): klik *Run anyway* sekali |
-| **Linux** x64 | [AppImage](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.AppImage) · [.deb](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.deb) · [tar.gz](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.tar.gz) |
-| **Docker** | `bash scripts/self-host.sh --local` untuk relay sendiri; `docker compose up -d app` untuk aplikasi web di servermu; lihat [self-hosting](../self-hosting.md) |
-
-Semua unduhan berasal dari [rilis terbaru](https://github.com/nano-muse/nanoMuse/releases/latest); berkas yang sama ada di [nanomuse.cn/dl](https://nanomuse.cn/dl/) kalau GitHub lambat di tempatmu. Buka aplikasinya, masuk dengan e-mail atau nomor ponsel Tiongkok daratan, dan agen langsung punya model untuk berpikir. Ponsel, desktop, dan web memakai satu akun dan menampilkan percakapan yang sama.
-
-## Apa yang dilakukannya
+Tur ilustrasi dengan isi contoh. GIF bergeser horizontal melalui enam modul; klik gambar statis untuk memperbesar. Ini ilustrasi penjelasan, bukan tangkapan layar perangkat.
 
 <table>
-  <tr>
-    <td width="50%" valign="top"><b>Mengerjakan sesuatu.</b><br>Shell Linux, browser, server MCP, dan skill, dan, dengan <i>Hands</i> menyala, aplikasi di ponselmu dan jendela di komputermu lewat layarnya, untuk segala hal yang tidak pernah punya API.</td>
-    <td width="50%" valign="top"><b>Bertanya dulu.</b><br>Ia berhenti sebelum menghapus, mengirim, atau membayar, dan mengingat jawabanmu untuk sekali ini, untuk obrolan ini, atau untuk selamanya; kata sandi dan kode tetap kamu yang mengetik. Login atau CAPTCHA diserahkan kepadamu; <i>Done</i> melanjutkan.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Menjangkau perangkatmu yang lain.</b><br>Ucapkan di ponsel, dijalankan di PC-mu; <code>@Mac …</code> di awal pesan mengirim tugas ke sana. Persetujuan kembali ke perangkat di tanganmu.</td>
-    <td width="50%" valign="top"><b>Terus berjalan.</b><br>Tujuan diperiksa sesuai jadwal, rutinitas berjalan saat aplikasi ditutup, feed ditulis untukmu setiap pagi.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Mengingatmu.</b><br>Siapa dirinya, apa yang ia tahu tentangmu, dan kapan ia bangun adalah berkas Markdown yang bisa kamu baca dan ubah.</td>
-    <td width="50%" valign="top"><b>Hidup di aplikasi chat-mu.</b><br>Ia menjawab di 飞书, 钉钉, 企业微信, dan Telegram.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Rupa sendiri.</b><br>Gambarkan rupa yang kamu mau, model gambarmu melukisnya, model video membuatnya bergerak. Seekor naga kecil sebagai bawaan.</td>
-    <td width="50%" valign="top"><b>Model apa saja.</b><br>Kuota relay, kunci milikmu sendiri di salah satu dari dua puluh dua penyedia (Bailian, OpenRouter, OpenAI, Gemini, DeepSeek, dan lainnya), atau paket yang sudah kamu bayar: ChatGPT, Claude, Kimi. Kalau penyedia tidak punya model gambar atau video, dua fitur itu dimatikan, dan aplikasi memberi tahu.</td>
-  </tr>
+<tr>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+</tr>
 </table>
 
-## Cara kerjanya
+## Yang dapat Anda lakukan
 
-Setiap perangkat menjalankan agennya sendiri: ponsel di dalam APK (Alpine Linux di bawah proot, shell, browser, MCP), komputer di dalam nanoMuse Desktop (DeepSeek Harness dengan runtime Python untuk tangannya). Setelah masuk, mereka bertemu di relay dan bisa saling meminta sesuatu; teks percakapan lewat relay, berkas dan tangkapan layar tetap di tempat dibuatnya.
+| Bagian | Fitur Android |
+|---|---|
+| Chat AI | Atur penyedia model, gunakan alat tugas dan fokus terintegrasi, serta dengarkan balasan dengan text-to-speech sistem Android. |
+| Ide | Jelajahi saran yang diperbarui berdasarkan tanggal untuk pekerjaan, kehidupan, pembelajaran, keluarga dan hubungan, pembuatan konten dan lainnya. |
+| Tugas | Gunakan kembali grup dan tag tersimpan; beralih antara kalender, empat kuadran, grup dan status; lihat proporsi tag tugas yang selesai. |
+| Fokus | Jalankan hitung mundur atau stopwatch, hubungkan dengan tugas, jeda dan lanjutkan, serta gunakan timer layar penuh yang dapat dipulihkan dengan latar lokal. |
+| Catatan harian | Catat pengalaman dan lampirkan kemajuan tugas atau sesi fokus yang sudah berakhir. |
+| Coach | Jelajahi kemampuan, susun usulan kursus melalui chat AI, berlatih dalam percakapan latihan harian dan tinjau arsip pembelajaran. |
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/devices-loop.png" alt="Android, desktop (Mac, Windows, Linux), iPhone dan iPad, serta aplikasi web di sekitar satu akun: relay memproses masuknya perangkat ke akun dan membawa percakapan di antaranya" width="92%">
-</p>
+Grafik menghitung tugas selesai menurut tag, bukan waktu yang digunakan. Statistik fokus mencatat durasi nyata; mengakhiri sesi tidak otomatis menyelesaikan tugasnya. Membuka kursus tidak menandainya sebagai dikuasai.
 
-[docs/every-device.md](../every-device.md) menjelaskan perangkat-perangkatnya, [docs/hub.md](../hub.md) frame-nya, [docs/cloud.md](../cloud.md) relay-nya, [docs/privacy.md](../privacy.md) apa yang disimpannya.
+## Satu niat, hari yang terhubung
 
-## Dibandingkan dengan Muse dan OpenMinis
+Misalnya Anda ingin membaca sedikit setiap hari:
 
-| | Meta Muse | OpenMinis | nanoMuse |
-|---|---|---|---|
-| Di mana agen berjalan | Satu VM cloud per pengguna | Ponsel tempat ia dipasang | Ponselmu, komputermu, atau servermu, satu akun untuk semuanya |
-| Aplikasi tanpa API | Di luar jangkauan; VM tidak pernah menyentuh perangkatmu | CLI aksesibilitas di Android | Layar sebagai tangan di ponsel dan komputer: tangkapan layar, API dicoba dulu, kamu mengambil alih saat login. Tidak di iOS, karena sistemnya tidak mengizinkan |
-| Perangkat lain | Klien dari satu VM | Hanya yang terpasang | Perangkat saling meminta lewat hub, persetujuan di tempatmu berada |
-| Model | Milik Meta | Bawa sendiri | Jatah gratis dari relay, atau milikmu |
-| Lisensi | Tertutup | GPL-3.0 | GPL-3.0-or-later, dibangun di atas OpenMinis |
+1. **Bicarakan tujuannya.** Perjelas dengan AI dan buat tugas membaca melalui alat aplikasi.
+2. **Berikan tempat.** Gunakan grup dan tag tersimpan, lalu temukan tugas pada tampilan yang sesuai.
+3. **Berikan waktu.** Mulai sesi terkait tugas, pilih latar dan buka timer layar penuh.
+4. **Simpan pengalamannya.** Hubungkan sesi selesai dan kemajuan ke catatan harian beserta pengamatan Anda.
+5. **Terus belajar.** Susun kursus lewat chat, berlatih dalam percakapan harian dan tinjau arsip Coach.
+
+Keterhubungan adalah fiturnya: niat yang sama berlanjut dari percakapan ke tindakan, waktu dan refleksi.
+
+AI menyimpan perubahan tugas melalui alat aplikasi. Balasan percakapan saja bukan tugas tersimpan; penyelesaian oleh AI memerlukan laporan eksplisit dari pengguna saat ini. Durasi fokus berasal dari timer, bukan angka buatan model.
+
+Pembelajaran, tugas, fokus dan catatan memakai penyimpanan lokal dengan aturan akun dan pencadangan per modul. Pesan yang dikirim ke model diproses oleh penyedia pilihan Anda. Tinjau izin dan cakupan cadangan sebelum berpindah perangkat.
+
+## Mulai menggunakan
+
+| Sumber | Tautan |
+|---|---|
+| Situs produk | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
+| Android 8.0 ke atas, arm64 | [APK Nivo Bot v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
+| Sumber yang sesuai dengan APK | [Paket sumber v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Checksum unduhan | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
+| Detail rilis | [Catatan rilis](../releases/v2.0.0.md) · [Catatan verifikasi](../releases/v2.0.0-verification.json) |
+
+Rilis ini mencakup Android dan situs produk. Sumber platform lain tetap tersedia di repositori, tanpa menyatakan adanya rilis Nivo Bot atau kesetaraan fitur pada platform tersebut.
+
+ID aplikasi tetap `io.github.nanomuse.app`. Instalasi dengan kunci Debug lama atau kunci proyek hulu biasanya tidak dapat diperbarui dengan rilis ini. Periksa cakupan pencadangan dan pemulihan sebelum menghapus aplikasi; lihat [panduan versi dan penandatanganan](../android-development.md#nivo-bot的android版本与签名).
+
+## Membangun dari sumber
+
+<details>
+<summary>Detail pengembangan</summary>
+
+Klon beserta submodul dependensi native:
+
+```bash
+git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
+cd Nicholasx
+```
+
+Gunakan JDK 21, Android SDK 36, NDK 27.2.12479018 dan CMake 3.22.1. Gradle Wrapper 8.11.1 tersedia. Atur toolchain lalu siapkan dependensi native pada Linux atau WSL:
+
+```bash
+bash scripts/android/build-natives.sh
+```
+
+Pada Windows PowerShell 7:
+
+```powershell
+$env:JAVA_HOME = 'C:\path\to\jdk21'
+$env:ANDROID_HOME = 'C:\path\to\android-sdk'
+./scripts/android/Build-Android.ps1 -Target Check
+./scripts/android/Build-Android.ps1 -Target Debug
+```
+
+Lihat [panduan pengembangan Android](../android-development.md) untuk input native, pengujian, keluaran dan tanda tangan rilis. Simpan kunci dan kredensial di luar repositori. Build dengan cache tidak membuktikan build pada mesin bersih atau kompatibilitas perangkat nyata.
+
+</details>
+
+## Struktur repositori
+
+<details>
+<summary>Struktur sumber</summary>
+
+| Jalur | Isi |
+|---|---|
+| `android/src/android/` | Aplikasi Android; tambahan Nivo berada di `io.github.nanomuse.*`. |
+| `site/` | Situs produk statis dan metadata unduhan. |
+| `docs/` | Panduan, peta sumber dan catatan rilis. |
+| `scripts/android/`, `scripts/release/` | Alat build, penandatanganan, audit sumber dan pengemasan. |
+| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Sumber iOS, desktop, runtime, relay dan konsol web yang dipertahankan, dengan cakupan rilis dan verifikasi terpisah. |
+
+Pohon Android mempertahankan struktur, identitas paket dan atribusi hulu. Baca [peta sumber](../android-code-map.md) sebelum mengubah batas modul.
+
+</details>
 
 ## Dokumentasi
 
-[nanomuse.cn/docs](https://nanomuse.cn/docs/): pemasangan per platform, setiap perangkat, tangan, konektor, memori, self-hosting, protokol. Sumbernya ada di [docs/](../); apa yang berubah di tiap versi ada di [CHANGELOG](../../CHANGELOG.md) dan [docs/releases/](../releases/).
-
-## Self-hosting
-
-Satu VPS, satu jam: [docs/self-hosting.md](../self-hosting.md). Tiga jalan: tanpa server sama sekali dengan kunci sendiri; relay sendiri dengan `scripts/self-host.sh`; atau runtime sendiri untuk aplikasi web.
+- [Panduan sumber terbuka dan cakupan kontribusi](../../OPEN_SOURCE.md)
+- [Panduan pengguna Android](../zh/android.md)
+- [Pengembangan Android dan penandatanganan](../android-development.md)
+- [Peta sumber Android](../android-code-map.md)
+- [Sumber situs dan deployment](../../site/README.md)
+- [Catatan perubahan](../../CHANGELOG.md)
+- [Hak cipta dan asal-usul](../../NOTICE) · [Pemberitahuan pihak ketiga](../../THIRD_PARTY_NOTICES.md)
 
 ## Berkontribusi
 
-Pakai untuk tugas nyata, laporkan apa yang rusak, lalu pilih sesuatu yang terfokus: [CONTRIBUTING.md](../../CONTRIBUTING.md) berisi penyiapan dan konvensinya, [AGENTS.md](../../AGENTS.md) aturan yang diikuti agen pemrograman di repositori ini, dan [peta jalan](../roadmap.md) menunjukkan dari mana memulai. [Issues](https://github.com/nano-muse/nanoMuse/issues) · [Discussions](https://github.com/nano-muse/nanoMuse/discussions) · [Discord](https://discord.gg/bkTySmm28X).
+Laporkan masalah yang dapat direproduksi melalui [Issues repositori ini](https://github.com/sherlockerX/Nicholasx/issues) dan kirim PR terarah. Ikuti [OPEN_SOURCE.md](../../OPEN_SOURCE.md) dan [CONTRIBUTING.md](../../CONTRIBUTING.md), termasuk Conventional Commits, pengujian sesuai perubahan dan sign-off DCO melalui `git commit -s`.
+
+Pertahankan pemberitahuan hak cipta dan lisensi hulu. Jangan memasukkan kunci API, materi penandatanganan atau catatan pribadi ke issue dan commit. OpenMinis memiliki kebijakan kontribusinya sendiri; fork ini tidak mengubahnya.
 
 ## Pemelihara
 
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/lgy0404"><img src="https://avatars.githubusercontent.com/u/63797388?v=4&s=80" width="80" height="80" alt="Guangyi Liu"><br><strong>Guangyi Liu</strong></a></td>
-  </tr>
-</table>
+Fork Nivo Bot ini dipelihara oleh <a href="https://github.com/sherlockerX">sherlockerX</a>. Laporkan masalah khusus Nivo di sini agar diterima pemelihara fork ini.
 
-## Kontributor komunitas
+## Lisensi
 
-Semua orang yang perubahannya sudah masuk ke `main`, dari daftar kontributor GitHub.
+[GPL-3.0-or-later](../../LICENSE), melanjutkan lisensi sumber terbuka asli. Pertahankan pemberitahuan dan sediakan sumber terkait ketika mendistribusikan biner sesuai GPL. Perangkat lunak diberikan tanpa jaminan; [NOTICE](../../NOTICE) dan [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) mencatat ketentuan hulu dan dependensi.
+
+## Terima kasih
+
+Nivo Bot dibangun di atas [nanoMuse](https://github.com/nano-muse/nanoMuse), dengan fondasi agen, integrasi dan arsitektur yang memungkinkan pekerjaan ini. Terima kasih kepada nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> dan kontributornya. Fondasi ponsel berasal dari [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+
+Daftar berikut mengakui kontribusi historis nanoMuse. Kredit dan tonggak ada di [arsip asal-usul](../archive/upstream-readme-id.md); ketentuan dependensi ada di [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot dipelihara secara independen.
+
+<details>
+<summary>Kontributor dan asal-usul</summary>
 
 <!-- contributors:start -->
 <p>
@@ -154,40 +196,4 @@ Semua orang yang perubahannya sudah masuk ke `main`, dari daftar kontributor Git
 </p>
 <!-- contributors:end -->
 
-## ⭐️ Sitasi
-
-Jika nanoMuse bermanfaat bagi Anda, silakan kutip makalah ini.
-
-```bibtex
-@misc{liu2026nanomuseopensourcepersonalagent,
-      title={nanoMuse: An Open-Source Personal Agent for Every Device You Own}, 
-      author={Guangyi Liu and Yong Liu and Jiangning Zhang},
-      year={2026},
-      eprint={2610.08699},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2610.08699}, 
-}
-```
-
-## Ucapan terima kasih
-
-nanoMuse berdiri di atas karya orang lain; [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) memuat ketentuannya.
-
-- [OpenMinis](https://github.com/OpenMinis/OpenMinis): agen di perangkat yang menjadi dasar aplikasi ponsel, dengan [proot](https://github.com/nano-muse/proot) dan [Alpine Linux](https://alpinelinux.org/) untuk sandbox-nya.
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): harness agen tempat aplikasi desktop menjadi plugin-nya.
-- [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop) (ByteDance): operator tangan di desktop adalah porting dari milik mereka, dan penanda di panggung mengikuti ScreenMarker mereka.
-- [MobileGym](https://github.com/Purewhiter/mobilegym), [MemGUI-Bench](https://github.com/lgy0404/MemGUI-Bench), [PhoneHarness](https://github.com/PhoneHarness/PhoneHarness), [CopilotKit/OpenMuse](https://github.com/CopilotKit/OpenMuse), [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM), [ClawGUI](https://github.com/ZJU-REAL/ClawGUI): operator ponsel, jejak, dan gagasan produknya.
-
-## Penafian
-
-nanoMuse adalah proyek komunitas independen, tidak berafiliasi dengan atau didukung oleh Meta Platforms, Inc.; Muse adalah merek dagang mereka. Naganya milik proyek ini.
-
-## Lisensi
-
-[GPL-3.0-or-later](../../LICENSE). Aplikasi ponsel berbasis OpenMinis 1.13 (GPL-3.0), dimodifikasi sejak 2026-09-24; lihat [NOTICE](../../NOTICE). Versi lebih awal dari jalur Python berlisensi MIT (tag `pre-openminis`).
-
-<p align="center">
-  <em>Terima kasih sudah berkunjung ✨ nanoMuse.</em><br><br>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-</p>
+</details>

@@ -1,6 +1,6 @@
 # Nivo Bot开源入口
 
-Nivo Bot是基于nanoMuse与OpenMinis持续开发的Android应用。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。上游README中的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
+Nivo Bot是基于nanoMuse与OpenMinis持续开发的Android应用。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。根README与九份翻译介绍本分支，文末致谢nanoMuse并保留上游贡献者名单。上游的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
 
 - 产品网站源码：[site/](site/README.md)。纯静态、无需Node依赖，可部署到GitHub Pages或其他静态主机。
 - Android构建：[docs/android-development.md](docs/android-development.md)。

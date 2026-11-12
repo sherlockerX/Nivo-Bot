@@ -1,5 +1,7 @@
 # Contributing
 
+> **Nivo Bot fork:** Use [OPEN_SOURCE.md](OPEN_SOURCE.md) for this fork's contribution scope and [sherlockerX/Nicholasx Issues](https://github.com/sherlockerX/Nicholasx/issues) for reports. GPL-3.0-or-later, DCO sign-off and the engineering conventions below remain in force. References to nanoMuse's community, protected `main` branch and multi-platform releases describe the upstream project, not this fork's services or release process.
+
 Open an issue or send a pull request; either one helps nanoMuse get better. Use nanoMuse for a real task, report what broke, then pick something focused. For anything larger than a fix, open an issue first so we can agree on the shape. [docs/roadmap.md](docs/roadmap.md) says where help is wanted and where to start in each area. For a quick question or to talk through an idea before writing it up, there is a [Discord](https://discord.gg/bkTySmm28X); decisions still land in issues and pull requests, where they can be found later.
 
 [AGENTS.md](AGENTS.md) is the short version of this file for coding agents and for people in a hurry: the layout, the check commands per area, and the conventions below in one screen. The two must agree; when they do not, fix both.

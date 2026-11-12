@@ -1,138 +1,180 @@
-> **Nivo Bot分支說明：**本倉庫包含Nivo Bot的Android開發。請先閱讀[開源入口](../../OPEN_SOURCE.md)及[產品網站](../../site/README.md)。下文保留上游介紹與歸屬，下載、託管服務和社群資訊屬於nanoMuse，不代表本分支。
+# Nivo Bot
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse：開源的個人智慧體，面向你的每一台裝置">
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+</p>
+
+<strong>將AI聊天、待辦、專注、生活片段與成長教練放在同一個Android工作臺。</strong>
+
+<p align="center">
+  <a href="../../README.md">English</a> |
+  <a href="README_zh.md">简体中文</a> |
+  <a href="README_zh-TW.md">繁體中文</a> |
+  <a href="README_es.md">Español</a> |
+  <a href="README_fr.md">Français</a> |
+  <a href="README_id.md">Bahasa Indonesia</a> |
+  <a href="README_ja.md">日本語</a> |
+  <a href="README_ko.md">한국어</a> |
+  <a href="README_ru.md">Русский</a> |
+  <a href="README_vi.md">Tiếng Việt</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/README.md">English</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh.md">简体中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh-TW.md">繁體中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_es.md">Español</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_fr.md">Français</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_id.md">Bahasa Indonesia</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ja.md">日本語</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ko.md">한국어</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ru.md">Русский</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_vi.md">Tiếng Việt</a>
-</p>
-<p align="center">
-  <a href="https://trendshift.io/repositories/286894?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-286894" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/286894/daily?language=Swift" alt="nano-muse%2FnanoMuse | Trendshift" width="250" height="55"/></a>
-</p>
-<p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/stargazers"><img src="https://img.shields.io/github/stars/nano-muse/nanoMuse?style=flat&label=stars" alt="GitHub stars"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/releases"><img src="https://img.shields.io/github/downloads/nano-muse/nanoMuse/total?label=downloads" alt="下載量"></a>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-  <a href="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml"><img src="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml/badge.svg?branch=main" alt="Test Suite"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/nano-muse/nanoMuse?label=license" alt="GPL-3.0-or-later"></a>
-  <a href="https://arxiv.org/abs/2610.08699"><img src="https://img.shields.io/badge/arXiv-2610.08699-b31b1b" alt="arXiv 上的論文"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
+  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
   <br>
-  <a href="https://demo.nanomuse.dev/"><img src="https://img.shields.io/badge/%E7%B7%9A%E4%B8%8A%E9%AB%94%E9%A9%97-demo.nanomuse.dev-0a66e4" alt="線上體驗"></a>
-  <a href="https://nanomuse.cn/"><img src="https://img.shields.io/badge/%E5%AE%98%E7%B6%B2-nanomuse.cn-0a66e4" alt="官網"></a>
-  <a href="https://discord.gg/bkTySmm28X"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://nivo.8666886.xyz/">產品網站</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">問題回報</a> · <a href="../../OPEN_SOURCE.md">參與貢獻</a>
 </p>
 
-**nanoMuse 是一個開源的個人智慧體，面向你的每一台裝置。** 一個有名字、有自己形象的智慧體，和 Meta 的 [Muse](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/) 是同一類東西：不只回答問題，而是動手做事；App 關了也繼續做；記得你；遇到無法復原的操作會先停下來問你。
+Nivo Bot是面向日常生活的AI工作臺。從一句想法開始，把下一步變成待辦，留一段時間專注，再把經歷保存在可以回顧的記錄裡。
 
-*nano* 的意思是完整的一套，小到你自己就能跑、能部署：手機 App、桌面 App、網頁主控台，還有把它們連在一起的中繼，都在這個儲存庫裡，GPL-3.0-or-later。**[免費、開源、非營利。一起把它做好。](../../CONTRIBUTING.md)** 登入就有一份免費的模型額度，走社群中繼，錢是開發者出的；用完可以[換成自己的 key](../own-key.md)。同一套中繼也能跑在你自己的伺服器上，資料不必出門。最新版本：**1.0.6 Beacon**，[發行說明](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.6) · [線上體驗](https://demo.nanomuse.dev/)。
+免費、開源、非營利。模型服務由你選擇，費用以服務商為準；回覆朗讀使用手機既有的Android系統TTS引擎。
 
-> [!NOTE]
-> **nanoMuse 在持續進化**
->
-> 個人智慧體不該只長在別人的雲裡，nanoMuse 想做一個開源、低成本的替代方案：裝在自己的裝置上，模型自己選，中繼也能自己架。我們希望和全球的開發者、使用者一起，讓每個人真正擁有自己的個人智慧體。開個 [issue](https://github.com/nano-muse/nanoMuse/issues/new/choose) 或發個 [PR](../../CONTRIBUTING.md) 都是在幫 nanoMuse 變得更好。
+## 先看看怎麼用
 
-https://github.com/user-attachments/assets/bf0ec2ae-59aa-4358-9dd0-c9d045ee7bee
+<p align="center">
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+</p>
 
-<p align="center"><a href="https://nanomuse.cn/media/film/nanomuse-film-en-web.mp4">English</a> · <a href="https://nanomuse.cn/media/film/nanomuse-film-zh-web.mp4">中文</a> · <a href="https://nanomuse.cn/#film">nanomuse.cn</a></p>
-
-## 🗞️ 最新消息
-
-- `2026-10-13` ⭐ GitHub 上 1000 個 star，距首發十八天，期間連續四天進入 GitHub Trending 的 Swift 榜（[Trendshift](https://trendshift.io/repositories/286894) 的記錄：10 月 7 日第七，10 月 10 日第四）。謝謝每一次試用、每一個問題回報和每一個 pull request。我們會繼續做下去：每隔幾天一個版本，下一步做什麼寫在[路線圖](../roadmap.md)裡。
-- `2026-10-09` 🚀 版本 [1.0.0 Keel](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.0) 發布，手機、電腦和瀏覽器都有；安裝在上一版之上，資料保留，每一處改動都寫在發布說明裡。
-- `2026-10-08` 🤗 我們的論文登上 [Hugging Face Daily Papers](https://huggingface.co/papers/2610.08699)，在 10 月 8 日的榜單上排第三；歡迎到論文頁提問和留言。
-- `2026-10-07` 📄 我們的論文已發布在 [arXiv](https://arxiv.org/abs/2610.08699)：《nanoMuse: An Open-Source Personal Agent for Every Device You Own》，作者 Guangyi Liu、Yong Liu、Jiangning Zhang（浙江大學）；引用格式見本頁末尾。
-- `2026-09-25` 🎉 nanoMuse 以 GPL-3.0-or-later 發布在 GitHub：一個基於 OpenMinis 1.13 的 Android 應用程式；中繼、電腦版和 iPhone 版在隨後幾天陸續到來。
-
-全部版本：[releases](https://github.com/nano-muse/nanoMuse/releases)。
-
-## 安裝
-
-| | |
-|---|---|
-| **瀏覽器** | [demo.nanomuse.dev](https://demo.nanomuse.dev/)：一台模擬手機上的 nanoMuse，登入後體驗。這是示範；下面的用戶端才是正式的 |
-| **Android** 8.0 以上，arm64 | [nanoMuse-1.0.6-arm64.apk](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-1.0.6-arm64.apk)：每個版本都用同一把金鑰簽署，直接覆蓋安裝即可升級 |
-| **iPhone / iPad** | [TestFlight](https://testflight.apple.com/join/ZHexbDqc)：測試版，已通過 Apple 的 beta 審核；從這個連結安裝 · [iOS](../ios.md) |
-| **macOS** 12 以上 | [Apple 晶片](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-arm64.dmg) · [Intel](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-x64.dmg)。未經公證：第一次右鍵 → 打開 |
-| **Windows** 10 以上 | [nanoMuse-Desktop-1.0.6-win-x64.exe](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-win-x64.exe)：點一次「仍要執行」 |
-| **Linux** x64 | [AppImage](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.AppImage) · [.deb](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.deb) · [tar.gz](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.tar.gz) |
-| **Docker** | `bash scripts/self-host.sh --local` 架自己的中繼；`docker compose up -d app` 在自己的伺服器上跑網頁版；見[自己部署](../self-hosting.md) |
-
-下載都來自 [GitHub 最新版本](https://github.com/nano-muse/nanoMuse/releases/latest)；GitHub 下載不順時，同樣的檔案在 [nanomuse.cn/dl](https://nanomuse.cn/dl/)。打開 App，用電子郵件或中國大陸手機號登入，它就有模型可用。手機、桌面和網頁共用一個帳號，看到的是同樣的對話。
-
-## 能做什麼
+原創功能示意，採用範例內容。GIF橫向輪播6個模組，點擊下方靜態圖可放大。這些是功能說明圖，不是手機實拍畫面。
 
 <table>
-  <tr>
-    <td width="50%" valign="top"><b>動手做事。</b><br>Linux shell、瀏覽器、MCP 伺服器、技能；打開「手」之後，手機上的 App 和電腦上的視窗也能透過螢幕操作，給那些從來沒有 API 的東西。</td>
-    <td width="50%" valign="top"><b>關鍵處先問。</b><br>刪除、傳送、付款前先停下來問你，可以記住：只此一次、本次對話，或者一直允許；密碼和驗證碼永遠由你自己輸入。碰到登入或人機驗證就交給你，點「完成」接著做。</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>搆得著別的裝置。</b><br>手機上說一句，電腦上執行；訊息以 <code>@Mac …</code> 開頭，任務就去那台機器。核准的請求會回到你手上這台裝置。</td>
-    <td width="50%" valign="top"><b>一直在做。</b><br>目標按時檢查，例行工作在 App 關著時照樣跑，每天早上有寫給你的動態。</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>記得你。</b><br>它是誰、了解你什麼、什麼時候醒來，都是你能看、能改的 Markdown 檔案。</td>
-    <td width="50%" valign="top"><b>住在你的聊天軟體裡。</b><br>飛書、釘釘、企業微信、Telegram 裡都能回覆你。</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>有自己的形象。</b><br>描述一句，你的圖像模型來畫，影片模型讓它動起來。預設是一隻小龍。</td>
-    <td width="50%" valign="top"><b>任何模型。</b><br>中繼的額度；自己在二十二家服務商（百煉、OpenRouter、OpenAI、Gemini、DeepSeek 等）任一家的 key；或者你已經在付費的方案：ChatGPT、Claude、Kimi。服務商沒有圖片或影片模型，這兩項就不開，App 會直說。</td>
-  </tr>
+<tr>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+</tr>
 </table>
 
-## 怎麼運作
+## 可以做什麼
 
-每台裝置上都跑著自己的智慧體：手機上在 APK 裡（proot 下的 Alpine Linux、shell、瀏覽器、MCP），電腦上在 nanoMuse Desktop 裡（DeepSeek Harness 加上負責「手」的 Python 執行環境）。登入後它們在中繼上相遇，可以互相請對方做事；對話的文字經中繼傳遞，檔案和截圖留在產生它們的裝置上。
+| 模組 | Android功能 |
+|---|---|
+| AI聊天 | 設定模型服務，透過工具操作待辦和專注，使用Android系統TTS朗讀回覆。 |
+| 點子 | 按日期更新工作、生活、學習、家庭和關係、自媒體及其他方向的建議。 |
+| 待辦 | 重用已儲存的群組和標籤，在日曆、四象限、群組及狀態檢視間切換，查看完成任務的標籤占比。 |
+| 專注 | 使用倒數計時或碼錶，關聯待辦，暫停與恢復，進入可恢復的全螢幕計時介面並選擇本機匯入的背景。 |
+| 生活片段 | 記錄每天的經歷，關聯任務進度與已結束的專注時段。 |
+| 教練 | 探索能力方向，在AI聊天中制定課程提案，進入每日練習對話訓練，再回到檔案回顧。 |
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/devices-loop.png" alt="Android、桌面端（Mac、Windows、Linux）、iPhone 和 iPad、網頁版圍繞同一個帳號：中繼負責登入，並在裝置之間同步對話" width="92%">
-</p>
+待辦圖表統計完成任務的標籤占比，不代表耗時。專注統計記錄實際計時，結束專注不會自動完成待辦。瀏覽課程也不會被記為掌握。
 
-[docs/every-device.md](../every-device.md) 講裝置之間怎麼配合，[docs/hub.md](../hub.md) 講訊框格式，[docs/cloud.md](../cloud.md) 講中繼，[docs/privacy.md](../privacy.md) 講它保存什麼。
+## 一個念頭，連起一天
 
-## 和 Muse、OpenMinis 的比較
+例如，你想每天讀一點書：
 
-| | Meta Muse | OpenMinis | nanoMuse |
-|---|---|---|---|
-| 智慧體跑在哪 | 每人一台雲端 VM | 裝了它的那台手機 | 你的手機、你的電腦，或者你自己的伺服器，一個帳號串起來 |
-| 沒有 API 的 App | 碰不到；VM 不碰你的裝置 | Android 上的一個無障礙 CLI | 手機和電腦上都把螢幕當手：看截圖，先試 API，登入由你接管。iOS 上沒有，系統不允許 |
-| 其他裝置 | 同一台 VM 的多個用戶端 | 只有裝了它的那一台 | 裝置之間透過 hub 互相請對方做事，核准在你手上的那台 |
-| 模型 | Meta 的 | 自己帶 | 中繼的免費額度，或者自己的 |
-| 授權 | 閉源 | GPL-3.0 | GPL-3.0-or-later，基於 OpenMinis |
+1. <strong>先聊清楚。</strong>讓AI幫你把目標縮小，透過應用工具建立閱讀待辦。
+2. <strong>給它一個位置。</strong>放進已儲存的群組，重用標籤，在合適的任務檢視裡找到它。
+3. <strong>留一段時間。</strong>關聯待辦開始專注，選擇背景，進入全螢幕計時。
+4. <strong>把經歷留下。</strong>在生活片段關聯已結束的專注與任務進度，寫下發現。
+5. <strong>繼續練習成長。</strong>在聊天中制定課程提案，進入每日練習，再到教練檔案回顧。
+
+特色就在這些聯繫中：同一個想法，可以沿著對話、行動、時間和回顧繼續走下去。
+
+AI透過應用程式工具儲存任務變更，聊天裡說「建好了」不等於任務已儲存。AI完成任務需要目前使用者明確報告完成；專注時長由計時器記錄，不由模型填寫。
+
+學習、待辦、專注和片段使用本機儲存，各模組有自己的帳號與備份規則。傳送給模型的訊息由你設定的服務商處理。移轉裝置前，請檢查權限與各模組的備份範圍。
+
+## 開始使用
+
+| 資源 | 連結 |
+|---|---|
+| 產品網站 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
+| Android8.0及以上，arm64 | [Nivo Bot v2.0.0安裝檔](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
+| 與安裝檔對應的原始碼 | [v2.0.0原始碼套件](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| 下載校驗碼 | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
+| 發行詳情 | [發行說明](../releases/v2.0.0.md)·[驗證記錄](../releases/v2.0.0-verification.json) |
+
+本次發行範圍是Android與產品網站。儲存庫保留其他平台原始碼，不據此宣稱這些平台已發行Nivo Bot或實現功能同步。
+
+應用程式ID仍為`io.github.nanomuse.app`。舊Debug簽章或上游簽章的安裝通常不能直接覆蓋升級。解除安裝前請核對備份與還原範圍，詳見[版本與簽章指南](../android-development.md#nivo-bot的android版本与签名)。
+
+## 從原始碼建置
+
+<details>
+<summary>開發細節</summary>
+
+複製儲存庫時同時取得原生相依項目的子模組：
+
+```bash
+git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
+cd Nicholasx
+```
+
+工具鏈為JDK21、Android SDK36、NDK27.2.12479018與CMake3.22.1，附帶Gradle Wrapper8.11.1。設定工具鏈後，在Linux或WSL準備原生相依項目：
+
+```bash
+bash scripts/android/build-natives.sh
+```
+
+Windows PowerShell7：
+
+```powershell
+$env:JAVA_HOME = 'C:\path\to\jdk21'
+$env:ANDROID_HOME = 'C:\path\to\android-sdk'
+./scripts/android/Build-Android.ps1 -Target Check
+./scripts/android/Build-Android.ps1 -Target Debug
+```
+
+原生輸入、測試、產物與發行簽章見[Android開發指南](../android-development.md)。簽章金鑰與憑證放在儲存庫外。快取環境上的建置成功不等於新電腦建置或實機相容性驗證。
+
+</details>
+
+## 儲存庫結構
+
+<details>
+<summary>原始碼目錄</summary>
+
+| 路徑 | 內容 |
+|---|---|
+| `android/src/android/` | Android應用程式，Nivo新增模組位於`io.github.nanomuse.*`。 |
+| `site/` | 靜態產品網站與下載中繼資料。 |
+| `docs/` | 使用指南、原始碼地圖與發行記錄。 |
+| `scripts/android/`、`scripts/release/` | 建置、簽章、原始碼稽核與封裝工具。 |
+| `android/src/ios/`、`harness/`、`nanomuse/`、`cloud/`、`web/` | 保留的iOS、桌面、執行環境、中繼與Web控制臺原始碼，發行與驗證範圍各自獨立。 |
+
+Android目錄保留上游結構、套件識別與來源聲明。修改模組邊界前，請先閱讀[原始碼地圖](../android-code-map.md)。
+
+</details>
 
 ## 文件
 
-[nanomuse.cn/docs](https://nanomuse.cn/docs/)：各平台的安裝、多裝置、「手」、連接器、記憶、自己部署、協定。原始檔在 [docs/](../)；每個版本改了什麼在 [CHANGELOG](../../CHANGELOG.md) 和 [docs/releases/](../releases/)。
+- [開源入口與貢獻範圍](../../OPEN_SOURCE.md)
+- [Android使用指南](../zh/android.md)
+- [Android開發與簽章](../android-development.md)
+- [Android原始碼地圖](../android-code-map.md)
+- [網站原始碼與部署](../../site/README.md)
+- [更新記錄](../../CHANGELOG.md)
+- [版權與來源](../../NOTICE)·[第三方說明](../../THIRD_PARTY_NOTICES.md)
 
-## 自己部署
+## 參與貢獻
 
-一台 VPS，一個小時：[docs/self-hosting.md](../self-hosting.md)。三條路：不要伺服器、只用自己的 key；用 `scripts/self-host.sh` 架自己的中繼；在自己的機器上跑網頁版的執行環境。
+在[本儲存庫Issues](https://github.com/sherlockerX/Nicholasx/issues)報告可重現的問題，提交範圍明確的PR。遵循[OPEN_SOURCE.md](../../OPEN_SOURCE.md)與[CONTRIBUTING.md](../../CONTRIBUTING.md)，沿用Conventional Commits、適合變更的測試，以及`git commit -s`新增的DCO簽署。
 
-## 參與
-
-拿它做一件真事，回報哪裡壞了，然後挑一件小而具體的事做：[CONTRIBUTING.md](../../CONTRIBUTING.md) 有環境和約定，[AGENTS.md](../../AGENTS.md) 是 AI 寫程式工具在這個程式碼庫裡要守的規矩，[路線圖](../roadmap.md)說從哪裡入手。[Issues](https://github.com/nano-muse/nanoMuse/issues) · [Discussions](https://github.com/nano-muse/nanoMuse/discussions) · [Discord](https://discord.gg/bkTySmm28X)。
+保留上游版權和授權聲明。不要在Issue或提交中包含API金鑰、簽章材料與個人記錄。OpenMinis仍有自己的貢獻政策，本分支接受變更不改變該政策。
 
 ## 維護者
 
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/lgy0404"><img src="https://avatars.githubusercontent.com/u/63797388?v=4&s=80" width="80" height="80" alt="Guangyi Liu"><br><strong>Guangyi Liu</strong></a></td>
-  </tr>
-</table>
+Nivo Bot分支由<a href="https://github.com/sherlockerX">sherlockerX</a>維護。與Nivo相關的問題請提交到本儲存庫，方便本分支維護者處理。
 
-## 社群貢獻者
+## 開源授權
 
-每一位有改動合併進 `main` 的人，取自 GitHub 的貢獻者列表。
+繼續採用原來的[GPL-3.0-or-later](../../LICENSE)。保留版權與授權聲明，散布二進位檔時按GPL要求提供對應原始碼。軟體不提供擔保；上游與相依項目條款見[NOTICE](../../NOTICE)和[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
+
+## 致謝
+
+Nivo Bot基於[nanoMuse](https://github.com/nano-muse/nanoMuse)繼續開發。感謝其個人代理基礎、模型與工具整合和應用架構，感謝維護者<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>與貢獻者。手機底座來自[OpenMinis](https://github.com/OpenMinis/OpenMinis)。
+
+下方名單致謝nanoMuse的上游歷史貢獻。完整致謝與歷史里程碑見[來源檔案](../archive/upstream-readme-zh-TW.md)，相依條款保留在[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。Nivo Bot由本分支獨立維護。
+
+<details>
+<summary>上游貢獻者與來源</summary>
 
 <!-- contributors:start -->
 <p>
@@ -154,40 +196,4 @@ https://github.com/user-attachments/assets/bf0ec2ae-59aa-4358-9dd0-c9d045ee7bee
 </p>
 <!-- contributors:end -->
 
-## ⭐️ 引用
-
-如果 nanoMuse 對你有幫助，歡迎引用我們的論文。
-
-```bibtex
-@misc{liu2026nanomuseopensourcepersonalagent,
-      title={nanoMuse: An Open-Source Personal Agent for Every Device You Own}, 
-      author={Guangyi Liu and Yong Liu and Jiangning Zhang},
-      year={2026},
-      eprint={2610.08699},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2610.08699}, 
-}
-```
-
-## 致謝
-
-nanoMuse 站在別人的工作之上；條款見 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
-
-- [OpenMinis](https://github.com/OpenMinis/OpenMinis)：手機 App 所基於的裝置端智慧體，沙箱來自 [proot](https://github.com/nano-muse/proot) 和 [Alpine Linux](https://alpinelinux.org/)。
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)：桌面 App 作為外掛程式執行在它上面。
-- [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop)（字節跳動）：桌面端「手」的操作器移植自它，舞台上的標記參考它的 ScreenMarker。
-- [MobileGym](https://github.com/Purewhiter/mobilegym)、[MemGUI-Bench](https://github.com/lgy0404/MemGUI-Bench)、[PhoneHarness](https://github.com/PhoneHarness/PhoneHarness)、[CopilotKit/OpenMuse](https://github.com/CopilotKit/OpenMuse)、[Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM)、[ClawGUI](https://github.com/ZJU-REAL/ClawGUI)：手機操作器、軌跡和產品思路。
-
-## 聲明
-
-nanoMuse 是獨立的社群專案，與 Meta Platforms, Inc. 無關，也未獲其背書；Muse 是他們的商標。小龍是本專案自己的。
-
-## 授權
-
-[GPL-3.0-or-later](../../LICENSE)。手機 App 基於 OpenMinis 1.13（GPL-3.0），自 2026-09-24 起修改，見 [NOTICE](../../NOTICE)。Python 這一支更早的版本採 MIT 授權（tag `pre-openminis`）。
-
-<p align="center">
-  <em>感謝來訪 ✨ nanoMuse。</em><br><br>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-</p>
+</details>

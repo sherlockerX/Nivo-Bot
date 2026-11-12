@@ -1,146 +1,180 @@
 # Nivo Bot
 
-AI聊天、待办、专注、生活碎片与成长教练，放在同一个日常工作台。
+<p align="center">
+  <a href="https://nivo.8666886.xyz/"><img src="docs/media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+</p>
 
-**Android v2.0.0** · [产品网站](https://nivo.8666886.xyz/) · [Android安装包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) · [本版源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip)
-
-使用自选模型服务；不承诺上游免费额度。旧Debug签名安装不能直接被新证书包覆盖，迁移前先核验备份与恢复。
-
-> **Nivo Bot fork:** This repository contains the Nivo Bot Android work. Start with [OPEN_SOURCE.md](OPEN_SOURCE.md) and the [product website source](site/README.md). The upstream README below is preserved for attribution; its downloads, hosted services and community claims belong to nanoMuse, not this fork.
+**AI chat, tasks, focus, daily fragments and growth coaching in one Android workspace.**
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: an open-source personal agent for every device you own">
+  <a href="README.md">English</a> |
+  <a href="docs/readme/README_zh.md">简体中文</a> |
+  <a href="docs/readme/README_zh-TW.md">繁體中文</a> |
+  <a href="docs/readme/README_es.md">Español</a> |
+  <a href="docs/readme/README_fr.md">Français</a> |
+  <a href="docs/readme/README_id.md">Bahasa Indonesia</a> |
+  <a href="docs/readme/README_ja.md">日本語</a> |
+  <a href="docs/readme/README_ko.md">한국어</a> |
+  <a href="docs/readme/README_ru.md">Русский</a> |
+  <a href="docs/readme/README_vi.md">Tiếng Việt</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/README.md">English</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh.md">简体中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh-TW.md">繁體中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_es.md">Español</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_fr.md">Français</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_id.md">Bahasa Indonesia</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ja.md">日本語</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ko.md">한국어</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ru.md">Русский</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_vi.md">Tiếng Việt</a>
-</p>
-<p align="center">
-  <a href="https://trendshift.io/repositories/286894?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-286894" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/286894/daily?language=Swift" alt="nano-muse%2FnanoMuse | Trendshift" width="250" height="55"/></a>
-</p>
-<p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/stargazers"><img src="https://img.shields.io/github/stars/nano-muse/nanoMuse?style=flat&label=stars" alt="GitHub stars"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/releases"><img src="https://img.shields.io/github/downloads/nano-muse/nanoMuse/total?label=downloads" alt="Downloads"></a>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-  <a href="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml"><img src="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml/badge.svg?branch=main" alt="Test Suite"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/nano-muse/nanoMuse?label=license" alt="GPL-3.0-or-later"></a>
-  <a href="https://arxiv.org/abs/2610.08699"><img src="https://img.shields.io/badge/arXiv-2610.08699-b31b1b" alt="Paper on arXiv"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
+  <a href="docs/releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
   <br>
-  <a href="https://demo.nanomuse.dev/"><img src="https://img.shields.io/badge/Try_it-demo.nanomuse.dev-0a66e4" alt="Try it in the browser"></a>
-  <a href="https://nanomuse.cn/"><img src="https://img.shields.io/badge/Website-nanomuse.cn-0a66e4" alt="Website"></a>
-  <a href="https://discord.gg/bkTySmm28X"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://nivo.8666886.xyz/">Website</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Issues</a> · <a href="OPEN_SOURCE.md">Contribute</a>
 </p>
 
-**nanoMuse is an open-source personal agent for every device you own.** One agent with a name and a look of its own, in the style of Meta's [Muse](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/): it does things instead of answering questions, keeps working while the app is closed, remembers you, and stops to ask before anything you could not undo.
+Nivo Bot is an AI workspace for everyday life. Start with a conversation, turn the next step into a task, give it focused time and keep the experience in a record you can return to.
 
-*nano* means the whole set, small enough to run and deploy yourself: the phone app, the desktop app, the web console and the relay that joins them are all in this repository, under GPL-3.0-or-later. **[Free, open source, non-profit. Let's build it together.](CONTRIBUTING.md)** Sign in and you get a free allowance of model use on the community relay (the developer pays for it); when it is gone, [use your own key](docs/own-key.md). The same relay runs on a server of yours, so nothing has to leave your house. Latest: **1.0.6 Beacon**, [release notes](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.6) · [try it in the browser](https://demo.nanomuse.dev/).
+Free, open source and non-profit. Bring your own model provider; its requests may have a cost. Android system TTS reads replies using your phone's voice engine.
 
-> [!NOTE]
-> **nanoMuse keeps evolving**
->
-> A personal agent should not live only in someone else's cloud, so nanoMuse is the open-source, low-cost alternative: on your own devices, with a model you choose and a relay you can host yourself. We want to build it with developers and users everywhere, so that each person truly owns a personal agent. Open an [issue](https://github.com/nano-muse/nanoMuse/issues/new/choose) or send a [pull request](CONTRIBUTING.md); either one helps nanoMuse get better.
-
-https://github.com/user-attachments/assets/c7694d5a-9450-4f99-9254-5d70560d7565
-
-<p align="center"><a href="https://nanomuse.cn/media/film/nanomuse-film-en-web.mp4">English</a> · <a href="https://nanomuse.cn/media/film/nanomuse-film-zh-web.mp4">中文</a> · <a href="https://nanomuse.cn/#film">nanomuse.cn</a></p>
-
-## 🗞️ News
-
-- `2026-10-13` ⭐ 1,000 stars on GitHub, eighteen days after the first release, with four days on GitHub Trending's Swift list on the way ([Trendshift](https://trendshift.io/repositories/286894): seventh on October 7, fourth on October 10). Thank you for every try, every report and every pull request. We keep going: a version every few days, and the [roadmap](docs/roadmap.md) says what comes next.
-- `2026-10-09` 🚀 Version [1.0.0 Keel](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.0) is out, for the phone, the desktop and the browser; it installs over the version before and keeps your data, and its release notes list every change.
-- `2026-10-08` 🤗 Our paper is on [Hugging Face Daily Papers](https://huggingface.co/papers/2610.08699), ranked third on the list for October 8; questions and comments are welcome on the paper page.
-- `2026-10-07` 📄 Our paper is available on [arXiv](https://arxiv.org/abs/2610.08699): *nanoMuse: An Open-Source Personal Agent for Every Device You Own*, by Guangyi Liu, Yong Liu and Jiangning Zhang (Zhejiang University); the citation is at the end of this page.
-- `2026-09-25` 🎉 nanoMuse is released on GitHub under GPL-3.0-or-later: an Android app built on OpenMinis 1.13; the relay, the desktop app and the iPhone app came in the days after.
-
-Every version: [releases](https://github.com/nano-muse/nanoMuse/releases).
-
-## Install
-
-| | |
-|---|---|
-| **Browser** | [demo.nanomuse.dev](https://demo.nanomuse.dev/): a nanoMuse on a simulated phone, after a sign-in. A demo; the apps below are the real thing |
-| **Android** 8.0+, arm64 | [nanoMuse-1.0.6-arm64.apk](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-1.0.6-arm64.apk): every version is signed with the same key and installs over the last |
-| **iPhone / iPad** | [TestFlight](https://testflight.apple.com/join/ZHexbDqc): a beta that passed Apple's beta review; the link installs it · [iOS](docs/ios.md) |
-| **macOS** 12+ | [Apple Silicon](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-arm64.dmg) · [Intel](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-x64.dmg). Not notarised: right-click → *Open* the first time |
-| **Windows** 10+ | [nanoMuse-Desktop-1.0.6-win-x64.exe](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-win-x64.exe): click *Run anyway* once |
-| **Linux** x64 | [AppImage](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.AppImage) · [.deb](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.deb) · [tar.gz](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.tar.gz) |
-| **Docker** | `bash scripts/self-host.sh --local` for your own relay; `docker compose up -d app` for the web app on a server of yours; see [self-hosting](docs/self-hosting.md) |
-
-All downloads come from the [latest release](https://github.com/nano-muse/nanoMuse/releases/latest); the same files are on [nanomuse.cn/dl](https://nanomuse.cn/dl/) when GitHub is slow where you are. Open the app, sign in with an e-mail or a mainland-China phone number, and it has a model to think with. The phone, the desktop and the web share one account and show the same conversations.
-
-## What it does
-
-<table>
-  <tr>
-    <td width="50%" valign="top"><b>Does things.</b><br>A Linux shell, a browser, MCP servers and skills, and, with <i>Hands</i> on, the apps on your phone and the windows on your computer through their screens, for everything that never had an API.</td>
-    <td width="50%" valign="top"><b>Asks first.</b><br>A stop before deleting, sending or paying, remembered for once, this chat or always; passwords and codes are yours to type. A login or a CAPTCHA is handed to you, <i>Done</i> resumes.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Reaches your other devices.</b><br>Say it on the phone, it runs on your PC; <code>@Mac …</code> at the start of a message sends the task there. Approvals come back to the device in your hand.</td>
-    <td width="50%" valign="top"><b>Keeps going.</b><br>Goals checked on a schedule, routines that run while the app is closed, a feed written for you each morning.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Remembers you.</b><br>What it is, what it knows about you and when it wakes are Markdown files you can read and edit.</td>
-    <td width="50%" valign="top"><b>Lives in your chat apps.</b><br>It answers in 飞书, 钉钉, 企业微信 and Telegram.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>A look of its own.</b><br>Describe one, your image model draws it, a video model makes it move. A small dragon by default.</td>
-    <td width="50%" valign="top"><b>Any model.</b><br>The relay's allowance, your own key at one of twenty-two providers (Bailian, OpenRouter, OpenAI, Gemini, DeepSeek and more), or a plan you already pay for: ChatGPT, Claude, Kimi. A provider without picture or video models leaves those two off, and the app says so.</td>
-  </tr>
-</table>
-
-## How it works
-
-Each device runs its own agent: the phone inside the APK (Alpine Linux under proot, a shell, a browser, MCP), the computer inside nanoMuse Desktop (DeepSeek Harness with the Python runtime for the hands). Signed in, they meet on the relay and can ask each other for things; the text of the conversations travels through it, files and screenshots stay where they were made.
+## Take a look around
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/devices-loop.png" alt="Android, the desktop (Mac, Windows, Linux), iPhone and iPad, and the web app around one account: the relay signs the devices in and carries the conversation between them" width="92%">
+  <a href="docs/media/readme/feature-tour.gif"><img src="docs/media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
 </p>
 
-[docs/every-device.md](docs/every-device.md) explains the devices, [docs/hub.md](docs/hub.md) the frames, [docs/cloud.md](docs/cloud.md) the relay, [docs/privacy.md](docs/privacy.md) what it keeps.
-
-## Compared with Muse and OpenMinis
-
-| | Meta Muse | OpenMinis | nanoMuse |
-|---|---|---|---|
-| Where the agent runs | A cloud VM per user | The phone it is installed on | Your phone, your computer, or a server of yours, one account across them |
-| Apps without an API | Out of reach; the VM never touches your devices | An accessibility CLI on Android | The screen as a hand on the phone and the computer: screenshots, APIs first, you take over for logins. Not on iOS, where the system does not allow it |
-| Other devices | Clients of one VM | The one it is installed on | Devices ask each other for things over the hub, with approvals where you are |
-| Models | Meta's | Bring your own | The relay's free allowance, or your own |
-| Licence | Closed | GPL-3.0 | GPL-3.0-or-later, built on OpenMinis |
-
-## Docs
-
-[nanomuse.cn/docs](https://nanomuse.cn/docs/): install per platform, every device, hands, connectors, memory, self-hosting, the protocols. The sources are in [docs/](docs/); what changed in each version is in the [CHANGELOG](CHANGELOG.md) and [docs/releases/](docs/releases/).
-
-## Self-host
-
-One VPS, one hour: [docs/self-hosting.md](docs/self-hosting.md). Three ways: no server at all with your own key, your own relay with `scripts/self-host.sh`, or a runtime of your own for the web app.
-
-## Contribute
-
-Use it for a real task, report what broke, then pick something focused: [CONTRIBUTING.md](CONTRIBUTING.md) has the setup and the conventions, [AGENTS.md](AGENTS.md) the rules a coding agent follows in this tree, and the [roadmap](docs/roadmap.md) says where to start. [Issues](https://github.com/nano-muse/nanoMuse/issues) · [Discussions](https://github.com/nano-muse/nanoMuse/discussions) · [Discord](https://discord.gg/bkTySmm28X).
-
-## Maintainers
+An illustrated feature tour, with sample content. The GIF slides horizontally through six modules; select a still below to enlarge it. These are explanatory visuals, not device screenshots.
 
 <table>
-  <tr>
-    <td align="center"><a href="https://github.com/lgy0404"><img src="https://avatars.githubusercontent.com/u/63797388?v=4&s=80" width="80" height="80" alt="Guangyi Liu"><br><strong>Guangyi Liu</strong></a></td>
-  </tr>
+<tr>
+<td width="33%" align="center"><a href="docs/media/readme/chat.png"><img src="docs/media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="docs/media/readme/tasks.png"><img src="docs/media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="docs/media/readme/focus.png"><img src="docs/media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><a href="docs/media/readme/fragments.png"><img src="docs/media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="docs/media/readme/coach.png"><img src="docs/media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="docs/media/readme/ideas.png"><img src="docs/media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+</tr>
 </table>
 
-## Community Contributors
+## What you can do
 
-Everyone whose change has landed on `main`, from GitHub's contributors list.
+| Area | Android features |
+|---|---|
+| AI chat | Configure model providers, use integrated task and focus tools, and listen to replies with Android system text-to-speech. |
+| Ideas | Browse date-refreshed suggestions for work, life, learning, family and relationships, content creation and more. |
+| Tasks | Reuse saved groups and tags; switch between calendar, four quadrants, groups and status views; review completed-task tag proportions. |
+| Focus | Run a countdown or stopwatch, link it to a task, pause and resume, and use a recoverable full-screen timer with locally imported backgrounds. |
+| Daily fragments | Record daily experiences and attach task progress or completed focus sessions. |
+| Coach | Explore capability areas, develop course proposals through AI chat, practise in Daily practice conversations and revisit your learning archive. |
+
+Task charts count completed tasks by tag, not time spent. Focus statistics record actual elapsed time, and finishing a focus session does not automatically complete its task. Browsing a course does not mark it mastered.
+
+## One intention, a connected day
+
+For example, you want to read a little every day:
+
+1. **Talk it through.** Ask AI to help make the goal concrete and create a reading task through the app tools.
+2. **Give it a place.** Keep it in a saved group, reuse your tags and find it in the task view that works for you.
+3. **Give it time.** Start a focus session linked to the task. Pick a background and use the full-screen timer.
+4. **Keep the experience.** Link the finished session and task progress to a daily fragment, alongside what you noticed.
+5. **Keep learning.** When a capability needs practice, develop a course proposal in chat, practise in Daily practice and revisit the Coach archive.
+
+The connection is the feature: you can follow the same intention across conversation, action, time and reflection.
+
+AI task changes are saved through app tools. A conversational reply alone is not a saved task, and AI completion requires the current user's explicit completion report. Focus durations come from the timer, not numbers invented by the model.
+
+Learning, tasks, focus records and fragments use local storage with module-specific account and backup rules. Messages you send to a model are processed by the provider you configure. Review permissions and each module's backup coverage before migrating devices.
+
+## Get started
+
+| Resource | Link |
+|---|---|
+| Product website | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
+| Android 8.0+, arm64 | [Nivo Bot v2.0.0 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
+| Source corresponding to the APK | [v2.0.0 source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Download checksums | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
+| Release details | [Release notes](docs/releases/v2.0.0.md) · [Verification record](docs/releases/v2.0.0-verification.json) |
+
+This release covers Android and the product website. Other platform source remains in the repository; it does not establish Nivo Bot releases or feature parity on those platforms.
+
+The application ID remains `io.github.nanomuse.app`. Installations signed with an old Debug or upstream key normally cannot be updated with this release. Check backup and restore coverage before uninstalling anything; see the [version and signing guide](docs/android-development.md#nivo-bot的android版本与签名).
+
+## Build from source
+
+<details>
+<summary>Development details</summary>
+
+Clone with native dependency submodules:
+
+```bash
+git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
+cd Nicholasx
+```
+
+Use JDK 21, Android SDK 36, NDK 27.2.12479018 and CMake 3.22.1. The repository includes Gradle Wrapper 8.11.1. Prepare native dependencies on Linux or WSL after configuring the toolchain:
+
+```bash
+bash scripts/android/build-natives.sh
+```
+
+On Windows PowerShell 7:
+
+```powershell
+$env:JAVA_HOME = 'C:\path\to\jdk21'
+$env:ANDROID_HOME = 'C:\path\to\android-sdk'
+./scripts/android/Build-Android.ps1 -Target Check
+./scripts/android/Build-Android.ps1 -Target Debug
+```
+
+See the [Android development guide](docs/android-development.md) for native inputs, tests, outputs and release signing. Keep signing keys and credentials outside the repository. A cached local build does not prove a clean-machine build or real-device compatibility.
+
+</details>
+
+## Repository layout
+
+<details>
+<summary>Source layout</summary>
+
+| Path | Contents |
+|---|---|
+| `android/src/android/` | Android app; Nivo additions live under `io.github.nanomuse.*`. |
+| `site/` | Static product website and download metadata. |
+| `docs/` | User guides, source map and release records. |
+| `scripts/android/`, `scripts/release/` | Build, signing, source audit and packaging tools. |
+| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Retained iOS, desktop, runtime, relay and web-console source with separate release and verification scopes. |
+
+The Android tree retains its upstream structure, package identities and attribution. Read the [source map](docs/android-code-map.md) before changing module boundaries.
+
+</details>
+
+## Documentation
+
+- [Open-source entry and contribution scope](OPEN_SOURCE.md)
+- [Android user guide](docs/zh/android.md)
+- [Android development and signing](docs/android-development.md)
+- [Android source map](docs/android-code-map.md)
+- [Website source and deployment](site/README.md)
+- [Changelog](CHANGELOG.md)
+- [Copyright and provenance](NOTICE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+## Contributing
+
+Report reproducible problems in [this repository's Issues](https://github.com/sherlockerX/Nicholasx/issues) and submit focused pull requests. Follow [OPEN_SOURCE.md](OPEN_SOURCE.md) and [CONTRIBUTING.md](CONTRIBUTING.md), including Conventional Commits, tests appropriate to the change and a DCO sign-off with `git commit -s`.
+
+Preserve upstream copyright and license notices. Keep API keys, signing material and personal records out of issues and commits. OpenMinis retains its own contribution policy; accepting work in this fork does not change that policy.
+
+## Maintainer
+
+This Nivo Bot fork is maintained by <a href="https://github.com/sherlockerX">sherlockerX</a>. Report Nivo-specific issues here so they reach this fork's maintainer.
+
+## License
+
+[GPL-3.0-or-later](LICENSE), continuing the original open-source license. Preserve copyright and license notices and provide corresponding source when distributing binaries as required by the GPL. The software is provided without warranty; [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) record upstream and dependency terms.
+
+## Acknowledgements
+
+Nivo Bot is built on [nanoMuse](https://github.com/nano-muse/nanoMuse), whose personal-agent foundation, model and tool integrations, and architecture made this work possible. Thank you to nanoMuse, its maintainer <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a>, and its contributors. The phone foundation comes from [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+
+The retained contributor list below credits nanoMuse's upstream history. Full credits and historical milestones are in [the provenance archive](docs/archive/upstream-readme-en.md); dependency terms remain in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Nivo Bot is independently maintained.
+
+<details>
+<summary>Upstream contributors and provenance</summary>
 
 <!-- contributors:start -->
 <p>
@@ -162,40 +196,4 @@ Everyone whose change has landed on `main`, from GitHub's contributors list.
 </p>
 <!-- contributors:end -->
 
-## ⭐️ Citation
-
-If you find nanoMuse useful, please cite the paper.
-
-```bibtex
-@misc{liu2026nanomuseopensourcepersonalagent,
-      title={nanoMuse: An Open-Source Personal Agent for Every Device You Own}, 
-      author={Guangyi Liu and Yong Liu and Jiangning Zhang},
-      year={2026},
-      eprint={2610.08699},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2610.08699}, 
-}
-```
-
-## Acknowledgements
-
-nanoMuse stands on other people's work; [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) has the terms.
-
-- [OpenMinis](https://github.com/OpenMinis/OpenMinis): the on-device agent the phone app is built on, with [proot](https://github.com/nano-muse/proot) and [Alpine Linux](https://alpinelinux.org/) for the sandbox.
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): the agent harness the desktop app is a plugin of.
-- [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop) (ByteDance): the desktop hands' operator is a port of theirs, and the stage's markers follow their ScreenMarker.
-- [MobileGym](https://github.com/Purewhiter/mobilegym), [MemGUI-Bench](https://github.com/lgy0404/MemGUI-Bench), [PhoneHarness](https://github.com/PhoneHarness/PhoneHarness), [CopilotKit/OpenMuse](https://github.com/CopilotKit/OpenMuse), [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM), [ClawGUI](https://github.com/ZJU-REAL/ClawGUI): the phone operator, the traces and the product ideas.
-
-## Disclaimer
-
-nanoMuse is an independent community project, not affiliated with or endorsed by Meta Platforms, Inc.; Muse is their trademark. The dragon is the project's own.
-
-## License
-
-[GPL-3.0-or-later](LICENSE). The phone app is based on OpenMinis 1.13 (GPL-3.0), modified since 2026-09-24; see [NOTICE](NOTICE). Earlier versions of the Python line were MIT (tag `pre-openminis`).
-
-<p align="center">
-  <em>Thanks for visiting ✨ nanoMuse.</em><br><br>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-</p>
+</details>

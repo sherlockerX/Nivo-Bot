@@ -107,6 +107,9 @@ def test_the_ten_readmes_carry_the_block_and_the_maintainer_card(script: ModuleT
         assert text.count(script.START) == 1 and text.count(script.END) == 1, path.name
         assert text.index(script.START) < text.index(script.END), path.name
         assert 'href="https://github.com/lgy0404"' in text, path.name
-        # The same badge URL twice (badge row and footer): one camo URL, one view per visit.
-        assert text.count("hits.sh/github.com/nano-muse/nanoMuse.svg?") == 2, path.name
+        # 上游历史贡献继续署名，本分支不再展示上游访客统计或将其计为自身数据。
+        assert 'href="https://github.com/sherlockerX"' in text, path.name
+        assert "GPL-3.0-or-later" in text, path.name
+        assert "https://github.com/nano-muse/nanoMuse" in text, path.name
+        assert "hits.sh/github.com/nano-muse/nanoMuse.svg?" not in text, path.name
         assert "lgy0404" not in text[text.index(script.START) : text.index(script.END)], path.name

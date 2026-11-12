@@ -1,138 +1,180 @@
-> **Bản fork Nivo Bot:** Bắt đầu với [OPEN_SOURCE.md](../../OPEN_SOURCE.md) và [trang sản phẩm](../../site/README.md). README gốc được giữ để ghi nguồn; các bản tải, dịch vụ và cộng đồng thuộc nanoMuse, không phải bản fork này.
+# Nivo Bot
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: trợ lý cá nhân mã nguồn mở cho mọi thiết bị của bạn">
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+</p>
+
+**Trò chuyện AI, công việc, tập trung, ghi chép hằng ngày và huấn luyện phát triển trong một không gian Android.**
+
+<p align="center">
+  <a href="../../README.md">English</a> |
+  <a href="README_zh.md">简体中文</a> |
+  <a href="README_zh-TW.md">繁體中文</a> |
+  <a href="README_es.md">Español</a> |
+  <a href="README_fr.md">Français</a> |
+  <a href="README_id.md">Bahasa Indonesia</a> |
+  <a href="README_ja.md">日本語</a> |
+  <a href="README_ko.md">한국어</a> |
+  <a href="README_ru.md">Русский</a> |
+  <a href="README_vi.md">Tiếng Việt</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/README.md">English</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh.md">简体中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_zh-TW.md">繁體中文</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_es.md">Español</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_fr.md">Français</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_id.md">Bahasa Indonesia</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ja.md">日本語</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ko.md">한국어</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_ru.md">Русский</a> |
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/docs/readme/README_vi.md">Tiếng Việt</a>
-</p>
-<p align="center">
-  <a href="https://trendshift.io/repositories/286894?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-286894" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/286894/daily?language=Swift" alt="nano-muse%2FnanoMuse | Trendshift" width="250" height="55"/></a>
-</p>
-<p align="center">
-  <a href="https://github.com/nano-muse/nanoMuse/stargazers"><img src="https://img.shields.io/github/stars/nano-muse/nanoMuse?style=flat&label=stars" alt="Sao GitHub"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/releases"><img src="https://img.shields.io/github/downloads/nano-muse/nanoMuse/total?label=downloads" alt="Lượt tải"></a>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-  <a href="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml"><img src="https://github.com/nano-muse/nanoMuse/actions/workflows/ci.yml/badge.svg?branch=main" alt="Test Suite"></a>
-  <a href="https://github.com/nano-muse/nanoMuse/blob/main/LICENSE"><img src="https://img.shields.io/github/license/nano-muse/nanoMuse?label=license" alt="GPL-3.0-or-later"></a>
-  <a href="https://arxiv.org/abs/2610.08699"><img src="https://img.shields.io/badge/arXiv-2610.08699-b31b1b" alt="Bài báo trên arXiv"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
+  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
   <br>
-  <a href="https://demo.nanomuse.dev/"><img src="https://img.shields.io/badge/D%C3%B9ng_th%E1%BB%AD-demo.nanomuse.dev-0a66e4" alt="Dùng thử trên trình duyệt"></a>
-  <a href="https://nanomuse.cn/"><img src="https://img.shields.io/badge/Trang_web-nanomuse.cn-0a66e4" alt="Trang web"></a>
-  <a href="https://discord.gg/bkTySmm28X"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
 
-**nanoMuse là một trợ lý cá nhân mã nguồn mở cho mọi thiết bị của bạn.** Một trợ lý duy nhất có tên và hình dáng riêng, cùng loại với [Muse](https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/) của Meta: nó làm việc thay vì chỉ trả lời câu hỏi, tiếp tục làm khi ứng dụng đã đóng, nhớ bạn, và dừng lại hỏi trước bất cứ việc gì bạn không thể hoàn tác.
+Nivo Bot là không gian AI cho cuộc sống hằng ngày. Bắt đầu bằng trò chuyện, chuyển bước tiếp theo thành công việc, dành thời gian tập trung và lưu trải nghiệm để xem lại.
 
-*nano* nghĩa là trọn bộ nhưng đủ nhỏ để bạn tự chạy và tự triển khai: ứng dụng điện thoại, ứng dụng máy tính, bảng điều khiển web và relay nối chúng lại đều nằm trong kho này, theo giấy phép GPL-3.0-or-later. **[Miễn phí, mã nguồn mở, phi lợi nhuận. Cùng nhau xây dựng.](../../CONTRIBUTING.md)** Đăng nhập là bạn có một khoản miễn phí để dùng mô hình qua relay của cộng đồng (do người phát triển trả); dùng hết thì [chuyển sang khóa của riêng bạn](../own-key.md). Cùng relay đó chạy được trên máy chủ của bạn, nên dữ liệu không cần rời khỏi nhà bạn. Phiên bản mới nhất: **1.0.6 Beacon**, [ghi chú phát hành](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.6) · [dùng thử trên trình duyệt](https://demo.nanomuse.dev/).
+Miễn phí, mã nguồn mở và phi lợi nhuận. Bạn chọn nhà cung cấp mô hình; yêu cầu có thể mất phí. TTS Android đọc phản hồi bằng máy giọng nói trên điện thoại.
 
-> [!NOTE]
-> **nanoMuse không ngừng phát triển**
->
-> Trợ lý cá nhân không nên chỉ sống trong đám mây của người khác, nên nanoMuse muốn là lựa chọn thay thế mã nguồn mở, chi phí thấp: chạy trên thiết bị của chính bạn, mô hình do bạn chọn, relay cũng có thể tự dựng. Chúng tôi muốn cùng các nhà phát triển và người dùng khắp nơi xây dựng nó, để mỗi người thật sự có một trợ lý cá nhân của riêng mình. Mở một [issue](https://github.com/nano-muse/nanoMuse/issues/new/choose) hay gửi một [pull request](../../CONTRIBUTING.md), cách nào cũng giúp nanoMuse tốt hơn.
+## Khám phá Nivo
 
-https://github.com/user-attachments/assets/c7694d5a-9450-4f99-9254-5d70560d7565
+<p align="center">
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+</p>
 
-<p align="center"><a href="https://nanomuse.cn/media/film/nanomuse-film-en-web.mp4">English</a> · <a href="https://nanomuse.cn/media/film/nanomuse-film-zh-web.mp4">中文</a> · <a href="https://nanomuse.cn/#film">nanomuse.cn</a></p>
-
-## 🗞️ Tin mới
-
-- `2026-10-13` ⭐ 1.000 sao trên GitHub, mười tám ngày sau bản phát hành đầu tiên, với bốn ngày trong danh sách Swift của GitHub Trending trên đường đi ([Trendshift](https://trendshift.io/repositories/286894): hạng bảy ngày 7 tháng 10, hạng tư ngày 10 tháng 10). Cảm ơn mỗi lần dùng thử, mỗi báo cáo lỗi và mỗi pull request. Chúng tôi tiếp tục: vài ngày một phiên bản, và [lộ trình](../roadmap.md) cho biết điều gì tiếp theo.
-- `2026-10-09` 🚀 Phiên bản [1.0.0 Keel](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.0) đã ra mắt, cho điện thoại, máy tính và trình duyệt; cài đè lên bản trước mà vẫn giữ dữ liệu của bạn, và ghi chú phát hành liệt kê mọi thay đổi.
-- `2026-10-08` 🤗 Bài báo của chúng tôi có mặt trên [Hugging Face Daily Papers](https://huggingface.co/papers/2610.08699), xếp thứ ba trong danh sách ngày 8 tháng 10; câu hỏi và góp ý xin gửi tại trang bài báo.
-- `2026-10-07` 📄 Bài báo của chúng tôi đã có trên [arXiv](https://arxiv.org/abs/2610.08699): *nanoMuse: An Open-Source Personal Agent for Every Device You Own*, tác giả Guangyi Liu, Yong Liu và Jiangning Zhang (Đại học Chiết Giang); trích dẫn ở cuối trang này.
-- `2026-09-25` 🎉 nanoMuse đã ra mắt trên GitHub theo GPL-3.0-or-later: một ứng dụng Android xây trên OpenMinis 1.13; relay, ứng dụng máy tính và ứng dụng iPhone lần lượt ra mắt trong những ngày sau đó.
-
-Mọi phiên bản: [releases](https://github.com/nano-muse/nanoMuse/releases).
-
-## Cài đặt
-
-| | |
-|---|---|
-| **Trình duyệt** | [demo.nanomuse.dev](https://demo.nanomuse.dev/): một nanoMuse trên điện thoại mô phỏng, sau khi đăng nhập. Đây là bản demo; các ứng dụng bên dưới mới là bản thật |
-| **Android** 8.0 trở lên, arm64 | [nanoMuse-1.0.6-arm64.apk](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-1.0.6-arm64.apk): mọi phiên bản ký cùng một khóa, cài đè lên bản cũ là được |
-| **iPhone / iPad** | [TestFlight](https://testflight.apple.com/join/ZHexbDqc): bản beta đã qua vòng duyệt beta của Apple; cài từ liên kết này · [iOS](../ios.md) |
-| **macOS** 12 trở lên | [Apple Silicon](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-arm64.dmg) · [Intel](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-x64.dmg). Chưa được công chứng: lần đầu nhấp chuột phải → *Mở* |
-| **Windows** 10 trở lên | [nanoMuse-Desktop-1.0.6-win-x64.exe](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-win-x64.exe): bấm *Vẫn chạy* một lần |
-| **Linux** x64 | [AppImage](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.AppImage) · [.deb](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.deb) · [tar.gz](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.tar.gz) |
-| **Docker** | `bash scripts/self-host.sh --local` để có relay của riêng bạn; `docker compose up -d app` để chạy ứng dụng web trên máy chủ của bạn; xem [tự lưu trữ](../self-hosting.md) |
-
-Mọi bản tải đều từ [bản phát hành mới nhất trên GitHub](https://github.com/nano-muse/nanoMuse/releases/latest); cùng các tệp đó có tại [nanomuse.cn/dl](https://nanomuse.cn/dl/) nếu GitHub chậm ở chỗ bạn. Mở ứng dụng, đăng nhập bằng e-mail hoặc số điện thoại Trung Quốc đại lục, và trợ lý đã có sẵn một mô hình để làm việc. Điện thoại, máy tính và web dùng chung một tài khoản và hiển thị cùng những cuộc trò chuyện.
-
-## Nó làm được gì
+Giới thiệu bằng hình minh họa và nội dung mẫu. GIF trượt ngang qua sáu mô-đun; nhấn hình tĩnh để phóng to. Đây là hình giải thích, không phải ảnh chụp thiết bị.
 
 <table>
-  <tr>
-    <td width="50%" valign="top"><b>Làm việc.</b><br>Shell Linux, trình duyệt, máy chủ MCP và kỹ năng, và khi bật <i>Hands</i>, nó còn điều khiển được ứng dụng trên điện thoại và cửa sổ trên máy tính qua màn hình, cho những thứ chưa bao giờ có API.</td>
-    <td width="50%" valign="top"><b>Hỏi trước.</b><br>Dừng lại trước khi xóa, gửi hay thanh toán, và nhớ lựa chọn cho một lần, cuộc trò chuyện này hoặc mãi mãi; mật khẩu và mã xác minh do bạn tự gõ. Gặp đăng nhập hay CAPTCHA, nó trao lại cho bạn; bấm <i>Xong</i> là tiếp tục.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Với tới các thiết bị khác của bạn.</b><br>Nói trên điện thoại, chạy trên PC; <code>@Mac …</code> ở đầu tin nhắn gửi việc sang máy đó. Các phê duyệt quay về thiết bị bạn đang cầm.</td>
-    <td width="50%" valign="top"><b>Không ngừng lại.</b><br>Mục tiêu được kiểm tra theo lịch, thói quen chạy khi ứng dụng đã đóng, mỗi sáng có một bảng tin viết cho bạn.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Nhớ bạn.</b><br>Nó là ai, biết gì về bạn và khi nào thức dậy là những tệp Markdown bạn đọc và sửa được.</td>
-    <td width="50%" valign="top"><b>Sống trong ứng dụng chat của bạn.</b><br>Trả lời trong 飞书, 钉钉, 企业微信 và Telegram.</td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top"><b>Có dáng vẻ riêng.</b><br>Mô tả một dáng vẻ, mô hình ảnh của bạn vẽ ra, mô hình video làm nó chuyển động. Mặc định là một chú rồng nhỏ.</td>
-    <td width="50%" valign="top"><b>Mô hình nào cũng được.</b><br>Hạn mức của relay, khóa của riêng bạn ở một trong hai mươi hai nhà cung cấp (Bailian, OpenRouter, OpenAI, Gemini, DeepSeek và các nhà cung cấp khác), hoặc gói bạn đã trả tiền: ChatGPT, Claude, Kimi. Nhà cung cấp không có mô hình ảnh hay video thì hai tính năng đó tắt, và ứng dụng nói rõ điều đó.</td>
-  </tr>
+<tr>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+</tr>
+<tr>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+</tr>
 </table>
 
-## Cách hoạt động
+## Bạn có thể làm gì
 
-Mỗi thiết bị chạy trợ lý của riêng mình: điện thoại trong APK (Alpine Linux dưới proot, shell, trình duyệt, MCP), máy tính trong nanoMuse Desktop (DeepSeek Harness cùng runtime Python cho đôi tay). Đăng nhập xong, chúng gặp nhau trên relay và có thể nhờ vả nhau; văn bản trò chuyện đi qua relay, còn tệp và ảnh chụp màn hình ở lại nơi chúng được tạo ra.
+| Mục | Chức năng Android |
+|---|---|
+| Trò chuyện AI | Cấu hình nhà cung cấp, sử dụng công cụ công việc và tập trung tích hợp, nghe phản hồi bằng tính năng đọc văn bản của Android. |
+| Ý tưởng | Xem gợi ý làm mới theo ngày về công việc, cuộc sống, học tập, gia đình và quan hệ, sáng tạo nội dung và nhiều chủ đề khác. |
+| Công việc | Dùng lại nhóm và nhãn đã lưu; chuyển giữa lịch, bốn góc phần tư, nhóm và trạng thái; xem tỷ lệ nhãn của công việc đã hoàn thành. |
+| Tập trung | Chạy đếm ngược hoặc bấm giờ, liên kết công việc, tạm dừng và tiếp tục, dùng giao diện toàn màn hình có thể khôi phục với nền nhập cục bộ. |
+| Ghi chép hằng ngày | Ghi lại trải nghiệm, đính kèm tiến độ công việc hoặc phiên tập trung đã kết thúc. |
+| Huấn luyện | Khám phá năng lực, xây dựng đề xuất khóa học qua trò chuyện AI, luyện tập trong hội thoại hằng ngày và xem lại hồ sơ học tập. |
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/devices-loop.png" alt="Android, máy tính (Mac, Windows, Linux), iPhone và iPad, và ứng dụng web quanh một tài khoản: relay đăng nhập các thiết bị và chuyển cuộc trò chuyện giữa chúng" width="92%">
-</p>
+Biểu đồ đếm công việc hoàn thành theo nhãn, không đo thời gian bỏ ra. Thống kê tập trung ghi thời gian thực; kết thúc phiên không tự hoàn thành công việc. Xem khóa học không đánh dấu là đã thành thạo.
 
-[docs/every-device.md](../every-device.md) nói về các thiết bị, [docs/hub.md](../hub.md) về khung tin, [docs/cloud.md](../cloud.md) về relay, [docs/privacy.md](../privacy.md) về những gì nó lưu.
+## Một ý định, một ngày kết nối
 
-## So với Muse và OpenMinis
+Ví dụ, bạn muốn đọc một chút mỗi ngày:
 
-| | Meta Muse | OpenMinis | nanoMuse |
-|---|---|---|---|
-| Trợ lý chạy ở đâu | Một VM đám mây cho mỗi người dùng | Chiếc điện thoại cài nó | Điện thoại, máy tính của bạn hoặc máy chủ của bạn, một tài khoản cho tất cả |
-| Ứng dụng không có API | Ngoài tầm với; VM không bao giờ chạm vào thiết bị của bạn | Một CLI trợ năng trên Android | Màn hình làm đôi tay trên cả điện thoại lẫn máy tính: ảnh chụp màn hình, thử API trước, đăng nhập thì bạn tiếp quản. Không có trên iOS, vì hệ thống không cho phép |
-| Thiết bị khác | Các máy khách của một VM | Chỉ chiếc đã cài | Các thiết bị nhờ nhau qua hub, phê duyệt ở nơi bạn đang có mặt |
-| Mô hình | Của Meta | Tự mang | Khoản miễn phí của relay, hoặc của riêng bạn |
-| Giấy phép | Đóng | GPL-3.0 | GPL-3.0-or-later, xây trên OpenMinis |
+1. **Làm rõ ý định.** Trao đổi với AI và tạo việc đọc bằng công cụ ứng dụng.
+2. **Cho nó một vị trí.** Dùng lại nhóm, nhãn đã lưu và tìm việc trong chế độ xem phù hợp.
+3. **Dành thời gian.** Bắt đầu phiên liên kết với việc, chọn nền và mở bộ đếm toàn màn hình.
+4. **Giữ trải nghiệm.** Liên kết phiên kết thúc và tiến độ vào ghi chép cùng điều bạn nhận thấy.
+5. **Tiếp tục học.** Đề xuất khóa học trong chat, luyện tập hằng ngày và xem lại hồ sơ huấn luyện.
+
+Kết nối là điểm khác biệt: cùng một ý định đi tiếp qua trò chuyện, hành động, thời gian và suy ngẫm.
+
+AI lưu thay đổi công việc bằng công cụ của ứng dụng. Một câu trả lời không phải công việc đã lưu; AI hoàn thành công việc cần báo cáo rõ ràng của người dùng hiện tại. Thời lượng lấy từ bộ đếm, không do mô hình tự tạo.
+
+Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ với quy tắc tài khoản và sao lưu riêng. Tin nhắn gửi tới mô hình được xử lý bởi nhà cung cấp bạn chọn. Kiểm tra quyền và phạm vi sao lưu trước khi đổi thiết bị.
+
+## Bắt đầu
+
+| Tài nguyên | Liên kết |
+|---|---|
+| Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
+| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
+| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Mã kiểm tra tải xuống | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
+| Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.0.md) · [Hồ sơ kiểm chứng](../releases/v2.0.0-verification.json) |
+
+Bản này gồm Android và trang sản phẩm. Mã nguồn nền tảng khác vẫn được giữ, nhưng không khẳng định Nivo Bot đã phát hành hay đồng bộ chức năng trên các nền tảng đó.
+
+ID ứng dụng vẫn là `io.github.nanomuse.app`. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
+
+## Biên dịch từ mã nguồn
+
+<details>
+<summary>Chi tiết phát triển</summary>
+
+Sao chép cả các mô-đun con phụ thuộc native:
+
+```bash
+git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
+cd Nicholasx
+```
+
+Dùng JDK 21, Android SDK 36, NDK 27.2.12479018 và CMake 3.22.1. Có sẵn Gradle Wrapper 8.11.1. Cấu hình công cụ rồi chuẩn bị phụ thuộc native trên Linux hoặc WSL:
+
+```bash
+bash scripts/android/build-natives.sh
+```
+
+Trên Windows PowerShell 7:
+
+```powershell
+$env:JAVA_HOME = 'C:\path\to\jdk21'
+$env:ANDROID_HOME = 'C:\path\to\android-sdk'
+./scripts/android/Build-Android.ps1 -Target Check
+./scripts/android/Build-Android.ps1 -Target Debug
+```
+
+Xem [hướng dẫn phát triển Android](../android-development.md) về đầu vào native, kiểm thử, đầu ra và ký phát hành. Giữ khóa và thông tin xác thực ngoài kho. Biên dịch có bộ nhớ đệm không chứng minh được biên dịch trên máy sạch hoặc tương thích thiết bị thật.
+
+</details>
+
+## Cấu trúc kho mã
+
+<details>
+<summary>Cấu trúc nguồn</summary>
+
+| Đường dẫn | Nội dung |
+|---|---|
+| `android/src/android/` | Ứng dụng Android; phần bổ sung Nivo nằm trong `io.github.nanomuse.*`. |
+| `site/` | Trang sản phẩm tĩnh và siêu dữ liệu tải xuống. |
+| `docs/` | Hướng dẫn, bản đồ mã nguồn và hồ sơ phát hành. |
+| `scripts/android/`, `scripts/release/` | Công cụ biên dịch, ký, kiểm tra nguồn và đóng gói. |
+| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Mã iOS, máy tính, runtime, relay và bảng điều khiển web được giữ, có phạm vi phát hành và kiểm chứng riêng. |
+
+Cây Android giữ cấu trúc, định danh gói và ghi nhận nguồn gốc. Đọc [bản đồ mã nguồn](../android-code-map.md) trước khi đổi ranh giới mô-đun.
+
+</details>
 
 ## Tài liệu
 
-[nanomuse.cn/docs](https://nanomuse.cn/docs/): cài đặt theo từng nền tảng, mọi thiết bị, Hands, trình kết nối, bộ nhớ, tự lưu trữ, các giao thức. Nguồn ở [docs/](../); mỗi phiên bản thay đổi gì ở [CHANGELOG](../../CHANGELOG.md) và [docs/releases/](../releases/).
-
-## Tự lưu trữ
-
-Một VPS, một giờ: [docs/self-hosting.md](../self-hosting.md). Ba con đường: không cần máy chủ, chỉ dùng khóa của bạn; relay của riêng bạn với `scripts/self-host.sh`; hoặc runtime của riêng bạn cho ứng dụng web.
+- [Hướng dẫn mã nguồn mở và phạm vi đóng góp](../../OPEN_SOURCE.md)
+- [Hướng dẫn người dùng Android](../zh/android.md)
+- [Phát triển Android và ký ứng dụng](../android-development.md)
+- [Bản đồ mã nguồn Android](../android-code-map.md)
+- [Mã nguồn trang web và triển khai](../../site/README.md)
+- [Lịch sử thay đổi](../../CHANGELOG.md)
+- [Bản quyền và nguồn gốc](../../NOTICE) · [Thông báo bên thứ ba](../../THIRD_PARTY_NOTICES.md)
 
 ## Đóng góp
 
-Dùng nó cho một việc thật, kể lại chỗ nào hỏng, rồi chọn một việc nhỏ và cụ thể: [CONTRIBUTING.md](../../CONTRIBUTING.md) có phần thiết lập và quy ước, [AGENTS.md](../../AGENTS.md) là các quy tắc một trợ lý lập trình tuân theo trong kho mã này, và [lộ trình](../roadmap.md) chỉ chỗ bắt đầu. [Issues](https://github.com/nano-muse/nanoMuse/issues) · [Discussions](https://github.com/nano-muse/nanoMuse/discussions) · [Discord](https://discord.gg/bkTySmm28X).
+Báo vấn đề tái hiện được trong [Issues của kho này](https://github.com/sherlockerX/Nicholasx/issues) và gửi PR có phạm vi rõ. Tuân thủ [OPEN_SOURCE.md](../../OPEN_SOURCE.md) và [CONTRIBUTING.md](../../CONTRIBUTING.md), gồm Conventional Commits, kiểm thử phù hợp và xác nhận DCO bằng `git commit -s`.
 
-## Người bảo trì
+Giữ thông báo bản quyền và giấy phép gốc. Không đưa khóa API, tài liệu ký hay dữ liệu cá nhân vào issue hoặc commit. OpenMinis giữ chính sách đóng góp riêng; fork này không thay đổi chính sách đó.
 
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/lgy0404"><img src="https://avatars.githubusercontent.com/u/63797388?v=4&s=80" width="80" height="80" alt="Guangyi Liu"><br><strong>Guangyi Liu</strong></a></td>
-  </tr>
-</table>
+## Người duy trì
 
-## Người đóng góp từ cộng đồng
+Fork Nivo Bot này do <a href="https://github.com/sherlockerX">sherlockerX</a> duy trì. Hãy báo vấn đề riêng của Nivo tại đây để người duy trì nhận được.
 
-Tất cả những ai có thay đổi đã vào `main`, theo danh sách người đóng góp của GitHub.
+## Giấy phép
+
+[GPL-3.0-or-later](../../LICENSE), tiếp tục giấy phép mã nguồn mở ban đầu. Giữ thông báo và cung cấp mã nguồn tương ứng khi phân phối bản nhị phân theo GPL. Phần mềm không có bảo hành; [NOTICE](../../NOTICE) và [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) ghi điều khoản của nguồn gốc và phụ thuộc.
+
+## Lời cảm ơn
+
+Nivo Bot dựa trên [nanoMuse](https://github.com/nano-muse/nanoMuse), có nền tảng tác nhân, tích hợp và kiến trúc giúp công việc này khả thi. Cảm ơn nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> và các cộng tác viên. Nền tảng điện thoại đến từ [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+
+Danh sách ghi nhận đóng góp lịch sử nanoMuse. Lời cảm ơn và cột mốc nằm trong [hồ sơ nguồn gốc](../archive/upstream-readme-vi.md); điều khoản phụ thuộc ở [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot được duy trì độc lập.
+
+<details>
+<summary>Cộng tác viên và nguồn gốc</summary>
 
 <!-- contributors:start -->
 <p>
@@ -154,40 +196,4 @@ Tất cả những ai có thay đổi đã vào `main`, theo danh sách người
 </p>
 <!-- contributors:end -->
 
-## ⭐️ Trích dẫn
-
-Nếu nanoMuse hữu ích với bạn, hãy trích dẫn bài báo.
-
-```bibtex
-@misc{liu2026nanomuseopensourcepersonalagent,
-      title={nanoMuse: An Open-Source Personal Agent for Every Device You Own}, 
-      author={Guangyi Liu and Yong Liu and Jiangning Zhang},
-      year={2026},
-      eprint={2610.08699},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2610.08699}, 
-}
-```
-
-## Ghi nhận
-
-nanoMuse được xây trên công sức của người khác; điều khoản ở [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md).
-
-- [OpenMinis](https://github.com/OpenMinis/OpenMinis): trợ lý chạy ngay trên thiết bị, là nền của ứng dụng điện thoại, với [proot](https://github.com/nano-muse/proot) và [Alpine Linux](https://alpinelinux.org/) làm hộp cát.
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): harness mà ứng dụng máy tính là một plugin.
-- [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop) (ByteDance): bộ điều khiển đôi tay trên máy tính được chuyển từ mã của họ, và các điểm đánh dấu trên sân khấu theo ScreenMarker của họ.
-- [MobileGym](https://github.com/Purewhiter/mobilegym), [MemGUI-Bench](https://github.com/lgy0404/MemGUI-Bench), [PhoneHarness](https://github.com/PhoneHarness/PhoneHarness), [CopilotKit/OpenMuse](https://github.com/CopilotKit/OpenMuse), [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM), [ClawGUI](https://github.com/ZJU-REAL/ClawGUI): bộ điều khiển điện thoại, dấu vết và ý tưởng sản phẩm.
-
-## Tuyên bố
-
-nanoMuse là dự án cộng đồng độc lập, không liên kết với Meta Platforms, Inc. và không được họ bảo trợ; Muse là nhãn hiệu của họ. Chú rồng là của dự án này.
-
-## Giấy phép
-
-[GPL-3.0-or-later](../../LICENSE). Ứng dụng điện thoại dựa trên OpenMinis 1.13 (GPL-3.0), được sửa đổi từ ngày 2026-09-24; xem [NOTICE](../../NOTICE). Các phiên bản trước đó của nhánh Python theo giấy phép MIT (tag `pre-openminis`).
-
-<p align="center">
-  <em>Cảm ơn bạn đã ghé thăm ✨ nanoMuse.</em><br><br>
-  <img src="https://hits.sh/github.com/nano-muse/nanoMuse.svg?label=visitors&color=0a66e4&extraCount=16719" alt="Visitors">
-</p>
+</details>

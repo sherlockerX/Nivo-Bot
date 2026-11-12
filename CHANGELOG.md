@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Rebuilt the ten READMEs as Nivo Bot product introductions with an original cover, six illustrated feature pages, a horizontal GIF tour and a connected daily-use example; preserved GPL and DCO terms and moved upstream history into a linked provenance archive with final nanoMuse acknowledgements.
+
 ## [2.0.0] - 2026-11-12
 
 - Android以Nivo Bot为产品名，内部版本升级为51，沿用专用签名；发布独立网站、APK与对应源码下载。

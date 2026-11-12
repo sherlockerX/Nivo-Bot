@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""Refresh the *Community Contributors* avatars in the ten READMEs.
+"""刷新十份README文末致谢中的nanoMuse上游贡献者头像。
 
-``README.md`` and ``docs/readme/README_*.md`` each carry a block between
-``<!-- contributors:start -->`` and ``<!-- contributors:end -->``: one avatar per person whose
-change has landed on ``main``, linking to their GitHub profile, in GitHub's order (most
-contributions first). This script asks GitHub for the list and rewrites the block in every
-README; the maintainers, who have their own table above, and the bots are left out.
+名单继续来自``nano-muse/nanoMuse``，用于保留上游贡献归属，不代表Nivo分支的
+独立贡献名单。``README.md``与``docs/readme/README_*.md``中的贡献者标记之间
+保存头像与GitHub主页链接，按上游贡献数排序；另行署名的上游维护者与机器人不列入。
 
-    scripts/readme-contributors.py            # rewrite the block; says which files changed
-    scripts/readme-contributors.py --check    # exit 1 when a README is behind (CI style)
-    scripts/readme-contributors.py --from-json contributors.json   # offline: the API's JSON
+    scripts/readme-contributors.py            # 更新头像区块并报告变更文件
+    scripts/readme-contributors.py --check    # 区块落后时返回1，适用于CI
+    scripts/readme-contributors.py --from-json contributors.json   # 使用离线API记录
 
-Set ``GITHUB_TOKEN`` for a higher rate limit; the call works without one. Run it before a
-release, together with the other README steps in CONTRIBUTING.md.
+可设置``GITHUB_TOKEN``提高请求限额，也可以匿名调用。发布前与其他README检查一起运行。
 """
 
 from __future__ import annotations
