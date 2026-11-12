@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Bounded the synthetic child JVMs used by process-capture stress tests and included captured output in failure diagnostics, preserving the complete 250-run output check on shared CI hosts.
+
 - Restored the Android session-management sources and tests omitted by a runtime-data ignore rule, and protected those source paths in the source-release audit.
 
 - Enabled automatic Android APK builds for Android changes and pull requests, added isolated Debug and explicit unsigned Release downloads, package and signature verification, checksums, test reports, and optional manually requested release signing through GitHub Secrets.

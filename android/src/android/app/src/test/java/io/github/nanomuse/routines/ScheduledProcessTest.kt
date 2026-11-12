@@ -15,7 +15,9 @@ class ScheduledProcessTest {
     private fun command(vararg arguments: String): ProcessBuilder {
         val java = File(System.getProperty("java.home"), "bin/java" + if (System.getProperty("os.name").orEmpty().startsWith("Windows")) ".exe" else "")
         val classpath = File(requireNotNull(ScheduledProcessFixture::class.java.protectionDomain?.codeSource).location.toURI()).absolutePath
-        return ProcessBuilder(listOf(java.absolutePath, "-cp", classpath, ScheduledProcessFixture::class.java.name) + arguments).apply {
+        // 合成子进程只输出少量文本，限制JVM资源，避免继承CI宿主CPU数后启动过多GC线程。
+        return ProcessBuilder(listOf(java.absolutePath, "-Xms16m", "-Xmx64m", "-XX:+UseSerialGC",
+            "-XX:ActiveProcessorCount=2", "-cp", classpath, ScheduledProcessFixture::class.java.name) + arguments).apply {
             environment().remove("JAVA_TOOL_OPTIONS"); environment().remove("JDK_JAVA_OPTIONS"); environment().remove("_JAVA_OPTIONS")
         }
     }
@@ -77,7 +79,7 @@ class ScheduledProcessTest {
         repeat(25) {
             (1..10).map { async { ScheduledProcess.capture(command("payload"), 15000) } }.awaitAll().forEach { result ->
                 assertEquals(0, result.exitCode)
-                assertEquals(719L, result.stdoutBytes)
+                assertEquals("Unexpected child stdout: ${result.stdout}; stderr: ${result.stderrTail}", 719L, result.stdoutBytes)
                 assertEquals("x".repeat(719), result.stdout)
                 assertFalse(result.truncated)
                 assertNull(result.captureError)
