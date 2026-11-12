@@ -12,6 +12,24 @@ from prepare_source import checked_path, prepare
 
 class ReleaseToolsTest(unittest.TestCase):
     """临时仓库检验真实归档行为，不接触用户项目。"""
+    def test_android_session_sources_are_not_ignored(self):
+        """同名运行记录继续忽略，Android会话源码必须可提交。"""
+        rules = Path(__file__).resolve().parents[2] / '.gitignore'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            (root / '.gitignore').write_bytes(rules.read_bytes())
+            for path, ignored in [
+                ('sessions/private.json', True),
+                ('android/src/android/app/src/main/java/com/openminis/app/ui/sessions/SessionListViewModel.kt', False),
+                ('android/src/android/app/src/test/java/com/openminis/app/ui/sessions/GroupRunningRingTest.kt', False),
+            ]:
+                source = root / path
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text('fixture', encoding='utf-8')
+                result = subprocess.run(['git', '-C', str(root), 'check-ignore', '-q', path])
+                self.assertEqual(result.returncode == 0, ignored, path)
+
     def test_block_private_files(self):
         for path in ['.env', 'config/config.toml', 'android/keystore.properties',
                      'x/node_modules/a.js', 'private.jks', 'local.properties', 'x.db']:

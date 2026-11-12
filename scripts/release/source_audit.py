@@ -19,6 +19,16 @@ SECRET_PATTERNS = (
     ('aws-access-id', re.compile(rb'\bAKIA[A-Z0-9]{16}\b')),
     ('provider-token', re.compile(rb'\bsk-(?:proj-|ant-api\d+-)?[A-Za-z0-9_-]{35,}\b')),
 )
+# 这些源码目录与运行数据同名，必须防止被宽泛的Git忽略规则漏掉。
+REQUIRED_SESSION_SOURCES = (
+    'main/java/com/openminis/app/ui/sessions/GroupPickerSheet.kt',
+    'main/java/com/openminis/app/ui/sessions/SearchHighlight.kt',
+    'main/java/com/openminis/app/ui/sessions/SessionListScreen.kt',
+    'main/java/com/openminis/app/ui/sessions/SessionListViewModel.kt',
+    'test/java/com/openminis/app/ui/sessions/GroupRunningRingTest.kt',
+    'test/java/com/openminis/app/ui/sessions/GroupSuggestionParseTest.kt',
+    'test/java/com/openminis/app/ui/sessions/SessionGroupAccordionTest.kt',
+)
 
 
 def git(root: Path, *arguments: str) -> bytes:
@@ -65,7 +75,10 @@ def tracked_paths(root: Path) -> list[str]:
 def audit_files(root: Path, paths: Iterable[str]) -> dict:
     """审查当前工作树；缺失文件和疑似凭据均阻止发布。"""
     missing, forbidden, secrets, files = [], [], [], []
-    for relative in sorted(set(paths)):
+    candidates = set(paths)
+    if (root / 'android/src/android/app/build.gradle.kts').is_file():
+        candidates.update('android/src/android/app/src/' + path for path in REQUIRED_SESSION_SOURCES)
+    for relative in sorted(candidates):
         path = root / relative
         if is_forbidden(relative):
             forbidden.append(relative)

@@ -16,6 +16,9 @@ workspace/
 *.key
 audit.jsonl
 sessions/
+# Android的sessions是会话管理源码包，不是运行时聊天记录。
+!android/src/android/app/src/main/java/com/openminis/app/ui/sessions/
+!android/src/android/app/src/test/java/com/openminis/app/ui/sessions/
 logs/
 
 # python
