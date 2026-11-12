@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Supprimer %1$d conversations ?</string>
+    <string name="nm_coach_delete_retention">Les extraits Coach associés restent en lecture seule. Les liens vers les originaux ne seront plus disponibles.</string>
+    <string name="nm_coach_delete_keep">Supprimer le chat, conserver les extraits</string>
+    <string name="nm_coach_delete_purge">Supprimer aussi les archives du sujet</string>
+    <string name="nm_coach_delete_failed">Suppression incomplète. Le chat peut être supprimé alors que les extraits restent. Réessayer le nettoyage.</string>
+    <string name="nm_coach_delete_account_changed">Le compte a changé. Fermez cette fenêtre puis rouvrez-la dans le compte actuel.</string>
+    <string name="nm_coach_delete_retry">Réessayer le nettoyage</string>
+    <string name="nm_coach_conversation_group">Pratique quotidienne</string>
+</resources>

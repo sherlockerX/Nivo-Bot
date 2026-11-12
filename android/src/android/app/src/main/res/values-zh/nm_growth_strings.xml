@@ -107,7 +107,7 @@
     <string name="nm_growth_discuss_review">点评（%1$d/4）：%2$s</string>
     <string name="nm_growth_discuss_ask">先指出最值得深挖的一点，讲清背后的道理，再问我想从哪里继续。</string>
     <string name="nm_growth_default_steer">从零开始带我练：先打基础，以经典书为主线，多给我能在现实里马上去做的事；点评直接，给出下一步。</string>
-    <string name="nm_growth_build_opener">请按建课框架 /var/minis/skills/growth-course-builder/SKILL.md 为教练页的「%1$s」建课。我想做到：%2$s\n\n课程文件夹：%3$s，技能名：%4$s。文件夹里已经有课程时就是重建。\n\n我的成长记录：%5$s\n\n先问我两三个问题，书单发给我确认之后再拆书。</string>
+    <string name="nm_growth_build_opener">请和我一起探索或调整教练课程「%1$s」。我想做到：%2$s\n\n旧课程来源（只读）：%3$s，旧技能：%4$s。旧成长记录（不能当作新课程掌握证据）：%5$s\n\n先用coach_query读取当前状态。通过coach_command的new_draft或revise_draft探索，再用propose提出有方法与证据标准的具体课程。不要直接写课程文件，也不要修改旧进度。先展示提案，等我后续明确确认后，再用activate提交准确的draftRevision。一次只问一个相关问题。如果Coach工具不可用，说明如何回到主聊天继续，不要绕过工具。</string>
     <string name="nm_growth_build_record">当前 %1$s，作答 %2$d 次，本级最近得分：%3$s。</string>
     <string name="nm_growth_build_memory">成长记忆：%1$s</string>
     <string name="nm_growth_adjustments">课程调整记录</string>

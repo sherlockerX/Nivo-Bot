@@ -4,7 +4,54 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-12
+
+- Android以Nivo Bot为产品名，内部版本升级为51，沿用专用签名；发布独立网站、APK与对应源码下载。
+- 本次发布只包含Android与网站；未提交的iOS迁移工作另行保留。
+
+- 将Nicholasx的Android独立发行版本更新为2.0.0（50），更新检查改为本分支仓库，增加仓库外的专用签名与本机加密凭据支持。iOS、桌面和运行时版本保持原值，尚未公开发布。
+
+- Added the Nicholasx product website with interactive examples, developer documentation, a portable Android build entry, and local source-release audit and packaging tools. Website deployment remained manual.
+
+- Android added a recoverable full-screen focus timer, a vector landscape and account-local background import, selection and removal. Added focus navigation links, current-state timing details for replayed commands, and AI group/tag management with task-preserving deletion and backup receipts.
+
+- Added local focus countdowns, stopwatches and breaks linked to Tasks, main-chat tools and daily records, with time statistics and JSON export.
+- Added confirmed group and tag deletion without deleting tasks or rewriting historical completion tags, and restored saved category queries through the AI host.
+
+
+- Added saved task groups and tags with searchable selection, explicit creation, account isolation and backward-compatible local backup import. Existing task categories are retained during migration and new AI-created task categories become reusable.
+- Rebuilt Coach exploration with distinct native vector scenes, a current-unit continuation card, shared chat colors and compact header actions. Rendered course cards and session archives as separate lazy list items, preserving the Daily practice conversation flow.
+
+- Returned structured task revision conflicts from the tool boundary and database transaction, preserved exact retry semantics, and added ID and creation-date lookup. Kept task completion bound to the current user's exact report.
+- Matched the task footer to Ideas with a shared canvas, bottom fade and floating quick-add capsule. Cached list sorting and tag parsing while searching.
+- Protected chat drafts, message edits, attachments and pasted text from external card sends and prefills. Kept explicit in-chat idea appending, paused hidden streaming presentation work, and preserved selected tool details across visibility changes.
+
+- Redesigned Android personal tasks with status summaries, direct completion, persistent quick capture, calendar date picking, unified task panels and clearer multi-view statistics.
+
+
 ### Android, local Nicholasx build
+
+- Added personal tasks below Ideas in the drawer, connected native main-chat tools and daily-fragment status updates, and added calendar, priority matrix, group, status, completion-tag statistics and local JSON backup views.
+
+- Replaced the home chat pet header masks with a light translucent backdrop blur, kept messages visible underneath, and softened the name and round-button surfaces.
+
+- Handled Android foreground-service start denials without crashing the app, and kept landscape search results above the keyboard.
+
+- Preserved Coach return position and practice-opening feedback with stable list keys. Loaded deletion archives asynchronously while keeping loading and account failures guarded. Reserved the daily idea card row before its first load to avoid a second height jump as content arrives.
+
+- Adapted drawer search to short windows, wrapped Coach course actions and let name pills and shared top bars grow with text. Limited chat overlays and menu back handling to the visible chat.
+- Serialized conversation ownership with account migration, invalidated old Coach services before file moves and retained restoration backups for in-process retries. Failed chat deletion now stops migration and preserves every owner whose data or files still need cleanup.
+- Restricted scheduled-task targets to owned chats, cancelled stale account dispatches and prevented overlapping runs of one task. Applied updated task models to reused chat instances and storage, with rollback on failure and no app-wide default change.
+- Moved large-paste file preparation and audio preparation off their synchronous UI paths, preserved queued content and subsequent drafts across preparation failure, and released chat safe-mode listeners. Scoped local media paths to their conversation/shared directory and prepared Markdown presentation snapshots for the active palette and streaming tail.
+
+- Removed the Coach archive bar from the main chat; Daily practice topic conversations keep their lesson and archive controls.
+
+- Moved new Coach teaching into persistent Daily practice topic conversations, with separate lesson records, direct source navigation, independent understanding/application evidence and host-timed delayed review. Added archive-only retry and explicit archive retention choices when deleting conversations.
+- Added seven daily idea categories to the main chat and Ideas page. Two suggestions per category rotate locally over seven days; Content creation includes a fixed entry for checking current topics and planning a shoot with verified sources. Card taps preserve the composer draft.
+
+- Ended Coach waiting when a model reply failed to save, kept the original answer for retry, and separated Coach work from ordinary chat activity. Corrected real-action requirements and scenario parsing, preserved old training as read-only when criteria changed, and routed course building through reviewed native proposals.
+
+- Added a local Coach city, course review, independent practice and quoted evidence views. Connected course and action management to the main chat through versioned native commands, preserved legacy history, and restricted Coach replies and rereading to system TTS.
 
 - Added scoped drawer multi-selection and guarded transactional deletion. Limited automatic routine grouping to saved user-task provenance, preserved unknown historical chats, enforced normalized group-name uniqueness with a non-merging migration, and excluded the protected system group from manual and suggested moves.
 - Distinguished verified routine success, failure and unknown outcomes. Added literal script arguments, stable cancellation across setup and execution, private bounded host logs, recoverable settlement receipts, output byte/hash comparisons, idempotent message-write retries and explicit empty-output states. Kept intermittent empty-response diagnosis open pending a real-device reproduction.

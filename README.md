@@ -1,3 +1,13 @@
+# Nivo Bot
+
+AI聊天、待办、专注、生活碎片与成长教练，放在同一个日常工作台。
+
+**Android v2.0.0** · [产品网站](https://nivo.8666886.xyz/) · [Android安装包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) · [本版源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip)
+
+使用自选模型服务；不承诺上游免费额度。旧Debug签名安装不能直接被新证书包覆盖，迁移前先核验备份与恢复。
+
+> **Nivo Bot fork:** This repository contains the Nivo Bot Android work. Start with [OPEN_SOURCE.md](OPEN_SOURCE.md) and the [product website source](site/README.md). The upstream README below is preserved for attribution; its downloads, hosted services and community claims belong to nanoMuse, not this fork.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: an open-source personal agent for every device you own">
 </p>

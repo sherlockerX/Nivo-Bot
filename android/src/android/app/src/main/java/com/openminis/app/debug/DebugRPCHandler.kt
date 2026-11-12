@@ -73,6 +73,7 @@ class DebugRPCHandler(private val context: Context) {
     private suspend fun dispatch(method: String, params: JSONObject): Any {
         return when (method) {
             "rpc.discover" -> DebugMethodRegistry.discover()
+            "debug.coachRequest" -> io.github.nanomuse.coach.CoachDebugRequests.execute(context, params) // nanoMuse: 仅隔离验收包复用真实模型入口。
             "debug.uiFixture" -> io.github.nanomuse.chat.DebugUiFixture.seed(context, params) // nanoMuse: 仅隔离验收包可生成离线数据。
             "debug.uiTimer" -> io.github.nanomuse.chat.DebugUiFixture.timer(context, params) // nanoMuse
             "debug.uiFoldTrace" -> withContext(Dispatchers.Main) { // nanoMuse: 绘制探针仅在隔离验收包开启。

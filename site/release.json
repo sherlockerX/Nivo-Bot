@@ -1,0 +1,13 @@
+{
+  "product": "Nivo Bot",
+  "version": "2.0.0",
+  "versionCode": 51,
+  "androidMinimum": "8.0",
+  "abi": "arm64-v8a",
+  "channel": "public",
+  "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk",
+  "sha256": "4388b91f88422625185a5baba1baa43f1ba2558ab9484eb64b29455605241d85",
+  "repository": "https://github.com/sherlockerX/Nicholasx",
+  "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip",
+  "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3"
+}

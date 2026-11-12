@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">刪除%1$d條對話？</string>
+    <string name="nm_coach_delete_retention">刪除對話預設保留關聯教練摘錄為唯讀檔案，原文連結將無法使用。</string>
+    <string name="nm_coach_delete_keep">只刪聊天，保留唯讀摘錄</string>
+    <string name="nm_coach_delete_purge">同時刪除關聯專題檔案</string>
+    <string name="nm_coach_delete_failed">刪除尚未完成。聊天可能已刪除而摘錄仍保留，請重試檔案清除。</string>
+    <string name="nm_coach_delete_account_changed">帳號已切換，請關閉視窗後在目前帳號重新操作。</string>
+    <string name="nm_coach_delete_retry">重試檔案清除</string>
+    <string name="nm_coach_conversation_group">每日練習</string>
+</resources>

@@ -15,7 +15,7 @@
     <string name="nm_reply_share_image">分享为图片</string>
     <string name="nm_reply_share_text">分享文字</string>
     <string name="nm_reply_share_save">保存到相册</string>
-    <string name="nm_reply_share_saved">已保存到相册（Pictures/Nicholasx）</string>
+    <string name="nm_reply_share_saved">已保存到相册（Pictures/Nivo Bot）</string>
     <string name="nm_reply_share_failed">图片生成失败</string>
     <string name="nm_reply_share_footer">内容由 AI 生成</string>
     <string name="nm_reply_share_close">关闭</string>

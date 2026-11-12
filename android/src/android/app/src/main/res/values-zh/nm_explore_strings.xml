@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">分组与标签</string>
+    <string name="nm_todo_choose_category">选择或新建</string>
+    <string name="nm_todo_category_hint">创建后保存在分类目录，下次任务可以直接选择。</string>
+    <string name="nm_todo_category_search">搜索或输入新名称</string>
+    <string name="nm_todo_category_create">创建“%1$s”</string>
+    <string name="nm_todo_category_empty">还没有保存的分类。</string>
+    <string name="nm_todo_category_manage">查看与新建</string>
+    <string name="nm_todo_selected">已选中</string>
+    <string name="nm_coach_explore_title">把练习带进生活</string>
+    <string name="nm_coach_explore_areas">探索你的能力</string>
+    <string name="nm_coach_explore_add">添加课程</string>
+    <string name="nm_coach_explore_next">接着上次的探索</string>
+    <string name="nm_coach_explore_progress">已展示%1$d/%2$d个单元</string>
+    <string name="nm_coach_explore_more">更多选项</string>
+</resources>

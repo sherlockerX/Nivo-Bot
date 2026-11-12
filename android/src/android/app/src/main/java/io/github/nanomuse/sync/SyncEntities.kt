@@ -165,6 +165,14 @@ interface SyncDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putOwners(list: List<SessionOwner>)
 
+    /** 首次登记不能覆盖已确认的账号归属。 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun claimOwners(list: List<SessionOwner>)
+
+    /** 执行写入前使用权威归属，避免依赖列表缓存。 */
+    @Query("SELECT owner FROM session_owners WHERE sessionId = :sessionId")
+    suspend fun ownerOf(sessionId: String): String?
+
     @Query("DELETE FROM session_owners WHERE sessionId IN (:ids)")
     suspend fun removeOwners(ids: List<String>)
 

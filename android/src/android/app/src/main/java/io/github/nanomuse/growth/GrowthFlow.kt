@@ -432,16 +432,11 @@ object GrowthFlow {
     /** The skill an ability's own course is written under. */
     fun courseSkill(trackId: String): String = "growth-$trackId"
 
-    /**
-     * The first message of the chat that builds (or rebuilds) an ability's course with whatever model
-     * the chat runs on, following the course framework skill (`growth-course-builder`): the ability,
-     * what the person wants from it, its course folder and their record so far. An ability trained by
-     * the general method points at a course of its own from now on; until the agent has written it,
-     * the general method goes on training it.
-     */
+    /** 旧能力入口仅提供只读背景，建课由主聊天的草案、提案和版本确认协议完成。 */
     fun buildOpener(context: Context, trackId: String): String? {
         val track = GrowthStore.state.value.tracks.firstOrNull { it.id == trackId } ?: return null
-        val skill = if (track.skill == GrowthStore.GENERAL_SKILL) courseSkill(track.id).also { GrowthStore.setSkill(track.id, it) } else track.skill
+        // 开始讨论不等于确认课程，不能提前改写旧能力绑定。
+        val skill = track.skill
         val title = track.title(context)
         val levels = context.resources.getStringArray(R.array.nm_growth_levels)
         val answers = GrowthStore.responses.value.values.count { it.track == track.id }
@@ -451,4 +446,9 @@ object GrowthFlow {
         return context.getString(R.string.nm_growth_build_opener, title, track.about?.takeIf { it.isNotBlank() } ?: title, "/var/minis/skills/$skill/", skill,
             if (memory.isEmpty()) record else record + " " + context.getString(R.string.nm_growth_build_memory, memory))
     }
+
+    /** 旧弹层的新方向入口只发起探索，不提前新增旧能力或正式课程。 */
+    fun buildNewOpener(context: Context, title: String, about: String): String = context.getString(
+        R.string.nm_growth_build_opener, title, about.ifBlank { title }, "-", "-", "-",
+    )
 }

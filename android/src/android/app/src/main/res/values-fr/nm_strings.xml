@@ -7,7 +7,7 @@
     <string name="nm_about_upstream">Basé sur OpenMinis 1.13</string>
     <string name="nm_about_upstream_detail">GPL-3.0 · modifié depuis le 2026-09-24 · source sur GitHub</string>
     <string name="nm_about_trademark">Sans lien avec Meta</string>
-    <string name="nm_about_trademark_detail">Muse est une marque de Meta Platforms, Inc. Nicholasx est un projet de logiciel libre indépendant.</string>
+    <string name="nm_about_trademark_detail">Muse est une marque de Meta Platforms, Inc. Nivo Bot est un projet de logiciel libre indépendant.</string>
 
     <!-- Chat header -->
     <string name="nm_avatar_content_description">Votre agent. Touchez pour changer son nom, son icône ou son style.</string>
@@ -22,28 +22,28 @@
     <string name="nm_star_action">Étoile sur GitHub</string>
     <string name="nm_star_later">Pas maintenant</string>
     <string name="nm_star_done">Déjà fait</string>
-    <string name="nm_star_signed_in">Bienvenue. Nicholasx est gratuit, open source et sans but lucratif : un agent personnel pour quiconque le fait tourner. Si cela compte pour vous, une étoile sur GitHub est ce qui permet à la personne suivante de le trouver.</string>
+    <string name="nm_star_signed_in">Bienvenue. Nivo Bot est gratuit, open source et sans but lucratif : un agent personnel pour quiconque le fait tourner. Si cela compte pour vous, une étoile sur GitHub est ce qui permet à la personne suivante de le trouver.</string>
     <plurals name="nm_star_tasks">
-        <item quantity="one">%1$d tâche accomplie. Si Nicholasx a aidé, une étoile sur GitHub le dit à ceux qui le construisent.</item>
-        <item quantity="other">%1$d tâches accomplies. Si Nicholasx vous est utile, une étoile sur GitHub aide la personne suivante à le trouver.</item>
+        <item quantity="one">%1$d tâche accomplie. Si Nivo Bot a aidé, une étoile sur GitHub le dit à ceux qui le construisent.</item>
+        <item quantity="other">%1$d tâches accomplies. Si Nivo Bot vous est utile, une étoile sur GitHub aide la personne suivante à le trouver.</item>
     </plurals>
-    <string name="nm_star_days_used_week">Une semaine avec Nicholasx. S’il a trouvé sa place dans votre journée, une étoile sur GitHub aide la personne suivante à le trouver.</string>
-    <string name="nm_star_days_used_month">Un mois avec Nicholasx. S’il fait maintenant partie de vos habitudes, une étoile sur GitHub dit aux autres qu’il vaut l’essai.</string>
+    <string name="nm_star_days_used_week">Une semaine avec Nivo Bot. S’il a trouvé sa place dans votre journée, une étoile sur GitHub aide la personne suivante à le trouver.</string>
+    <string name="nm_star_days_used_month">Un mois avec Nivo Bot. S’il fait maintenant partie de vos habitudes, une étoile sur GitHub dit aux autres qu’il vaut l’essai.</string>
     <plurals name="nm_star_days_used">
-        <item quantity="one">%1$d jour avec Nicholasx. S’il a aidé, une étoile sur GitHub aide la personne suivante à le trouver.</item>
-        <item quantity="other">%1$d jours avec Nicholasx. S’il a trouvé sa place dans votre journée, une étoile sur GitHub aide la personne suivante à le trouver.</item>
+        <item quantity="one">%1$d jour avec Nivo Bot. S’il a aidé, une étoile sur GitHub aide la personne suivante à le trouver.</item>
+        <item quantity="other">%1$d jours avec Nivo Bot. S’il a trouvé sa place dans votre journée, une étoile sur GitHub aide la personne suivante à le trouver.</item>
     </plurals>
-    <string name="nm_star_goal_done">Objectif atteint. Si Nicholasx vous y a aidé, une étoile sur GitHub le dit à ceux qui le construisent.</string>
-    <string name="nm_star_new_look">Un nouveau visage, dessiné pour vous. Si la direction que prend Nicholasx vous plaît, une étoile sur GitHub aide d’autres personnes à le trouver.</string>
-    <string name="nm_star_exhausted">Le crédit gratuit est épuisé. Merci d’être arrivé jusqu’ici. Si Nicholasx l’a mérité, une étoile sur GitHub garde le projet en vue pour la personne suivante.</string>
+    <string name="nm_star_goal_done">Objectif atteint. Si Nivo Bot vous y a aidé, une étoile sur GitHub le dit à ceux qui le construisent.</string>
+    <string name="nm_star_new_look">Un nouveau visage, dessiné pour vous. Si la direction que prend Nivo Bot vous plaît, une étoile sur GitHub aide d’autres personnes à le trouver.</string>
+    <string name="nm_star_exhausted">Le crédit gratuit est épuisé. Merci d’être arrivé jusqu’ici. Si Nivo Bot l’a mérité, une étoile sur GitHub garde le projet en vue pour la personne suivante.</string>
     <string name="nm_chat_menu_rename">Renommer la discussion</string>
 
     <!-- Foreground-service notification title while no tool is running -->
     <string name="nm_notif_working">%1$s travaille</string>
 
     <!-- First conversation: the scripted opening (see io.github.nanomuse.onboarding) -->
-    <string name="nm_intro_hello">Bonjour, je suis Nicholasx, l’assistant qui vit sur votre téléphone. Laissez-moi vous décharger de quelques tâches.</string>
-    <string name="nm_intro_how_i_work">Un mot sur ma façon de travailler :\n\n- J’ai mon propre ordinateur (un bac à sable Linux et un navigateur), donc je peux exécuter des commandes, ouvrir des sites et remplir des formulaires.\n- Je peux lire et organiser les fichiers et photos que vous montez pour moi, et m’occuper des rappels et des tâches planifiées.\n- Avant toute étape qui compte, je vous demande d’abord.\n- Tout tourne sur ce téléphone. Vos messages vont au modèle que vous avez configuré ; avec Nicholasx Cloud, cette conversation vous suit aussi sur vos autres appareils ; Contrôle des données permet de le désactiver.</string>
+    <string name="nm_intro_hello">Bonjour, je suis Nivo Bot, l’assistant qui vit sur votre téléphone. Laissez-moi vous décharger de quelques tâches.</string>
+    <string name="nm_intro_how_i_work">Un mot sur ma façon de travailler :\n\n- J’ai mon propre ordinateur (un bac à sable Linux et un navigateur), donc je peux exécuter des commandes, ouvrir des sites et remplir des formulaires.\n- Je peux lire et organiser les fichiers et photos que vous montez pour moi, et m’occuper des rappels et des tâches planifiées.\n- Avant toute étape qui compte, je vous demande d’abord.\n- Tout tourne sur ce téléphone. Vos messages vont au modèle que vous avez configuré ; avec Nivo Bot Cloud, cette conversation vous suit aussi sur vos autres appareils ; Contrôle des données permet de le désactiver.</string>
     <string name="nm_intro_ask_name">Avant de commencer, comment dois-je vous appeler ?</string>
 
     <!-- First conversation: the name chooser -->
@@ -200,7 +200,7 @@
     <string name="nm_risk_class_outbound">Envoyer</string>
     <string name="nm_risk_class_money">Payer</string>
     <string name="nm_risk_class_install">Installer</string>
-    <string name="nm_grants_header">Approbations mémorisées par Nicholasx</string>
+    <string name="nm_grants_header">Approbations mémorisées par Nivo Bot</string>
     <string name="nm_grants_empty">Rien de mémorisé pour l’instant</string>
     <string name="nm_grants_revoke">Révoquer</string>
     <string name="nm_grants_revoke_confirm">Révoquer cette approbation ? La prochaine fois, la question vous sera posée à nouveau.</string>
@@ -208,7 +208,7 @@
     <string name="nm_risk_remember_money_note">Confirmé avec votre verrouillage d’écran. Les paiements dans cette seule app ou ce seul site s’exécuteront alors sans carte ; listés en premier sous Réglages → Permissions, où vous pouvez révoquer à tout moment.</string>
     <string name="nm_risk_remember_money_needs_lock">Pour mémoriser des paiements, définissez d’abord un verrouillage d’écran (Réglages → Sécurité) : c’est avec lui que la mémorisation est confirmée.</string>
     <string name="nm_risk_lock_title">Confirmez que c’est bien vous</string>
-    <string name="nm_risk_lock_subtitle">Nicholasx mémorisera les approbations de paiement pour %1$s et les exécutera sans demander.</string>
+    <string name="nm_risk_lock_subtitle">Nivo Bot mémorisera les approbations de paiement pour %1$s et les exécutera sans demander.</string>
     <string name="nm_risk_remembered_toast">Mémorisé · voir Réglages → Permissions pour révoquer</string>
     <string name="nm_risk_tier_highest">S’exécute sans demander · paiements</string>
     <string name="nm_risk_tier_confirm">Mémorisé depuis la carte · supprimer et envoyer</string>
@@ -250,7 +250,7 @@
     <string name="nm_sysfiles_open_memory">Ouvrir la mémoire</string>
     <string name="nm_sysfiles_footer">Ces fichiers sont ceux de l’agent : qui il est, ce qu’il sait de vous, ce dont il se souvient, ce qu’il écrit pour vous et quand il se réveille. Ils sont dans le stockage de votre téléphone ; l’agent les lit et les modifie depuis son shell sous /var/minis/memory, et vous pouvez tout modifier ici.</string>
     <string name="nm_sysfile_about_lead">À propos de ce fichier.</string>
-    <string name="nm_sysfile_about_soul">C’est la personnalité de l’agent : les valeurs et habitudes qu’il essaie de tenir dans chaque conversation, son nom et le style de ses réponses. Elle part d’un modèle fourni avec Nicholasx ; l’agent peut l’affiner avec le temps et vous le dit quand il le fait. Vous pouvez la modifier à tout moment. Cette note ne fait pas partie du fichier.</string>
+    <string name="nm_sysfile_about_soul">C’est la personnalité de l’agent : les valeurs et habitudes qu’il essaie de tenir dans chaque conversation, son nom et le style de ses réponses. Elle part d’un modèle fourni avec Nivo Bot ; l’agent peut l’affiner avec le temps et vous le dit quand il le fait. Vous pouvez la modifier à tout moment. Cette note ne fait pas partie du fichier.</string>
     <string name="nm_sysfile_about_user">L’agent tient ce fichier comme ses notes de travail sur vous : votre nom, la façon dont vous aimez être appelé, votre fuseau horaire et le contexte dont il a besoin pour être utile, comme ce sur quoi vous travaillez. Il le remplit au fil de vos conversations et le lit au début de chacune. Il reflète sa compréhension actuelle, donc il peut être incomplet ou dépassé. Vous pouvez tout modifier ici, et l’agent suivra ce que vous écrivez. Cette note ne fait pas partie du fichier.</string>
     <string name="nm_sysfile_about_memory">Les notes durables que l’agent garde d’une conversation à l’autre : ce qui vaut la peine d’être retenu, dans ses propres mots, plus ce que vous avez importé d’un autre assistant. Le journal au jour le jour est à côté, dans le dossier de mémoire. Lu au début de chaque conversation quand la mémoire est activée. Cette note ne fait pas partie du fichier.</string>
     <string name="nm_sysfile_about_heartbeat">Quand l’agent se réveille de lui-même : chaque routine et chaque point d’objectif, avec son horaire et le résultat de la dernière exécution. Généré à partir des routines, donc en lecture seule ici ; modifiez-les depuis Objectifs → Routines. Cette note ne fait pas partie du fichier.</string>
@@ -340,7 +340,7 @@
     <string name="nm_own_clip_title">Votre propre clip</string>
     <string name="nm_own_clip_body">Une courte vidéo à vous s\'affiche comme visage au repos, et les autres humeurs s\'y rabattent. MP4 ou MOV en vidéo H.264, 15 secondes et 30 Mo au plus ; elle tourne en boucle, sans le son.</string>
     <string name="nm_own_clip_on">Votre clip est actif et joue pour chaque humeur ; là où une image fixe est montrée, les images dessinées restent. « Visage par défaut » le retire.</string>
-    <string name="nm_own_clip_local">Le clip reste sur ce téléphone. Il n\'est ni envoyé à Nicholasx Cloud ni synchronisé avec vos autres appareils.</string>
+    <string name="nm_own_clip_local">Le clip reste sur ce téléphone. Il n\'est ni envoyé à Nivo Bot Cloud ni synchronisé avec vos autres appareils.</string>
     <string name="nm_own_clip_choose">Choisir un clip</string>
     <string name="nm_own_clip_replace">Remplacer le clip</string>
     <string name="nm_own_clip_default">Visage par défaut</string>
@@ -358,7 +358,7 @@
     <string name="nm_a11y_own_clip_preview">Aperçu de votre clip</string>
 
     <!-- First run (Muse-style welcome; the steps are OpenMinis' provider and model screens) -->
-    <string name="nm_setup_title">Bienvenue dans Nicholasx</string>
+    <string name="nm_setup_title">Bienvenue dans Nivo Bot</string>
     <string name="nm_setup_step_models">Choisir les modèles</string>
     <string name="nm_setup_step_models_sub">Les modèles proposés par votre fournisseur sont listés pour vous ; choisissez-en jusqu’à trois</string>
     <string name="nm_setup_step_start">Rencontrer %1$s</string>
@@ -374,7 +374,7 @@
     <string name="nm_settings_no_model">Aucun modèle pour l’instant</string>
     <string name="nm_settings_no_model_sub">Ajoutez un fournisseur et choisissez ses modèles</string>
     <string name="nm_settings_change_model">Changer</string>
-    <string name="nm_settings_version">Nicholasx %1$s (%2$d)</string>
+    <string name="nm_settings_version">Nivo Bot %1$s (%2$d)</string>
     <string name="nm_version_title">Version</string>
     <string name="nm_version_checking">Recherche de la dernière version…</string>
     <string name="nm_version_have">Dernière version %1$s, vous l’avez</string>
@@ -454,7 +454,7 @@
     <string name="nm_avatar_share_title">Partager mon avatar</string>
     <string name="nm_avatar_share_subtitle">Choisissez une carte. Elle part par la feuille de partage du système.</string>
     <string name="nm_avatar_share_system">Partager</string>
-    <string name="nm_avatar_share_bubble">Bonjour, je suis %1$s, un agent IA personnel. Voici Nicholasx : open source, il tourne sur votre téléphone.</string>
+    <string name="nm_avatar_share_bubble">Bonjour, je suis %1$s, un agent IA personnel. Voici Nivo Bot : open source, il tourne sur votre téléphone.</string>
     <string name="nm_avatar_share_tagline">Votre agent IA personnel, open source · github.com/nano-muse/nanoMuse</string>
 
     <!-- 0.1.10 · Motion -->
@@ -506,7 +506,7 @@
     <string name="nm_hands_section_needs">Ce qu’il lui faut</string>
     <string name="nm_hands_needs_footer">Le service d’accessibilité prend la capture d’écran et effectue les gestes ; il ne lit pas le contenu de l’écran. L’affichage par-dessus les autres apps sert à la capsule.</string>
     <string name="nm_hands_need_a11y">Service d’accessibilité</string>
-    <string name="nm_hands_need_a11y_fix">Activez Nicholasx sous Applications installées dans les paramètres d’accessibilité</string>
+    <string name="nm_hands_need_a11y_fix">Activez Nivo Bot sous Applications installées dans les paramètres d’accessibilité</string>
     <string name="nm_hands_need_overlay">Affichage par-dessus les autres apps</string>
     <string name="nm_hands_need_overlay_fix">Autorisez-le, pour que la capsule avec Stop puisse s’afficher</string>
     <string name="nm_hands_need_model">Un modèle qui voit les images</string>
@@ -523,7 +523,7 @@
     <string name="nm_hands_why_default">le modèle par défaut des mains sous votre propre clé</string>
     <string name="nm_hands_why_chat">le modèle de chat que vous avez choisi</string>
     <string name="nm_hands_why_group">le premier de votre groupe par défaut qui voit</string>
-    <string name="nm_hands_why_menu">le modèle d’écran de Nicholasx Cloud</string>
+    <string name="nm_hands_why_menu">le modèle d’écran de Nivo Bot Cloud</string>
     <string name="nm_hands_why_vision_group">votre groupe Vision</string>
     <string name="nm_hands_why_any">le seul modèle activé qui voit</string>
     <string name="nm_hands_section_rules">Comment il se comporte</string>
@@ -544,7 +544,7 @@
     <string name="nm_hands_protected_screen">Cet écran est protégé et ne peut pas être lu. Terminez cette partie vous-même, puis touchez Continuer.</string>
     <string name="nm_hands_secret_field">Un champ de mot de passe ou de code : remplissez-le vous-même, puis touchez Continuer.</string>
     <string name="nm_hands_approval_title">En attente de votre approbation</string>
-    <string name="nm_hands_approval_detail">Toucher « %1$s » : confirmez dans Nicholasx (il demande votre verrouillage d’écran).</string>
+    <string name="nm_hands_approval_detail">Toucher « %1$s » : confirmez dans Nivo Bot (il demande votre verrouillage d’écran).</string>
     <string name="nm_hands_approval_here">Toucher « %1$s » ?</string>
     <string name="nm_hands_allow_once">Autoriser</string>
     <string name="nm_hands_deny">Refuser</string>
@@ -575,10 +575,10 @@
     <!-- Reach (0.1.13): the phone drives your computer -->
     <string name="nm_pc_title">Ordinateurs</string>
     <string name="nm_pc_none_short">Aucun</string>
-    <string name="nm_pc_intro">Dites-le ici, c’est fait sur votre ordinateur : une commande, un fichier, une page dans son navigateur, un coup d’œil à son écran, ou une tâche entière pour le Nicholasx qui s’y trouve. Le téléphone pilote l’ordinateur, jamais l’inverse ; chaque approbation se décide ici d’abord.</string>
-    <string name="nm_pc_hub_title">Le plus simple : Nicholasx Desktop, même compte</string>
-    <string name="nm_pc_hub_body">Installez Nicholasx Desktop sur l’ordinateur et connectez-vous avec le compte de ce téléphone ; il apparaît sous Compte → Appareils en quelques secondes.</string>
-    <string name="nm_pc_hub_download">Télécharger Nicholasx Desktop</string>
+    <string name="nm_pc_intro">Dites-le ici, c’est fait sur votre ordinateur : une commande, un fichier, une page dans son navigateur, un coup d’œil à son écran, ou une tâche entière pour le Nivo Bot qui s’y trouve. Le téléphone pilote l’ordinateur, jamais l’inverse ; chaque approbation se décide ici d’abord.</string>
+    <string name="nm_pc_hub_title">Le plus simple : Nivo Bot Desktop, même compte</string>
+    <string name="nm_pc_hub_body">Installez Nivo Bot Desktop sur l’ordinateur et connectez-vous avec le compte de ce téléphone ; il apparaît sous Compte → Appareils en quelques secondes.</string>
+    <string name="nm_pc_hub_download">Télécharger Nivo Bot Desktop</string>
     <string name="nm_pc_hub_account">Compte et appareils</string>
     <string name="nm_pc_section_paired">Ordinateurs sur ce compte</string>
     <string name="nm_pc_none">Aucun ordinateur pour l’instant</string>
@@ -587,11 +587,11 @@
     <string name="nm_pc_last_seen">vu %1$s</string>
     <string name="nm_pc_offline">hors ligne</string>
     <string name="nm_pc_online">en ligne</string>
-    <string name="nm_pc_account_none">Ce téléphone n’est pas encore connecté à Nicholasx Cloud ; connectez-vous d’abord, puis l’ordinateur avec le même compte.</string>
+    <string name="nm_pc_account_none">Ce téléphone n’est pas encore connecté à Nivo Bot Cloud ; connectez-vous d’abord, puis l’ordinateur avec le même compte.</string>
     <string name="nm_pc_account_hint">Ce téléphone est connecté en tant que %1$s ; l’ordinateur doit se connecter avec le même compte.</string>
     <string name="nm_pc_checking">Vérification…</string>
     <string name="nm_pc_answering">%1$s répond</string>
-    <string name="nm_pc_not_answering">%1$s ne répond pas. Nicholasx Desktop tourne-t-il toujours là-bas ?</string>
+    <string name="nm_pc_not_answering">%1$s ne répond pas. Nivo Bot Desktop tourne-t-il toujours là-bas ?</string>
 
     <!-- the approval card -->
     <string name="nm_risk_desc_on_computer">Sur l’ordinateur « %1$s », pas sur ce téléphone.</string>
@@ -613,7 +613,7 @@
     <string name="nm_welcome_fine_print">Un compte relie vos appareils et porte l’usage gratuit du modèle ; rien n’est facturé. Votre propre clé d’API peut être ajoutée juste après.</string>
     <string name="nm_setup_source_title">Quel modèle répond ?</string>
     <string name="nm_setup_source_sub">Votre compte en apporte déjà un. Vous pouvez aussi ajouter votre propre clé d’API et changer à tout moment.</string>
-    <string name="nm_setup_source_cloud">Utiliser le modèle Nicholasx Cloud</string>
+    <string name="nm_setup_source_cloud">Utiliser le modèle Nivo Bot Cloud</string>
     <string name="nm_setup_source_cloud_sub">DeepSeek pour le chat et Qwen pour les mains, avec un crédit gratuit par compte payé par le développeur. Rien à configurer.</string>
     <string name="nm_setup_source_own_sub">OpenAI, Anthropic, DeepSeek, Bailian et d’autres points de terminaison compatibles OpenAI. La clé reste sur ce téléphone.</string>
     <string name="nm_setup_source_fine_print">Les deux ne se font pas concurrence : le modèle Cloud reste disponible, et chaque groupe de modèles choisit le sien.</string>
@@ -626,15 +626,15 @@
     <string name="nm_welcome_feat_hands">Mains : il utilise votre téléphone</string>
     <string name="nm_welcome_feat_hands_sub">Réserve le train, commande le repas, cherche quelque chose dans une app ; vous regardez, et pouvez l’arrêter à tout moment</string>
     <string name="nm_welcome_feat_reach">Portée : vos ordinateurs, d’ici</string>
-    <string name="nm_welcome_feat_reach_sub">Installez Nicholasx Desktop sur un Mac, un PC Windows ou Linux, connectez-vous avec le même compte et donnez-lui du travail depuis le téléphone</string>
-    <string name="nm_welcome_notice">Nicholasx est un projet communautaire open source sans but lucratif : gratuit, pour toujours. Le modèle vient avec un crédit gratuit payé par le développeur ; ensuite, votre propre clé. Rien n’est vendu ; ce que le relais conserve est dans la politique de confidentialité, et Réglages → Contrôle des données vous appartient.</string>
+    <string name="nm_welcome_feat_reach_sub">Installez Nivo Bot Desktop sur un Mac, un PC Windows ou Linux, connectez-vous avec le même compte et donnez-lui du travail depuis le téléphone</string>
+    <string name="nm_welcome_notice">Nivo Bot est un projet communautaire open source sans but lucratif : gratuit, pour toujours. Le modèle vient avec un crédit gratuit payé par le développeur ; ensuite, votre propre clé. Rien n’est vendu ; ce que le relais conserve est dans la politique de confidentialité, et Réglages → Contrôle des données vous appartient.</string>
     <string name="nm_welcome_hands_title">Laissez-le utiliser votre téléphone</string>
     <string name="nm_welcome_hands_sub">Avec deux permissions, il peut ouvrir des apps, toucher et saisir pour vous. Une capsule avec chaque étape et un bouton Stop reste à l’écran ; les connexions, mots de passe et codes restent toujours à vous.</string>
     <string name="nm_welcome_hands_turn_on">Activer</string>
     <string name="nm_welcome_skip">Passer pour l’instant</string>
     <string name="nm_welcome_hands_fine_print">Tout le reste fonctionne sans. Elles se trouvent sous Réglages → Mains quand vous les voulez.</string>
     <string name="nm_welcome_meet_fine_print">Avant tout ce qu’il ne peut pas défaire (supprimer, envoyer, payer) il s’arrête et vous demande d’abord.</string>
-    <string name="nm_cloud_signin_title">Commencer avec Nicholasx Cloud</string>
+    <string name="nm_cloud_signin_title">Commencer avec Nivo Bot Cloud</string>
     <string name="nm_cloud_signin_subtitle">Un code sur votre téléphone ou dans votre boîte mail, ou votre mot de passe, une fois défini.</string>
     <string name="nm_cloud_mode_code">Avec un code</string>
     <string name="nm_cloud_mode_password">Avec un mot de passe</string>
@@ -659,7 +659,7 @@
     <string name="nm_cloud_server_https">Utilise https pour un serveur hors de ton propre réseau. http convient pour une adresse privée (10.x, 192.168.x, 172.16-31.x, localhost, un nom .local ou .ts.net).</string>
     <string name="nm_lan_only_https">Le http:// en clair ne fonctionne que pour les adresses de votre propre réseau (10.x, 172.16-31.x, 192.168.x, noms .local) ; utilisez https:// pour %1$s.</string>
     <string name="nm_cloud_server_unreachable">Aucun relais n’a répondu à %1$s. Vérifie l’adresse et que le relais tourne.</string>
-    <string name="nm_cloud_server_default">Revenir à Nicholasx Cloud</string>
+    <string name="nm_cloud_server_default">Revenir à Nivo Bot Cloud</string>
     <string name="nm_cloud_server_row">Serveur</string>
     <string name="nm_cloud_server_change">Changer</string>
     <string name="nm_cloud_server_change_confirm">La clé de ce téléphone appartient au serveur actuel. Déconnecte-toi ici d’abord, puis connecte-toi à l’autre serveur depuis l’écran de connexion.</string>
@@ -680,11 +680,11 @@
     <string name="nm_cloud_used_today_open">Aujourd’hui %1$s</string>
     <string name="nm_cloud_refresh">Actualiser le solde</string>
     <string name="nm_cloud_refreshing">Actualisation…</string>
-    <string name="nm_cloud_how_it_works">Nicholasx Cloud est un fournisseur ordinaire dans cette app : ses modèles sont listés sous Fournisseurs et peuvent se mêler aux vôtres dans un groupe de modèles.</string>
+    <string name="nm_cloud_how_it_works">Nivo Bot Cloud est un fournisseur ordinaire dans cette app : ses modèles sont listés sous Fournisseurs et peuvent se mêler aux vôtres dans un groupe de modèles.</string>
     <string name="nm_cloud_open_provider">Réglages du fournisseur</string>
     <string name="nm_cloud_sign_out">Se déconnecter</string>
     <string name="nm_cloud_sign_out_sub">La clé de ce téléphone est révoquée et le fournisseur Cloud retiré ; le crédit reste sur votre compte.</string>
-    <string name="nm_cloud_sign_out_confirm">Le fournisseur Nicholasx Cloud et ses modèles seront retirés de ce téléphone.</string>
+    <string name="nm_cloud_sign_out_confirm">Le fournisseur Nivo Bot Cloud et ses modèles seront retirés de ce téléphone.</string>
     <string name="nm_cloud_row_remaining">%1$s restants</string>
     <string name="nm_cloud_row_sign_in">Se connecter</string>
     <string name="nm_cloud_err_bad_identifier">Cela ne ressemble pas à une adresse e-mail.</string>
@@ -702,7 +702,7 @@
     <string name="nm_cloud_err_allowance_abroad">Le crédit gratuit est épuisé. Invitez un ami (+¥%1$s pour chacun de vous) ou ajoutez votre propre clé sous Réglages → Fournisseurs ; OpenRouter est le plus rapide : un compte, une clé, paiement à l’usage.</string>
     <string name="nm_cloud_warn_line">Le crédit gratuit est presque épuisé : ¥%1$s sur ¥%2$s restants. Invitez un ami (+¥%3$s pour chacun de vous) ou ajoutez votre propre clé, les deux sous Compte.</string>
     <string name="nm_cloud_err_rate_limited">Trop de requêtes à la fois. Un instant.</string>
-    <string name="nm_cloud_err_unreachable">Impossible de joindre Nicholasx Cloud. Vérifiez la connexion.</string>
+    <string name="nm_cloud_err_unreachable">Impossible de joindre Nivo Bot Cloud. Vérifiez la connexion.</string>
     <string name="nm_cloud_err_generic">Quelque chose n’a pas marché.</string>
     <string name="nm_cloud_err_bad_credentials">E-mail ou mot de passe incorrect.</string>
     <string name="nm_cloud_err_no_password">Ce compte n’a pas encore de mot de passe. Connectez-vous avec un code, puis définissez-en un sous Compte.</string>
@@ -718,10 +718,10 @@
     <string name="nm_cloud_err_content_rejected">Le contrôle de contenu du fournisseur du modèle a refusé cette demande. Essayez d\'autres mots ou, si cela se répète, ouvrez une nouvelle discussion : les mots en cause peuvent se trouver plus haut dans la conversation.</string>
     <string name="nm_cloud_err_provider_busy">Le fournisseur du modèle est occupé en ce moment. Réessayez dans un instant.</string>
     <string name="nm_cloud_err_provider_busy_wait">Le fournisseur du modèle est occupé en ce moment. Réessayez dans %1$s.</string>
-    <string name="nm_cloud_err_model_not_offered">Nicholasx Cloud ne propose plus ce modèle. Choisissez-en un autre dans Réglages → Nicholasx Cloud.</string>
-    <string name="nm_cloud_err_relay_down">Nicholasx Cloud n’a pas répondu. Réessayez dans un instant.</string>
-    <string name="nm_cloud_err_allowance_paused">Le crédit gratuit est suspendu sur ce relais pour le moment, il n’est pas épuisé. Ajoutez votre propre clé ou connectez-vous avec un abonnement que vous payez déjà, dans Réglages → Nicholasx Cloud. Votre connexion, vos appareils et le reste du crédit restent tels quels.</string>
-    <string name="nm_cloud_err_service_paused">Nicholasx Cloud est mis en pause par son opérateur pour le moment ; votre connexion et vos données sont conservées. Réessayez plus tard.</string>
+    <string name="nm_cloud_err_model_not_offered">Nivo Bot Cloud ne propose plus ce modèle. Choisissez-en un autre dans Réglages → Nivo Bot Cloud.</string>
+    <string name="nm_cloud_err_relay_down">Nivo Bot Cloud n’a pas répondu. Réessayez dans un instant.</string>
+    <string name="nm_cloud_err_allowance_paused">Le crédit gratuit est suspendu sur ce relais pour le moment, il n’est pas épuisé. Ajoutez votre propre clé ou connectez-vous avec un abonnement que vous payez déjà, dans Réglages → Nivo Bot Cloud. Votre connexion, vos appareils et le reste du crédit restent tels quels.</string>
+    <string name="nm_cloud_err_service_paused">Nivo Bot Cloud est mis en pause par son opérateur pour le moment ; votre connexion et vos données sont conservées. Réessayez plus tard.</string>
     <string name="nm_cloud_err_sync_paused">La synchronisation des conversations est suspendue sur ce relais pour le moment ; ce qui est stocké est conservé, et vos appareils continuent de fonctionner chacun de leur côté.</string>
     <string name="nm_cloud_err_hub_paused">La liaison entre appareils est suspendue sur ce relais pour le moment ; chaque appareil continue de fonctionner de son côté.</string>
     <string name="nm_refusal_relay_says">Le relais dit : %1$s</string>
@@ -765,7 +765,7 @@
     <string name="nm_cloud_invite_share">Partager le lien</string>
     <string name="nm_cloud_invite_copy">Copier</string>
     <string name="nm_cloud_invite_copied">Copié</string>
-    <string name="nm_cloud_invite_share_text">Essayez Nicholasx avec moi : un agent personnel entièrement open source, gratuit. Inscrivez-vous avec mon code %1$s : %2$s</string>
+    <string name="nm_cloud_invite_share_text">Essayez Nivo Bot avec moi : un agent personnel entièrement open source, gratuit. Inscrivez-vous avec mon code %1$s : %2$s</string>
     <string name="nm_cloud_invite_count">%1$d amis inscrits</string>
     <string name="nm_cloud_invite_earned">¥%1$s ajoutés par les invitations</string>
     <string name="nm_cloud_invite_have">Vous avez un code d’invitation ?</string>
@@ -806,8 +806,8 @@
     <string name="nm_cloud_ev_contribute_deleted">Contrôle des données : conversations conservées supprimées</string>
     <string name="nm_cloud_ev_contribute_default">Contrôle des données : activé pour les nouveaux comptes</string>
     <string name="nm_data_title">Contrôle des données</string>
-    <string name="nm_data_improve">Aider à améliorer les modèles d’IA de Nicholasx</string>
-    <string name="nm_data_why">Tant que c’est activé, le texte de vos discussions avec les modèles Nicholasx Cloud (ce que vous avez écrit, ce qu’il a répondu et les outils qu’il a choisi d’appeler) est conservé sur le relais pour entraîner le modèle ouvert de la communauté. Pas votre mémoire ni SOUL (l’invite système), pas ce que les outils ont renvoyé, pas les images, et jamais à côté de qui vous êtes. Votre propre clé d’API ne passe jamais par le relais.</string>
+    <string name="nm_data_improve">Aider à améliorer les modèles d’IA de Nivo Bot</string>
+    <string name="nm_data_why">Tant que c’est activé, le texte de vos discussions avec les modèles Nivo Bot Cloud (ce que vous avez écrit, ce qu’il a répondu et les outils qu’il a choisi d’appeler) est conservé sur le relais pour entraîner le modèle ouvert de la communauté. Pas votre mémoire ni SOUL (l’invite système), pas ce que les outils ont renvoyé, pas les images, et jamais à côté de qui vous êtes. Votre propre clé d’API ne passe jamais par le relais.</string>
     <string name="nm_data_default_on">Les nouveaux comptes démarrent avec l’option activée.</string>
     <string name="nm_data_default_off">Les nouveaux comptes démarrent avec l’option désactivée.</string>
     <string name="nm_data_kept">%1$d tours conservés jusqu’ici.</string>
@@ -817,7 +817,7 @@
     <string name="nm_data_delete_sub">Supprime chaque tour conservé de ce compte, que l’interrupteur soit activé ou non. Désactiver l’interrupteur garde ce qui a été conservé jusqu’à ce que vous le supprimiez ici.</string>
     <string name="nm_data_delete_confirm">Les conversations conservées sont supprimées du serveur. C’est irréversible.</string>
     <string name="nm_data_deleted">%1$d tours supprimés.</string>
-    <string name="nm_data_sign_in">Connectez-vous à Nicholasx Cloud pour l’utiliser.</string>
+    <string name="nm_data_sign_in">Connectez-vous à Nivo Bot Cloud pour l’utiliser.</string>
     <string name="nm_data_privacy">Politique de confidentialité</string>
     <string name="nm_data_status_on">Activé</string>
     <string name="nm_data_status_off">Désactivé</string>
@@ -865,7 +865,7 @@
     <!-- 0.1.20: the coding agents on the account's computers -->
     <string name="nm_coding_title">Agents de code</string>
     <string name="nm_coding_intro">Cursor, Codex et Claude Code sur vos ordinateurs : leurs sessions, leur dernière réponse, et un message à n’importe lequel, d’ici. Rien de ce qui leur appartient n’est copié sur le téléphone.</string>
-    <string name="nm_coding_no_computer">Aucun ordinateur avec un agent de code n’est en ligne. Lancez Nicholasx sur l’ordinateur où Cursor, Codex ou Claude Code est installé, connecté avec ce compte.</string>
+    <string name="nm_coding_no_computer">Aucun ordinateur avec un agent de code n’est en ligne. Lancez Nivo Bot sur l’ordinateur où Cursor, Codex ou Claude Code est installé, connecté avec ce compte.</string>
     <string name="nm_coding_account_hint">Ce téléphone est connecté en tant que %1$s ; l’ordinateur doit utiliser le même compte.</string>
     <string name="nm_coding_refresh">Actualiser</string>
     <string name="nm_coding_all">Tous</string>
@@ -899,13 +899,13 @@
     <string name="nm_cloud_tokens_line">%1$s jetons en tout · %2$s aujourd’hui</string>
     <string name="nm_cloud_notice_title">Gratuit, open source, sans but lucratif</string>
     <string name="nm_cloud_notice_closing">Un bug, une envie de fonction, un correctif ? Le dépôt GitHub est l’endroit.</string>
-    <string name="nm_cloud_notice">Nicholasx est un projet communautaire open source sans but lucratif : gratuit, pour toujours. Le modèle vient avec un crédit gratuit payé par le développeur ; ensuite, votre propre clé. Rien n’est vendu ; ce que le relais conserve est dans la politique de confidentialité, et Réglages → Contrôle des données vous appartient. Supprimez le compte quand vous voulez.</string>
+    <string name="nm_cloud_notice">Nivo Bot est un projet communautaire open source sans but lucratif : gratuit, pour toujours. Le modèle vient avec un crédit gratuit payé par le développeur ; ensuite, votre propre clé. Rien n’est vendu ; ce que le relais conserve est dans la politique de confidentialité, et Réglages → Contrôle des données vous appartient. Supprimez le compte quand vous voulez.</string>
 
     <!-- nanoMuse: devices on the hub -->
     <string name="nm_hub_channel">Messages de vos appareils</string>
     <string name="nm_hub_service_channel">Connecté à vos appareils</string>
-    <string name="nm_hub_service_title">Nicholasx · joignable depuis vos appareils</string>
-    <string name="nm_hub_service_connecting">Connexion à Nicholasx Cloud…</string>
+    <string name="nm_hub_service_title">Nivo Bot · joignable depuis vos appareils</string>
+    <string name="nm_hub_service_connecting">Connexion à Nivo Bot Cloud…</string>
     <string name="nm_hub_service_alone">Aucun autre appareil n’est en ligne pour le moment</string>
     <plurals name="nm_hub_service_devices">
         <item quantity="one">%d appareil en ligne</item>
@@ -926,7 +926,7 @@
     <string name="nm_devices_connected">Connecté</string>
     <string name="nm_devices_connecting">Connexion…</string>
     <string name="nm_devices_off">Désactivé</string>
-    <string name="nm_devices_none">Aucun autre appareil pour l’instant. Sur votre ordinateur, installez Nicholasx Desktop et connectez-vous avec le même compte ; il apparaît ici en quelques secondes.</string>
+    <string name="nm_devices_none">Aucun autre appareil pour l’instant. Sur votre ordinateur, installez Nivo Bot Desktop et connectez-vous avec le même compte ; il apparaît ici en quelques secondes.</string>
     <string name="nm_devices_online">en ligne</string>
     <string name="nm_devices_offline">hors ligne</string>
     <string name="nm_devices_web">Console web</string>
@@ -945,7 +945,7 @@
     <string name="nm_hub_err_not_controllable">On ne peut pas demander à cet appareil de faire des choses.</string>
     <string name="nm_hub_err_unknown_agent">Cet agent de code n’est pas sur l’ordinateur.</string>
     <string name="nm_hub_err_no_session">Cette session n’est plus sur l’ordinateur.</string>
-    <string name="nm_hub_err_unknown_action">L’ordinateur fait tourner un Nicholasx plus ancien qui ne connaît pas cette action.</string>
+    <string name="nm_hub_err_unknown_action">L’ordinateur fait tourner un Nivo Bot plus ancien qui ne connaît pas cette action.</string>
     <string name="nm_hub_err_bad_key">Déconnecté du relais ; reconnectez-vous.</string>
     <string name="nm_hub_err_generic">L’ordinateur n’a pas pu le faire.</string>
     <string name="nm_devices_refused">Refusé par le relais ; reconnectez-vous</string>
@@ -964,7 +964,7 @@
     <string name="nm_connectors_sign_in">Se connecter</string>
     <string name="nm_connectors_disconnect">Déconnecter</string>
     <string name="nm_connectors_docs">La page de l’éditeur sur ce serveur</string>
-    <string name="nm_connectors_how_oauth">Se connecte avec votre compte %1$s dans le navigateur ; Nicholasx s’enregistre lui-même auprès du service, donc rien à saisir. Le jeton reste sur ce téléphone.</string>
+    <string name="nm_connectors_how_oauth">Se connecte avec votre compte %1$s dans le navigateur ; Nivo Bot s’enregistre lui-même auprès du service, donc rien à saisir. Le jeton reste sur ce téléphone.</string>
     <string name="nm_connectors_how_key">Demande une clé du service : %1$s. Elle est gardée dans l’entrée MCP, sur ce téléphone seulement.</string>
     <string name="nm_connectors_how_none">Ouvert à tous ; aucune connexion requise.</string>
     <string name="nm_connectors_how_auto">Vérifie d’abord ce que le serveur demande : rien, une connexion ou une clé.</string>
@@ -1008,13 +1008,13 @@
 
     <!-- Conversation sync between the account's devices (contract C7) -->
     <string name="nm_sync_title">Synchroniser les conversations entre mes appareils</string>
-    <string name="nm_sync_caption">Le texte de vos discussions est conservé sur Nicholasx Cloud pour que chaque appareil montre les mêmes conversations. Les fichiers et images restent sur l’appareil où ils ont été créés.</string>
+    <string name="nm_sync_caption">Le texte de vos discussions est conservé sur Nivo Bot Cloud pour que chaque appareil montre les mêmes conversations. Les fichiers et images restent sur l’appareil où ils ont été créés.</string>
     <string name="nm_sync_sign_in">Se connecter pour synchroniser</string>
     <string name="nm_sync_on_toast">Activé. Les conversations de ce téléphone sont en cours d’envoi.</string>
     <string name="nm_sync_off_toast">Désactivé. Ce qui était conservé a été supprimé.</string>
     <string name="nm_sync_delete">Supprimer les conversations synchronisées</string>
-    <string name="nm_sync_delete_sub">Supprime le texte de vos conversations de Nicholasx Cloud. Chaque appareil garde ce qu’il a déjà ; la synchronisation reste activée.</string>
-    <string name="nm_sync_delete_confirm">Les conversations conservées sur Nicholasx Cloud sont supprimées. Les discussions sur vos appareils restent telles quelles.</string>
+    <string name="nm_sync_delete_sub">Supprime le texte de vos conversations de Nivo Bot Cloud. Chaque appareil garde ce qu’il a déjà ; la synchronisation reste activée.</string>
+    <string name="nm_sync_delete_confirm">Les conversations conservées sur Nivo Bot Cloud sont supprimées. Les discussions sur vos appareils restent telles quelles.</string>
     <string name="nm_sync_deleted">Conversations synchronisées supprimées.</string>
     <string name="nm_sync_from">De %1$s</string>
     <string name="nm_sync_attachment_note">[Pièce jointe %1$s, reste sur l’appareil où elle a été créée]</string>
@@ -1027,7 +1027,7 @@
     <string name="nm_devices_ask_hint">Touchez un appareil en ligne pour lui écrire depuis la discussion : le message commence par @ et son nom, et cet appareil fait le travail.</string>
     <string name="nm_reach_the_provider">le fournisseur</string>
     <string name="nm_reach_unreachable_title">%1$s est injoignable depuis ce réseau</string>
-    <string name="nm_reach_unreachable_body">Rien n\'a répondu chez %1$s. Il s\'agit du chemin entre ce téléphone et le fournisseur ; les serveurs de Nicholasx ne sont pas en cause.</string>
+    <string name="nm_reach_unreachable_body">Rien n\'a répondu chez %1$s. Il s\'agit du chemin entre ce téléphone et le fournisseur ; les serveurs de Nivo Bot ne sont pas en cause.</string>
     <string name="nm_reach_region_title">OpenAI ne dessert pas cette région</string>
     <string name="nm_reach_region_body">La requête a atteint OpenAI, qui a répondu ne pas offrir le service là d\'où vient cette connexion.</string>
     <string name="nm_reach_signed_out_title">La connexion ChatGPT n\'est plus valide</string>
@@ -1070,7 +1070,7 @@
     <string name="nm_network_test_fail">Impossible d\'atteindre %1$s via le proxy : %2$s</string>
     <string name="nm_network_test_status">HTTP %1$d</string>
     <string name="nm_network_invalid">Saisissez un hôte et un port entre 1 et 65535.</string>
-    <string name="nm_network_proxy_caption">Seules les requêtes vers les fournisseurs ajoutés avec votre propre clé, et vers l\'abonnement ChatGPT, passent par lui. Nicholasx Cloud, vos ordinateurs et le réseau local, jamais. Gardé sur ce téléphone seulement.</string>
+    <string name="nm_network_proxy_caption">Seules les requêtes vers les fournisseurs ajoutés avec votre propre clé, et vers l\'abonnement ChatGPT, passent par lui. Nivo Bot Cloud, vos ordinateurs et le réseau local, jamais. Gardé sur ce téléphone seulement.</string>
     <string name="nm_network_hosts_caption">Passe par le proxy : %1$s</string>
     <string name="nm_ways_title_day">La part du jour du crédit gratuit est épuisée.</string>
     <string name="nm_ways_day_sub">Elle revient avec le nouveau jour ; les voies ci-dessous marchent dès maintenant.</string>
@@ -1081,7 +1081,7 @@
     <string name="nm_ways_devices">Appareils</string>
     <!-- 0.1.41 Choice: Settings → Models, the "Use it for" card, one turn on the Cloud -->
     <string name="nm_models_title">Modèles</string>
-    <string name="nm_models_intro">Quel modèle fait quoi. Chaque ligne ouvre un sélecteur ; Nicholasx Cloud et les fournisseurs que vous avez ajoutés y apparaissent avec les modèles qui conviennent.</string>
+    <string name="nm_models_intro">Quel modèle fait quoi. Chaque ligne ouvre un sélecteur ; Nivo Bot Cloud et les fournisseurs que vous avez ajoutés y apparaissent avec les modèles qui conviennent.</string>
     <string name="nm_models_chat_title">Chat</string>
     <string name="nm_models_chat_sub">Le modèle qui parle avec vous.</string>
     <string name="nm_models_hands_title">Manipuler l’écran</string>
@@ -1093,19 +1093,19 @@
     <string name="nm_models_chat_applies">S’applique à la discussion principale et aux nouvelles discussions ; une discussion secondaire garde son modèle.</string>
     <string name="nm_models_media_more">Plus d’options pour les images et les clips</string>
     <string name="nm_models_media_more_sub">Saisir un nom de modèle, voir ce qui s’arrête sans chaque modèle, ou revérifier quels modèles vidéo une clé peut utiliser.</string>
-    <string name="nm_models_cloud_switch">Utiliser les modèles Nicholasx Cloud</string>
-    <string name="nm_models_cloud_on_sub">Nicholasx Cloud est l’une des sources des lignes ci-dessous ; ce qui y tourne est décompté de votre quota.</string>
-    <string name="nm_models_cloud_off_sub">Désactivé : rien ne tourne sur Nicholasx Cloud sauf si vous touchez \"Utiliser Nicholasx Cloud cette fois\". Vous restez connecté pour la synchronisation et vos appareils.</string>
-    <string name="nm_models_cloud_off_refused">Ajoutez d’abord un fournisseur à vous ; Nicholasx Cloud désactivé, rien d’autre ne pourrait répondre.</string>
+    <string name="nm_models_cloud_switch">Utiliser les modèles Nivo Bot Cloud</string>
+    <string name="nm_models_cloud_on_sub">Nivo Bot Cloud est l’une des sources des lignes ci-dessous ; ce qui y tourne est décompté de votre quota.</string>
+    <string name="nm_models_cloud_off_sub">Désactivé : rien ne tourne sur Nivo Bot Cloud sauf si vous touchez \"Utiliser Nivo Bot Cloud cette fois\". Vous restez connecté pour la synchronisation et vos appareils.</string>
+    <string name="nm_models_cloud_off_refused">Ajoutez d’abord un fournisseur à vous ; Nivo Bot Cloud désactivé, rien d’autre ne pourrait répondre.</string>
     <string name="nm_chat_no_model">Aucun modèle ne peut répondre pour le moment. Choisissez-en un dans Réglages › Modèles.</string>
-    <string name="nm_cloud_provider_no_delete">Ce fournisseur est votre compte Nicholasx Cloud. Désactivez-le ci-dessus pour ne plus utiliser ses modèles ; pour vous déconnecter, ouvrez Réglages › Nicholasx Cloud.</string>
+    <string name="nm_cloud_provider_no_delete">Ce fournisseur est votre compte Nivo Bot Cloud. Désactivez-le ci-dessus pour ne plus utiliser ses modèles ; pour vous déconnecter, ouvrez Réglages › Nivo Bot Cloud.</string>
     <string name="nm_welcome_own_key">Utiliser plutôt ma propre clé d’API</string>
     <string name="nm_useit_title">L’utiliser pour</string>
     <string name="nm_useit_body_signed_out">Choisissez ce que cette clé doit prendre en charge.</string>
     <string name="nm_useit_use">L’utiliser</string>
     <string name="nm_useit_not_now">Pas maintenant</string>
     <string name="nm_useit_footnote">Vous pouvez changer cela à tout moment dans Réglages › Modèles.</string>
-    <string name="nm_retry_on_cloud">Utiliser Nicholasx Cloud cette fois</string>
+    <string name="nm_retry_on_cloud">Utiliser Nivo Bot Cloud cette fois</string>
     <string name="nm_hands_why_chat_provider">le modèle par défaut des mains de votre fournisseur de chat</string>
     <string name="nm_models_auto">Automatique</string>
     <string name="nm_models_auto_currently">Actuellement %1$s</string>
@@ -1170,4 +1170,107 @@
     <string name="nm_task_chat_busy">This conversation is running a scheduled task. Try again when it finishes.</string>
     <string name="nm_batch_failed">%1$d chats could not be deleted. Try again.</string>
     <string name="nm_task_outcome_unknown">Finished, outcome not verified</string>
+
+    <!-- nanoMuse: 教练共享课程与行为证据。 -->
+    <string name="nm_coach_title">Coach</string>
+    <string name="nm_coach_city">Your growth city</string>
+    <string name="nm_coach_courses">Courses</string>
+    <string name="nm_coach_training">Practice</string>
+    <string name="nm_coach_results">Evidence</string>
+    <string name="nm_coach_city_intro">Choose a place to practise. Keep your first attempt and discover what changes.</string>
+    <string name="nm_coach_continue">Continue</string>
+    <string name="nm_coach_start">Start a scene</string>
+    <string name="nm_coach_saving">Saving your progress…</string>
+    <string name="nm_coach_failed">Unable to save. Your existing records are preserved.</string>
+    <string name="nm_coach_missing_course">Course content is missing. Review it with the coach first.</string>
+    <string name="nm_coach_unit_count">%1$d units</string>
+    <string name="nm_coach_explore">Find a direction with AI</string>
+    <string name="nm_coach_explore_hint">Bring a recent event, name a direction, or ask for a small scene when you are unsure.</string>
+    <string name="nm_coach_goal">What would you like to handle differently?</string>
+    <string name="nm_coach_proposal">Course proposal</string>
+    <string name="nm_coach_revision">Review version %1$s</string>
+    <string name="nm_coach_edit_draft">Save changes and review again</string>
+    <string name="nm_coach_activate">Confirm and add this course</string>
+    <string name="nm_coach_continue_explore">Continue in the main chat</string>
+    <string name="nm_coach_source">View course sources</string>
+    <string name="nm_coach_source_limit">Exercises and source claims are shown for review. An unverified draft cannot be activated.</string>
+    <string name="nm_coach_resume">Resume</string>
+    <string name="nm_coach_pause">Pause, keep records</string>
+    <string name="nm_coach_empty">No practice records yet. Start with a scene that matters to you.</string>
+    <string name="nm_coach_saved_session">This practice</string>
+    <string name="nm_coach_answer">Your own words, typing or keyboard dictation</string>
+    <string name="nm_coach_save_draft">Save draft</string>
+    <string name="nm_coach_submit">Send and continue</string>
+    <string name="nm_coach_hint">Pause for one hint</string>
+    <string name="nm_coach_pending_answer">Your answer is saved and waiting for the coach.</string>
+    <string name="nm_coach_no_turns">The first scene has not started yet.</string>
+    <string name="nm_coach_original">First attempt</string>
+    <string name="nm_coach_retry">Try again</string>
+    <string name="nm_coach_probe">A new scene</string>
+    <string name="nm_coach_report">Report what happened</string>
+    <string name="nm_coach_you">You</string>
+    <string name="nm_coach_coach">Coach</string>
+    <string name="nm_coach_no_hints">Without hints</string>
+    <string name="nm_coach_with_hints">With support</string>
+    <string name="nm_coach_unproven">Still needs evidence</string>
+    <string name="nm_coach_supported">Evidence recorded</string>
+    <string name="nm_coach_disputed">Under review</string>
+    <string name="nm_coach_dispute_reason">What does this assessment miss?</string>
+    <string name="nm_coach_dispute">Ask for reassessment</string>
+    <string name="nm_coach_advance">Move to the next unit</string>
+    <string name="nm_coach_actions">A small real-life opportunity</string>
+    <string name="nm_coach_plan">A small action you can actually try</string>
+    <string name="nm_coach_create_action">Save this action</string>
+    <string name="nm_coach_discuss_action">Help me find a smaller opportunity</string>
+    <string name="nm_coach_planned">Waiting for a real attempt</string>
+    <string name="nm_coach_deferred">Saved for later</string>
+    <string name="nm_coach_reported">Self-reported, waiting for review</string>
+    <string name="nm_coach_update">Save smaller plan</string>
+    <string name="nm_coach_defer">Save for later</string>
+    <string name="nm_coach_report_hint">What did you do, what happened, and what got in the way?</string>
+    <string name="nm_coach_report_limit">This is your report of a real event, not an external verification.</string>
+    <string name="nm_coach_place_judgment">Decision study</string>
+    <string name="nm_coach_place_perspectives">Round-table room</string>
+    <string name="nm_coach_place_english">Street-corner exchange</string>
+    <string name="nm_coach_place_expression">Conversation lounge</string>
+    <string name="nm_coach_place_leadership">Collaboration workshop</string>
+    <string name="nm_coach_place_execution">Action studio</string>
+    <string name="nm_coach_cap_judgment">Make a judgment, examine evidence and revise it.</string>
+    <string name="nm_coach_cap_perspectives">Compare explanations and look for distinguishing evidence.</string>
+    <string name="nm_coach_cap_english">Express a real intention in a new situation.</string>
+    <string name="nm_coach_cap_expression">Respond, get one focused hint and try again.</string>
+    <string name="nm_coach_cap_leadership">Clarify goals, responsibilities and consequences.</string>
+    <string name="nm_coach_cap_execution">Make an action smaller, try it and reflect on what happened.</string>
+    <string name="nm_coach_cap_custom">Explore your own goal with specific evidence.</string>
+    <string name="nm_coach_prompt_explore">Continue Coach exploration draft %1$s. Query it first and ask one concrete question at a time. Do not create a course until I review and confirm its proposal.</string>
+    <string name="nm_coach_prompt_session">Continue Coach practice session %1$s. Query its saved state and curriculum. Present only the next scene or focused hint. Preserve my first answer and use a different scene for independent practice.</string>
+    <string name="nm_coach_prompt_continue">My answer/report is already saved in Coach session %1$s. Query it and assess the pending user turn; do not record this instruction as an answer.</string>
+    <string name="nm_coach_prompt_action">Read Coach session %1$s and help me find a smaller real-life opportunity. If none fits, offer a simulation or defer the existing task. Do not add a reminder.</string>
+    <string name="nm_coach_recent_event">A recent event</string>
+    <string name="nm_coach_known_direction">A direction I care about</string>
+    <string name="nm_coach_unsure">Let me try a small scene</string>
+    <string name="nm_coach_unsure_goal">I am not sure what to practise. Give me a small everyday scene and explore one direction with me.</string>
+    <string name="nm_coach_unfinished">This session is still in progress.</string>
+    <string name="nm_coach_waiting_real">The simulation is saved. This unit still needs a real-life report.</string>
+    <string name="nm_coach_demonstrated">The unit target has been demonstrated. You can consolidate it or choose the next unit.</string>
+    <string name="nm_coach_completed">This session ended. Evidence is shown below; this does not imply lasting mastery.</string>
+    <string name="nm_coach_read">Read this reply</string>
+    <string name="nm_coach_stop">Stop reading</string>
+    <string name="nm_coach_pause_session">Save and pause practice</string>
+    <string name="nm_coach_selected">Currently exploring</string>
+    <string name="nm_coach_paused">Paused, records kept</string>
+    <string name="nm_coach_request_running">The coach is working on this request.</string>
+    <string name="nm_coach_course_updated">The evidence requirements have changed. Your earlier answers and evidence remain available. Review the current unit before starting a new session.</string>
+    <string name="nm_coach_review_criteria">I have reviewed these requirements</string>
+    <string name="nm_coach_scene_not_saved">The scene has not been saved yet. Retry to get a scene before answering.</string>
+    <string name="nm_coach_answer_needs_reply">Your answer is saved but has no valid coaching response yet. Retry processes the same answer without submitting it again.</string>
+    <string name="nm_coach_retry_response">Retry coach response</string>
+    <string name="nm_coach_old_criteria">This record used earlier requirements. It remains available but does not count toward the updated unit.</string>
+    <string name="nm_coach_wait_chat_confirmation">Confirm the context step in the main chat before this request can continue.</string>
+    <string name="nm_coach_cancel_request">Stop this request</string>
+    <string name="nm_coach_open_main_chat">Open main chat</string>
+    <string name="nm_coach_criteria_unreviewed">The original course is preserved. Review which tasks require real-world reports before starting training.</string>
+    <string name="nm_coach_review_with_ai">Review requirements with AI</string>
+    <string name="nm_coach_prompt_review_course">Read course %1$s and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly.</string>
+    <string name="nm_coach_other_request_busy">The coach is handling another request. You can save this draft and send it when that request finishes.</string>
 </resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Delete %1$d conversation(s)?</string>
+    <string name="nm_coach_delete_retention">Deleting conversations keeps related Coach excerpts as read-only records. Their original links become unavailable.</string>
+    <string name="nm_coach_delete_keep">Delete chat only, keep read-only excerpts</string>
+    <string name="nm_coach_delete_purge">Also delete the related topic archive</string>
+    <string name="nm_coach_delete_failed">Could not finish deleting. The chat may already be removed while excerpts remain. Retry archive cleanup.</string>
+    <string name="nm_coach_delete_account_changed">The account changed. Close this dialog and reopen it in the current account.</string>
+    <string name="nm_coach_delete_retry">Retry archive cleanup</string>
+    <string name="nm_coach_conversation_group">Daily practice</string>
+</resources>

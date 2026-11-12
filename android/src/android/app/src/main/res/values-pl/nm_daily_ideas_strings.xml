@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Pomysły na dziś</string>
+    <string name="nm_daily_ideas_all">Zobacz wszystkie</string>
+    <string name="nm_daily_ideas_prefill">Dotknij, aby wypełnić wiadomość</string>
+    <string name="nm_daily_ideas_evergreen">Ponadczasowe tematy. Aktualne wiadomości wymagają sprawdzenia źródeł i dat.</string>
+    <string name="nm_daily_ideas_rotation">Dwa pomysły na kategorię dziennie, stałe przez dzień, powtarzane po siedmiu dniach.</string>
+    <string name="nm_daily_category_ideas">Pomysły</string>
+    <string name="nm_daily_category_work">Praca</string>
+    <string name="nm_daily_category_life">Życie</string>
+    <string name="nm_daily_category_learn">Nauka</string>
+    <string name="nm_daily_category_family">Rodzina i relacje</string>
+    <string name="nm_daily_category_media">Tworzenie treści</string>
+    <string name="nm_daily_category_more">Więcej pomysłów</string>
+    <string name="nm_daily_ideas_check_hot_topic">Sprawdź tematy do nagrania dziś</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">%1$d Unterhaltungen löschen?</string>
+    <string name="nm_coach_delete_retention">Verknüpfte Coach-Auszüge bleiben schreibgeschützt erhalten. Links zum Original sind danach nicht verfügbar.</string>
+    <string name="nm_coach_delete_keep">Nur Chat löschen, Auszüge behalten</string>
+    <string name="nm_coach_delete_purge">Auch das zugehörige Themenarchiv löschen</string>
+    <string name="nm_coach_delete_failed">Löschen unvollständig. Der Chat kann bereits entfernt sein, während Auszüge bleiben. Archivbereinigung erneut versuchen.</string>
+    <string name="nm_coach_delete_account_changed">Das Konto wurde gewechselt. Dialog schließen und im aktuellen Konto neu öffnen.</string>
+    <string name="nm_coach_delete_retry">Archivbereinigung wiederholen</string>
+    <string name="nm_coach_conversation_group">Tägliche Übungen</string>
+</resources>

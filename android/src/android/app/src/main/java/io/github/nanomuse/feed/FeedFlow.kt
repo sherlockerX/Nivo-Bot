@@ -81,15 +81,23 @@ object FeedFlow {
         FeedStore.init(context)
         io.github.nanomuse.growth.GrowthStore.init(context) // Mosaic: the growth record behind the feed
         publishSession(prefs(context).getString(KEY_SESSION, null))
-        scope.launch { runCatching { ensureRoutine(context) }.onFailure { AppLogger.warning(TAG, "ensure failed: ${it.message}") } }
+        // nanoMuse: 新教练按用户动作训练，启动应用不再自动创建每日任务。
+        if (taskId(context) != null) scope.launch {
+            runCatching { ensureRoutine(context) }.onFailure { AppLogger.warning(TAG, "ensure failed: ${it.message}") }
+        }
     }
 
     /** Another account's preferences and routine are in place (contract C12): read them again. */
     fun refresh(context: Context) {
         io.github.nanomuse.growth.GrowthStore.reload() // Mosaic
+        // nanoMuse: 不复用上一个空间的教练内存；教练加载时读取旧课程状态，所以先重读 GrowthStore 再重置。
+        io.github.nanomuse.coach.CoachRuntime.reset()
         _writeFailure.value = null
         publishSession(prefs(context).getString(KEY_SESSION, null))
-        scope.launch { runCatching { ensureRoutine(context) }.onFailure { AppLogger.warning(TAG, "ensure failed: ${it.message}") } }
+        // nanoMuse: 新教练按用户动作训练，启动应用不再自动创建每日任务。
+        if (taskId(context) != null) scope.launch {
+            runCatching { ensureRoutine(context) }.onFailure { AppLogger.warning(TAG, "ensure failed: ${it.message}") }
+        }
     }
 
     private fun publishSession(id: String?) {

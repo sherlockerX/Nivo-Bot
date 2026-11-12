@@ -259,7 +259,7 @@ fun ProviderReachCard(reach: ProviderReach.Reach, onRetry: () -> Unit, modifier:
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .padding(top = 4.dp)
-                            .combinedClickable(onClick = {}, onLongClick = { clipboard.setPlainText("Nicholasx", reach.detail) }),
+                            .combinedClickable(onClick = {}, onLongClick = { clipboard.setPlainText("Nivo Bot", reach.detail) }),
                     )
                 }
             }

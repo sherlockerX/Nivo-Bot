@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">每日点子</string>
+    <string name="nm_daily_ideas_all">查看全部</string>
+    <string name="nm_daily_ideas_prefill">点击填入输入框</string>
+    <string name="nm_daily_ideas_evergreen">常青选题。热点需核实来源和时间。</string>
+    <string name="nm_daily_ideas_rotation">每类每天轮换两条，同一天保持稳定，七天后循环。</string>
+    <string name="nm_daily_category_ideas">点子</string>
+    <string name="nm_daily_category_work">工作</string>
+    <string name="nm_daily_category_life">生活</string>
+    <string name="nm_daily_category_learn">学习</string>
+    <string name="nm_daily_category_family">家庭和关系</string>
+    <string name="nm_daily_category_media">自媒体</string>
+    <string name="nm_daily_category_more">更多点子</string>
+    <string name="nm_daily_ideas_check_hot_topic">查今天可拍的热点</string>
+</resources>

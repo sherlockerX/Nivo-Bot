@@ -1,3 +1,5 @@
+> **Bifurcación Nivo Bot:** Empieza por [OPEN_SOURCE.md](../../OPEN_SOURCE.md) y el [sitio del producto](../../site/README.md). El README original se conserva como atribución; sus descargas, servicios y comunidad pertenecen a nanoMuse, no a esta bifurcación.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: un agente personal de código abierto para todos tus dispositivos">
 </p>

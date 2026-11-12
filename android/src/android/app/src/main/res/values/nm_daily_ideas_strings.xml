@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Daily ideas</string>
+    <string name="nm_daily_ideas_all">View all</string>
+    <string name="nm_daily_ideas_prefill">Tap to fill the message box</string>
+    <string name="nm_daily_ideas_evergreen">Evergreen topics. Current stories need sources and date checks.</string>
+    <string name="nm_daily_ideas_rotation">Two ideas per category each day, stable during the day and repeated after seven days.</string>
+    <string name="nm_daily_category_ideas">Ideas</string>
+    <string name="nm_daily_category_work">Work</string>
+    <string name="nm_daily_category_life">Life</string>
+    <string name="nm_daily_category_learn">Learning</string>
+    <string name="nm_daily_category_family">Family and relationships</string>
+    <string name="nm_daily_category_media">Content creation</string>
+    <string name="nm_daily_category_more">More ideas</string>
+    <string name="nm_daily_ideas_check_hot_topic">Check stories to film today</string>
+</resources>

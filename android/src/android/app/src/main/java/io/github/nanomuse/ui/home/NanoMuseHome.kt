@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import dev.chrisbanes.haze.hazeSource
@@ -117,7 +118,26 @@ fun NanoMuseHome(
     val focusManager = LocalFocusManager.current
 
     var tab by rememberSaveable { mutableStateOf(HomeTab.CHAT) }
+    val focusOwnerEpoch by io.github.nanomuse.account.AccountData.epoch.collectAsState()
+    LaunchedEffect(focusOwnerEpoch) {
+        // 用户主动收起不会再弹出，系统回收后才从同一会话恢复沉浸窗口。
+        try {
+            val focusStore=io.github.nanomuse.focus.FocusStore.get(context)
+            val backgrounds=io.github.nanomuse.focus.FocusBackdropStore(context,focusStore.ownerKey,focusStore.ownerEpoch)
+            val pending=backgrounds.immersiveSession()
+            if(pending!=null) {
+                if(focusStore.sessions().any { it.id==pending && it.status in setOf("running","paused") }) {
+                    tab=HomeTab.FOCUS
+                    io.github.nanomuse.ui.focus.FocusImmersiveActivity.open(context,focusStore.ownerKey,pending)
+                } else backgrounds.rememberImmersive(null)
+            }
+        } catch(cancelled:kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch(_:Exception) { /* 暂时不可用时仍允许用户进入其他页面。 */ }
+    }
     var chatSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var coachReturnSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var coachEntry by remember { mutableStateOf<io.github.nanomuse.ui.chat.CoachConversationEntry?>(null) }
+    var isOpeningPractice by remember { mutableStateOf(false) }
     val mainSessionId by MainChat.sessionId.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -137,6 +157,8 @@ fun NanoMuseHome(
     // Mosaic: no star-ask day counter and no daily fetch of the relay's nudges on start.
 
     fun showSession(id: String) {
+        coachEntry = null
+        coachReturnSessionId = null
         focusManager.clearFocus(force = true)
         chatSessionId = id
         tab = HomeTab.CHAT
@@ -147,13 +169,50 @@ fun NanoMuseHome(
         showSession(id)
     }
 
+    /** 从教练进入后记录返回位置，原文定位不改变输入框草稿。 */
+    fun showCoachConversation(id: String, messageId: String?, shouldStartLesson: Boolean = false) {
+        showSession(id)
+        coachReturnSessionId = id
+        coachEntry = io.github.nanomuse.ui.chat.CoachConversationEntry(id, messageId, shouldStartLesson)
+    }
+
+    /** 共享绑定服务先完成落盘，当前点击再交给前台聊天消费。 */
+    fun openPractice(courseId: String) {
+        if (isOpeningPractice) return
+        isOpeningPractice = true
+        scope.launch {
+            try {
+                val id = io.github.nanomuse.coach.CoachConversationCoordinator.open(
+                    context, chatRepository, providerRepository, courseId)
+                showCoachConversation(id, null, shouldStartLesson = true)
+            } catch (failure: Exception) {
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                Toast.makeText(context, failure.message ?: context.getString(R.string.nm_coach_failed), Toast.LENGTH_LONG).show()
+            } finally {
+                isOpeningPractice = false
+            }
+        }
+    }
+
+    /** 从档案进入的会话返回档案，其他旁聊继续保持原有返回主聊天行为。 */
+    fun leaveConversation() {
+        if (coachReturnSessionId != null && coachReturnSessionId == chatSessionId) {
+            com.openminis.app.speech.VoiceOutputState.activePlayer?.stop()
+            focusManager.clearFocus(force = true) // 回到档案页时收起聊天输入框的键盘。
+            coachReturnSessionId = null
+            tab = HomeTab.FEED
+        } else if (!isMainChat) showMain()
+    }
+
     // Requests from cards inside messages, idea sheets, etc.
     var pendingPrefill by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         HomeBus.requests.collect { req ->
             when (req) {
                 is HomeBus.Request.ShowTab -> tab = req.tab
-                is HomeBus.Request.ShowSession -> showSession(req.sessionId)
+                is HomeBus.Request.ShowSession -> if (req.returnToCoach || req.messageId != null) {
+                    showCoachConversation(req.sessionId, req.messageId)
+                } else showSession(req.sessionId)
                 is HomeBus.Request.PrefillComposer -> {
                     showMain()
                     pendingPrefill = req.text
@@ -262,6 +321,16 @@ fun NanoMuseHome(
             return
         }
         showMain()
+        // nanoMuse: 卡片不能接管未提交的编辑或附件，先回到聊天让用户处理原输入。
+        if (io.github.nanomuse.chat.ExternalPromptPolicy.shouldProtect(
+                inputText = vm.inputText.value,
+                editingMessageId = vm.editingMessageId.value,
+                hasAttachments = vm.attachments.value.isNotEmpty(),
+                hasPastedTexts = vm.pastedTexts.value.isNotEmpty(),
+            )) {
+            Toast.makeText(context, R.string.nm_external_prompt_review_draft, Toast.LENGTH_SHORT).show()
+            return
+        }
         vm.nmMarkPersonTurn() // an idea or goal card the person tapped: a task for StarPrompt's count
         vm.sendMessage(text)
     }
@@ -336,8 +405,16 @@ fun NanoMuseHome(
     // Back: close the drawer → leave a non-chat tab → leave a side chat → (system) leave the app.
     val homeShown = phase == HomePhase.HOME
     BackHandler(enabled = homeShown && drawerState.isOpen) { closeDrawer() }
-    BackHandler(enabled = homeShown && !drawerState.isOpen && tab != HomeTab.CHAT) { tab = HomeTab.CHAT }
-    BackHandler(enabled = homeShown && !drawerState.isOpen && tab == HomeTab.CHAT && !isMainChat && mainSessionId != null) { showMain() }
+    BackHandler(enabled = homeShown && !drawerState.isOpen && tab != HomeTab.CHAT) {
+        if (tab == HomeTab.FEED && io.github.nanomuse.ui.coach.CoachUi.view.value != "city") {
+            io.github.nanomuse.ui.coach.CoachUi.open("city")
+        } else if (tab == HomeTab.TODO && io.github.nanomuse.ui.todo.TodoUi.view.value != io.github.nanomuse.ui.todo.TodoView.LIST) {
+            io.github.nanomuse.ui.todo.TodoUi.back()
+        } else if (tab == HomeTab.FOCUS && io.github.nanomuse.ui.focus.FocusUi.view.value != "timer") {
+            io.github.nanomuse.ui.focus.FocusUi.view.value = "timer"
+        } else tab = HomeTab.CHAT
+    }
+    BackHandler(enabled = homeShown && !drawerState.isOpen && tab == HomeTab.CHAT && (!isMainChat || coachReturnSessionId == chatSessionId) && mainSessionId != null) { leaveConversation() }
 
     // The drawer + tab shell, as a local composable so it can share every piece of state above
     // and still be one branch of the phase switch below.
@@ -368,6 +445,12 @@ fun NanoMuseHome(
                     onSystemFiles = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.sysfiles.ROUTE_SYSTEM_FILES) },
                     // Mosaic: no Devices or Coding agents rows; both need the relay's hub.
                     // Mosaic took Ideas' place in the bar; the Ideas page itself is unchanged and opens from here.
+                    onFocus = { closeDrawer(); focusManager.clearFocus(force = true); tab = HomeTab.FOCUS },
+                    onTodo = {
+                        closeDrawer()
+                        focusManager.clearFocus(force = true)
+                        tab = HomeTab.TODO
+                    },
                     onIdeas = {
                         closeDrawer()
                         focusManager.clearFocus(force = true)
@@ -419,6 +502,8 @@ fun NanoMuseHome(
                         .zIndex(0f)
                         // 侧栏搜索的键盘不再推动底下的聊天输入区。
                         .then(if (drawerShowing) Modifier.consumeWindowInsets(WindowInsets.ime) else Modifier)
+                        // 隐藏但保留状态的聊天不再向读屏服务暴露旧控件。
+                        .then(if (!chatVisible || drawerShowing) Modifier.clearAndSetSemantics {} else Modifier)
                         .graphicsLayer { alpha = chatAlpha },
                 ) {
                     val sid = chatSessionId
@@ -430,7 +515,7 @@ fun NanoMuseHome(
                             memoryRepository = memoryRepository,
                             skillRepository = skillRepository,
                             mcpRepository = mcpRepository,
-                            onBack = { if (!isMainChat) showMain() },
+                            onBack = { leaveConversation() },
                             onNewChat = { showSession("__new__${UUID.randomUUID()}") },
                             onOpenTerminal = { navController.safeNavigate(Routes.terminal(sessionId = sid)) },
                             onOpenTerminalWithCommand = { command ->
@@ -448,6 +533,13 @@ fun NanoMuseHome(
                                 onOpenDrawer = { openDrawer() },
                                 isVisible = chatVisible && !drawerShowing,
                                 onStartCall = { navController.safeNavigate(io.github.nanomuse.call.callRoute(sid)) },
+                                // 离开聊天先收起键盘，免得输入框的键盘盖住教练页或点子页。
+                                onOpenCoach = { focusManager.clearFocus(force = true); tab = HomeTab.FEED },
+                                onOpenIdeas = { focusManager.clearFocus(force = true); tab = HomeTab.IDEAS },
+                                coachEntry = coachEntry?.takeIf { it.chatSessionId == sid },
+                                onCoachEntryConsumed = { requestId ->
+                                    if (coachEntry?.requestId == requestId) coachEntry = null
+                                },
                             ),
                             // nanoMuse: preserve the full-size blur source, but keep
                             // the chat footer above the bar measured by Scaffold.
@@ -500,6 +592,11 @@ fun NanoMuseHome(
                             }
                             when (page) {
                                 HomeTab.FEED -> FeedTab(
+                                    coachViewModel = mainVm,
+                                    onOpenChat = { showMain() },
+                                    onOpenPractice = { openPractice(it) },
+                                    isOpeningPractice = isOpeningPractice,
+                                    onOpenConversation = { id, messageId -> showCoachConversation(id, messageId) },
                                     header = header,
                                     onDiscuss = { discussPost(it) },
                                     onEditRoutine = { navController.safeNavigate(Routes.scheduledTaskEdit(it)) },
@@ -507,12 +604,29 @@ fun NanoMuseHome(
                                     onOpenSkill = { navController.safeNavigate(Routes.skillDetail(it)) }, // Mosaic
                                     onOpenSkills = { navController.safeNavigate(Routes.SKILLS) },
                                     onOpenFolders = { navController.safeNavigate(Routes.MOUNTED_FOLDERS) },
-                                    onChat = { title, opener -> startSideChat(title, opener) },
+                                    onChat = { _, opener ->
+                                        val vm = mainVm
+                                        // 程序发送共用聊天发送逻辑：主聊天里有草稿、附件或粘贴内容时只切过去，不把它们一起发出；
+                                        // 请求没有开始（忙碌或被拒绝）时留在本页，错误提示显示在这里。
+                                        if (vm == null || vm.inputText.value.isNotBlank() || vm.attachments.value.isNotEmpty() ||
+                                            vm.pastedTexts.value.isNotEmpty()) {
+                                            showMain()
+                                        } else {
+                                            vm.nmSendCoachRequest(opener)
+                                            if (vm.nmCoachRequest.value?.isRunning == true) showMain()
+                                        }
+                                    },
                                 )
                                 HomeTab.MOSAIC -> io.github.nanomuse.ui.mosaic.MosaicTab(
                                     header = header,
                                     onOpenEditor = { navController.safeNavigate(it) },
                                     bottomInset = bottom,
+                                )
+                                HomeTab.FOCUS -> io.github.nanomuse.ui.focus.FocusTab(header = header, bottomInset = bottom)
+                                HomeTab.TODO -> io.github.nanomuse.ui.todo.TodoTab(
+                                    header = header, bottomInset = bottom,
+                                    onOpenFocus = { id -> io.github.nanomuse.ui.focus.FocusUi.openTask(id); tab = HomeTab.FOCUS },
+                                    onOpenEditor = { navController.safeNavigate(it) },
                                 )
                                 HomeTab.IDEAS -> IdeasTab(
                                     header = header,
@@ -598,6 +712,19 @@ private fun TabHeader(
     mainSessionId: String?,
 ) {
     var menu by remember { mutableStateOf(false) }
+    // nanoMuse: 教练保留一个页面，内部入口在日历和设置左侧。
+    if (tab == HomeTab.FEED) {
+        io.github.nanomuse.ui.coach.CoachHeader(onOpenDrawer)
+        return
+    }
+    if (tab == HomeTab.FOCUS) {
+        io.github.nanomuse.ui.focus.FocusHeader(onOpenDrawer)
+        return
+    }
+    if (tab == HomeTab.TODO) {
+        io.github.nanomuse.ui.todo.TodoHeader(onOpenDrawer)
+        return
+    }
     MuseHeader(
         mood = mood,
         name = name,

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Idées du jour</string>
+    <string name="nm_daily_ideas_all">Tout voir</string>
+    <string name="nm_daily_ideas_prefill">Toucher pour remplir le message</string>
+    <string name="nm_daily_ideas_evergreen">Sujets durables. Les actualités exigent des sources et des dates vérifiées.</string>
+    <string name="nm_daily_ideas_rotation">Deux idées par catégorie chaque jour, stables dans la journée et répétées après sept jours.</string>
+    <string name="nm_daily_category_ideas">Idées</string>
+    <string name="nm_daily_category_work">Travail</string>
+    <string name="nm_daily_category_life">Vie quotidienne</string>
+    <string name="nm_daily_category_learn">Apprentissage</string>
+    <string name="nm_daily_category_family">Famille et relations</string>
+    <string name="nm_daily_category_media">Création de contenu</string>
+    <string name="nm_daily_category_more">Autres idées</string>
+    <string name="nm_daily_ideas_check_hot_topic">Vérifier les sujets à filmer aujourd’hui</string>
+</resources>

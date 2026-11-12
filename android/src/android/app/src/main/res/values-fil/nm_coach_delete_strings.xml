@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Tanggalin ang %1$d usapan?</string>
+    <string name="nm_coach_delete_retention">Mananatiling read-only ang kaugnay na mga sipi ng Coach. Hindi na magagamit ang orihinal na mga link.</string>
+    <string name="nm_coach_delete_keep">Chat lang, panatilihin ang mga sipi</string>
+    <string name="nm_coach_delete_purge">Tanggalin din ang kaugnay na tala ng paksa</string>
+    <string name="nm_coach_delete_failed">Hindi natapos ang pagtanggal. Maaaring wala na ang chat pero nananatili ang mga sipi. Subukang muli ang paglilinis.</string>
+    <string name="nm_coach_delete_account_changed">Nagbago ang account. Isara at buksan muli ang dialog sa kasalukuyang account.</string>
+    <string name="nm_coach_delete_retry">Subukang muli ang paglilinis</string>
+    <string name="nm_coach_conversation_group">Araw-araw na pagsasanay</string>
+</resources>

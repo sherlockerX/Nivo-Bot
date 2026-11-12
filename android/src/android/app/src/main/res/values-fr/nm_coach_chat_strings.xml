@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Historique des exercices</string>
+    <string name="nm_coach_chat_city_intro">Choisissez un cours, consultez vos notes ou reprenez dans la conversation du sujet.</string>
+    <string name="nm_coach_chat_archive_intro">Les cours ont lieu dans les conversations de Pratique quotidienne. Le démarrage ouvre le sujet et lance le cours avec IA.</string>
+    <string name="nm_coach_chat_open_practice">Continuer dans Pratique quotidienne</string>
+    <string name="nm_coach_chat_view_original">Voir le message original</string>
+    <string name="nm_coach_chat_source_unavailable">Le lien vers le message original est indisponible. Cet extrait enregistré reste consultable.</string>
+    <string name="nm_coach_chat_saved_draft">Brouillon enregistré non envoyé</string>
+    <string name="nm_coach_chat_review_in_chat">Reprenez la conversation du sujet pour discuter de cette note ou la corriger.</string>
+    <string name="nm_coach_chat_archive">Voir les archives</string>
+    <string name="nm_coach_chat_end_today">Terminer pour aujourd’hui</string>
+    <string name="nm_coach_chat_independent_check">Vérification autonome</string>
+    <string name="nm_coach_chat_understanding">Preuves de compréhension</string>
+    <string name="nm_coach_chat_application">Preuves de mise en pratique</string>
+    <string name="nm_coach_chat_delayed_review">Révision différée</string>
+    <string name="nm_coach_chat_discussion">Discussion</string>
+    <string name="nm_coach_chat_archive_failed">Conversation enregistrée, mise à jour des archives échouée</string>
+    <string name="nm_coach_chat_retry_archive">Réessayer la mise à jour</string>
+    <string name="nm_coach_chat_next_lesson">Commencer la leçon suivante</string>
+    <string name="nm_coach_chat_back_to_conversation">Revenir à la conversation</string>
+    <string name="nm_coach_chat_source_invalidated">La source a été modifiée ou supprimée. Cet extrait ne constitue plus une preuve actuelle.</string>
+    <string name="nm_coach_chat_summary">Résumé de la leçon</string>
+    <string name="nm_coach_chat_summary_version">Version du cours : %1$s ; révision de la source : %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Les sources de ce résumé sont invalides. Il ne peut pas étayer les conclusions actuelles.</string>
+    <string name="nm_coach_chat_corrections">Corrections</string>
+    <string name="nm_coach_chat_hypotheses">Hypothèses non résolues</string>
+    <string name="nm_coach_chat_show_records">Afficher toute la conversation</string>
+    <string name="nm_coach_chat_hide_records">Masquer la conversation</string>
+    <string name="nm_coach_chat_hide_sources">Masquer les sources</string>
+</resources>

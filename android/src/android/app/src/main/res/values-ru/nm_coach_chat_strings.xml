@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Записи практики</string>
+    <string name="nm_coach_chat_city_intro">Выберите курс, просмотрите записи или продолжите обучение в беседе по теме.</string>
+    <string name="nm_coach_chat_archive_intro">Обучение проходит в беседах раздела Ежедневная практика. При запуске открывается тема и начинается обучение с ИИ.</string>
+    <string name="nm_coach_chat_open_practice">Продолжить в Ежедневной практике</string>
+    <string name="nm_coach_chat_view_original">Показать исходное сообщение</string>
+    <string name="nm_coach_chat_source_unavailable">Ссылка на исходное сообщение недоступна. Сохранённый отрывок по-прежнему доступен.</string>
+    <string name="nm_coach_chat_saved_draft">Сохранённый неотправленный черновик</string>
+    <string name="nm_coach_chat_review_in_chat">Продолжите беседу по теме, чтобы обсудить или исправить эту запись.</string>
+    <string name="nm_coach_chat_archive">Открыть архив</string>
+    <string name="nm_coach_chat_end_today">На сегодня всё</string>
+    <string name="nm_coach_chat_independent_check">Самостоятельная проверка</string>
+    <string name="nm_coach_chat_understanding">Подтверждение понимания</string>
+    <string name="nm_coach_chat_application">Подтверждение применения</string>
+    <string name="nm_coach_chat_delayed_review">Отложенное повторение</string>
+    <string name="nm_coach_chat_discussion">Обсуждение</string>
+    <string name="nm_coach_chat_archive_failed">Беседа сохранена, не удалось обновить архив</string>
+    <string name="nm_coach_chat_retry_archive">Повторить обновление архива</string>
+    <string name="nm_coach_chat_next_lesson">Начать следующий урок</string>
+    <string name="nm_coach_chat_back_to_conversation">Вернуться к беседе</string>
+    <string name="nm_coach_chat_source_invalidated">Источник изменён или удалён. Этот отрывок больше не является актуальным подтверждением.</string>
+    <string name="nm_coach_chat_summary">Итоги урока</string>
+    <string name="nm_coach_chat_summary_version">Версия курса: %1$s; версия источника: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Источники этого резюме недействительны и не могут подтверждать текущие выводы.</string>
+    <string name="nm_coach_chat_corrections">Исправления</string>
+    <string name="nm_coach_chat_hypotheses">Непроверенные гипотезы</string>
+    <string name="nm_coach_chat_show_records">Показать всю беседу</string>
+    <string name="nm_coach_chat_hide_records">Скрыть беседу</string>
+    <string name="nm_coach_chat_hide_sources">Скрыть источники</string>
+</resources>

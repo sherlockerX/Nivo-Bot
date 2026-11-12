@@ -78,16 +78,19 @@ class AgentForegroundService : Service() {
         /**
          * Starts or updates the foreground service with current status.
          */
-        fun startService(context: Context, sessionCount: Int, toolStatus: String) {
+        fun startService(context: Context, sessionCount: Int, toolStatus: String): Boolean {
             val intent = Intent(context, AgentForegroundService::class.java).apply {
                 putExtra(EXTRA_SESSION_COUNT, sessionCount)
                 putExtra(EXTRA_TOOL_STATUS, toolStatus)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            // nanoMuse: Android限制后台启动时明确失败，不让异常终止整个应用。
+            return io.github.nanomuse.chat.tryForegroundStart(start = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            }, onRejected = { Log.w(TAG, "Foreground service start was denied", it) })
         }
 
         /**
@@ -249,20 +252,26 @@ class AgentForegroundService : Service() {
 
         val notification = buildNotification(sessionCount, toolStatus)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        // nanoMuse: 开机广播等来源可能获准创建服务，却在提升前台时被系统拒绝。
+        if (!promoteToForeground(notification)) return START_NOT_STICKY
 
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** nanoMuse: 系统拒绝时停止本服务，不更换服务类型绕过系统限制。 */
+    private fun promoteToForeground(notification: Notification): Boolean =
+        io.github.nanomuse.chat.tryForegroundStart(start = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        }, onRejected = {
+            Log.w(TAG, "Foreground promotion was denied; stopping service", it)
+            stopSelf()
+        })
 
     /**
      * Swipe-from-recents handler. Default Service behaviour on some OEM
@@ -307,15 +316,7 @@ class AgentForegroundService : Service() {
             SessionActivityTracker.activeSessions.value.size,
             SessionActivityTracker.currentToolStatus.value,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        promoteToForeground(notification) // nanoMuse: 划走后的再次提升也服从相同系统限制。
     }
 
     // [T-android-overlay-landscape-width-rotation-drift] A Service receives

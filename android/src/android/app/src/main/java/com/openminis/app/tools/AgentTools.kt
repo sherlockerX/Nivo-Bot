@@ -27,6 +27,10 @@ object AgentTools {
         // attempt those calls. Mirrors the iOS gate at
         // AIChatViewModel.makeAgentTools(memoryEnabled:).
         memoryEnabled: Boolean = true,
+        // nanoMuse: 教练工具仅由可信宿主在主要聊天的当前用户回合开放。
+        coachEnabled: Boolean = false,
+        // nanoMuse: 待办独立门禁，教练专题、定时与派发任务不能继承。
+        todoEnabled: Boolean = false,
     ): List<AgentToolDefinition> = buildList {
         add(shellExecuteDefinition())
         add(FileReadTool.definition())
@@ -40,6 +44,9 @@ object AgentTools {
             add(memoryWriteDefinition())
             add(memoryGetDefinition())
         }
+        // nanoMuse: 原生受控工具与界面共用教练命令服务。
+        if (coachEnabled) addAll(io.github.nanomuse.coach.CoachAgentBridge.definitions())
+        if (todoEnabled) { addAll(io.github.nanomuse.todo.TodoAgentBridge.definitions()); addAll(io.github.nanomuse.focus.FocusAgentBridge.definitions()) } // nanoMuse: 独立注册个人待办。
     }
 
     // Aligned with iOS AIChatViewModel.swift:4982-4993

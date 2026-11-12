@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Mga ideya araw-araw</string>
+    <string name="nm_daily_ideas_all">Tingnan lahat</string>
+    <string name="nm_daily_ideas_prefill">Pindutin para punan ang mensahe</string>
+    <string name="nm_daily_ideas_evergreen">Mga paksang hindi naluluma. Kailangan suriin ang pinagmulan at petsa ng balita.</string>
+    <string name="nm_daily_ideas_rotation">Dalawang ideya bawat kategorya kada araw, hindi nagbabago sa araw; umuulit matapos ang pitong araw.</string>
+    <string name="nm_daily_category_ideas">Mga ideya</string>
+    <string name="nm_daily_category_work">Trabaho</string>
+    <string name="nm_daily_category_life">Buhay</string>
+    <string name="nm_daily_category_learn">Pag-aaral</string>
+    <string name="nm_daily_category_family">Pamilya at ugnayan</string>
+    <string name="nm_daily_category_media">Paggawa ng nilalaman</string>
+    <string name="nm_daily_category_more">Iba pang ideya</string>
+    <string name="nm_daily_ideas_check_hot_topic">Suriin ang balitang puwedeng kunan ngayon</string>
+</resources>

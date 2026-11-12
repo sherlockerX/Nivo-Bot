@@ -1,3 +1,5 @@
+> **Fork Nivo Bot:** Mulai dari [OPEN_SOURCE.md](../../OPEN_SOURCE.md) dan [situs produk](../../site/README.md). README hulu dipertahankan untuk atribusi; unduhan, layanan, dan komunitasnya milik nanoMuse, bukan fork ini.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: agen pribadi sumber terbuka untuk setiap perangkat yang kamu miliki">
 </p>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">ลบ %1$d บทสนทนาหรือไม่</string>
+    <string name="nm_coach_delete_retention">ข้อความคัดลอกของ Coach ที่เกี่ยวข้องจะยังคงเป็นบันทึกอ่านอย่างเดียว ลิงก์ต้นฉบับจะใช้ไม่ได้</string>
+    <string name="nm_coach_delete_keep">ลบเฉพาะแชตและเก็บข้อความคัดลอก</string>
+    <string name="nm_coach_delete_purge">ลบบันทึกหัวข้อที่เกี่ยวข้องด้วย</string>
+    <string name="nm_coach_delete_failed">ลบไม่สำเร็จทั้งหมด แชตอาจถูกลบแล้วแต่ข้อความคัดลอกยังอยู่ โปรดลองลบบันทึกอีกครั้ง</string>
+    <string name="nm_coach_delete_account_changed">บัญชีเปลี่ยนแล้ว ปิดหน้าต่างและเปิดใหม่ในบัญชีปัจจุบัน</string>
+    <string name="nm_coach_delete_retry">ลองลบบันทึกอีกครั้ง</string>
+    <string name="nm_coach_conversation_group">การฝึกประจำวัน</string>
+</resources>

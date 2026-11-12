@@ -83,7 +83,8 @@ internal fun DrawerSessions(
             ordered.forEach { folder ->
                 val members = groups[folder.id].orEmpty()
                 if (folder.id == io.github.nanomuse.chat.GroupNamePolicy.SYSTEM_ID && members.isEmpty()) return@forEach
-                if (query.isBlank() || members.isNotEmpty()) {
+                // 搜索直接展示匹配会话，横屏键盘开启时不让分组标题挤掉首条结果。
+                if (query.isBlank()) {
                     item("folder:${folder.id}") {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -107,7 +108,7 @@ internal fun DrawerSessions(
                 }
             }
             val ungrouped = groups[null].orEmpty()
-            item("ungrouped:header") {
+            if (query.isBlank()) item("ungrouped:header") {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("${if ("__ungrouped__" in collapsed) "▸" else "▾"} ${stringResource(R.string.nm_ungrouped)} (${ungrouped.size})",
                     style = MaterialTheme.typography.labelLarge,
@@ -145,14 +146,9 @@ internal fun DrawerSessions(
                 vm.updateTitleAndCategory(session.id, name, category.ifBlank { null }); editing = null
             })
     }
-    if (deleting.isNotEmpty()) AlertDialog(
-        onDismissRequest = { if (!isDeleting) deleting = emptySet() },
-        title = { Text(stringResource(R.string.delete)) },
-        text = { Text(stringResource(R.string.nm_drawer_delete_count, deleting.size)) },
-        confirmButton = { TextButton(enabled = !isDeleting, onClick = {
-            vm.deleteSessions(deleting.toSet()) { deleting = emptySet() }
-        }) { Text(stringResource(R.string.delete)) } },
-        dismissButton = { TextButton(enabled = !isDeleting, onClick = { deleting = emptySet() }) { Text(stringResource(R.string.cancel)) } },
+    if (deleting.isNotEmpty()) CoachConversationDeleteDialog(
+        ids = deleting, repository = repository, onDismiss = { deleting = emptySet() },
+        onDelete = { completed -> vm.deleteSessions(deleting.toSet(), onComplete = completed) },
     )
 }
 

@@ -1,6 +1,8 @@
 package com.openminis.app.ui.chat
 
 import io.github.nanomuse.ui.chat.traceStepDrawing // nanoMuse: 仅隔离验收包的绘制后探针。
+import dev.chrisbanes.haze.hazeSource // nanoMuse: 顶部磨砂只采样消息，不含宠物视频与前景控件。
+import dev.chrisbanes.haze.rememberHazeState
 
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -568,9 +570,14 @@ fun ChatScreen(
     // grows in steps when the user reaches the top via [viewModel.loadOlderMessages].
     // Callers needing the full history (compact / fork / regenerate / send)
     // continue to read viewModel.messages directly inside the VM.
+    val nmPresentationVisible = nmHome?.isVisible != false // nanoMuse: 隐藏页暂停展示流水线，模型与落盘仍由ViewModel执行。
     val messages by viewModel.uiMessages.collectAsState()
     val hasOlderMessages by viewModel.hasOlderMessages.collectAsState()
     val isStreaming by viewModel.isStreaming.collectAsState()
+    // nanoMuse: 专题身份来自领域绑定，普通讲解不依赖是否调用教练工具。
+    val nmCoachPractice = io.github.nanomuse.ui.coach.rememberCoachPracticeConversation(viewModel.currentSessionId)
+    val nmCoachArchiveError by viewModel.nmCoachArchiveError.collectAsState() // nanoMuse: 正文和档案失败分别呈现。
+    val nmHeaderHaze = rememberHazeState() // nanoMuse: 与底栏分离，避免顶部磨砂采样自身。
     io.github.nanomuse.ui.chat.ConversationReadEffect(viewModel.currentSessionId, nmHome?.isVisible != false) // nanoMuse: 可见且已恢复的会话消费完成标记。
     // nanoMuse: the screen stays on while the agent drives the browser or another app's screen.
     io.github.nanomuse.status.KeepAwake.Effect(isStreaming)
@@ -1864,7 +1871,7 @@ fun ChatScreen(
     // to send a follow-up — auto-follow then yanked them away from where
     // they were reading.
     // nanoMuse: 搜索弹窗拥有自己的焦点，定位时暂停聊天的自动跟随。
-    if (nmAnchorsOpen) io.github.nanomuse.ui.chat.MessageAnchorsSheet(
+    if (nmHome?.isVisible != false && nmAnchorsOpen) io.github.nanomuse.ui.chat.MessageAnchorsSheet(
         viewModel = viewModel,
         onDismiss = { nmAnchorsOpen = false; keyboardController?.hide() },
         onPick = { id, query ->
@@ -1876,6 +1883,23 @@ fun ChatScreen(
             nmAnchorQuery = query
             nmAnchorPending = viewModel.revealAnchor(id)
             if (nmAnchorPending == null) android.widget.Toast.makeText(context, R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+        },
+    )
+    // nanoMuse: 原文定位与开场只消费本次导航意图，不触碰未发送草稿。
+    io.github.nanomuse.ui.chat.CoachConversationEntryEffect(
+        entry = nmHome?.coachEntry,
+        viewModel = viewModel,
+        isVisible = nmHome?.isVisible != false,
+        onConsumed = nmHome?.onCoachEntryConsumed,
+        onRevealMessage = { messageId ->
+            keyboardController?.hide()
+            focusManager.clearFocus(force = true)
+            userScrolledAway = true
+            lastUserAppendMs = 0L
+            nmAnchorQuery = ""
+            nmAnchorPending = viewModel.revealAnchor(messageId)
+            if (nmAnchorPending == null) android.widget.Toast.makeText(context,
+                R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
         },
     )
     val imeBottomPx = if (nmHome?.isVisible == false || nmAnchorsOpen) 0 else WindowInsets.ime.getBottom(LocalDensity.current) // nanoMuse: 侧栏键盘不触发聊天自动滚动。
@@ -1942,7 +1966,8 @@ fun ChatScreen(
     // separate edge-triggered LE that fires once per stream END, not per
     // token — async self-sizing / image height settling needs the safety
     // net but not at 50ms cadence.
-    LaunchedEffect(listState, userScrolledAway) {
+    LaunchedEffect(listState, userScrolledAway, nmPresentationVisible) {
+        if (!nmPresentationVisible) return@LaunchedEffect // nanoMuse: 切到其他页面后取消流式自动滚动。
         // T-streaming-side-channel: combine the canonical messages flow
         // with streamingById so growth signals (content length, toolBlocks
         // count, awaiting flag) reflect the live stream — otherwise the
@@ -2079,7 +2104,8 @@ fun ChatScreen(
     // VM flow directly (turn-level signal) rather than reading per-token
     // assistant content, so this state doesn't tick during a stream.
     val streamingNowFlag = isStreaming
-    LaunchedEffect(streamingNowFlag) {
+    LaunchedEffect(streamingNowFlag, nmPresentationVisible) {
+        if (!nmPresentationVisible) return@LaunchedEffect // nanoMuse: 隐藏聊天不执行收尾布局定位。
         if (streamingNowFlag) return@LaunchedEffect  // edge fires only on streaming→idle
         // [T-android-stream-end-arm-race] Stamp the edge BEFORE the 220 ms
         // delay below: the final reflow that would otherwise arm
@@ -2641,20 +2667,27 @@ fun ChatScreen(
         containerColor = ChatColors.background,
         contentWindowInsets = WindowInsets(0),
         topBar = {
+            // nanoMuse: 专题栏固定在标题下方，不占据回复末尾或影响消息锚点。
+            Column {
             // nanoMuse: the header is an overlay. The list slides underneath and
             // the scrim melts it away: a soft shade at the top edge dissolving
             // to clear, never a bar.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
+                    .then(if (nmHome == null) Modifier.background(
                         Brush.verticalGradient(
                             0f to ChatColors.background.copy(alpha = 0.8f),
                             0.55f to ChatColors.background.copy(alpha = 0.35f),
                             1f to Color.Transparent,
                         )
-                    ),
+                    ) else Modifier),
             ) {
+            if (nmHome != null) io.github.nanomuse.ui.home.MuseHeaderGlass(
+                state = nmHeaderHaze,
+                modifier = Modifier.matchParentSize(),
+                isVisible = nmHome.isVisible,
+            ) // nanoMuse: 一层局部轻磨砂替代叠加遮罩。
             TopAppBar(
                 title = {
                     // iOS-style centered layout: "nanoMuse" + group row + provider·model row
@@ -2756,7 +2789,7 @@ fun ChatScreen(
     val nmElapsed = io.github.nanomuse.ui.header.rememberTaskElapsed(viewModel.currentSessionId) // nanoMuse: 与后台任务使用同一会话和时钟。
                                 Box(
                                     modifier = Modifier
-                                        .height(io.github.nanomuse.ui.home.PILL_AREA_HEIGHT)
+                                        .heightIn(min = io.github.nanomuse.ui.home.PILL_AREA_HEIGHT) // nanoMuse: 双行名称随系统字号撑高。
                                         .then(io.github.nanomuse.ui.home.pullUp(if (nmAvatarSize.shown) io.github.nanomuse.ui.home.PILL_OVERLAP else 0.dp)),
                                     contentAlignment = Alignment.TopCenter,
                                 ) {
@@ -3478,6 +3511,11 @@ fun ChatScreen(
                 },
             )
             } // nanoMuse: close the header-fade wrapper
+            if (nmHome != null && (nmHome.isMainChat || nmCoachPractice)) {
+                io.github.nanomuse.ui.chat.CoachConversationStatus(viewModel, nmHome, isStreaming,
+                    nmCoachPractice, nmCoachArchiveError)
+            }
+            } // nanoMuse: 标题与专题上下文共同参与顶部测量。
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -3487,17 +3525,22 @@ fun ChatScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // nanoMuse: the message list slides under the header, which is an
-                // overlay, so only the bottom bar insets the content. The
-                // header itself is a scrim over the scrolling list.
-                .padding(bottom = padding.calculateBottomPadding())
+                // nanoMuse: 首页消息可滚过玻璃标题，首尾避让移到列表内容边距。
+                .padding(top = if (nmHome == null) padding.calculateTopPadding() else 0.dp,
+                    bottom = padding.calculateBottomPadding())
                 .then(if (nmAnchorsOpen) Modifier else Modifier.imePadding()) // nanoMuse: 弹窗键盘不移动聊天输入框。
                 .onGloballyPositioned { chatPaneWidthPx = it.size.width },
         ) {
         // nanoMuse: merge live steps once so the footer and its reserve agree
         // on the same frame, including tools still in the streaming side channel.
-        val streamingById by viewModel.streamingById.collectAsState()
-        val lastToolBlocks = remember(messages, streamingById) {
+        // nanoMuse: 隐藏页只读空展示流，返回时StateFlow立即提供最新快照。
+        val nmVisibleStream = remember(viewModel, nmPresentationVisible) {
+            if (nmPresentationVisible) viewModel.streamingById
+            else kotlinx.coroutines.flow.flowOf(emptyMap<String, StreamingDelta>())
+        }
+        val streamingById by nmVisibleStream.collectAsState(initial = emptyMap())
+        val lastToolBlocks = remember(messages, streamingById, nmPresentationVisible) {
+            if (!nmPresentationVisible) return@remember emptyList<AssistantBlock>()
             val merged = if (streamingById.isEmpty()) messages
                          else mergeStreamingOverlay(messages, streamingById)
             merged.filter { it.role == "assistant" }
@@ -3644,7 +3687,8 @@ fun ChatScreen(
                 // composable's invalidation list.
                 // nanoMuse: keyed on the steps switch too — flipping it in
                 // Settings rebuilds the rows with or without the steps.
-                LaunchedEffect(messages, sessionId, nmShowSteps) {
+                LaunchedEffect(messages, sessionId, nmShowSteps, nmPresentationVisible) {
+                    if (!nmPresentationVisible) return@LaunchedEffect // nanoMuse: 停止隐藏页的flatten与Markdown预热，保留最后一帧供返回使用。
                     // [T-android-stream-pipeline-incremental] Frozen/live split.
                     //
                     // `messages` is CONSTANT within this effect (the effect is
@@ -3837,12 +3881,21 @@ fun ChatScreen(
                 val nmStepRows = remember(flatItems, nmStepFolds.expanded) {
                     io.github.nanomuse.chat.expandAgentStepRows(flatItems, nmStepFolds.expanded, nmStepCache)
                 }
+                // nanoMuse: 提示行与展示行来自同次重组，提交后直接定位下一次测量。
+                val lastAssistantHasError = messages.lastOrNull { it.role == "assistant" }?.error?.isNotBlank() == true
+                val nmLastId = messages.lastOrNull()?.id
+                val nmRemoteTail = nmLastId != null && nmLastId.substringBefore('#') in nmRemoteRows
+                val nmResumeShown = canResume && !isStreaming && error == null && !lastAssistantHasError && nmContinueAsk == null && !nmRemoteTail
+                // nanoMuse: 输入和生成时收起点子，额外行计数与实际声明保持一致。
+                val nmDailyIdeasShown = nmHome?.isMainChat == true && !isStreaming && !inputFocused && inputText.isBlank()
+                val nmExtraRows = listOf(nmDailyIdeasShown, compactProgress != null,
+                    nmRemoteTail, nmResumeShown, nmStarNudge != null && !isStreaming).count { it }
                 // Mosaic: the reply whose steps are open in the sheet; the row is looked up live so it follows streaming.
                 var nmStepsSheetId by remember(sessionId) { mutableStateOf<String?>(null) }
                 val nmStepsSheetRow = nmStepsSheetId?.let { id ->
                     flatItems.firstOrNull { it is FlatChatItem.AssistantSteps && it.messageId == id } as? FlatChatItem.AssistantSteps
                 }
-                if (nmStepsSheetRow != null) io.github.nanomuse.ui.chat.AgentStepsSheet(
+                if (nmHome?.isVisible != false && nmStepsSheetRow != null) io.github.nanomuse.ui.chat.AgentStepsSheet(
                     row = nmStepsSheetRow, onDetail = viewModel::openToolDetail, onStop = viewModel::cancelStream,
                     onDismiss = { nmStepsSheetId = null },
                 )
@@ -3927,7 +3980,7 @@ fun ChatScreen(
                 // The lookup uses the underlying message id stripped of any
                 // dedupe suffix (`id#2`) added by buildFlatChatItems.
                 // nanoMuse: 依据实际 LazyColumn key 校准额外提示行，避免锚点偏移到相邻消息。
-                LaunchedEffect(nmAnchorPending, nmStepRows.size) { // nanoMuse: 锚点索引包含展开后的过程行。
+                LaunchedEffect(nmAnchorPending, nmStepRows, nmExtraRows) { // nanoMuse: 锚点索引包含展开后的过程行和实际提示行。
                     val messageId = nmAnchorPending ?: return@LaunchedEffect
                     val ordered = nmStepRows.asReversed()
                     val searched = if (nmAnchorQuery.isBlank()) null else ordered.firstOrNull {
@@ -3950,7 +4003,7 @@ fun ChatScreen(
                                 return@LaunchedEffect
                             }
                             val known = info.visibleItemsInfo.firstOrNull { it.key.toString() in positions }
-                            val extra = known?.let { it.index - positions.getValue(it.key.toString()) } ?: 0
+                            val extra = known?.let { it.index - positions.getValue(it.key.toString()) } ?: nmExtraRows
                             if (info.totalItemsCount > 0) tracedScrollToItem("MESSAGE-ANCHOR", (positions.getValue(key) + extra).coerceIn(0, info.totalItemsCount - 1), 0)
                         }
                         nmAnchorPending = null
@@ -4027,9 +4080,12 @@ fun ChatScreen(
                 // lazily on first use — an unused ChatScreen never binds a TTS
                 // engine — and shut down with the screen.
                 val selectionReader = remember { LazyReadAloudPlayer(context) }
-                DisposableEffect(selectionReader) {
+                DisposableEffect(viewModel, selectionReader) { // nanoMuse: 切换聊天也释放选区语音。
                     onDispose { selectionReader.shutdown() }
                 }
+                // nanoMuse: 开始输入或发送新回合时停止选区语音，避免旧答案继续播放。
+                LaunchedEffect(viewModel, selectionReader, inputText) { selectionReader.stop() }
+                LaunchedEffect(selectionReader, isStreaming) { if (isStreaming) selectionReader.stop() }
                 // [T-android-readaloud-stop-stale] A reply the user asked to be
                 // read aloud keeps playing while the next turn is being
                 // generated — desirable during thinking, but once the new reply
@@ -4041,10 +4097,23 @@ fun ChatScreen(
                 }
                 // Mosaic: replies read aloud, as they are written ("Read replies
                 // aloud" in the ⋯ menu) or from a reply's action row.
-                val nmReplySpeech = io.github.nanomuse.ui.chat.rememberNmReplySpeech()
-                io.github.nanomuse.ui.chat.NmReadRepliesAloud(nmReplySpeech, viewModel, messages)
+                val nmReplySpeech = io.github.nanomuse.ui.chat.rememberNmReplySpeech(systemOnlyConversation = nmCoachPractice) // nanoMuse: 专题历史正文同样只用系统语音。
+                io.github.nanomuse.ui.chat.NmReadRepliesAloud(nmReplySpeech, viewModel, messages,
+                    isVisible = nmHome?.isVisible != false, systemOnlyConversation = nmCoachPractice)
                 val nmMessagesById = remember(messages) { messages.associateBy { it.id } }
-                val markdownToolbar = remember(context, messageBounds, viewModel, inputFocusRequester, keyboardController, selectionController, selectionReader) {
+                // nanoMuse: 两套选区工具栏和整条答复共用同一消息策略索引。
+                val readSelectedText: (String, List<String>) -> Unit = remember(viewModel, nmReplySpeech, selectionReader) {
+                    { text, messageIds ->
+                        val policy = nmReplySpeech.selectionPolicy(messageIds, viewModel.uiMessages.value.map { it.id })
+                        selectionReader.speak(text, policy = policy)
+                    }
+                }
+                val selectedMessageIds = {
+                    selectionController.selection.value?.let { selected ->
+                        listOf(selected.start.shard.messageId, selected.end.shard.messageId)
+                    }.orEmpty()
+                }
+                val markdownToolbar = remember(context, messageBounds, viewModel, inputFocusRequester, keyboardController, selectionController, selectionReader, readSelectedText) {
                     MinisMarkdownTextToolbar(
                         context = context,
                         registry = messageBounds,
@@ -4058,10 +4127,10 @@ fun ChatScreen(
                             }
                             keyboardController?.show()
                         },
-                        onReadAloud = { snippet -> selectionReader.speak(snippet) },
+                        onReadAloud = readSelectedText, // nanoMuse: 读取选区来源的教练路由。
                         // [T-android-readaloud-selection-vs-reply] Whole-reply
                         // replay, hidden while streaming via isStreamingNow.
-                        onReadFromStart = { fullText -> selectionReader.speak(fullText) },
+                        onReadFromStart = readSelectedText, // nanoMuse: 整条重读同样约束系统TTS。
                         isStreamingNow = { viewModel.isStreaming.value },
                         selectionController = selectionController,
                     )
@@ -4089,7 +4158,7 @@ fun ChatScreen(
                 // Intercept back press to dismiss slash/mention menus before
                 // navigating away from the chat screen.
                 androidx.activity.compose.BackHandler(
-                    enabled = slashMenuOpen || mentionMenuOpenForSpy
+                    enabled = nmHome?.isVisible != false && (slashMenuOpen || mentionMenuOpenForSpy) // nanoMuse: 隐藏聊天不消费当前页面的返回。
                 ) {
                     if (slashMenuOpen) {
                         viewModel.setInputText(viewModel.dismissSlashMenu(inputText))
@@ -4118,12 +4187,6 @@ fun ChatScreen(
                 val perfFirstLayoutFired = remember(sessionId) { java.util.concurrent.atomic.AtomicBoolean(false) }
                 Box {
                 AlwaysStretchOverscrollBox { sharedEffect ->
-                // nanoMuse: 提示行与展示行来自同次重组，提交后直接定位下一次测量。
-                val lastAssistantHasError = messages.lastOrNull { it.role == "assistant" }?.error?.isNotBlank() == true
-                val nmLastId = messages.lastOrNull()?.id
-                val nmRemoteTail = nmLastId != null && nmLastId.substringBefore('#') in nmRemoteRows
-                val nmResumeShown = canResume && !isStreaming && error == null && !lastAssistantHasError && nmContinueAsk == null && !nmRemoteTail
-                val nmExtraRows = listOf(compactProgress != null, nmRemoteTail, nmResumeShown, nmStarNudge != null && !isStreaming).count { it }
                 SideEffect { nmStepFolds.applyAnchor(listState, nmStepRows, nmExtraRows) }
                 LazyColumn(
                     state = listState,
@@ -4147,13 +4210,14 @@ fun ChatScreen(
                     // measured height (status bar included), plus breathing room.
                     // The bottom clears the floating pill bar the same way.
                     contentPadding = PaddingValues(
-                        top = padding.calculateTopPadding() + 8.dp,
+                        top = 8.dp + if (nmHome != null) padding.calculateTopPadding() else 0.dp, // nanoMuse: 首条消息能完整滚出标题。
                         // nanoMuse: use this layout pass's full footer height.
                         bottom = bottomChromeHeight + bottomReserve,
                     ),
                     modifier = Modifier
                         .traceStepDrawing() // nanoMuse: 在Compose延迟布局与绘制完成后采样。
                         .fillMaxWidth()
+                        .then(if (nmHome != null) Modifier.hazeSource(nmHeaderHaze) else Modifier) // nanoMuse: 独立消息源，不采样宠物动画。
                         // [T-android-chat-max-content-width] Cap the reading
                         // measure on a wide window, mirroring iOS
                         // AIChatView.maxContentWidth (900pt when the horizontal
@@ -4228,6 +4292,15 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Bottom),
                     overscrollEffect = sharedEffect,
                 ) {
+                    // nanoMuse: 点子按当地日期轮换，点击只追加草稿，不覆盖正在输入的内容。
+                    if (nmDailyIdeasShown) item(key = "__nm_daily_ideas__") {
+                        io.github.nanomuse.ui.ideas.DailyIdeaStrip(
+                            onPrefill = { idea ->
+                                viewModel.nmAppendComposerIdea(idea)
+                            },
+                            onOpenIdeas = { nmHome?.onOpenIdeas?.invoke() },
+                        )
+                    }
                     // T13 Resume banner — placed BEFORE items() so reverseLayout
                     // renders it at the visual bottom of the list (just below
                     // the last assistant message). Mirrors iOS resumeBanner in
@@ -4835,7 +4908,7 @@ fun ChatScreen(
                         // [T-android-selection-readaloud] Speak the selection
                         // through the same screen-scoped lazy player the
                         // Compose-SelectionContainer toolbar uses.
-                        onReadAloud = { snippet -> selectionReader.speak(snippet) },
+                        onReadAloud = { snippet -> readSelectedText(snippet, selectedMessageIds()) }, // nanoMuse: 自绘选区保留消息ID。
                         // [T-android-readaloud-selection-vs-reply] Replay the
                         // whole message the selection belongs to.
                         //
@@ -4849,7 +4922,7 @@ fun ChatScreen(
                         // range the user could select is a range that already
                         // exists.
                         onReadFromStart = if (isStreaming) null else {
-                            { fullText -> selectionReader.speak(fullText) }
+                            { fullText -> readSelectedText(fullText, selectedMessageIds()) } // nanoMuse: 从头重读继承教练策略。
                         },
                     ),
                 )
@@ -4887,19 +4960,27 @@ fun ChatScreen(
                 // T261: tool-detail sheet hoisted out of LazyColumn item
                 // scope. Visibility driven by ViewModel state so streaming /
                 // pill-disposal / new-tool emissions can't snap it shut.
-                // existence guard auto-closes the sheet when the underlying
-                // block disappears (T258 retry-preserve removes in-flight
-                // tools, clearChat, etc.). Reuses lastToolBlocks (already
-                // computed above) so we don't traverse messages twice.
+                // nanoMuse: 展示暂停或恢复首帧的空列表不代表数据已删除；仅在真实快照也缺失时关闭详情。
                 val selectedToolDetailId by viewModel.selectedToolDetailId.collectAsState()
-                LaunchedEffect(selectedToolDetailId, lastToolBlocks) {
+                LaunchedEffect(selectedToolDetailId, lastToolBlocks, nmPresentationVisible) {
+                    if (!nmPresentationVisible) return@LaunchedEffect
                     val id = selectedToolDetailId ?: return@LaunchedEffect
-                    if (lastToolBlocks.none { it.id == id }) viewModel.closeToolDetail()
+                    if (lastToolBlocks.any { it.id == id }) return@LaunchedEffect
+                    val currentMessages = mergeStreamingOverlay(
+                        viewModel.uiMessages.value, viewModel.streamingById.value,
+                    )
+                    val stillExists = currentMessages.any { message ->
+                        message.role == "assistant" && message.toolBlocks.any { block ->
+                            block.id == id && block.toolStatus != null &&
+                                block.kind != "thinking" && block.kind != "info"
+                        }
+                    }
+                    if (!stillExists) viewModel.closeToolDetail()
                 }
                 val selectedToolBlock = selectedToolDetailId?.let { id ->
                     lastToolBlocks.firstOrNull { it.id == id }
                 }
-                if (selectedToolBlock != null) {
+                if (nmHome?.isVisible != false && selectedToolBlock != null) {
                     val initialIdx = lastToolBlocks
                         .indexOfFirst { it.id == selectedToolBlock.id }
                         .coerceAtLeast(0)
@@ -4976,7 +5057,7 @@ fun ChatScreen(
                     animationSpec = tween(250),
                     label = "nmTopFade",
                 )
-                Box(
+                if (nmHome == null) Box( // nanoMuse: 首页已有玻璃标题，不再叠不透明80dp遮罩。
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
@@ -5156,7 +5237,7 @@ fun ChatScreen(
             // list (same composable, exposed `internal`) so title + category
             // edits from the in-chat pill are visually + behaviourally
             // identical to the home-screen long-press flow.
-            editingSession?.let { session ->
+            editingSession?.takeIf { nmHome?.isVisible != false }?.let { session ->
                 com.openminis.app.ui.sessions.SessionEditSheet(
                     session = session,
                     onDismiss = { editingSession = null },
@@ -5224,7 +5305,7 @@ fun ChatScreen(
                     viewModel.thinkingLevel.collectAsState().value,
                 ) { viewModel.filteredSlashCommands() }
 
-                if (showSlashMenu && filteredSlashCommands.isNotEmpty()) {
+                if (nmHome?.isVisible != false && showSlashMenu && filteredSlashCommands.isNotEmpty()) { // nanoMuse: 弹窗独立于页面透明度，必须显式限制可见性。
                     val thinkingLevelState by viewModel.thinkingLevel.collectAsState()
                     val thinkingSupported = viewModel.currentModelSupportsReasoning
                     val memoryOnState by viewModel.memoryEnabled.collectAsState()
@@ -5437,7 +5518,7 @@ fun ChatScreen(
                 val mentionEntries by viewModel.mentionEntries.collectAsState()
                 val isMentionScanning by viewModel.isMentionScanning.collectAsState()
                 val mentionSelectedIndex by viewModel.mentionSelectedIndex.collectAsState()
-                if (showMentionMenu) {
+                if (nmHome?.isVisible != false && showMentionMenu) { // nanoMuse: 抽屉或其他标签打开时不残留文件菜单。
                     androidx.compose.ui.window.Popup(
                         popupPositionProvider = remember {
                             object : androidx.compose.ui.window.PopupPositionProvider {
@@ -5749,7 +5830,7 @@ fun ChatScreen(
                     // keeps it out of the composer's layout flow so the
                     // attachment row + text field still own the full
                     // vertical rhythm.
-                    if (showMoveCapsule) {
+                    if (nmHome?.isVisible != false && showMoveCapsule) {
                         // T185: align Move-to right edge with the
                         // attachment row + button row (both 12dp). The
                         // anchorBounds rect is in px, so convert via
@@ -5922,7 +6003,31 @@ fun ChatScreen(
                                         // hold a host file path, falling
                                         // back to the system viewer for
                                         // foreign content:// URIs.
-                                        if (attachment.isImage) {
+                                        // nanoMuse: 大段粘贴尚在后台落盘时，预览也等待完整文件，不向系统发送缺失的file URI。
+                                        if (attachment.pendingPaste != null) {
+                                            coroutineScope.launch {
+                                                try {
+                                                    val preview = withContext(Dispatchers.IO) {
+                                                        val file = attachment.pendingPaste.awaitReady()
+                                                        com.openminis.app.ui.sandbox.FileItem(
+                                                            file = file,
+                                                            name = attachment.fileName,
+                                                            isDirectory = false,
+                                                            isSymlink = false,
+                                                            size = file.length(),
+                                                            modifiedMs = file.lastModified(),
+                                                        )
+                                                    }
+                                                    if (nmComposerVisible && viewModel.attachments.value.any { it.id == attachment.id }) {
+                                                        onPreviewAttachment(preview)
+                                                    }
+                                                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                                    throw cancelled
+                                                } catch (_: Exception) {
+                                                    snackbarHostState.showSnackbar(context.getString(R.string.filepreview_file_read_error))
+                                                }
+                                            }
+                                        } else if (attachment.isImage) {
                                             // Collect every image chip in
                                             // the composer row so the user
                                             // can swipe through them.
@@ -6712,7 +6817,7 @@ fun ChatScreen(
                             }
                             Spacer(modifier = Modifier.width(6.dp))
                         }
-                        if (showLangSheet) {
+                        if (nmHome?.isVisible != false && showLangSheet) { // nanoMuse: 隐藏聊天不展示独立窗口。
                             SpeechLanguagePickerSheet(onDismiss = { showLangSheet = false })
                         }
                         // Extracted so the app-icon "voice chat" quick action
@@ -6807,21 +6912,24 @@ fun ChatScreen(
                                 .isEnabled.collectAsState()
                             val ttsMuted by com.openminis.app.speech.VoiceOutputState
                                 .isMuted.collectAsState()
-                            val readReplies = ttsEnabled && !ttsMuted
+                            val readReplies = ttsEnabled && !ttsMuted && nmHome?.isVisible != false
                             // [T-android-provider-tts-readaloud] Routes each
                             // utterance through the resolved Voice Output
                             // selection (provider TTS, system engine as
                             // fallback) instead of always using the on-device
                             // engine, and sanitizes Markdown before speaking.
                             val replyTts = remember {
-                                com.openminis.app.speech.ReadAloudPlayer(context)
+                                io.github.nanomuse.ui.chat.NmReplySpeech(context) // nanoMuse: 语音面板也按最终答复的教练标记路由。
                             }
                             // The previous bare TextToSpeechManager() was never
                             // shut down, leaking an engine binding on every
                             // entry into the voice panel.
-                            DisposableEffect(replyTts) {
+                            DisposableEffect(viewModel, replyTts) { // nanoMuse: 更换聊天释放原来的语音所有者。
                                 onDispose { replyTts.shutdown() }
                             }
+                            // nanoMuse: 新输入、新回合和静音立即停止当前最终答复朗读。
+                            LaunchedEffect(replyTts, inputText) { replyTts.stop() }
+                            LaunchedEffect(replyTts, isStreaming) { if (isStreaming) replyTts.stop() }
                             // [T-android-read-replies-pill-metrics] Sizing mirrors
                             // iOS readAloudToolbarToggle: 10/6 padding around a
                             // 5pt-spaced icon+label, on a capsule that HUGS its
@@ -6899,11 +7007,11 @@ fun ChatScreen(
                                 )
                             }
                             // nanoMuse: 语音面板与普通聊天共用最终答复信号，过程说明不播报。
-                            LaunchedEffect(viewModel, ttsEnabled) {
-                                if (!ttsEnabled) return@LaunchedEffect
+                            LaunchedEffect(viewModel, ttsEnabled, ttsMuted, nmHome?.isVisible) {
+                                if (!ttsEnabled || ttsMuted || nmHome?.isVisible == false) { replyTts.stop(); return@LaunchedEffect }
                                 viewModel.finalReplies.collect { answer ->
                                     com.openminis.app.ui.chat.voice.VoiceModePrefs.lastSpokenAssistantKey = answer.messageId.hashCode()
-                                    replyTts.readAloud(answer.text)
+                                    replyTts.read(answer.messageId, answer.text, systemOnly = answer.systemOnly || viewModel.nmIsCoachPractice()) // nanoMuse: 禁止教练回答泄漏到服务商TTS。
                                 }
                             }
                             // [T-android-read-replies-pill-metrics] Balancing
@@ -7052,7 +7160,7 @@ fun ChatScreen(
                 )
             } // end swipe-to-send Box wrapping the composer Column
 
-            if (showMoveSheet) {
+            if (nmHome?.isVisible != false && showMoveSheet) { // nanoMuse: 隐藏聊天不展示独立窗口。
                 MoveToSessionSheet(
                     currentSessionId = sessionId,
                     chatRepository = chatRepository,
@@ -7086,7 +7194,7 @@ fun ChatScreen(
             //                                  threshold stops prompting from
             //                                  now on (iOS T-chat-auto-compact-opt-in)
             val showCompactBeforeSend by viewModel.showCompactBeforeSendPrompt.collectAsState()
-            if (showCompactBeforeSend) {
+            if (nmHome?.isVisible != false && showCompactBeforeSend) { // nanoMuse: 隐藏聊天不展示独立窗口。
                 MinisAlertDialog(
                     // Back-gesture / scrim dismissal must NOT silently drop the
                     // user's text — cancelCompactBeforeSend puts it back in the
@@ -7108,7 +7216,7 @@ fun ChatScreen(
             // T137: Clear Chat confirmation. Wipes messages + agent history +
             // compact markers; the session row, workspace files, attachments,
             // and offload payloads are intentionally preserved (iOS parity).
-            if (showClearChatDialog) {
+            if (nmHome?.isVisible != false && showClearChatDialog) { // nanoMuse: 隐藏聊天不展示独立窗口。
                 MinisAlertDialog(
                     onDismissRequest = { showClearChatDialog = false },
                     title = stringResource(R.string.chat_menu_clear_chat),
@@ -7128,7 +7236,7 @@ fun ChatScreen(
             // from here" alone doesn't convey whether it's one message or
             // forty. Counting from the live list keeps it accurate even if the
             // conversation grew while the menu was open.
-            deleteFromHereTargetId?.let { targetId ->
+            deleteFromHereTargetId?.takeIf { nmHome?.isVisible != false }?.let { targetId ->
                 val affected = remember(targetId, messages) {
                     val idx = messages.indexOfFirst { it.id == targetId }
                     if (idx < 0) 0 else messages.size - idx
@@ -7152,7 +7260,7 @@ fun ChatScreen(
             // [T-new-chat-menu-entry] Streaming guard for the menu's New Chat:
             // confirm → stop the running task, then navigate to a fresh draft;
             // dismiss → stay in the current chat.
-            if (showNewChatStopDialog) {
+            if (nmHome?.isVisible != false && showNewChatStopDialog) { // nanoMuse: 隐藏聊天不展示独立窗口。
                 MinisAlertDialog(
                     onDismissRequest = { showNewChatStopDialog = false },
                     title = stringResource(R.string.chat_menu_new_chat),
@@ -7169,7 +7277,7 @@ fun ChatScreen(
             // [T-android-enhanced-cache] One-time extra-billing confirmation
             // before the first enable. Accepting records the durable ack and
             // turns the toggle on; subsequent enables skip the dialog.
-            if (showEnhancedCacheDialog) {
+            if (nmHome?.isVisible != false && showEnhancedCacheDialog) { // nanoMuse: 隐藏聊天不展示独立窗口。
                 MinisAlertDialog(
                     onDismissRequest = { showEnhancedCacheDialog = false },
                     title = stringResource(R.string.chat_menu_enhanced_cache),
@@ -7184,7 +7292,7 @@ fun ChatScreen(
             },
         )
         // Top gradient fade: messages fade into the Scaffold background.
-        Box(
+        if (nmHome == null) Box( // nanoMuse: 玻璃标题边缘由同一渐变蒙版处理。
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -7202,7 +7310,7 @@ fun ChatScreen(
     }
 
     // Browser bottom sheet
-    if (showBrowserSheet) {
+    if (nmHome?.isVisible != false && showBrowserSheet) { // nanoMuse: 隐藏聊天不展示独立窗口。
         BrowserSheet(
             tabPool = viewModel.browserTabPool,
             onDismiss = { viewModel.dismissBrowserSheet() },
@@ -7210,7 +7318,7 @@ fun ChatScreen(
     }
 
     // Session Token Usage bottom sheet
-    if (showTokenUsageSheet) {
+    if (nmHome?.isVisible != false && showTokenUsageSheet) { // nanoMuse: 隐藏聊天不展示独立窗口。
         TokenUsageSheet(
             viewModel = viewModel,
             onDismiss = { showTokenUsageSheet = false },
@@ -7218,7 +7326,7 @@ fun ChatScreen(
     }
 
     // Memory bottom sheet
-    if (showMemorySheet && memoryRepository != null) {
+    if (nmHome?.isVisible != false && showMemorySheet && memoryRepository != null) { // nanoMuse: 页面切换时隐藏聊天浮层。
         SessionMemorySheet(
             memoryRepository = memoryRepository,
             toolRecords = memoryToolRecords,
@@ -7229,7 +7337,7 @@ fun ChatScreen(
     }
 
     // Session Skills bottom sheet
-    if (showSkillsSheet && skillRepository != null) {
+    if (nmHome?.isVisible != false && showSkillsSheet && skillRepository != null) { // nanoMuse: 页面切换时隐藏聊天浮层。
         SessionSkillsSheet(
             skillRepository = skillRepository,
             sessionId = sessionId,
@@ -7238,7 +7346,7 @@ fun ChatScreen(
     }
 
     // [T-mcp-integration-android] MCPs-in-Session sheet.
-    if (showMcpsSheet && mcpRepository != null) {
+    if (nmHome?.isVisible != false && showMcpsSheet && mcpRepository != null) { // nanoMuse: 页面切换时隐藏聊天浮层。
         SessionMcpsSheet(
             mcpRepository = mcpRepository,
             sessionId = sessionId,
@@ -7249,7 +7357,7 @@ fun ChatScreen(
     // [T-android-thinking-badge-navbar] Thinking-level sheet opened by tapping
     // the navbar thinking badge. Mirrors iOS ThinkingLevelSheetView: an Off row
     // plus every level the current model supports, each selectable.
-    if (showThinkingLevelSheet) {
+    if (nmHome?.isVisible != false && showThinkingLevelSheet) { // nanoMuse: 隐藏聊天不展示独立窗口。
         val currentThinkingLevel by viewModel.thinkingLevel.collectAsState()
         ThinkingLevelSheet(
             currentLevel = currentThinkingLevel,
@@ -7263,7 +7371,7 @@ fun ChatScreen(
     }
 
     // Model Picker bottom sheet
-    if (showModelPicker) {
+    if (nmHome?.isVisible != false && showModelPicker) { // nanoMuse: 隐藏聊天不展示独立窗口。
         val config by providerRepository.config.collectAsState()
         val activeEntryId by viewModel.activeEntryId.collectAsState()
 
@@ -7415,10 +7523,10 @@ fun ChatScreen(
     }
 
     // Offload permission dialog
-    OffloadPermissionDialog()
+    if (nmHome?.isVisible != false) OffloadPermissionDialog() // nanoMuse: 当前可见聊天才托管权限窗口。
 
     // URL preview sheet — shown when a markdown link is tapped
-    previewUrl?.let { url ->
+    previewUrl?.takeIf { nmHome?.isVisible != false }?.let { url ->
         com.openminis.app.ui.components.UrlPreviewSheet(
             url = url,
             onDismiss = { previewUrl = null },
@@ -7428,7 +7536,7 @@ fun ChatScreen(
     // T146: immersive HTML preview — bottom sheet (90% height) by default,
     // with a Fullscreen button that swaps to a Dialog-based fullscreen
     // surface using the SAME WebViewHolder so the page never reloads.
-    htmlPreviewHolder?.let { holder ->
+    htmlPreviewHolder?.takeIf { nmHome?.isVisible != false }?.let { holder ->
         val onFullDismiss = {
             holder.destroy()
             htmlPreviewHolder = null
@@ -7471,7 +7579,7 @@ fun ChatScreen(
     // Fullscreen image gallery — tapped image link from chat markdown or
     // composer chip. Pager-backed so multi-image messages support iOS-
     // style swipe between images. Single-image case is a 1-item list.
-    previewImageGallery?.let { (items, startIdx) ->
+    previewImageGallery?.takeIf { nmHome?.isVisible != false }?.let { (items, startIdx) ->
         com.openminis.app.ui.components.ImageGalleryViewer(
             items = items,
             startIndex = startIdx,
@@ -7483,7 +7591,7 @@ fun ChatScreen(
     // markdown. Reuses the same dialog player as the markdown-rendered
     // ![](minis://...) syntax so behaviour is consistent regardless of how
     // the LLM emitted the reference.
-    previewVideoFile?.let { file ->
+    previewVideoFile?.takeIf { nmHome?.isVisible != false }?.let { file ->
         com.openminis.app.ui.media.MinisFullscreenVideoPlayer(
             file = file,
             onDismiss = { previewVideoFile = null },
@@ -7493,7 +7601,7 @@ fun ChatScreen(
     // T-pwa-2: Add-to-Home-Screen sheet, hosted at screen level so it can
     // outlive the chip that triggered it (the chip Box may scroll out of
     // composition while the sheet is up).
-    webAppSheetTarget?.let { target ->
+    webAppSheetTarget?.takeIf { nmHome?.isVisible != false }?.let { target ->
         com.openminis.app.webapp.AddToHomeSheet(
             source = com.openminis.app.webapp.WebAppSource.ChatAttachment(
                 uri = target.uri,

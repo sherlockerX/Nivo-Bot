@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">グループとタグ</string>
+    <string name="nm_todo_choose_category">選択または作成</string>
+    <string name="nm_todo_category_hint">保存したグループとタグは次のタスクでも選択できます。</string>
+    <string name="nm_todo_category_search">検索または新しい名前を入力</string>
+    <string name="nm_todo_category_create">「%1$s」を作成</string>
+    <string name="nm_todo_category_empty">保存した分類はありません。</string>
+    <string name="nm_todo_category_manage">表示と作成</string>
+    <string name="nm_todo_selected">選択済み</string>
+    <string name="nm_coach_explore_title">日常に生かす練習</string>
+    <string name="nm_coach_explore_areas">能力を探索する</string>
+    <string name="nm_coach_explore_add">コースを追加</string>
+    <string name="nm_coach_explore_next">前回の続きから</string>
+    <string name="nm_coach_explore_progress">%2$d単元中%1$d単元を実証</string>
+    <string name="nm_coach_explore_more">その他の設定</string>
+</resources>

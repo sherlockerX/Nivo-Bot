@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">%1$d konuşma silinsin mi?</string>
+    <string name="nm_coach_delete_retention">İlgili Coach alıntıları salt okunur kayıt olarak kalır. Özgün bağlantılar kullanılamaz.</string>
+    <string name="nm_coach_delete_keep">Yalnızca sohbeti sil, alıntıları tut</string>
+    <string name="nm_coach_delete_purge">İlgili konu arşivini de sil</string>
+    <string name="nm_coach_delete_failed">Silme tamamlanamadı. Sohbet silinmiş olsa da alıntılar kalmış olabilir. Arşiv temizliğini yeniden deneyin.</string>
+    <string name="nm_coach_delete_account_changed">Hesap değişti. Pencereyi kapatıp geçerli hesapta yeniden açın.</string>
+    <string name="nm_coach_delete_retry">Arşiv temizliğini yeniden dene</string>
+    <string name="nm_coach_conversation_group">Günlük pratik</string>
+</resources>

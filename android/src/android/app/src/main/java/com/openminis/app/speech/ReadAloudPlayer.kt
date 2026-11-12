@@ -11,6 +11,8 @@ import com.openminis.app.R
 import com.openminis.app.logging.AppLogger
 import com.openminis.app.provider.voice.VoiceOutputRequest
 import com.openminis.app.provider.voice.VoiceProviderFactory
+// nanoMuse: 教练可限定系统朗读，普通调用继续使用原有服务商路由。
+import io.github.nanomuse.speech.SpeechOutputPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,7 +63,11 @@ import kotlin.coroutines.resume
  *
  * Not thread-safe beyond the channel; call from the main thread.
  */
-class ReadAloudPlayer(context: Context) {
+// nanoMuse: 策略固定于播放器，避免一句话的路由受后续页面状态影响。
+class ReadAloudPlayer(
+    context: Context,
+    private val policy: SpeechOutputPolicy = SpeechOutputPolicy.FOLLOW_SELECTION,
+) {
 
     private val appContext = context.applicationContext
     private val system = TextToSpeechManager().also { it.init(appContext) }
@@ -367,9 +373,12 @@ class ReadAloudPlayer(context: Context) {
     // -- internals --
 
     private suspend fun speakOne(text: String) {
-        val entry = runCatching {
-            (appContext as? MinisApp)?.providerRepository?.resolveVoiceOutputEntry()
-        }.getOrNull()
+        // nanoMuse: SYSTEM_ONLY连服务商查询都不执行，系统不可用时保留现有错误提示。
+        val entry = policy.resolveProvider {
+            runCatching {
+                (appContext as? MinisApp)?.providerRepository?.resolveVoiceOutputEntry()
+            }.getOrNull()
+        }
 
         if (entry != null) {
             val (instance, modelEntry) = entry

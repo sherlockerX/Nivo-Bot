@@ -47,12 +47,22 @@ class ScheduledRunScope(val taskId: String, val startedAtMs: Long = System.curre
 /** 在途任务的会话隔离上下文，结束后所有上报立即失效。 */
 object ScheduledRunScopes {
     private val active = ConcurrentHashMap<String, ScheduledRunScope>()
+    private val taskBindings = mutableMapOf<String, ScheduledRunScope>()
 
-    /** 同一会话不能同时绑定两次任务运行。 */
-    fun enter(sessionId: String, scope: ScheduledRunScope): Boolean = active.putIfAbsent(sessionId, scope) == null
+    /** 会话与任务都必须空闲，不能以第二个会话绕过同任务的独占。 */
+    @Synchronized
+    fun enter(sessionId: String, scope: ScheduledRunScope): Boolean {
+        if (active.containsKey(sessionId) || taskBindings.containsKey(scope.taskId)) return false
+        active[sessionId] = scope
+        taskBindings[scope.taskId] = scope
+        return true
+    }
 
     /** 仅移除本次绑定，不清除后来启动的其他运行。 */
-    fun leave(sessionId: String, scope: ScheduledRunScope) { active.remove(sessionId, scope) }
+    @Synchronized
+    fun leave(sessionId: String, scope: ScheduledRunScope) {
+        if (active.remove(sessionId, scope)) taskBindings.remove(scope.taskId, scope)
+    }
 
     /** 普通命令不带任务环境，运行中的命令使用当前上下文。 */
     fun environment(sessionId: String): Map<String, String> = active[sessionId]?.environment().orEmpty()
@@ -64,7 +74,7 @@ object ScheduledRunScopes {
     fun isActive(sessionId: String): Boolean = active.containsKey(sessionId)
 
     /** 区分本进程仍在执行与进程中断留下的持久派发标记。 */
-    fun hasTask(taskId: String): Boolean = active.values.any { it.taskId == taskId }
+    fun hasTask(taskId: String): Boolean = ScheduledTaskLease.isActive(taskId) || active.values.any { it.taskId == taskId }
 
     /** 同一会话的普通输入不能抢占在途任务，其他会话不受影响。 */
     fun canStartChat(sessionId: String, taskRunId: String?): Boolean = active[sessionId]?.let { it.runId == taskRunId } ?: true

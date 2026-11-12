@@ -8,6 +8,16 @@ import org.junit.Test
 
 class UpdateCheckTest {
 
+    /** 分支版本升级必须使用同一仓库，避免下载上游签名的安装包。 */
+    @Test
+    fun `Nicholasx release identity and upgrade ordering`() {
+        assertEquals("https://github.com/sherlockerX/Nicholasx/releases", UpdateCheck.DOWNLOAD_URL)
+        assertEquals(UpdateCheck.DOWNLOAD_URL, com.openminis.app.data.UpdateChecker.RELEASES_URL)
+        assertEquals("https://api.github.com/repos/sherlockerX/Nicholasx/releases/latest", UpdateCheck.GITHUB_LATEST_URL)
+        assertTrue(UpdateCheck.isNewer("v2.0.0", "1.0.6"))
+        assertFalse(UpdateCheck.isNewer("1.0.6", "2.0.0"))
+    }
+
     @Test
     fun `versions compare semver-ish`() {
         assertTrue(UpdateCheck.isNewer("0.1.35", "0.1.34"))

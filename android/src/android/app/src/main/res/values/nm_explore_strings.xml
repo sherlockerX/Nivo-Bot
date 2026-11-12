@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">Groups and tags</string>
+    <string name="nm_todo_choose_category">Choose or create</string>
+    <string name="nm_todo_category_hint">Saved groups and tags stay available for future tasks.</string>
+    <string name="nm_todo_category_search">Search or enter a new name</string>
+    <string name="nm_todo_category_create">Create “%1$s”</string>
+    <string name="nm_todo_category_empty">No saved categories yet.</string>
+    <string name="nm_todo_category_manage">Browse and create</string>
+    <string name="nm_todo_selected">Selected</string>
+    <string name="nm_coach_explore_title">Practice for real life</string>
+    <string name="nm_coach_explore_areas">Explore your abilities</string>
+    <string name="nm_coach_explore_add">Add a course</string>
+    <string name="nm_coach_explore_next">Pick up where you left off</string>
+    <string name="nm_coach_explore_progress">%1$d of %2$d units demonstrated</string>
+    <string name="nm_coach_explore_more">More options</string>
+</resources>

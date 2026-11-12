@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">매일의 아이디어</string>
+    <string name="nm_daily_ideas_all">모두 보기</string>
+    <string name="nm_daily_ideas_prefill">눌러서 입력창에 채우기</string>
+    <string name="nm_daily_ideas_evergreen">꾸준히 다룰 수 있는 주제입니다. 최신 소식은 출처와 날짜를 확인해야 합니다.</string>
+    <string name="nm_daily_ideas_rotation">분류별로 매일 두 개를 표시하며 하루 동안 유지되고 7일 후 반복됩니다.</string>
+    <string name="nm_daily_category_ideas">아이디어</string>
+    <string name="nm_daily_category_work">일</string>
+    <string name="nm_daily_category_life">생활</string>
+    <string name="nm_daily_category_learn">학습</string>
+    <string name="nm_daily_category_family">가족과 관계</string>
+    <string name="nm_daily_category_media">콘텐츠 제작</string>
+    <string name="nm_daily_category_more">더 많은 아이디어</string>
+    <string name="nm_daily_ideas_check_hot_topic">오늘 촬영할 화제 확인</string>
+</resources>

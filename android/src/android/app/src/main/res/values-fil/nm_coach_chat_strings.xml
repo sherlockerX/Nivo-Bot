@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Mga tala ng pagsasanay</string>
+    <string name="nm_coach_chat_city_intro">Pumili ng kurso, balikan ang mga tala, o magpatuloy sa pag-aaral sa usapan ng paksa.</string>
+    <string name="nm_coach_chat_archive_intro">Nag-aaral sa mga usapan sa Araw-araw na pagsasanay. Pagpindot sa simula, bubuksan ang paksa at magsisimula ang pagtuturo ng AI.</string>
+    <string name="nm_coach_chat_open_practice">Magpatuloy sa Araw-araw na pagsasanay</string>
+    <string name="nm_coach_chat_view_original">Tingnan ang orihinal na mensahe</string>
+    <string name="nm_coach_chat_source_unavailable">Walang link sa orihinal na mensahe. Mababasa pa rin ang naka-save na sipi.</string>
+    <string name="nm_coach_chat_saved_draft">Naka-save na draft na hindi naipadala</string>
+    <string name="nm_coach_chat_review_in_chat">Magpatuloy sa usapan ng paksa upang talakayin o itama ang talang ito.</string>
+    <string name="nm_coach_chat_archive">Tingnan ang talaan</string>
+    <string name="nm_coach_chat_end_today">Tapos na muna ngayon</string>
+    <string name="nm_coach_chat_independent_check">Pagsusuri nang walang tulong</string>
+    <string name="nm_coach_chat_understanding">Ebidensiya ng pag-unawa</string>
+    <string name="nm_coach_chat_application">Ebidensiya ng paggamit</string>
+    <string name="nm_coach_chat_delayed_review">Pagsusuri sa ibang araw</string>
+    <string name="nm_coach_chat_discussion">Talakayan</string>
+    <string name="nm_coach_chat_archive_failed">Na-save ang usapan, nabigo ang pag-update ng talaan</string>
+    <string name="nm_coach_chat_retry_archive">Subukang muli ang pag-update</string>
+    <string name="nm_coach_chat_next_lesson">Simulan ang susunod na aralin</string>
+    <string name="nm_coach_chat_back_to_conversation">Bumalik sa usapan</string>
+    <string name="nm_coach_chat_source_invalidated">Na-edit o nabura ang pinagmulan. Hindi na kasalukuyang ebidensiya ang siping ito.</string>
+    <string name="nm_coach_chat_summary">Buod ng aralin</string>
+    <string name="nm_coach_chat_summary_version">Bersiyon ng kurso: %1$s; rebisyon ng pinagmulan: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Hindi na wasto ang mga pinagmulan ng buod at hindi ito batayan ng kasalukuyang konklusyon.</string>
+    <string name="nm_coach_chat_corrections">Mga pagwawasto</string>
+    <string name="nm_coach_chat_hypotheses">Mga hindi pa tiyak na palagay</string>
+    <string name="nm_coach_chat_show_records">Ipakita ang buong usapan</string>
+    <string name="nm_coach_chat_hide_records">Itago ang buong usapan</string>
+    <string name="nm_coach_chat_hide_sources">Itago ang mga pinagmulan</string>
+</resources>

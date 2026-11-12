@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /** 运行结果、参数和自报上下文的回归，不请求模型。 */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ScheduledRunBehaviorTest {
     private fun task() = ScheduledTask(label = "fixture", timeOfDayHour = 6, timeOfDayMinute = 0,
         repeatMode = ScheduledRepeatMode.DAILY, prompt = "offline", consecutiveFailures = 2, totalFailures = 4)
@@ -31,11 +32,17 @@ class ScheduledRunBehaviorTest {
         assertFalse(successful.enabled)
     }
 
-    @Test fun should_onlyGroupExplicitUserTasks_when_originIsKnown() {
-        assertFalse(ScheduledConversationGroup.isUserTask(task()))
-        assertFalse(ScheduledConversationGroup.isUserTask(task().copy(origin = "builtin_feed")))
-        assertFalse(ScheduledConversationGroup.isUserTask(task().copy(origin = "user_cli", hidden = true)))
-        assertTrue(ScheduledConversationGroup.isUserTask(task().copy(origin = "user_cli")))
+    @Test fun should_groupVisibleUserAndLegacyTasks_withoutAdoptingBuiltinsOrUnknownOrigins() {
+        listOf("legacy", "user_ui", "user_cli", "user_idea").forEach { origin ->
+            assertTrue(ScheduledConversationGroup.isUserTask(task().copy(origin = origin)))
+            assertFalse(ScheduledConversationGroup.isUserTask(task().copy(origin = origin, hidden = true)))
+            assertFalse(ScheduledConversationGroup.isUserTask(task().copy(origin = origin, goalId = "goal")))
+        }
+        listOf("builtin_feed", "builtin_goal", "unknown", "").forEach { origin ->
+            assertFalse(ScheduledConversationGroup.isUserTask(task().copy(origin = origin)))
+        }
+        val oldJson = task().toJson().apply { remove("origin") }
+        assertTrue(ScheduledConversationGroup.isUserTask(ScheduledTask.fromJson(oldJson)))
     }
 
     @Test fun should_preserveLiteralArguments_when_buildingArgv() {

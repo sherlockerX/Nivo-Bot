@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -48,12 +49,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import io.github.nanomuse.ui.home.MuseTones
 
-/**
- * Muse's page bar: the back glyph on a white disc at the start, the title centred, actions at
- * the end, no elevation or tint. A drop-in for Material's `TopAppBar` — same parameter names,
- * so an upstream screen switches bars by changing one call — which is why `colors`,
- * `scrollBehavior`, `windowInsets` and `expandedHeight` are accepted and not all used.
- */
+/** 顶部栏按实际操作宽度分配标题空间，保留居中外观并随大字号增长。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -62,55 +58,67 @@ fun MuseTopAppBar(
     modifier: Modifier = Modifier,
     navigationIcon: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
-    /** Put the navigation glyph on Muse's white disc; off for a text action such as "Cancel". */
+    /** 导航图标使用圆形底板；取消等文字操作关闭此项。 */
     disc: Boolean = true,
     expandedHeight: Dp = 56.dp,
     windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
     colors: TopAppBarColors? = null,
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
-    Box(
+    Layout(
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(windowInsets)
-            .height(expandedHeight),
-    ) {
-        // The title first and centred on the whole bar, as Muse centres it on the screen, not
-        // between the buttons.
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 64.dp),
-        ) {
-            CompositionLocalProvider(
-                LocalTextStyle provides TextStyle(
-                    fontSize = 17.sp,
-                    lineHeight = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    platformStyle = PlatformTextStyle(includeFontPadding = false),
-                ),
-                LocalContentColor provides MaterialTheme.colorScheme.onSurface,
-            ) {
-                Box(contentAlignment = Alignment.Center) { title() }
+            .heightIn(min = expandedHeight),
+        content = {
+            Box(Modifier.padding(start = if (navigationIcon != null && disc) 12.dp else 0.dp)) {
+                if (navigationIcon != null) {
+                    if (disc) MuseDisc { navigationIcon() } else navigationIcon()
+                }
             }
-        }
-        if (navigationIcon != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = if (disc) 12.dp else 0.dp),
-            ) {
-                if (disc) MuseDisc { navigationIcon() } else navigationIcon()
+            Row(
+                modifier = Modifier.padding(end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions,
+            )
+            Box(Modifier.padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                CompositionLocalProvider(
+                    LocalTextStyle provides TextStyle(
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    ),
+                    LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+                ) {
+                    title()
+                }
             }
-        }
-        Row(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            content = actions,
+        },
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+        val navigation = measurables[0].measure(looseConstraints)
+        val actionsContent = measurables[1].measure(
+            looseConstraints.copy(maxWidth = (width - navigation.width).coerceAtLeast(0)),
         )
+        val gap = 8.dp.roundToPx()
+        val titleStart = navigation.width + gap
+        val titleEnd = width - actionsContent.width - gap
+        val titleContent = measurables[2].measure(
+            looseConstraints.copy(maxWidth = (titleEnd - titleStart).coerceAtLeast(0)),
+        )
+        val height = maxOf(navigation.height, actionsContent.height, titleContent.height)
+            .coerceIn(constraints.minHeight, constraints.maxHeight)
+        // 标题优先相对整屏居中，碰到两侧操作后向剩余空间内让位。
+        val titleLeft = ((width - titleContent.width) / 2)
+            .coerceIn(titleStart, maxOf(titleStart, titleEnd - titleContent.width))
+        layout(width, height) {
+            navigation.placeRelative(0, (height - navigation.height) / 2)
+            actionsContent.placeRelative(width - actionsContent.width, (height - actionsContent.height) / 2)
+            titleContent.placeRelative(titleLeft, (height - titleContent.height) / 2)
+        }
     }
 }
 

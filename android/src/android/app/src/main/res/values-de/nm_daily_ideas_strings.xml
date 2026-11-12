@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Tägliche Ideen</string>
+    <string name="nm_daily_ideas_all">Alle ansehen</string>
+    <string name="nm_daily_ideas_prefill">Tippen, um das Textfeld zu füllen</string>
+    <string name="nm_daily_ideas_evergreen">Zeitlose Themen. Aktuelle Meldungen brauchen Quellen- und Datumsprüfung.</string>
+    <string name="nm_daily_ideas_rotation">Täglich zwei Ideen je Kategorie, tagsüber unverändert, nach sieben Tagen wiederholt.</string>
+    <string name="nm_daily_category_ideas">Ideen</string>
+    <string name="nm_daily_category_work">Arbeit</string>
+    <string name="nm_daily_category_life">Alltag</string>
+    <string name="nm_daily_category_learn">Lernen</string>
+    <string name="nm_daily_category_family">Familie und Beziehungen</string>
+    <string name="nm_daily_category_media">Inhalte erstellen</string>
+    <string name="nm_daily_category_more">Weitere Ideen</string>
+    <string name="nm_daily_ideas_check_hot_topic">Aktuelle Themen zum Filmen prüfen</string>
+</resources>

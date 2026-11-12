@@ -39,6 +39,14 @@ data class NmHomeChrome(
     val isVisible: Boolean = true,
     /** Mosaic: opens a voice call in this chat (the ⋯ menu's "Voice call"). */
     val onStartCall: (() -> Unit)? = null,
+    /** 打开同一课程或训练的结构化教练视图。 */
+    val onOpenCoach: (() -> Unit)? = null,
+    /** 从主要聊天下方打开完整的每日点子页。 */
+    val onOpenIdeas: (() -> Unit)? = null,
+    /** 本次明确进入教练聊天的意图，只消费一次，不参与聊天草稿。 */
+    val coachEntry: CoachConversationEntry? = null,
+    /** 宿主清除已经交给前台聊天的导航意图。 */
+    val onCoachEntryConsumed: ((String) -> Unit)? = null,
 )
 
 /**

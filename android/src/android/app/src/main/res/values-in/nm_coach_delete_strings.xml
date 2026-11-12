@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Hapus %1$d percakapan?</string>
+    <string name="nm_coach_delete_retention">Kutipan Coach terkait tetap disimpan sebagai arsip hanya baca. Tautan asli tidak akan tersedia.</string>
+    <string name="nm_coach_delete_keep">Hapus chat saja, simpan kutipan</string>
+    <string name="nm_coach_delete_purge">Hapus juga arsip topik terkait</string>
+    <string name="nm_coach_delete_failed">Penghapusan belum selesai. Chat mungkin sudah dihapus, tetapi kutipan masih ada. Coba bersihkan arsip lagi.</string>
+    <string name="nm_coach_delete_account_changed">Akun berubah. Tutup dialog dan buka lagi di akun saat ini.</string>
+    <string name="nm_coach_delete_retry">Coba bersihkan arsip lagi</string>
+    <string name="nm_coach_conversation_group">Latihan harian</string>
+</resources>

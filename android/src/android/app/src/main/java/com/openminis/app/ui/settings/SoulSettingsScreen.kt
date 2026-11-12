@@ -304,7 +304,7 @@ fun SoulSettingsScreen(onBack: () -> Unit) {
                 }
                 Column(modifier = Modifier.padding(start = 4.dp)) {
                     Text(
-                        text = name.ifBlank { "Nicholasx" },
+                        text = name.ifBlank { "Nivo Bot" },
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,

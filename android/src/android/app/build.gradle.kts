@@ -41,14 +41,19 @@ android {
     // release APK can be built by anyone. One key for every version.
     signingConfigs {
         val keystoreProperties = rootProject.file("../../keystore.properties")
+        // nanoMuse：发行入口要求专用签名，避免误用本机Debug证书。
+        check(project.findProperty("nm.requireReleaseKey") != "true" || keystoreProperties.isFile) {
+            "Release signing requires android/keystore.properties"
+        }
         if (keystoreProperties.isFile) {
             val props = Properties()
             keystoreProperties.inputStream().use { props.load(it) }
             create("nanomuse") {
                 storeFile = file(props.getProperty("storeFile"))
-                storePassword = props.getProperty("storePassword")
+                // nanoMuse：密码可由本机凭据临时注入，不必写进源码或properties文件。
+                storePassword = System.getenv("NICHOLASX_STORE_PASSWORD") ?: props.getProperty("storePassword")
                 keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
+                keyPassword = System.getenv("NICHOLASX_KEY_PASSWORD") ?: props.getProperty("keyPassword")
             }
         }
     }
@@ -57,8 +62,9 @@ android {
         applicationId = "io.github.nanomuse.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 49
-        versionName = "1.0.6"
+        // nanoMuse：Nicholasx的Android独立发行版本，内部编号保持递增。
+        versionCode = 51
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">Группы и метки</string>
+    <string name="nm_todo_choose_category">Выбрать или создать</string>
+    <string name="nm_todo_category_hint">Сохранённые группы и метки доступны для следующих задач.</string>
+    <string name="nm_todo_category_search">Поиск или новое название</string>
+    <string name="nm_todo_category_create">Создать «%1$s»</string>
+    <string name="nm_todo_category_empty">Сохранённых категорий пока нет.</string>
+    <string name="nm_todo_category_manage">Просмотр и создание</string>
+    <string name="nm_todo_selected">Выбрано</string>
+    <string name="nm_coach_explore_title">Практика для жизни</string>
+    <string name="nm_coach_explore_areas">Развивайте способности</string>
+    <string name="nm_coach_explore_add">Добавить курс</string>
+    <string name="nm_coach_explore_next">Продолжить обучение</string>
+    <string name="nm_coach_explore_progress">Подтверждено %1$d из %2$d разделов</string>
+    <string name="nm_coach_explore_more">Другие параметры</string>
+</resources>

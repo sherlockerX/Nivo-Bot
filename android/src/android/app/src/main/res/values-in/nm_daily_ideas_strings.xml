@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Ide harian</string>
+    <string name="nm_daily_ideas_all">Lihat semua</string>
+    <string name="nm_daily_ideas_prefill">Ketuk untuk mengisi pesan</string>
+    <string name="nm_daily_ideas_evergreen">Topik yang tetap relevan. Berita terkini perlu sumber dan tanggal terverifikasi.</string>
+    <string name="nm_daily_ideas_rotation">Dua ide per kategori setiap hari, tetap sepanjang hari dan berulang setelah tujuh hari.</string>
+    <string name="nm_daily_category_ideas">Ide</string>
+    <string name="nm_daily_category_work">Pekerjaan</string>
+    <string name="nm_daily_category_life">Kehidupan</string>
+    <string name="nm_daily_category_learn">Belajar</string>
+    <string name="nm_daily_category_family">Keluarga dan hubungan</string>
+    <string name="nm_daily_category_media">Pembuatan konten</string>
+    <string name="nm_daily_category_more">Ide lainnya</string>
+    <string name="nm_daily_ideas_check_hot_topic">Periksa berita untuk direkam hari ini</string>
+</resources>

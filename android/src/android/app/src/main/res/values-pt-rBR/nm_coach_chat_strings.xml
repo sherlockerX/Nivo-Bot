@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Registros de prática</string>
+    <string name="nm_coach_chat_city_intro">Escolha um curso, revise seus registros ou continue aprendendo na conversa do tema.</string>
+    <string name="nm_coach_chat_archive_intro">O aprendizado acontece nas conversas de Prática diária. Ao começar, o tema é aberto e o ensino com IA começa.</string>
+    <string name="nm_coach_chat_open_practice">Continuar na Prática diária</string>
+    <string name="nm_coach_chat_view_original">Ver mensagem original</string>
+    <string name="nm_coach_chat_source_unavailable">O link da mensagem original não está disponível. O trecho salvo continua acessível.</string>
+    <string name="nm_coach_chat_saved_draft">Rascunho salvo e não enviado</string>
+    <string name="nm_coach_chat_review_in_chat">Continue na conversa do tema para discutir ou corrigir este registro.</string>
+    <string name="nm_coach_chat_archive">Ver arquivo</string>
+    <string name="nm_coach_chat_end_today">Encerrar por hoje</string>
+    <string name="nm_coach_chat_independent_check">Verificação independente</string>
+    <string name="nm_coach_chat_understanding">Evidências de compreensão</string>
+    <string name="nm_coach_chat_application">Evidências de aplicação</string>
+    <string name="nm_coach_chat_delayed_review">Revisão posterior</string>
+    <string name="nm_coach_chat_discussion">Conversa</string>
+    <string name="nm_coach_chat_archive_failed">Conversa salva, falha ao atualizar o arquivo</string>
+    <string name="nm_coach_chat_retry_archive">Tentar atualizar novamente</string>
+    <string name="nm_coach_chat_next_lesson">Iniciar próxima aula</string>
+    <string name="nm_coach_chat_back_to_conversation">Voltar à conversa</string>
+    <string name="nm_coach_chat_source_invalidated">A fonte foi editada ou excluída. Este trecho não serve mais como evidência atual.</string>
+    <string name="nm_coach_chat_summary">Resumo da aula</string>
+    <string name="nm_coach_chat_summary_version">Versão do curso: %1$s; revisão da fonte: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">As fontes deste resumo são inválidas e não sustentam conclusões atuais.</string>
+    <string name="nm_coach_chat_corrections">Correções</string>
+    <string name="nm_coach_chat_hypotheses">Hipóteses não resolvidas</string>
+    <string name="nm_coach_chat_show_records">Mostrar conversa completa</string>
+    <string name="nm_coach_chat_hide_records">Ocultar conversa completa</string>
+    <string name="nm_coach_chat_hide_sources">Ocultar fontes</string>
+</resources>

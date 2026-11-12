@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Catatan latihan</string>
+    <string name="nm_coach_chat_city_intro">Pilih kursus, tinjau catatan, atau lanjutkan belajar dalam percakapan topik.</string>
+    <string name="nm_coach_chat_archive_intro">Belajar berlangsung dalam percakapan Latihan harian. Memulai akan membuka topik dan memulai pengajaran AI.</string>
+    <string name="nm_coach_chat_open_practice">Lanjutkan di Latihan harian</string>
+    <string name="nm_coach_chat_view_original">Lihat pesan asli</string>
+    <string name="nm_coach_chat_source_unavailable">Tautan pesan asli tidak tersedia. Kutipan yang disimpan tetap dapat dibaca.</string>
+    <string name="nm_coach_chat_saved_draft">Draf tersimpan yang belum dikirim</string>
+    <string name="nm_coach_chat_review_in_chat">Lanjutkan percakapan topik untuk membahas atau memperbaiki catatan ini.</string>
+    <string name="nm_coach_chat_archive">Lihat arsip</string>
+    <string name="nm_coach_chat_end_today">Cukup untuk hari ini</string>
+    <string name="nm_coach_chat_independent_check">Verifikasi mandiri</string>
+    <string name="nm_coach_chat_understanding">Bukti pemahaman</string>
+    <string name="nm_coach_chat_application">Bukti penerapan</string>
+    <string name="nm_coach_chat_delayed_review">Tinjauan tertunda</string>
+    <string name="nm_coach_chat_discussion">Diskusi</string>
+    <string name="nm_coach_chat_archive_failed">Percakapan tersimpan, pembaruan arsip gagal</string>
+    <string name="nm_coach_chat_retry_archive">Coba lagi pembaruan arsip</string>
+    <string name="nm_coach_chat_next_lesson">Mulai pelajaran berikutnya</string>
+    <string name="nm_coach_chat_back_to_conversation">Kembali ke percakapan</string>
+    <string name="nm_coach_chat_source_invalidated">Sumber telah diedit atau dihapus. Kutipan ini tidak lagi menjadi bukti saat ini.</string>
+    <string name="nm_coach_chat_summary">Ringkasan pelajaran</string>
+    <string name="nm_coach_chat_summary_version">Versi kursus: %1$s; revisi sumber: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Sumber ringkasan ini tidak valid dan tidak dapat mendukung kesimpulan saat ini.</string>
+    <string name="nm_coach_chat_corrections">Koreksi</string>
+    <string name="nm_coach_chat_hypotheses">Hipotesis yang belum terjawab</string>
+    <string name="nm_coach_chat_show_records">Tampilkan seluruh percakapan</string>
+    <string name="nm_coach_chat_hide_records">Sembunyikan percakapan</string>
+    <string name="nm_coach_chat_hide_sources">Sembunyikan sumber</string>
+</resources>

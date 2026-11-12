@@ -1,3 +1,5 @@
+> **Fork Nivo Bot :** Consultez [OPEN_SOURCE.md](../../OPEN_SOURCE.md) et le [site du produit](../../site/README.md). Le README original est conservé pour attribution ; ses téléchargements, services et communauté appartiennent à nanoMuse, pas à ce fork.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse : un agent personnel open source pour chacun de vos appareils">
 </p>

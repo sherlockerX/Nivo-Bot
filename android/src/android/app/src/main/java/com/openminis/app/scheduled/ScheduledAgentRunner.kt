@@ -21,9 +21,8 @@ import kotlinx.coroutines.withContext
  *  - post a "completed" notification with a deep-link back to the session
  *  - hand the result preview back to [ScheduledTaskManager] for the row
  *
- * Concurrency: serialised per-session by [HeadlessChatRunner]'s VM cache —
- * two scheduled prompts hitting the same session id are queued via
- * ChatViewModel.enqueuePrompt.
+ * nanoMuse: 任务在解析会话前领取，直到结算结束才释放；会话另有运行绑定。
+ * 同任务或同会话的重叠派发返回繁忙，不以排队方式重入自身。
  */
 object ScheduledAgentRunner {
 
@@ -72,6 +71,8 @@ object ScheduledAgentRunner {
         onResult: ((io.github.nanomuse.routines.ScheduledCompletion) -> Unit)? = null, // nanoMuse: 本轮结果收据不读取共享的最后一次状态。
         persistentRunId: String? = null, // nanoMuse: 自动派发使用已经持久化的运行身份。
         dryNotify: Boolean = false, // nanoMuse: 执行并记录，但不推送通知。
+        expectedAccount: io.github.nanomuse.routines.ScheduledAccountAccess = io.github.nanomuse.routines.ScheduledAccountAccess.capture(context), // nanoMuse: 页面可传入创建时的账号代次。
+        allowUnsaved: Boolean = false, // nanoMuse: 仅UI预览允许尚未保存的任务。
     ): String? {
         // [T-android-scheduled-lateinit-crash-156] `as? MinisApp` only rules out
         // a null / wrong-type Application — it does NOT mean the Application is
@@ -102,34 +103,43 @@ object ScheduledAgentRunner {
             return null
         }
 
+        // nanoMuse: 任务级领取覆盖首次建会话和后台交接；同任务重入立即拒绝，不等待自身。
+        expectedAccount.requireCurrent(app)
+        val taskLease = io.github.nanomuse.routines.ScheduledTaskLease.acquire(task.id) ?: run {
+            onResult?.invoke(io.github.nanomuse.routines.ScheduledCompletion(io.github.nanomuse.routines.RunOutcome.FAILURE,
+                4, "TASK_BUSY", java.util.UUID.randomUUID().toString()))
+            return null
+        }
+        var handedOff = false
+        try {
+        val accessible = expectedAccount.locked(app) { allowUnsaved || ScheduledTaskStore(app).get(task.id) != null }
+        if (!accessible) return null
         // nanoMuse: 先完成会话检查，再启动前台服务，避免失败后空转并持有唤醒锁。
         val startedAtMs = System.currentTimeMillis() // nanoMuse: 本轮开始独立于界面与通知生命周期。
         if (firedTriggerAtMs != null) { // nanoMuse: 已结算但尚未清理pending的运行不可重放业务。
-            val saved = ScheduledTaskStore(app).get(task.id)
+            val saved = expectedAccount.locked(app) { ScheduledTaskStore(app).get(task.id) } // nanoMuse
             if (saved == null || io.github.nanomuse.routines.ScheduledRunRecorder.alreadySettled(saved, firedTriggerAtMs)) {
-                io.github.nanomuse.routines.RoutineHeartbeat.finish(app, task.id, firedTriggerAtMs)
+                expectedAccount.locked(app) { io.github.nanomuse.routines.RoutineHeartbeat.finish(app, task.id, firedTriggerAtMs) } // nanoMuse
                 return saved?.runHistory?.firstOrNull { it.scheduledForMs == firedTriggerAtMs }?.sessionId
             }
         }
         val runScope = io.github.nanomuse.routines.ScheduledRunScope(task.id, startedAtMs,
             if (firedTriggerAtMs == null) "manual" else "schedule", script = task.scriptId != null, providedRunId = persistentRunId) // nanoMuse
-        val preflight = withContext(Dispatchers.IO) { io.github.nanomuse.routines.ScheduledScript.probe(app, task) }
+        val preflight = withContext(Dispatchers.IO) { expectedAccount.locked(app) { io.github.nanomuse.routines.ScheduledScript.probe(app, task) } } // nanoMuse
         if (!preflight.getBoolean("can_run")) {
-            val stateWriteError = recordStartFailure(app, task, firedTriggerAtMs, preflight.getJSONArray("reasons").toString(), runScope) // nanoMuse: 诊断写入失败也返回本次实际预检结果。
+            val stateWriteError = expectedAccount.locked(app) { recordStartFailure(app, task, firedTriggerAtMs, preflight.getJSONArray("reasons").toString(), runScope) } // nanoMuse: 诊断写入不得跨账号。
             onResult?.invoke(io.github.nanomuse.routines.ScheduledCompletion(io.github.nanomuse.routines.RunOutcome.FAILURE, 4, "preflight_failed", runScope.runId, stateWriteError))
             return null
         }
         // nanoMuse: 不建会话的运行用按任务固定的执行身份。Mosaic: 脚本任务也写进任务的专属对话，只有调试运行不建。
         val sessionless = task.scriptId != null && task.targetMode is ScheduledTargetMode.NewSession && task.debug
         val sessionId = (if (sessionless) io.github.nanomuse.routines.ScheduledResult.sessionless(task.id)
-            else withContext(Dispatchers.IO) { resolveSessionId(app, task, runScope) }) ?: run {
-            val stateWriteError = recordStartFailure(app, task, firedTriggerAtMs, "No model configured or target conversation unavailable", runScope) // nanoMuse
+            else withContext(Dispatchers.IO) { expectedAccount.locked(app) { resolveSessionId(app, task, runScope, expectedAccount) } }) ?: run {
+            val stateWriteError = expectedAccount.locked(app) { recordStartFailure(app, task, firedTriggerAtMs, "No model configured or target conversation unavailable", runScope) } // nanoMuse
             onResult?.invoke(io.github.nanomuse.routines.ScheduledCompletion(io.github.nanomuse.routines.RunOutcome.FAILURE, 4, "preflight_failed", runScope.runId, stateWriteError))
             return null
         }
-        AgentForegroundService.startService(context = app, sessionCount = 1,
-            toolStatus = "Scheduled: ${task.label.ifBlank { "task" }}")
-
+        expectedAccount.requireCurrent(app) // nanoMuse: 解析期间切换账号不允许启动服务或后台任务。
         AppLogger.info(
             TAG,
             "running task=${task.id} label=\"${task.label}\" " +
@@ -137,20 +147,20 @@ object ScheduledAgentRunner {
         )
 
         if (waitForCompletion) {
-            complete(app, task, sessionId, runScope, firedTriggerAtMs, onResult, dryNotify) // nanoMuse: 同步与后台共用结算和日志。
+            complete(app, task, sessionId, runScope, firedTriggerAtMs, onResult, dryNotify, expectedAccount) // nanoMuse: 同步与后台共用结算和日志。
             return sessionId
         }
 
-        // Fire-and-forget: the session is resolved and the FGS is up, so the
-        // task HAS started. Run the actual dispatch + completion entirely off
-        // the app scope (wait=true so we still mark-fired + notify when it
-        // finishes), and return the session id immediately so the UI can show
-        // "task started" without blocking on the agent loop. Leaving the editor
-        // can't cancel it because bgScope outlives the screen.
-        bgScope.launch {
-            complete(app, task, sessionId, runScope, firedTriggerAtMs, onResult, dryNotify) // nanoMuse
+        // nanoMuse: 会话解析后交接到应用作用域，执行端复核账号与模型后才启前台服务。
+        // 页面退出不取消已交接的工作，账号迁移会撤销本轮授权。
+        val background = bgScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) { // nanoMuse: 先安装释放回调，再启动，取消前未运行也不会泄漏领取。
+            complete(app, task, sessionId, runScope, firedTriggerAtMs, onResult, dryNotify, expectedAccount) // nanoMuse
         }
+        background.invokeOnCompletion { taskLease.close() } // nanoMuse
+        handedOff = true // nanoMuse: 后台Job成为领取的唯一释放者。
+        background.start() // nanoMuse
         return sessionId
+        } finally { if (!handedOff) taskLease.close() } // nanoMuse: 预检失败、取消、同步异常和回调异常均释放。
     }
 
     /**
@@ -244,7 +254,7 @@ object ScheduledAgentRunner {
     // nanoMuse: 同步、后台、脚本和提示词共享结算；日志失败不改变业务结果。
     private suspend fun complete(app: MinisApp, task: ScheduledTask, sessionId: String,
         scope: io.github.nanomuse.routines.ScheduledRunScope, slot: Long?, callback: ((io.github.nanomuse.routines.ScheduledCompletion) -> Unit)?,
-        dryNotify: Boolean = false) {
+        dryNotify: Boolean = false, account: io.github.nanomuse.routines.ScheduledAccountAccess) { // nanoMuse: 本轮固定账号空间。
         val entered = io.github.nanomuse.routines.ScheduledRunScopes.enter(sessionId, scope)
         var cancelled = false
         try {
@@ -252,22 +262,37 @@ object ScheduledAgentRunner {
                 if (!entered || com.openminis.app.service.SessionActivityTracker.isActive(sessionId) || com.openminis.app.ui.chat.ChatViewModelStore.isSessionBusy(sessionId))
                     HeadlessChatRunner.PromptResult("Error", "TARGET_BUSY", false)
                 else {
+                    account.locked(app) { // nanoMuse: 执行端复核，不能依赖选择器或聊天存在性。
+                        check(io.github.nanomuse.routines.ScheduledResult.isSessionless(sessionId) || sessionId in account.ownedIds(app)) {
+                            "TARGET_ACCOUNT_MISMATCH"
+                        }
+                    }
+                    if (task.scriptId == null && task.targetMode is ScheduledTargetMode.NewSession) { // nanoMuse: 复用聊天时同步热VM，null绑定明确恢复默认。
+                        check(io.github.nanomuse.routines.ScheduledModelBinding.apply(app, sessionId, task, scope.runId, account)) {
+                            "MODEL_BINDING_UNAVAILABLE"
+                        }
+                    }
+                    account.requireCurrent(app) // nanoMuse: 等待VM加载后再核对账号。
+                    AgentForegroundService.startService(context = app, sessionCount = 1,
+                        toolStatus = "Scheduled: ${task.label.ifBlank { "task" }}") // nanoMuse: 模型和归属确认后才启服务，预检失败不遗留空前台服务。
                     // Mosaic: 只有用户任务的回复是通知正文；内置教练和目标巡检的回复由应用解析，不注入"NO_OUTPUT/5行"约定。
                     // 教练例程按 id 认：旧版本建的例程没有来源字段，读出来是 legacy，会被当成用户任务。
                     if (task.scriptId == null && io.github.nanomuse.routines.ScheduledConversationGroup.isUserTask(task) &&
                         task.id != io.github.nanomuse.feed.FeedFlow.taskId(app)) io.github.nanomuse.chat.SessionAddenda.add(sessionId, "scheduled-report:${scope.runId}",
                         OUTPUT_CONTRACT, Int.MAX_VALUE) // nanoMuse: 输出约定随每次运行注入，旧任务同样适用。
-                    dispatch(app, task, sessionId, true, scope, if (slot == null) "manual" else "schedule")
+                    account.running(app) { dispatch(app, task, sessionId, true, scope, if (slot == null) "manual" else "schedule") } // nanoMuse: 迁移取消实际任务，模型等待和Shell清理均不持账号锁。
                 }
             } catch (_: kotlinx.coroutines.CancellationException) {
                 cancelled = true
                 HeadlessChatRunner.PromptResult("Error", "RUN_ABORTED", false)
+            } catch (failure: IllegalStateException) { // nanoMuse: 边界或绑定失败显式结算，不派发旧提供商。
+                HeadlessChatRunner.PromptResult("Error", failure.message ?: "DISPATCH_NOT_STARTED", false)
             }
             val failed = result.status in setOf("Error", "Timeout", "Aborted", "Cancelled")
             val outcome = io.github.nanomuse.routines.ScheduledRunScopes.outcome(scope, failed, result.exitCode,
                 task.requireOutput && result.scriptOutput?.stdoutBytes == 0L)
             val reason = when {
-                failed -> result.responseText?.takeIf { it in setOf("MESSAGE_WRITE_FAILED", "RUN_ABORTED", "TARGET_BUSY", "DISPATCH_NOT_STARTED") }
+                failed -> result.responseText?.takeIf { it in setOf("MESSAGE_WRITE_FAILED", "RUN_ABORTED", "TARGET_BUSY", "DISPATCH_NOT_STARTED", "TARGET_ACCOUNT_MISMATCH", "MODEL_BINDING_UNAVAILABLE") } // nanoMuse: 保留可定位的边界失败原因。
                     ?: result.scriptOutput?.captureError ?: if (task.scriptId == null) "MODEL_RUN_FAILED" else "SCRIPT_RUN_FAILED"
                 task.requireOutput && result.scriptOutput?.stdoutBytes == 0L -> "EMPTY_OUTPUT"
                 scope.report?.first == outcome -> scope.report?.second
@@ -280,6 +305,7 @@ object ScheduledAgentRunner {
             var produced = io.github.nanomuse.routines.ScheduledResult(null, "none")
             var decision: io.github.nanomuse.routines.ScheduledResultNotifier.Decision? = null
             withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                account.locked(app) { // nanoMuse: 旧账号的完成结果不得落入新账号固定home路径。
                 // nanoMuse: 结果与过程分离：通知只来自脚本 stdout、模型自报或最终回答，过程只进日志与会话。
                 produced = when {
                     cancelled -> produced
@@ -321,6 +347,7 @@ object ScheduledAgentRunner {
                     if (failedOutcome) app.getString(R.string.nm_sched_result_failed, title) else title, body,
                     if (failedOutcome) io.github.nanomuse.routines.ScheduledResult(body, "").hash else produced.hash, made,
                     sessionId.takeUnless { sessionless || failedOutcome }) // Mosaic: 结果通知点开进任务的对话，失败通知进运行记录。
+                }
             }
             callback?.invoke(io.github.nanomuse.routines.ScheduledCompletion(outcome, result.exitCode,
                 when { outcome == io.github.nanomuse.routines.RunOutcome.UNKNOWN -> "CompletedUnknown"
@@ -329,10 +356,16 @@ object ScheduledAgentRunner {
                 sessionId = sessionId.takeUnless { sessionless }, result = produced, notify = decision))
         } finally {
             if (entered) {
-                io.github.nanomuse.routines.ScheduledRunScopes.leave(sessionId, scope)
-                io.github.nanomuse.chat.SessionAddenda.remove(sessionId, "scheduled-report:${scope.runId}")
                 withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) {
-                    com.openminis.app.ui.chat.ChatViewModelStore.existingViewModel(sessionId)?.nmResumeAfterTask()
+                    try {
+                        if (!com.openminis.app.service.SessionActivityTracker.isActive(sessionId)) { // nanoMuse: 尚未真正派发即失败时也收回空前台服务，不改变别的在途会话。
+                            com.openminis.app.service.SessionActivityTracker.setInactive(sessionId)
+                        }
+                    } finally { // nanoMuse: 通知清理异常不能把会话永久留在任务独占中。
+                        io.github.nanomuse.routines.ScheduledRunScopes.leave(sessionId, scope)
+                        io.github.nanomuse.chat.SessionAddenda.remove(sessionId, "scheduled-report:${scope.runId}")
+                    }
+                    if (account.isCurrent(app)) com.openminis.app.ui.chat.ChatViewModelStore.existingViewModel(sessionId)?.nmResumeAfterTask() // nanoMuse: 旧账号队列不自动恢复。
                 }
             }
         }
@@ -356,12 +389,14 @@ object ScheduledAgentRunner {
             .apply { if (task.logStdout && output != null) put("stdout", output.stdout) }
     }
 
-    private suspend fun resolveSessionId(app: MinisApp, task: ScheduledTask, scope: io.github.nanomuse.routines.ScheduledRunScope): String? {
+    private suspend fun resolveSessionId(app: MinisApp, task: ScheduledTask, scope: io.github.nanomuse.routines.ScheduledRunScope,
+        account: io.github.nanomuse.routines.ScheduledAccountAccess): String? { // nanoMuse: 调用方已持账号短临界区。
+        val ownedIds = account.ownedIds(app) // nanoMuse: 未登记会话不默认属于当前账号。
         return when (val mode = task.targetMode) {
             is ScheduledTargetMode.AppendToSession -> {
                 // Follow-up: the target session must still exist. If the user
                 // deleted it, abort rather than silently spawning a new chat.
-                if (app.chatRepository.getSession(mode.sessionId) == null) {
+                if (mode.sessionId !in ownedIds || app.chatRepository.getSession(mode.sessionId) == null) { // nanoMuse
                     AppLogger.warning(TAG, "task ${task.id}: follow-up session ${mode.sessionId} gone — abort")
                     null
                 } else {
@@ -369,7 +404,7 @@ object ScheduledAgentRunner {
                 }
             }
             is ScheduledTargetMode.RerunMessage -> {
-                if (app.chatRepository.getSession(mode.sessionId) == null) {
+                if (mode.sessionId !in ownedIds || app.chatRepository.getSession(mode.sessionId) == null) { // nanoMuse
                     AppLogger.warning(TAG, "task ${task.id}: re-run session ${mode.sessionId} gone — abort")
                     null
                 } else {
@@ -380,7 +415,7 @@ object ScheduledAgentRunner {
                 // Mosaic: 每个任务固定一个对话：第一次运行时建，之后每次都写进去；删掉它，下次运行再建一个。
                 // 任务改了模型时，对话跟着换绑定，和过去每次新建对话时一样用任务当前的模型。
                 app.chatRepository.dao.latestSessionOfTask(task.id)?.let { bound ->
-                    task.modelBinding?.takeIf { it != bound.modelBinding }?.let { app.chatRepository.updateSessionBinding(bound.id, it, bound.modelId) }
+                    if (bound.id !in ownedIds) return null // nanoMuse: 同taskId历史归属不匹配时拒绝，不复用其他账号聊天。
                     return bound.id
                 }
                 // Resolution priority (mirrors the UI's normal-chat boot):

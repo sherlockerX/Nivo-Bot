@@ -593,5 +593,8 @@
             android:exported="false"
             android:foregroundServiceType="remoteMessaging" />
 
+        <!-- nanoMuse: 专注到时结算仅由系统PendingIntent触发，不接收外部广播。 -->
+        <receiver android:name="io.github.nanomuse.focus.FocusAlarmReceiver" android:exported="false" />
+        <activity android:name="io.github.nanomuse.ui.focus.FocusImmersiveActivity" android:exported="false" />
     </application>
 </manifest>

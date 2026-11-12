@@ -7,15 +7,164 @@ import com.openminis.app.data.db.FolderEntity
 import com.openminis.app.data.db.MessageEntity
 import com.openminis.app.data.model.ModelAttributionSnapshot
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onStart
 import java.util.UUID
 
-class ChatRepository(internal val dao: ChatDao) {
+class ChatRepository(internal val dao: ChatDao, context: android.content.Context? = null) { // nanoMuse: 来源失效处理使用当前账户空间。
+    @Volatile private var coachContext = context?.applicationContext
+    private val preparedCoachDeletes = mutableSetOf<String>() // nanoMuse: 区分本进程仍在执行的删除与重启后未执行的选择。
+
+    /** nanoMuse: 旧调用方可在打开教练入口时补入应用Context。 */
+    fun attachCoachContext(context: android.content.Context) { coachContext = context.applicationContext }
+
+    private fun purgeJournal(context: android.content.Context) = io.github.nanomuse.coach.CoachPurgeJournal(
+        java.io.File(context.filesDir, "minis-global/nanomuse/growth/coach-v2/purge-pending"))
+
+    /** nanoMuse: 用户确认后先保存完整删除选择；未成功删掉聊天时绝不自动删聊天。 */
+    suspend fun prepareCoachDeletion(ids: Set<String>, shouldPurge: Boolean): Unit = coachSourceMutation {
+        val context = requireNotNull(coachContext)
+        val service = io.github.nanomuse.coach.CoachRuntime.service(context)
+        val journal = purgeJournal(context)
+        val owner = io.github.nanomuse.account.AccountData.key(context)
+        ids.forEach { id ->
+            if (shouldPurge && service.topicForConversation(id) != null) {
+                journal.put(io.github.nanomuse.coach.CoachPurgeEntry(owner, id))
+                preparedCoachDeletes.add(id)
+            } else { journal.remove(id); preparedCoachDeletes.remove(id) }
+        }
+    }
+
+    /** nanoMuse: 删除被保护或失败时清除未执行的全删选择。 */
+    suspend fun cancelCoachDeletion(ids: Set<String>): Unit = coachSourceMutation {
+        val context = coachContext ?: return@coachSourceMutation
+        ids.filter { dao.getSession(it) != null }.forEach {
+            purgeJournal(context).remove(it)
+            preparedCoachDeletes.remove(it)
+        }
+    }
+
+    /** nanoMuse: 列表恢复时继续已删聊天的档案清除，不发模型请求。 */
+    suspend fun recoverCoachDeletions(): Unit = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        coachSourceMutation { recoverCoachDeletionsLocked() }
+    }
+
+    /** nanoMuse: 调用方已持账户互斥锁时使用，禁止再次获取exclusive。 */
+    suspend fun recoverCoachDeletionsLocked() {
+        val context = coachContext ?: return
+        val journal = purgeJournal(context)
+        val entries = journal.entries()
+        if (entries.isEmpty()) return // nanoMuse: 没有待清除的档案时，打开会话列表不必加载教练档案。
+        val owner = io.github.nanomuse.account.AccountData.key(context)
+        val service = io.github.nanomuse.coach.CoachRuntime.service(context)
+        for (entry in entries) {
+            val exists = dao.getSession(entry.chatId) != null
+            if (entry.owner == owner && exists && entry.chatId !in preparedCoachDeletes) {
+                journal.remove(entry.chatId) // nanoMuse: 重启后聊天尚在，旧选择不能授权未来某次不同的删除。
+            }
+            if (!io.github.nanomuse.coach.CoachPurgeJournal.shouldPurge(entry, owner, exists)) continue
+            io.github.nanomuse.coach.CoachConversationArchive.forget(context, entry.chatId)
+            if (service.topicForConversation(entry.chatId) != null) {
+                val result = service.purgeConversation(entry.chatId)
+                check(result.success) { result.message }
+            }
+            journal.remove(entry.chatId)
+            preparedCoachDeletes.remove(entry.chatId)
+        }
+    }
+
+    /** nanoMuse: 同步引擎已经持有账户锁，直接失效来源而不重入锁。 */
+    suspend fun invalidateCoachConversationFromSync(context: android.content.Context, id: String) {
+        attachCoachContext(context)
+        invalidateCoachConversation(id)
+    }
+
+    /** nanoMuse: 同步删除消息前传入DAO原记录，新消息插入不调用此入口。 */
+    suspend fun invalidateCoachMessageFromSync(context: android.content.Context, message: MessageEntity) {
+        attachCoachContext(context)
+        invalidateCoachMessage(message)
+    }
+
+    /** nanoMuse: 教练档案读不出来时只拦下专题对话以保护证据，普通聊天照常编辑、截断和删除。 */
+    private suspend fun coachServiceFor(
+        context: android.content.Context, sessionId: String,
+    ): io.github.nanomuse.coach.CoachCommandService? = try {
+        io.github.nanomuse.coach.CoachRuntime.service(context)
+    } catch (e: Exception) {
+        if (dao.getSession(sessionId)?.source == io.github.nanomuse.coach.CoachConversationCoordinator.SESSION_SOURCE) throw e
+        com.openminis.app.logging.AppLogger.warning("Coach", "教练档案无法读取，普通聊天照常处理（${e.message}）")
+        null
+    }
+
+    /** nanoMuse: 有绑定的来源变更先撤销证据，失败时保留聊天原文供重试。 */
+    private suspend fun invalidateCoachConversation(id: String) {
+        val context = coachContext ?: return
+        if (id in io.github.nanomuse.sync.ConversationSync.hidden.value) return
+        val service = coachServiceFor(context, id) ?: return
+        if (service.topicForConversation(id) == null) {
+            val unfinished = service.state.value.topics.firstOrNull { it.chatSessionId.isBlank() &&
+                io.github.nanomuse.coach.CoachConversationCoordinator.conversationId(it.id) == id } ?: return
+            val bound = service.bindTopicConversation(unfinished.id, id)
+            check(bound.success) { bound.message }
+        }
+        io.github.nanomuse.coach.CoachConversationArchive.forget(context, id)
+        val result = service.invalidateConversation(id, "conversation_deleted")
+        check(result.success) { result.message }
+    }
+
+    /** nanoMuse: 编辑删除与账户切换互斥，等待期间账户变化则放弃本次操作。 */
+    private suspend fun <T> coachSourceMutation(block: suspend () -> T): T {
+        val operation = kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.account.AccountOperation]
+        operation?.requireCurrent() // nanoMuse: 旧VM不能在切换结束后用新身份发起写入。
+        val context = coachContext ?: return block()
+        val owner = io.github.nanomuse.account.AccountData.key(context)
+        val epoch = io.github.nanomuse.coach.CoachRuntime.epoch.value
+        return io.github.nanomuse.sync.ConversationSync.exclusive {
+            // nanoMuse: 档案读取、暂存和撤销都会写文件并 fsync，放到 IO，不在主线程上卡住聊天。
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                operation?.requireCurrent() // nanoMuse: 取得同步锁后再次验证，消除排队期间的切换竞态。
+                check(owner == io.github.nanomuse.account.AccountData.key(context) &&
+                    epoch == io.github.nanomuse.coach.CoachRuntime.epoch.value) { "The account changed; retry in the current account" }
+                block()
+            }
+        }
+    }
+
+    /** nanoMuse: 编辑或删去已引用消息时同步撤销档案证据，避免过期掌握状态。 */
+    private suspend fun invalidateCoachMessage(message: MessageEntity) {
+        val context = coachContext ?: return
+        if (message.sessionId in io.github.nanomuse.sync.ConversationSync.hidden.value) return
+        val service = coachServiceFor(context, message.sessionId) ?: return
+        if (service.topicForConversation(message.sessionId) == null) return
+        io.github.nanomuse.coach.CoachConversationArchive.forget(context, message.sessionId, message.id)
+        val result = service.invalidateMessage(message.sessionId, message.id, "message_edited_or_deleted")
+        check(result.success) { result.message }
+    }
+
+    /** nanoMuse: 仅对已成功删除的聊天执行用户明确选择的关联档案清除。 */
+    suspend fun purgeDeletedCoachConversations(ids: Set<String>) {
+        val context = requireNotNull(coachContext) { "Coach deletion context is unavailable" }
+        val owner = io.github.nanomuse.account.AccountData.key(context)
+        val epoch = io.github.nanomuse.coach.CoachRuntime.epoch.value
+        io.github.nanomuse.sync.ConversationSync.exclusive {
+            check(owner == io.github.nanomuse.account.AccountData.key(context) &&
+                epoch == io.github.nanomuse.coach.CoachRuntime.epoch.value) { "The account changed; reopen the archive" }
+            for (id in ids) {
+                check(dao.getSession(id) == null) { "Delete the conversation before its archive" }
+                purgeJournal(context).put(io.github.nanomuse.coach.CoachPurgeEntry(owner, id))
+            }
+            recoverCoachDeletionsLocked()
+        }
+    }
 
     // nanoMuse: signed in, the list is the account's: chats synced under another account stay on the phone, out of sight (contract C10);
     // the feed's working conversation is the agent's, not a chat of the person's, and stays out too (FeedFlow.hidden)
     fun observeSessions(): Flow<List<ChatSessionEntity>> =
         kotlinx.coroutines.flow.combine(dao.observeSessions(), io.github.nanomuse.sync.ConversationSync.hidden, io.github.nanomuse.feed.FeedFlow.hidden) { list, hidden, feed ->
             if (hidden.isEmpty() && feed.isEmpty()) list else list.filter { it.id !in hidden && it.id !in feed }
+        }.onStart { // nanoMuse: 冷启动列表会恢复已确认但尚未完成的档案清除。
+            try { recoverCoachDeletions() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { com.openminis.app.logging.AppLogger.warning("CoachDelete", "关联档案清除未完成，待下次重试") }
         }
 
     suspend fun createSession(
@@ -40,8 +189,12 @@ class ChatRepository(internal val dao: ChatDao) {
             source = source, createdByTaskId = taskId, createdByRunId = runId, folderId = scheduledGroup?.id,
             groupAssignedBy = if (scheduledGroup != null) "system" else null, // nanoMuse
         )
-        if (scheduledGroup == null) dao.insertSession(session) else dao.insertSessionWithFolder(session, scheduledGroup) // nanoMuse: 不存在先创建会话再补分组的中间状态。
-        io.github.nanomuse.account.AccountData.claim(session.id) // nanoMuse: the chat belongs to whoever is signed in now (contract C12)
+        // nanoMuse: 先固定归属再公开聊天行，整个过程与账号切换互斥。
+        val creationContext = coachContext // nanoMuse: 一次创建使用同一上下文快照，避免异步补入Context改变归属路径。
+        io.github.nanomuse.account.AccountData.withSessionCreation(creationContext) { owner ->
+            if (owner != null) io.github.nanomuse.account.AccountData.claimNow(requireNotNull(creationContext), session.id, owner)
+            if (scheduledGroup == null) dao.insertSession(session) else dao.insertSessionWithFolder(session, scheduledGroup)
+        }
         return session
     }
 
@@ -117,18 +270,21 @@ class ChatRepository(internal val dao: ChatDao) {
         dao.updateSessionBinding(sessionId, binding, modelId)
     }
 
-    suspend fun deleteSession(id: String) {
+    suspend fun deleteSession(id: String): Unit = coachSourceMutation {
+        invalidateCoachConversation(id) // nanoMuse: 先撤销来源，崩溃或删除失败不会遗留虚假的有效证据。
         dao.deleteConversation(id) // nanoMuse: 每个对话的删除原子化，文件目录保持既有行为。
         io.github.nanomuse.guard.Grants.clearSession(id) // nanoMuse
         io.github.nanomuse.sync.ConversationSync.changed() // nanoMuse: a tombstone goes to the other devices
     }
 
     /** nanoMuse: 数据库批删原子化，授权清理不删除共享文件。 */
-    suspend fun deleteSessions(ids: List<String>) {
-        if (ids.isEmpty()) return // nanoMuse: 全部受保护时不制造无意义的删除或同步事件。
+    suspend fun deleteSessions(ids: List<String>): Unit = coachSourceMutation {
+        if (ids.isEmpty()) return@coachSourceMutation // nanoMuse: 全部受保护时不制造无意义的删除或同步事件。
+        ids.forEach { invalidateCoachConversation(it) } // nanoMuse: 包括批删和命令行删除，默认保留只读摘录。
         dao.deleteConversations(ids)
         ids.forEach { runCatching { io.github.nanomuse.guard.Grants.clearSession(it) } }
         runCatching { io.github.nanomuse.sync.ConversationSync.changed() } // nanoMuse: 已提交删除的结果不由后续诊断清理决定。
+        Unit
     }
 
     // ─── Session groups ("folders") ────────────────────────────────────────
@@ -343,7 +499,12 @@ class ChatRepository(internal val dao: ChatDao) {
         return result
     }
 
-    suspend fun deleteMessagesAfter(sessionId: String, keepCount: Int) {
+    suspend fun deleteMessagesAfter(sessionId: String, keepCount: Int): Unit = coachSourceMutation {
+        // nanoMuse: 截断与重新生成均撤销旧来源；没有绑定专题的对话不必整段读出历史。
+        val context = coachContext
+        if (context != null && coachServiceFor(context, sessionId)?.topicForConversation(sessionId) != null) {
+            loadMessages(sessionId).filter { it.sortOrder >= keepCount }.forEach { invalidateCoachMessage(it) }
+        }
         dao.deleteMessagesAfter(sessionId, keepCount)
         io.github.nanomuse.sync.ConversationSync.changed() // nanoMuse: an edit or regenerate — the cut rows become tombstones
     }
@@ -354,8 +515,11 @@ class ChatRepository(internal val dao: ChatDao) {
      * boundary cut to trim the kept assistant row to the parts before the
      * target tool_use. Mirrors iOS ChatStore.updateMessageParts.
      */
-    suspend fun updateMessageParts(id: String, partsJson: String) =
+    suspend fun updateMessageParts(id: String, partsJson: String): Unit = coachSourceMutation {
+        dao.findMessage(id)?.takeIf { io.github.nanomuse.coach.CoachSourceChange.shouldInvalidate(it.partsJson, partsJson) }
+            ?.let { invalidateCoachMessage(it) } // nanoMuse: 同文重写不误撤销证据。
         dao.updateMessageParts(id, partsJson)
+    }
 
     /** [T-error-persist-android] Set/clear the error sticker on a row by id. */
     suspend fun updateMessageErrorInfo(messageId: String, errorInfo: String?) =
@@ -389,7 +553,12 @@ class ChatRepository(internal val dao: ChatDao) {
         reasoningContent: String? = null,
         modelSnapshot: ModelAttributionSnapshot? = null,
         messageId: String = UUID.randomUUID().toString(), // nanoMuse: 显式运行可指定幂等消息身份。
+        coachArchiveText: String? = null, // nanoMuse: 仅真实用户输入及最终正文由宿主显式提供。
     ): MessageEntity {
+        // nanoMuse: 异步事件落盘沿用消息发起代次，不能在worker执行时重新捕获新账号。
+        val operation = kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.account.AccountOperation]
+            ?: io.github.nanomuse.account.AccountData.captureOperation()
+        operation.requireCurrent()
         val sortOrder = dao.nextSortOrder(sessionId)
         val now = System.currentTimeMillis()
         // Cap the body so a runaway tool_result (e.g. a 13 MB browser_use
@@ -417,8 +586,17 @@ class ChatRepository(internal val dao: ChatDao) {
             providerType = modelSnapshot?.providerTypeRaw,
             providerInstanceId = modelSnapshot?.providerInstanceId,
         )
-        dao.insertMessage(message)
-        io.github.nanomuse.chat.DailyEventJournal.record(message, dao.getSession(sessionId)?.memoryEnabled == 1) // nanoMuse: 关闭记忆的会话不进入事件日志。
+        coachSourceMutation { // nanoMuse: 同ID更新也覆盖来源失效，所有权切换不能夹在检查与写入之间。
+            operation.requireCurrent() // nanoMuse: 无VM上下文的追加也核验本次调用捕获的代次。
+            dao.findMessage(message.id)?.takeIf {
+                io.github.nanomuse.coach.CoachSourceChange.shouldInvalidate(it.partsJson, message.partsJson)
+            }?.let { invalidateCoachMessage(it) }
+            if (coachArchiveText != null) {
+                io.github.nanomuse.coach.CoachConversationArchive.stage(requireNotNull(coachContext), message, coachArchiveText)
+            }
+            dao.insertMessage(message)
+        }
+        io.github.nanomuse.chat.DailyEventJournal.record(message, dao.getSession(sessionId)?.memoryEnabled == 1, operation) // nanoMuse: 关闭记忆的会话不进入事件日志。
         if (role == "assistant") io.github.nanomuse.chat.TurnTimingStore.bindAssistant(sessionId, message.id) // nanoMuse: 固定用时绑定持久消息。
         // [T-android-preview-flicker-toolresult] Only overwrite the preview
         // when this row actually yields one. A tool-result row is

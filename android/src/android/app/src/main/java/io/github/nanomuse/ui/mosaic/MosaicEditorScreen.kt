@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +77,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
@@ -104,6 +106,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.time.LocalDate
 import java.util.UUID
+import io.github.nanomuse.account.AccountData
+import io.github.nanomuse.todo.TodoSelection
+import io.github.nanomuse.todo.TodoStore
+import kotlinx.coroutines.flow.emptyFlow
 
 /** The editor's route; `day` is an epoch day, `habit`, `entry` and `draft` are optional ids. */
 const val ROUTE_MOSAIC_EDIT = "nanomuse/mosaic/edit?day={day}&habit={habit}&entry={entry}&source={source}&draft={draft}"
@@ -144,6 +150,20 @@ fun MosaicEditorScreen(
 ) {
     val context = LocalContext.current
     val store = remember { MosaicStore.get(context) }
+    // 编辑器固定发起时的账号，切换后保留文字并禁止把旧选择写到新账号。
+    val todoStore = remember { runCatching { TodoStore.get(context) }.getOrNull() }
+    val accountEpoch by AccountData.epoch.collectAsState()
+    val taskFlow = remember(todoStore) { todoStore?.observeTasks() ?: emptyFlow() }
+    val availableTasks by taskFlow.collectAsState(initial = emptyList())
+    val editorOperation = remember { AccountData.captureOperation() }
+    val isTaskOwnerCurrent = todoStore != null && accountEpoch == todoStore.ownerEpoch && editorOperation.isCurrent()
+    var taskSelections by remember { mutableStateOf<List<TodoSelection>>(emptyList()) }
+    val focusStore = remember { runCatching { io.github.nanomuse.focus.FocusStore.get(context) }.getOrNull() }
+    var focusSelections by remember { mutableStateOf<List<String>>(emptyList()) }
+    var savedFocusLinks by remember { mutableStateOf<List<io.github.nanomuse.focus.FocusEntryLink>>(emptyList()) }
+    var focusRecords by remember { mutableStateOf<List<io.github.nanomuse.focus.FocusSession>>(emptyList()) }
+    var savedTaskTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var taskLoadFailed by remember { mutableStateOf(false) }
     val formats = rememberMosaicFormats()
     val coroutines = rememberCoroutineScope()
     val today = rememberToday()
@@ -180,6 +200,17 @@ fun MosaicEditorScreen(
         val habit = habitId?.let { store.habit(it) }
         val found = store.draft(id)
         restored = found != null
+        try {
+            val links = if (entryId != null) todoStore?.entryLinks(entryId).orEmpty() else emptyList()
+            savedTaskTitles = links.associate { it.taskId to it.title }
+            savedFocusLinks = if (entryId != null) focusStore?.entryLinks(entryId).orEmpty() else emptyList()
+            focusRecords = focusStore?.sessions().orEmpty()
+            focusSelections = if (found != null) focusStore?.draftLinks(id).orEmpty() else savedFocusLinks.map { it.sessionId }
+            taskSelections = if (found != null) todoStore?.draftLinks(id).orEmpty() else links.map { link ->
+                TodoSelection(link.taskId, todoStore?.task(link.taskId)?.revision ?: -1)
+            }
+        } catch (cancelled: CancellationException) { throw cancelled
+        } catch (_: Exception) { taskLoadFailed = true }
         habitTitle = habit?.title ?: row?.entry?.habitTitle
         recordedAt = row?.entry?.let(formats::recordedAt)
         recordMood = row?.entry?.mood
@@ -204,7 +235,7 @@ fun MosaicEditorScreen(
         }
     }
     // The draft follows every change, half a second after the last one.
-    LaunchedEffect(draft, dirty, saving, isRedating) {
+    LaunchedEffect(draft, taskSelections, focusSelections, dirty, saving, isRedating) {
         if (saving || isRedating) return@LaunchedEffect
         autosaveJob = coroutineContext.job
         val current = draft ?: return@LaunchedEffect
@@ -212,7 +243,11 @@ fun MosaicEditorScreen(
         delay(DRAFT_DELAY_MS)
         if (saving) return@LaunchedEffect
         try {
-            store.putDraft(current.copy(updatedAt = System.currentTimeMillis()))
+            if (todoStore != null && isTaskOwnerCurrent && !taskLoadFailed) {
+                store.putDraftWithTasks(current.copy(updatedAt = System.currentTimeMillis()), taskSelections, todoStore, focusSelections, focusStore)
+            } else if (todoStore == null && editorOperation.isCurrent() && taskSelections.isEmpty() && !taskLoadFailed) {
+                store.putDraft(current.copy(updatedAt = System.currentTimeMillis()))
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -221,7 +256,7 @@ fun MosaicEditorScreen(
     }
 
     fun update(change: (MosaicDraft) -> MosaicDraft) {
-        if (saving || isRedating) return
+        if (saving || isRedating || !editorOperation.isCurrent()) return
         draft = draft?.let(change)
         dirty = true
     }
@@ -312,7 +347,12 @@ fun MosaicEditorScreen(
         coroutines.launch {
             try {
                 autosaveJob?.cancelAndJoin()
-                val saved = store.save(current, LocalDate.now())
+                check(!taskLoadFailed && (todoStore == null || isTaskOwnerCurrent)) { "Reopen this editor in the current account" }
+                val saved = if (todoStore != null) store.saveWithTasks(current, LocalDate.now(), taskSelections, todoStore, focusSelections, focusStore)
+                    else store.save(current, LocalDate.now())
+                // 保存成功即终止草稿生命周期，导航退场动画期间不能重新自动保存。
+                dirty = false
+                restored = false
                 MosaicUi.showDay.value = saved?.day ?: current.day
                 Toast.makeText(context, if (saved == null) R.string.nm_mosaic_marked_done else R.string.nm_mosaic_saved, Toast.LENGTH_SHORT).show()
                 // A save that ends while the app is in the background closes when the person is back.
@@ -338,12 +378,19 @@ fun MosaicEditorScreen(
             MuseTopAppBar(
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(stringResource(if (entryId == null) R.string.nm_mosaic_editor_title else R.string.nm_mosaic_editor_title_edit))
+                        Text(
+                            stringResource(if (entryId == null) R.string.nm_mosaic_editor_title else R.string.nm_mosaic_editor_title_edit),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                        )
                         Text(
                             formats.monthDay.format(date) + (habitTitle?.let { " · $it" } ?: "") + (recordedAt?.let { " · $it" } ?: ""),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 },
@@ -498,6 +545,22 @@ fun MosaicEditorScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).focusRequester(textFocus),
             )
 
+            if (todoStore != null && isTaskOwnerCurrent && !taskLoadFailed) {
+                TodoMosaicPicker(
+                    tasks = availableTasks, selections = taskSelections, savedTitles = savedTaskTitles,
+                    defaultCompletionDay = current.day, enabled = !saving && !isRedating,
+                    onChange = { selection -> taskSelections = selection; dirty = true },
+                )
+            }
+            if (todoStore != null && focusStore != null && isTaskOwnerCurrent && !taskLoadFailed) {
+                io.github.nanomuse.ui.focus.FocusMosaicPicker(focusRecords, focusSelections, savedFocusLinks,
+                    current.day, !saving && !isRedating) { focusSelections = it; dirty = true }
+            }
+            if (taskLoadFailed || (todoStore != null && !isTaskOwnerCurrent)) {
+                Text(stringResource(R.string.nm_todo_unavailable), color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 20.dp))
+            }
+
             val title = habitTitle
             if (current.habitId != null && title != null) {
                 Row(
@@ -562,6 +625,7 @@ fun MosaicEditorScreen(
                             MosaicSaveException.Reason.PHOTO_MISSING -> R.string.nm_mosaic_err_photo_missing
                             MosaicSaveException.Reason.STORAGE -> R.string.nm_mosaic_err_storage
                             MosaicSaveException.Reason.DATABASE -> R.string.nm_mosaic_err_database
+                            MosaicSaveException.Reason.TASK_CONFLICT -> R.string.nm_todo_refresh_selection
                         },
                     ),
                     fontSize = 13.sp,
@@ -572,8 +636,9 @@ fun MosaicEditorScreen(
             }
 
             Spacer(Modifier.height(14.dp))
-            val canSave = !saving && !isRedating && !importing &&
-                (current.text.isNotBlank() || photo != null || (current.markDone && current.habitId != null && current.entryId == null))
+            val canSave = !saving && !isRedating && !importing && !taskLoadFailed &&
+                (todoStore == null || isTaskOwnerCurrent) &&
+                (current.text.isNotBlank() || photo != null || taskSelections.isNotEmpty() || focusSelections.isNotEmpty() || (current.markDone && current.habitId != null && current.entryId == null))
             Button(
                 onClick = { save() },
                 enabled = canSave,
@@ -629,7 +694,10 @@ fun MosaicEditorScreen(
                         try {
                             // 先等待旧自动保存退出，再迁移主键，避免旧草稿被重新写回。
                             autosaveJob?.cancelAndJoin()
-                            val moved = store.redate(before, newDay)
+                            editorOperation.requireCurrent()
+                            val moved = if (todoStore != null) AccountData.withTodoOwnerMutation(todoStore.ownerKey, todoStore.ownerEpoch) {
+                                store.redate(before, newDay)
+                            } else store.redate(before, newDay)
                             draft = moved
                             dirty = true
                         } catch (e: CancellationException) {
@@ -654,9 +722,16 @@ fun MosaicEditorScreen(
                     val keep = draft
                     saving = true
                     coroutines.launch {
+                        try {
                         autosaveJob?.cancelAndJoin()
-                        if (keep != null && dirty) runStoreCall(context) { store.putDraft(keep.copy(updatedAt = System.currentTimeMillis())) }
-                        onClose()
+                        val kept = keep == null || !dirty || runStoreCall(context) {
+                            editorOperation.requireCurrent()
+                            check(!taskLoadFailed && (todoStore == null || isTaskOwnerCurrent))
+                            if (todoStore != null) store.putDraftWithTasks(keep.copy(updatedAt = System.currentTimeMillis()), taskSelections, todoStore, focusSelections, focusStore)
+                            else store.putDraft(keep.copy(updatedAt = System.currentTimeMillis()))
+                        }
+                        if (kept) onClose()
+                        } finally { saving = false }
                     }
                 }) { Text(stringResource(R.string.nm_mosaic_keep)) }
             },
@@ -666,9 +741,16 @@ fun MosaicEditorScreen(
                     val drop = draft
                     saving = true // stops the pending autosave from writing the draft back
                     coroutines.launch {
-                        autosaveJob?.cancelAndJoin()
-                        if (drop != null) runStoreCall(context) { store.discardDraft(drop) }
-                        onClose()
+                        try {
+                            autosaveJob?.cancelAndJoin()
+                            // 账号已切换时只关闭旧编辑器，不删除其他身份的持久草稿。
+                            val discarded = !editorOperation.isCurrent() || drop == null || runStoreCall(context) {
+                                if (todoStore != null) AccountData.withTodoOwnerMutation(todoStore.ownerKey, todoStore.ownerEpoch) {
+                                    store.discardDraft(drop)
+                                } else store.discardDraft(drop)
+                            }
+                            if (discarded) onClose()
+                        } finally { saving = false }
                     }
                 }) { Text(stringResource(R.string.nm_mosaic_discard), color = MaterialTheme.colorScheme.error) }
             },
@@ -685,11 +767,19 @@ fun MosaicEditorScreen(
                     saving = true
                     coroutines.launch {
                         // The route's day is where the record is saved; an unsaved date change does not count.
-                        if (runStoreCall(context) { store.delete(entryId) }) {
-                            MosaicUi.showDay.value = day
-                            MosaicUi.deleted.value = entryId to day
-                        }
-                        onClose()
+                        try {
+                            val deleted = runStoreCall(context) {
+                                editorOperation.requireCurrent()
+                                if (todoStore != null) AccountData.withTodoOwnerMutation(todoStore.ownerKey, todoStore.ownerEpoch) {
+                                    store.delete(entryId)
+                                } else store.delete(entryId)
+                            }
+                            if (deleted) {
+                                MosaicUi.showDay.value = day
+                                MosaicUi.deleted.value = entryId to day
+                                onClose()
+                            }
+                        } finally { saving = false }
                     }
                 }) { Text(stringResource(R.string.nm_mosaic_menu_delete), color = MaterialTheme.colorScheme.error) }
             },

@@ -15,6 +15,7 @@ object DailyEventJournal {
     private val worker = Executors.newSingleThreadExecutor()
     private var directory: File? = null
     private val seen = linkedMapOf<LocalDate, MutableSet<String>>()
+    private var seenOperation: io.github.nanomuse.account.AccountOperation? = null
     private var isGlobalMemoryEnabled: () -> Boolean = { false }
 
     /** 事件与人工记忆分目录保存，索引明确区分无事件和缺日志。 */
@@ -22,34 +23,40 @@ object DailyEventJournal {
         val application = context.applicationContext
         isGlobalMemoryEnabled = { com.openminis.app.data.MemoryGlobalPrefs.isGlobalEnabled(application) }
         val memory = File(context.filesDir, "minis-global/memory")
+        val operation = io.github.nanomuse.account.AccountData.captureOperation()
         worker.execute {
-            runCatching { directory = File(memory, "events").also { it.mkdirs() }; updateIndex(memory) }
-                .onFailure { directory = null }
+            directory = File(memory, "events")
+            runCatching { operation.files { directory?.mkdirs(); updateIndex(memory) } }
         }
     }
 
     /** 只为开启记忆的会话记录文本及工具结果摘要，不读取图片和附件。 */
-    fun record(message: MessageEntity, isMemoryEnabled: Boolean) {
+    fun record(message: MessageEntity, isMemoryEnabled: Boolean,
+        operation: io.github.nanomuse.account.AccountOperation = io.github.nanomuse.account.AccountData.captureOperation()) {
         if (!isMemoryEnabled || !isGlobalMemoryEnabled()) return
         worker.execute {
             runCatching {
-                val base = directory ?: return@runCatching
-                val parts = JSONArray(message.partsJson)
-                val text = (0 until parts.length()).mapNotNull { parts.optJSONObject(it) }
-                    .filter { it.optString("type") == "text" }.joinToString(" ") { it.optString("value") }.take(160)
-                val results = (0 until parts.length()).mapNotNull { parts.optJSONObject(it) }
-                    .filter { it.optString("type") == "toolResult" }.mapNotNull { it.optJSONObject("value") }
-                val event = JSONObject().put("message_id", message.id).put("session_id", message.sessionId)
-                    .put("created_at_ms", message.createdAt).put("role", message.role).put("text_excerpt", text)
-                    .put("tool_success", results.count { it.optBoolean("success") }).put("tool_failure", results.count { !it.optBoolean("success") })
-                val date = Instant.ofEpochMilli(message.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
-                val file = File(base, "$date.jsonl")
-                val ids = seen.getOrPut(date) {
-                    if (!file.exists()) mutableSetOf() else file.useLines { lines -> lines.mapNotNull { runCatching { JSONObject(it).getString("message_id") }.getOrNull() }.toMutableSet() }
+                operation.files {
+                    val base = directory ?: return@files
+                    if (seenOperation?.isCurrent() != true) { seen.clear(); seenOperation = operation }
+                    base.mkdirs() // nanoMuse: 新账号没有旧目录时按当前代次建立事件目录。
+                    val parts = JSONArray(message.partsJson)
+                    val text = (0 until parts.length()).mapNotNull { parts.optJSONObject(it) }
+                        .filter { it.optString("type") == "text" }.joinToString(" ") { it.optString("value") }.take(160)
+                    val results = (0 until parts.length()).mapNotNull { parts.optJSONObject(it) }
+                        .filter { it.optString("type") == "toolResult" }.mapNotNull { it.optJSONObject("value") }
+                    val event = JSONObject().put("message_id", message.id).put("session_id", message.sessionId)
+                        .put("created_at_ms", message.createdAt).put("role", message.role).put("text_excerpt", text)
+                        .put("tool_success", results.count { it.optBoolean("success") }).put("tool_failure", results.count { !it.optBoolean("success") })
+                    val date = Instant.ofEpochMilli(message.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+                    val file = File(base, "$date.jsonl")
+                    val ids = seen.getOrPut(date) {
+                        if (!file.exists()) mutableSetOf() else file.useLines { lines -> lines.mapNotNull { runCatching { JSONObject(it).getString("message_id") }.getOrNull() }.toMutableSet() }
+                    }
+                    if (ids.add(message.id)) file.appendText("$event\n")
+                    if (seen.size > 8) seen.remove(seen.keys.first())
+                    updateIndex(base.parentFile!!)
                 }
-                if (ids.add(message.id)) file.appendText("$event\n")
-                if (seen.size > 8) seen.remove(seen.keys.first())
-                updateIndex(base.parentFile!!)
             }
         }
     }

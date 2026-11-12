@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">Kumpulan dan label</string>
+    <string name="nm_todo_choose_category">Pilih atau cipta</string>
+    <string name="nm_todo_category_hint">Kumpulan dan label disimpan untuk tugasan seterusnya.</string>
+    <string name="nm_todo_category_search">Cari atau masukkan nama baharu</string>
+    <string name="nm_todo_category_create">Cipta “%1$s”</string>
+    <string name="nm_todo_category_empty">Belum ada kategori disimpan.</string>
+    <string name="nm_todo_category_manage">Lihat dan cipta</string>
+    <string name="nm_todo_selected">Dipilih</string>
+    <string name="nm_coach_explore_title">Latihan untuk kehidupan</string>
+    <string name="nm_coach_explore_areas">Terokai kebolehan</string>
+    <string name="nm_coach_explore_add">Tambah kursus</string>
+    <string name="nm_coach_explore_next">Sambung pembelajaran</string>
+    <string name="nm_coach_explore_progress">%1$d daripada %2$d unit ditunjukkan</string>
+    <string name="nm_coach_explore_more">Pilihan lain</string>
+</resources>

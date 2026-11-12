@@ -75,7 +75,8 @@ internal class MinisMarkdownTextToolbar(
      * disables the action. The callback owns the player's lifecycle — this
      * toolbar deliberately does not create one it could never dispose.
      */
-    private val onReadAloud: ((String) -> Unit)? = null,
+    // nanoMuse: 同时交付来源消息，避免教练选区使用全局云端语音。
+    private val onReadAloud: ((String, List<String>) -> Unit)? = null,
     /**
      * [T-android-readaloud-selection-vs-reply] Invoked when the user taps
      * **Read from Start**. Receives the owning message's markdown source (not
@@ -83,7 +84,8 @@ internal class MinisMarkdownTextToolbar(
      * the action — the caller passes null while the reply is still streaming,
      * matching iOS.
      */
-    private val onReadFromStart: ((String) -> Unit)? = null,
+    // nanoMuse: 从头朗读沿用选区所属消息的语音策略。
+    private val onReadFromStart: ((String, List<String>) -> Unit)? = null,
     /**
      * [T-android-readaloud-selection-vs-reply] Whether a reply is streaming
      * right now. A lambda, not a Boolean: this toolbar is constructed once
@@ -122,6 +124,7 @@ internal class MinisMarkdownTextToolbar(
             rect = rect,
             onCopyRequested = onCopyRequested,
             originatingMarkdown = registry.markdownAt(rect),
+            originatingMessageIds = registry.messageIdsAt(rect), // nanoMuse: 保存来源，不依赖点击后的选区状态。
             lastShownAtMs = android.os.SystemClock.uptimeMillis(),
         )
     }
@@ -146,7 +149,9 @@ internal class MinisMarkdownTextToolbar(
      */
     internal fun readAloudSelection() {
         val sink = onReadAloud ?: return
-        withSelection(sink)
+        // nanoMuse: 复制回调可能改变选区，因此先固定其来源消息。
+        val messageIds = state.originatingMessageIds
+        withSelection { text -> sink(text, messageIds) }
     }
 
     internal val canReadAloud: Boolean get() = onReadAloud != null
@@ -165,7 +170,7 @@ internal class MinisMarkdownTextToolbar(
     internal fun readFromStart() {
         val sink = onReadFromStart ?: return
         val source = state.originatingMarkdown ?: return
-        if (source.isNotBlank()) sink(source)
+        if (source.isNotBlank()) sink(source, state.originatingMessageIds) // nanoMuse: 传递来源以约束教练TTS。
     }
 
     internal val canReadFromStart: Boolean
@@ -253,6 +258,8 @@ internal class MinisMarkdownTextToolbar(
         val onCopyRequested: (() -> Unit)? = null,
         /** Joined markdown of the message that owns [rect], or null if cross-message. */
         val originatingMarkdown: String? = null,
+        // nanoMuse: 选区覆盖的可见消息，用于还原包含中间消息的朗读策略。
+        val originatingMessageIds: List<String> = emptyList(),
         /**
          * `SystemClock.uptimeMillis()` of the most recent [showMenu] call, or
          * 0 if the toolbar has never been shown. Updated only on `showMenu` —

@@ -91,8 +91,9 @@ class RoomChats(private val context: Context, private val repo: ChatRepository) 
             updatedAt = updatedAt,
             source = "sync",
         )
+        // 同步外层已持ConversationSync锁，先登记归属；数据库事务内不能反向获取创建锁。
+        io.github.nanomuse.account.AccountData.claimNow(context, session.id)
         dao.insertSession(session)
-        io.github.nanomuse.account.AccountData.claimNow(context, session.id) // C12: the account's, from its first row
         if (main) MainChat.set(context, session.id)
         return session.id
     }
@@ -102,12 +103,14 @@ class RoomChats(private val context: Context, private val repo: ChatRepository) 
     }
 
     override suspend fun deleteSession(id: String) {
+        repo.invalidateCoachConversationFromSync(context, id)
         dao.deleteMessages(id)
         dao.deleteSession(id)
         io.github.nanomuse.guard.Grants.clearSession(id)
     }
 
     override suspend fun clearMessages(sessionId: String) {
+        repo.loadMessages(sessionId).forEach { repo.invalidateCoachMessageFromSync(context, it) }
         dao.deleteMessages(sessionId)
         dao.updateLastMessage(sessionId, null, System.currentTimeMillis())
     }
@@ -143,6 +146,7 @@ class RoomChats(private val context: Context, private val repo: ChatRepository) 
     }
 
     override suspend fun deleteMessage(id: String) {
+        dao.findMessage(id)?.let { repo.invalidateCoachMessageFromSync(context, it) }
         db.execSQL("DELETE FROM messages WHERE id = ?", arrayOf(id))
     }
 

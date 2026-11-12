@@ -76,3 +76,16 @@ uv.lock
 
 # nanoMuse Cloud relay runtime data
 cloud/data/
+
+# Nicholasx: 本机Android状态与产品发布产物不进入源码
+android/src/android/.gradle/
+android/src/android/local.properties
+source-audit.json
+*.manifest.json
+Nicholasx-source*.zip
+site/downloads/
+
+# 本机记录、签名凭据与网站发行文件不进入源码仓库。
+notes/
+**/signing-credential.xml
+site/downloads/

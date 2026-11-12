@@ -1,3 +1,5 @@
+> **Nivo Bot 포크:** [OPEN_SOURCE.md](../../OPEN_SOURCE.md)와 [제품 사이트](../../site/README.md)에서 시작하세요. 아래 원본 README는 출처를 보존합니다. 다운로드, 서비스 및 커뮤니티 안내는 nanoMuse에 속하며 이 포크의 제공 사항이 아닙니다.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: 당신의 모든 기기를 위한 오픈소스 개인 에이전트">
 </p>

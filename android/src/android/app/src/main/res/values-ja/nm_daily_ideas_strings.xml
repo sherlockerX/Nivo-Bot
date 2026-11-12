@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">毎日のアイデア</string>
+    <string name="nm_daily_ideas_all">すべて見る</string>
+    <string name="nm_daily_ideas_prefill">タップして入力欄に追加</string>
+    <string name="nm_daily_ideas_evergreen">定番の題材です。話題の出来事は出典と日時の確認が必要です。</string>
+    <string name="nm_daily_ideas_rotation">各分類で毎日2件を表示し、同じ日は変わらず、7日後に繰り返します。</string>
+    <string name="nm_daily_category_ideas">アイデア</string>
+    <string name="nm_daily_category_work">仕事</string>
+    <string name="nm_daily_category_life">暮らし</string>
+    <string name="nm_daily_category_learn">学習</string>
+    <string name="nm_daily_category_family">家族と人間関係</string>
+    <string name="nm_daily_category_media">コンテンツ制作</string>
+    <string name="nm_daily_category_more">その他のアイデア</string>
+    <string name="nm_daily_ideas_check_hot_topic">今日撮影できる話題を確認</string>
+</resources>

@@ -273,7 +273,7 @@ internal fun GrowthAnswer(post: FeedPost) {
 internal fun GrowthSheet(onDismiss: () -> Unit, onChat: (title: String, opener: String) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val state by GrowthStore.state.collectAsState()
-    // Mosaic: an ability's course is built, or rebuilt, with the agent in a chat of its own, by the course framework.
+    // 旧入口将只读背景交给主聊天，正式课程仍须审阅具体版本后激活。
     fun build(id: String) {
         val opener = GrowthFlow.buildOpener(context, id) ?: return
         val title = GrowthStore.state.value.tracks.firstOrNull { it.id == id }?.title(context) ?: return
@@ -356,7 +356,13 @@ internal fun GrowthSheet(onDismiss: () -> Unit, onChat: (title: String, opener: 
                         ) { Text(stringResource(R.string.nm_growth_add_save), color = if (name.isNotBlank()) MaterialTheme.colorScheme.onSurface else ChatColors.secondaryText) }
                         Spacer(Modifier.width(6.dp))
                         Button(
-                            onClick = { val id = GrowthStore.add(name, about); name = ""; about = ""; adding = false; build(id) },
+                            onClick = {
+                                val title = name
+                                val opener = GrowthFlow.buildNewOpener(context, title, about)
+                                name = ""; about = ""; adding = false
+                                onDismiss()
+                                onChat(title, opener)
+                            },
                             enabled = name.isNotBlank(),
                             shape = CircleShape,
                             colors = ButtonDefaults.buttonColors(containerColor = MuseTones.action, contentColor = Color.White),

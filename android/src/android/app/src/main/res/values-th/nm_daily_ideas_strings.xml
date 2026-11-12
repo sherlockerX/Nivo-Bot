@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">ไอเดียประจำวัน</string>
+    <string name="nm_daily_ideas_all">ดูทั้งหมด</string>
+    <string name="nm_daily_ideas_prefill">แตะเพื่อกรอกข้อความ</string>
+    <string name="nm_daily_ideas_evergreen">หัวข้อที่ใช้ได้เสมอ ข่าวปัจจุบันต้องตรวจสอบแหล่งที่มาและวันที่</string>
+    <string name="nm_daily_ideas_rotation">แต่ละหมวดมีสองไอเดียต่อวัน คงเดิมตลอดวันและวนซ้ำหลังเจ็ดวัน</string>
+    <string name="nm_daily_category_ideas">ไอเดีย</string>
+    <string name="nm_daily_category_work">งาน</string>
+    <string name="nm_daily_category_life">ชีวิต</string>
+    <string name="nm_daily_category_learn">การเรียนรู้</string>
+    <string name="nm_daily_category_family">ครอบครัวและความสัมพันธ์</string>
+    <string name="nm_daily_category_media">การสร้างเนื้อหา</string>
+    <string name="nm_daily_category_more">ไอเดียเพิ่มเติม</string>
+    <string name="nm_daily_ideas_check_hot_topic">ตรวจสอบข่าวที่ถ่ายทำได้วันนี้</string>
+</resources>

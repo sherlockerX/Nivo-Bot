@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">删除%1$d条对话？</string>
+    <string name="nm_coach_delete_retention">删除对话默认保留关联教练摘录为只读档案，原文链接将不可用。</string>
+    <string name="nm_coach_delete_keep">只删聊天，保留只读摘录</string>
+    <string name="nm_coach_delete_purge">同时删除关联专题档案</string>
+    <string name="nm_coach_delete_failed">未完成删除。聊天可能已删除而摘录仍保留，请重试档案清除。</string>
+    <string name="nm_coach_delete_account_changed">账号已切换，请关闭此窗口后在当前账号重新操作。</string>
+    <string name="nm_coach_delete_retry">重试档案清除</string>
+    <string name="nm_coach_conversation_group">每日练习</string>
+</resources>

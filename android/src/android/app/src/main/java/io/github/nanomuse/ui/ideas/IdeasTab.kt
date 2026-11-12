@@ -40,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,13 +51,11 @@ import com.openminis.app.ui.theme.ChatColors
 import io.github.nanomuse.goals.GoalCategory
 import io.github.nanomuse.ideas.Idea
 import io.github.nanomuse.ideas.IdeaKind
-import io.github.nanomuse.ideas.Ideas
+import io.github.nanomuse.ideas.DailyIdeaCategory
+import io.github.nanomuse.ideas.DailyHotTopicPrompt
+import io.github.nanomuse.ideas.asChatIdea
 
-/**
- * Muse's Ideas page: a big title, then rows of "emoji · bold pitch · grey detail" grouped under
- * section headers (the first group has none). Tapping a row opens a small sheet that says what
- * the idea will create and offers to do it — send to the chat, create a routine, or start a goal.
- */
+/** 每日点子完整页面，点击后复用原有确认面板和聊天发送流程。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IdeasTab(
@@ -68,31 +65,61 @@ fun IdeasTab(
     onStartGoal: (GoalCategory, String) -> Unit,
     bottomInset: Dp = 0.dp,
 ) {
-    val context = LocalContext.current
-    val sections = remember { Ideas.load(context) }
+    val edition = rememberDailyIdeaEdition()
+    val language = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]?.language ?: "en"
+    val hotTopicTitle = stringResource(R.string.nm_daily_ideas_check_hot_topic)
+    val evergreenNote = stringResource(R.string.nm_daily_ideas_evergreen)
     var selected by remember { mutableStateOf<Idea?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(ChatColors.background),
-        // The last row ends above the floating pill, which overlays the page.
+        // 最后一行避开覆盖在页面上方的底部导航。
         contentPadding = PaddingValues(bottom = 24.dp + bottomInset),
     ) {
         item(key = "header") { header() }
         item(key = "title") { io.github.nanomuse.ui.home.MusePageTitle(stringResource(R.string.nm_ideas_title)) }
-        sections.forEachIndexed { index, section ->
-            if (index > 0) {
-                item(key = "section-" + section.id) {
+        item(key = "daily-date") {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                Text(dailyIdeaDateLabel(edition.localDate), style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.nm_daily_ideas_rotation), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        edition.sections.forEach { section ->
+            item(key = "section-" + section.category.key) {
+                Column {
                     Text(
-                        section.title,
+                        dailyIdeaCategoryTitle(section.category),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 4.dp),
                     )
+                    if (section.category == DailyIdeaCategory.MEDIA) {
+                        OutlinedButton(
+                            onClick = {
+                                selected = Idea(
+                                    id = "daily-check-hot-topic",
+                                    emoji = "📰",
+                                    title = hotTopicTitle,
+                                    body = evergreenNote,
+                                    kind = IdeaKind.CHAT,
+                                    prompt = DailyHotTopicPrompt.create(edition.localDate, language),
+                                )
+                            },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        ) { Text(hotTopicTitle) }
+                        Text(stringResource(R.string.nm_daily_ideas_evergreen),
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
             items(section.ideas, key = { it.id }) { idea ->
-                IdeaRow(idea = idea, onClick = { selected = idea })
+                val chatIdea = idea.asChatIdea()
+                IdeaRow(idea = chatIdea, onClick = { selected = chatIdea })
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 76.dp, end = 20.dp),
                     color = io.github.nanomuse.ui.home.MuseTones.hairline,

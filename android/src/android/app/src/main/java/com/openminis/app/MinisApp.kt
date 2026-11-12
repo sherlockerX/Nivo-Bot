@@ -421,7 +421,7 @@ class MinisApp : Application(), ImageLoaderFactory {
             )
         }
         database = AppDatabase.getInstance(this)
-        chatRepository = ChatRepository(database.chatDao())
+        chatRepository = ChatRepository(database.chatDao(), this) // nanoMuse: 删除和编辑始终校验教练原文来源。
         providerRepository = ProviderRepository(this)
         // nanoMuse: Settings → Network — the proxy for own providers and the ChatGPT plan is
         // the process's proxy selector, so it must be in place before the first OkHttp client.

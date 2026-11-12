@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">대화 %1$d개를 삭제할까요?</string>
+    <string name="nm_coach_delete_retention">관련 Coach 발췌는 읽기 전용으로 남습니다. 원문 링크는 사용할 수 없게 됩니다.</string>
+    <string name="nm_coach_delete_keep">채팅만 삭제하고 발췌 보관</string>
+    <string name="nm_coach_delete_purge">관련 주제 기록도 삭제</string>
+    <string name="nm_coach_delete_failed">삭제가 완료되지 않았습니다. 채팅은 삭제되었지만 발췌가 남아 있을 수 있습니다. 기록 삭제를 다시 시도하세요.</string>
+    <string name="nm_coach_delete_account_changed">계정이 바뀌었습니다. 창을 닫고 현재 계정에서 다시 여세요.</string>
+    <string name="nm_coach_delete_retry">기록 삭제 다시 시도</string>
+    <string name="nm_coach_conversation_group">매일 연습</string>
+</resources>

@@ -18,7 +18,9 @@ const val ROUTE_ALL_CHATS = "nanomuse/all_chats"
 object HomeBus {
     sealed class Request {
         data class ShowTab(val tab: HomeTab) : Request()
-        data class ShowSession(val sessionId: String) : Request()
+        /** 指定原文定位时沿用同一聊天并保存返回教练的来源。 */
+        data class ShowSession(val sessionId: String, val messageId: String? = null,
+            val returnToCoach: Boolean = false) : Request()
         /** Show the main chat with [text] typed into the composer and the keyboard up. */
         data class PrefillComposer(val text: String) : Request()
     }
@@ -28,7 +30,10 @@ object HomeBus {
 
     fun showTab(tab: HomeTab) { _requests.tryEmit(Request.ShowTab(tab)) }
 
-    fun showSession(sessionId: String) { _requests.tryEmit(Request.ShowSession(sessionId)) }
+    /** 发送会话导航及可选原文定位，不复制历史消息。 */
+    fun showSession(sessionId: String, messageId: String? = null, returnToCoach: Boolean = false) {
+        _requests.tryEmit(Request.ShowSession(sessionId, messageId, returnToCoach))
+    }
 
     fun prefillComposer(text: String) { _requests.tryEmit(Request.PrefillComposer(text)) }
 
@@ -54,7 +59,8 @@ object HomeShell {
      * it when the graph started elsewhere — and returns true. Returns false in wide windows,
      * where the caller keeps the upstream list/detail route.
      */
-    fun openSession(nav: NavController, sessionId: String): Boolean {
+    fun openSession(nav: NavController, sessionId: String, messageId: String? = null,
+        returnToCoach: Boolean = false): Boolean {
         if (!active) return false
         val shellRoute = Routes.SESSION_LIST
         val onStack = try {
@@ -67,7 +73,7 @@ object HomeShell {
         } else {
             nav.navigate(shellRoute) { popUpTo(nav.graph.startDestinationId) { inclusive = true } }
         }
-        HomeBus.showSession(sessionId)
+        HomeBus.showSession(sessionId, messageId, returnToCoach)
         return true
     }
 

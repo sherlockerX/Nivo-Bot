@@ -3,6 +3,8 @@ package io.github.nanomuse.mosaic
 import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.room.withTransaction
+import io.github.nanomuse.todo.TodoSelection
+import io.github.nanomuse.todo.TodoStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +20,7 @@ import java.util.UUID
 
 /** Why a save did not happen; the editor keeps everything and says which one. */
 class MosaicSaveException(val reason: Reason, cause: Throwable? = null) : Exception(reason.name, cause) {
-    enum class Reason { EMPTY, FUTURE, PHOTO_MISSING, STORAGE, DATABASE }
+    enum class Reason { EMPTY, FUTURE, PHOTO_MISSING, STORAGE, DATABASE, TASK_CONFLICT }
 }
 
 /**
@@ -26,8 +28,7 @@ class MosaicSaveException(val reason: Reason, cause: Throwable? = null) : Except
  * then one transaction for the media row, the entry, the habit's done mark and the day's mood, and
  * only then is the draft gone. A failure on the way leaves the draft as it was.
  */
-class MosaicStore private constructor(context: Context) {
-    private val db = MosaicDatabase.get(context)
+class MosaicStore internal constructor(context: Context, private val db: MosaicDatabase = MosaicDatabase.get(context)) {
     private val dao = db.dao()
     private val mediaDir = File(context.filesDir, "mosaic/media")
 
@@ -65,8 +66,23 @@ class MosaicStore private constructor(context: Context) {
 
     suspend fun putDraft(draft: MosaicDraft) = dao.upsertDraft(draft)
 
+    /** 草稿正文与待办选择同时保存，自动保存不消费状态意图。 */
+    suspend fun putDraftWithTasks(draft: MosaicDraft, selections: List<TodoSelection>, todoStore: TodoStore,
+        focusIds: List<String> = emptyList(), focusStore: io.github.nanomuse.focus.FocusStore? = null) {
+        check(todoStore.database === db) { "Tasks and diary must use the same database" }
+        todoStore.transaction {
+            dao.upsertDraft(draft)
+            todoStore.putDraftLinksInTransaction(draft.id, selections)
+            focusStore?.let { check(it.database === db && it.ownerKey == todoStore.ownerKey && it.ownerEpoch == todoStore.ownerEpoch); it.putDraftInTransaction(draft.id, focusIds) }
+        }
+    }
+
     suspend fun discardDraft(draft: MosaicDraft) {
-        dao.deleteDraft(draft.id)
+        db.withTransaction {
+            db.todoDao().discardDraftLinks(draft.id)
+                db.focusDao().discardDraft(draft.id)
+            dao.deleteDraft(draft.id)
+        }
         draft.stagedPath?.let { path -> withContext(Dispatchers.IO) { File(path).delete() } }
     }
 
@@ -76,27 +92,56 @@ class MosaicStore private constructor(context: Context) {
      * Saves [draft] as a record and returns it, or null when the draft only marked its habit done.
      * Saving the same draft twice returns the first save's entry instead of a second one.
      */
-    suspend fun save(draft: MosaicDraft, today: LocalDate): MosaicEntry? = withContext(Dispatchers.IO) {
+    suspend fun save(draft: MosaicDraft, today: LocalDate): MosaicEntry? = saveInternal(draft, today)
+
+    /** 账号边界内保存日记和任务；复制照片在事务外，所有数据库状态在一个事务内。 */
+    suspend fun saveWithTasks(draft: MosaicDraft, today: LocalDate, selections: List<TodoSelection>,
+        todoStore: TodoStore, focusIds: List<String> = emptyList(),
+        focusStore: io.github.nanomuse.focus.FocusStore? = null): MosaicEntry? {
+        check(todoStore.database === db) { "Tasks and diary must use the same database" }
+        return todoStore.withOwner {
+            saveInternal(draft, today, selections.isNotEmpty() || focusIds.isNotEmpty()) { entry ->
+                if (entry != null) {
+                    todoStore.saveEntryLinksInTransaction(entry.id, draft.id, draft.mutationId, selections)
+                    focusStore?.let { check(it.database === db && it.ownerKey == todoStore.ownerKey && it.ownerEpoch == todoStore.ownerEpoch); it.saveEntryInTransaction(entry.id, draft.id, focusIds) }
+                } else {
+                    db.todoDao().clearDraftLinks(todoStore.ownerKey, draft.id)
+                    db.focusDao().clearDraftLinks(todoStore.ownerKey, draft.id)
+                }
+            }
+        }
+    }
+
+    private suspend fun saveInternal(draft: MosaicDraft, today: LocalDate, hasTaskSelection: Boolean = false,
+        saveTasks: suspend (MosaicEntry?) -> Unit = {}): MosaicEntry? = withContext(Dispatchers.IO) {
         val text = draft.text.trim()
         val hasPhoto = draft.stagedPath != null || draft.mediaId != null
         val marksHabit = draft.markDone && draft.habitId != null
         val existing = draft.entryId?.let { dao.entry(it) }
         // A record kept on its own day stays editable after a trip west puts that day ahead of the clock.
         if (draft.day > today.toEpochDay() && existing?.day != draft.day) throw MosaicSaveException(MosaicSaveException.Reason.FUTURE)
-        if (text.isEmpty() && !hasPhoto && draft.entryId == null) {
+        if (text.isEmpty() && !hasPhoto && !hasTaskSelection && draft.entryId == null) {
             if (!marksHabit) throw MosaicSaveException(MosaicSaveException.Reason.EMPTY)
             val now = System.currentTimeMillis()
             db.withTransaction {
                 dao.upsertHabitDay(MosaicHabitDay(draft.habitId!!, draft.day, HabitState.DONE, now))
                 writeMood(draft, now)
+                saveTasks(null)
+                db.todoDao().discardDraftLinks(draft.id)
+                db.focusDao().discardDraft(draft.id)
                 dao.deleteDraft(draft.id)
             }
             return@withContext null
         }
-        if (text.isEmpty() && !hasPhoto) throw MosaicSaveException(MosaicSaveException.Reason.EMPTY)
+        if (text.isEmpty() && !hasPhoto && !hasTaskSelection) throw MosaicSaveException(MosaicSaveException.Reason.EMPTY)
         if (draft.entryId == null) {
             dao.entryByMutation(draft.mutationId)?.let { saved ->
-                dao.deleteDraft(draft.id)
+                db.withTransaction {
+                    // 新碎片的重复回调只清理草稿，首次事务已完整应用关联和状态。
+                    db.todoDao().discardDraftLinks(draft.id)
+                db.focusDao().discardDraft(draft.id)
+                    dao.deleteDraft(draft.id)
+                }
                 return@withContext saved
             }
         }
@@ -165,11 +210,17 @@ class MosaicStore private constructor(context: Context) {
                         dao.clearHabitDay(oldHabit, existing.day)
                     }
                 }
+                saveTasks(entry)
+                db.todoDao().discardDraftLinks(draft.id)
+                db.focusDao().discardDraft(draft.id)
                 dao.deleteDraft(draft.id)
             }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             archived?.delete()
+            if (e is io.github.nanomuse.todo.TodoConflictException) {
+                throw MosaicSaveException(MosaicSaveException.Reason.TASK_CONFLICT, e)
+            }
             throw MosaicSaveException(MosaicSaveException.Reason.DATABASE, e)
         }
         staged?.delete()
@@ -197,6 +248,7 @@ class MosaicStore private constructor(context: Context) {
         val id = if (target == draft.id || dao.draft(target) == null) target else "$target:${UUID.randomUUID()}"
         val moved = draft.copy(id = id, day = day, updatedAt = System.currentTimeMillis())
         if (dao.draft(draft.id) != null) {
+            if (draft.id != id) { db.todoDao().redateDraftLinks(draft.id, id); db.focusDao().redateDraft(draft.id, id) }
             dao.deleteDraft(draft.id)
             dao.upsertDraft(moved)
         }
@@ -281,7 +333,11 @@ class MosaicStore private constructor(context: Context) {
      */
     suspend fun sweep() = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        dao.purgeDeleted(now - BIN_MS)
+        db.withTransaction {
+            dao.purgeDeleted(now - BIN_MS)
+            db.todoDao().purgeOrphanLinks()
+            db.focusDao().purgeOrphans()
+        }
         val orphans = dao.orphanMedia(now - GRACE_MS)
         if (orphans.isNotEmpty()) {
             orphans.forEach { File(mediaDir, it.path).delete() }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">그룹과 태그</string>
+    <string name="nm_todo_choose_category">선택 또는 만들기</string>
+    <string name="nm_todo_category_hint">저장한 그룹과 태그는 다음 작업에서도 선택할 수 있습니다.</string>
+    <string name="nm_todo_category_search">검색 또는 새 이름 입력</string>
+    <string name="nm_todo_category_create">“%1$s” 만들기</string>
+    <string name="nm_todo_category_empty">저장한 분류가 없습니다.</string>
+    <string name="nm_todo_category_manage">보기 및 만들기</string>
+    <string name="nm_todo_selected">선택됨</string>
+    <string name="nm_coach_explore_title">일상을 위한 연습</string>
+    <string name="nm_coach_explore_areas">능력 탐색</string>
+    <string name="nm_coach_explore_add">강좌 추가</string>
+    <string name="nm_coach_explore_next">이어서 탐색하기</string>
+    <string name="nm_coach_explore_progress">%2$d개 단원 중 %1$d개 입증</string>
+    <string name="nm_coach_explore_more">추가 옵션</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">Grupos y etiquetas</string>
+    <string name="nm_todo_choose_category">Elegir o crear</string>
+    <string name="nm_todo_category_hint">Los grupos y etiquetas guardados estarán disponibles en futuras tareas.</string>
+    <string name="nm_todo_category_search">Buscar o escribir un nombre</string>
+    <string name="nm_todo_category_create">Crear «%1$s»</string>
+    <string name="nm_todo_category_empty">Aún no hay categorías guardadas.</string>
+    <string name="nm_todo_category_manage">Ver y crear</string>
+    <string name="nm_todo_selected">Seleccionado</string>
+    <string name="nm_coach_explore_title">Practica para la vida</string>
+    <string name="nm_coach_explore_areas">Explora tus habilidades</string>
+    <string name="nm_coach_explore_add">Añadir curso</string>
+    <string name="nm_coach_explore_next">Retoma tu aprendizaje</string>
+    <string name="nm_coach_explore_progress">%1$d de %2$d unidades demostradas</string>
+    <string name="nm_coach_explore_more">Más opciones</string>
+</resources>

@@ -1,3 +1,5 @@
+> **Nivo Bot分支說明：**本倉庫包含Nivo Bot的Android開發。請先閱讀[開源入口](../../OPEN_SOURCE.md)及[產品網站](../../site/README.md)。下文保留上游介紹與歸屬，下載、託管服務和社群資訊屬於nanoMuse，不代表本分支。
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse：開源的個人智慧體，面向你的每一台裝置">
 </p>

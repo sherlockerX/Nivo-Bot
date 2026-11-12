@@ -102,9 +102,15 @@ import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.openminis.app.ui.DisplayBitmapLimits.limitDisplaySize
-import com.openminis.app.sandbox.PRootKernel
 import com.openminis.app.ui.theme.ChatColors
+// nanoMuse: 媒体归属、异步资源清理和呈现快照共享可测试的策略。
+import io.github.nanomuse.chat.PreparedPresentation
+import io.github.nanomuse.chat.preparePresentation
+import io.github.nanomuse.media.MarkdownMediaPath
+import io.github.nanomuse.media.awaitPreparedResource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.conflate
@@ -1655,27 +1661,60 @@ private fun parseTable(lines: List<String>): Pair<List<String>, List<List<String
 
 // ─── Block renderers ────────────────────────────────────────────────────────
 
+// nanoMuse: 已发布的内联结果由呈现快照持有，不依赖全局LRU继续命中。
+private data class MdInlinePresentation(
+    val colors: MdColors,
+    val text: Map<String, AnnotatedString>,
+    val math: Map<String, List<String>>,
+)
+private val LocalMdInlinePresentation = compositionLocalOf<MdInlinePresentation?> { null }
+
+/** nanoMuse: 每种配色先在后台准备完整快照，组合阶段只读取不可变数据。 */
 @Composable
 private fun RenderBlock(block: MdBlock) {
     val colors = currentMdColors()
+    val inherited = LocalMdInlinePresentation.current
+    if (inherited?.colors == colors) {
+        RenderPreparedBlock(block)
+        return
+    }
+    val request = block to colors
+    val cached = remember(request) { MarkdownParseCaches.cachedPresentation(block, colors) }
+    val prepared by produceState<PreparedPresentation<Pair<MdBlock, MdColors>, MdInlinePresentation>?>(
+        cached?.let { PreparedPresentation(request, it) }, request,
+    ) {
+        value = preparePresentation(request) { MarkdownParseCaches.presentation(block, colors) }
+    }
+    val current = prepared?.forKey(request) ?: cached
+    if (current == null) {
+        Text(block.raw.take(COLD_PARSE_PREVIEW_CHARS), color = colors.text,
+            fontSize = BaseFontSize, lineHeight = BaseLineHeight)
+        return
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalMdInlinePresentation provides current) {
+        RenderPreparedBlock(block)
+    }
+}
+
+@Composable
+private fun RenderPreparedBlock(block: MdBlock) {
+    val colors = currentMdColors()
+    val presentation = checkNotNull(LocalMdInlinePresentation.current)
     // [T-android-streaming-incremental-inline] The live streaming tail block
     // re-parses its growing paragraph every throttle tick; route it through the
     // incremental cache (frozen closed prefix + fresh suffix). Frozen/history
     // blocks (false) keep the plain per-block cache — no behavior change there.
-    val liveIncremental = LocalLiveIncremental.current
     when (block) {
         is MdBlock.Paragraph -> {
             MdText(
-                text = if (liveIncremental) MarkdownParseCaches.inlineIncremental(block.raw, colors)
-                       else MarkdownParseCaches.inline(block.raw, colors),
+                text = presentation.text.getValue(block.raw), // nanoMuse: 使用已准备的当前配色。
                 fontSize = BaseFontSize,
                 lineHeight = BaseLineHeight,
                 color = colors.text,
                 modifier = Modifier.padding(bottom = 4.dp),
                 inlineContent = rememberKatexInlineContent(
                     BaseFontSize,
-                    if (liveIncremental) MarkdownParseCaches.mathLatexIncremental(block.raw)
-                    else MarkdownParseCaches.mathLatex(block.raw),
+                    presentation.math.getValue(block.raw),
                 ),
             )
         }
@@ -1690,13 +1729,13 @@ private fun RenderBlock(block: MdBlock) {
                 else -> (BaseFontSize * 0.85f) to FontWeight.SemiBold
             }
             MdText(
-                text = MarkdownParseCaches.inline(block.text, colors),
+                text = presentation.text.getValue(block.text),
                 fontSize = size,
                 fontWeight = weight,
                 lineHeight = size * 1.3f,
                 color = colors.text,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                inlineContent = rememberKatexInlineContent(size, MarkdownParseCaches.mathLatex(block.text)),
+                inlineContent = rememberKatexInlineContent(size, presentation.math.getValue(block.text)),
             )
         }
 
@@ -1807,12 +1846,12 @@ private fun RenderBlock(block: MdBlock) {
                     Row(modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)) {
                         Text("•  ", fontSize = BaseFontSize * 1.3f, color = colors.text)
                         MdText(
-                            text = MarkdownParseCaches.inline(item.text, colors),
+                            text = presentation.text.getValue(item.text),
                             fontSize = BaseFontSize,
                             lineHeight = BaseLineHeight,
                             color = colors.text,
                             modifier = Modifier.weight(1f),
-                            inlineContent = rememberKatexInlineContent(BaseFontSize, MarkdownParseCaches.mathLatex(item.text)),
+                            inlineContent = rememberKatexInlineContent(BaseFontSize, presentation.math.getValue(item.text)),
                         )
                     }
                 }
@@ -1829,12 +1868,12 @@ private fun RenderBlock(block: MdBlock) {
                             color = colors.text,
                         )
                         MdText(
-                            text = MarkdownParseCaches.inline(item.text, colors),
+                            text = presentation.text.getValue(item.text),
                             fontSize = BaseFontSize,
                             lineHeight = BaseLineHeight,
                             color = colors.text,
                             modifier = Modifier.weight(1f),
-                            inlineContent = rememberKatexInlineContent(BaseFontSize, MarkdownParseCaches.mathLatex(item.text)),
+                            inlineContent = rememberKatexInlineContent(BaseFontSize, presentation.math.getValue(item.text)),
                         )
                     }
                 }
@@ -1858,12 +1897,12 @@ private fun RenderBlock(block: MdBlock) {
                         )
                         Spacer(Modifier.width(6.dp))
                         MdText(
-                            text = MarkdownParseCaches.inline(item.text, colors),
+                            text = presentation.text.getValue(item.text),
                             fontSize = BaseFontSize,
                             lineHeight = BaseLineHeight,
                             color = if (item.checked) colors.text.copy(alpha = 0.5f) else colors.text,
                             modifier = Modifier.weight(1f),
-                            inlineContent = rememberKatexInlineContent(BaseFontSize, MarkdownParseCaches.mathLatex(item.text)),
+                            inlineContent = rememberKatexInlineContent(BaseFontSize, presentation.math.getValue(item.text)),
                         )
                     }
                 }
@@ -1905,7 +1944,7 @@ private fun RenderBlock(block: MdBlock) {
             // that global lookup answers with the wrong session's path (or
             // null) and the image quietly renders as a 0-height placeholder.
             // The video/audio renderers already follow this pattern.
-            val file = remember(block.url, sessionId) { resolveMdMediaFile(context, block.url, sessionId) }
+            val file = rememberMdMediaFile(block.url, sessionId) // nanoMuse: 文件检查在IO线程完成。
             // T146: 1dp hairline + 2dp soft shadow so a white-bg PNG (matplotlib
             // chart, screenshot…) reads as a discrete card against the chat
             // surface. Same ChatColors.thumbnailBorder / inputShadow recipe as
@@ -1945,21 +1984,23 @@ private fun RenderBlock(block: MdBlock) {
             // Remembered per (file, url): this renderer recomposes on every
             // streaming token, and rebuilding the request each time would churn
             // allocations in a hot path.
-            val imageRequest = remember(file, block.url) {
+            val imageRequest = remember(file, block.url, sessionId) { // nanoMuse: 会话变化时清空旧请求。
                 ImageRequest.Builder(context)
-                    .data(file ?: block.url)
+                    .data(file ?: block.url.takeIf { it.startsWith("https://") || it.startsWith("http://") }) // nanoMuse: 本地缺失不回退全局解析器。
                     .limitDisplaySize()
                     .build()
             }
-            SubcomposeAsyncImage(
-                model = imageRequest,
-                contentDescription = block.alt,
-                modifier = imageBaseModifier,
-                contentScale = ContentScale.FillWidth,
-            ) {
-                when (painter.state) {
-                    is AsyncImagePainter.State.Error -> BrokenImagePlaceholder(alt = block.alt)
-                    else -> SubcomposeAsyncImageContent()
+            androidx.compose.runtime.key(sessionId, block.url, file) { // nanoMuse: 新归属不复用上一张图片的加载状态。
+                SubcomposeAsyncImage(
+                    model = imageRequest,
+                    contentDescription = block.alt,
+                    modifier = imageBaseModifier,
+                    contentScale = ContentScale.FillWidth,
+                ) {
+                    when (painter.state) {
+                        is AsyncImagePainter.State.Error -> BrokenImagePlaceholder(alt = block.alt)
+                        else -> SubcomposeAsyncImageContent()
+                    }
                 }
             }
         }
@@ -2250,83 +2291,37 @@ private fun BrokenImagePlaceholder(alt: String?) {
 
 // ─── Media helpers ──────────────────────────────────────────────────────────
 
-/**
- * Resolve a markdown media URL (`minis://attachments/foo.mp4`, file://, or
- * plain absolute path) to a host File.
- *
- * First tries `PRootKernel.resolveHostPath` (same as MinisImageFetcher). If
- * that fails — e.g. bind mounts are pointing at a different session, or the
- * file was written under a `__new__...` draft id that predates
- * `ensureSession()` rename — we fall back to scanning all per-session
- * attachment directories for a file of the same basename. Mirrors the iOS
- * attach-path resolution which walks the session cache when the primary
- * lookup misses.
- */
-internal fun resolveMdMediaFile(context: Context, url: String, sessionId: String? = null): File? {
-    if (url.isBlank()) return null
-    // Strip a real query (`?`), but NOT `#` — attachment filenames legitimately
-    // contain '#' (hashtags). `minis://` URLs don't carry fragments anyway,
-    // and truncating here would hide the '.mp4' extension and the file's real
-    // name from the resolver.
-    val stripped = url.substringBefore('?')
-    val primary: File? = when {
-        stripped.startsWith("minis://") -> {
-            val decoded = java.net.URLDecoder.decode(stripped.removePrefix("minis://"), "UTF-8")
-            val linuxPath = "/var/minis/$decoded"
-            // Prefer the session-scoped resolver when the caller supplied a
-            // sessionId: the global `bindMounts` map is overwritten every time
-            // another session boots its shell, so without sessionId we'd route
-            // this chat's attachment lookup to whichever session happened to
-            // boot last.
-            if (sessionId != null) PRootKernel.resolveSessionHostPath(sessionId, linuxPath, context)
-            else PRootKernel.resolveHostPath(linuxPath)
-        }
-        stripped.startsWith("file://") -> File(Uri.parse(stripped).path ?: return null)
-        stripped.startsWith("/") -> File(stripped)
-        else -> null
-    }
-    if (primary?.let { it.exists() && it.isFile } == true) {
-        android.util.Log.d("MdStream", "resolveMdMediaFile url=$url sid=$sessionId -> primary=${primary.absolutePath}")
-        return primary
-    }
+/** nanoMuse: 同步图库调用只计算所属路径，不做磁盘访问或跨会话猜测。 */
+internal fun resolveMdMediaFile(context: Context, url: String, sessionId: String? = null): File? =
+    MarkdownMediaPath.resolve(context.filesDir, url, sessionId, ChatViewModelStore::resolvePersistedId)
 
-    // Fallback: search every minis-sessions/<id>/{attachments,workspace,offloads,browser}
-    // subtree for a file whose basename matches. Handles leftover files from a
-    // draft session whose bind mount has already switched over, and the case
-    // where `resolveHostPath`'s global bindMounts map points at a different
-    // session than the one owning this message.
-    if (!stripped.startsWith("minis://")) {
-        android.util.Log.d("MdStream", "resolveMdMediaFile primary miss url=$url (non-minis scheme, no fallback)")
-        return null
-    }
-    val decoded = java.net.URLDecoder.decode(stripped.removePrefix("minis://"), "UTF-8")
-    val basename = decoded.substringAfterLast('/')
-    val subdir = decoded.substringBefore('/', missingDelimiterValue = "").takeIf { it.isNotEmpty() } ?: "attachments"
-    val root = File(context.filesDir, "minis-sessions")
-    if (root.isDirectory) {
-        root.listFiles()?.forEach { sessionDir ->
-            val candidate = File(sessionDir, "$subdir/$basename")
-            if (candidate.exists() && candidate.isFile) {
-                android.util.Log.d("MdStream", "resolveMdMediaFile url=$url -> fallback=${candidate.absolutePath}")
-                return candidate
-            }
+/** nanoMuse: 文件检查仅在IO线程执行，换会话或URL时立即隐藏旧结果。 */
+@Composable
+private fun rememberMdMediaFile(url: String, sessionId: String?): File? {
+    val context = LocalContext.current.applicationContext
+    val owner = sessionId?.let { ChatViewModelStore.rememberPersistedId(it) }
+    val request = owner to url
+    val result by produceState<PreparedPresentation<Pair<String?, String>, File?>?>(null, request) {
+        value = preparePresentation(request, Dispatchers.IO) {
+            val direct = resolveMdMediaFile(context, url, owner)
+            val mounted = if (direct == null) MarkdownMediaPath.resolveMounted(url, owner) { actualOwner, linuxPath ->
+                // nanoMuse: 只接收当前明确登记的mount，不回退rootfs或扫描其他会话。
+                val mountRoot = "/var/minis/mounts/" + linuxPath.removePrefix("/var/minis/mounts/").substringBefore('/')
+                if (com.openminis.app.sandbox.PRootKernel.bindMounts.containsKey(mountRoot)) {
+                    com.openminis.app.sandbox.PRootKernel.resolveSessionHostPath(actualOwner, linuxPath, context)
+                } else null
+            } else null
+            (direct ?: mounted)?.takeIf { it.isFile }
         }
     }
-    // Also probe `minis-global/<subdir>` for shared/memory/skills buckets.
-    val globalCandidate = File(context.filesDir, "minis-global/$subdir/$basename")
-    if (globalCandidate.exists() && globalCandidate.isFile) {
-        android.util.Log.d("MdStream", "resolveMdMediaFile url=$url -> global=${globalCandidate.absolutePath}")
-        return globalCandidate
-    }
-    android.util.Log.w("MdStream", "resolveMdMediaFile url=$url -> NOT FOUND (primary=${primary?.absolutePath})")
-    return null
+    return result?.forKey(request)
 }
 
+/** nanoMuse: 文件标签保留加号和井号，非法编码按原文显示。 */
 private fun filenameFromMdUrl(url: String): String {
-    // Keep '#' — it's a legitimate character in attachment filenames.
-    val stripped = url.substringBefore('?')
-    val last = stripped.substringAfterLast('/')
-    return try { java.net.URLDecoder.decode(last, "UTF-8") } catch (_: Throwable) { last }
+    val last = url.substringBefore('?').substringAfterLast('/')
+    return try { java.net.URLDecoder.decode(last.replace("+", "%2B"), "UTF-8") }
+    catch (_: IllegalArgumentException) { last }
 }
 
 private fun openMdMediaExternally(context: Context, file: File, mime: String) {
@@ -2362,27 +2357,29 @@ private fun RenderMdVideo(block: MdBlock.Video) {
     val context = LocalContext.current
     val colors = currentMdColors()
     val sessionId = LocalMarkdownSessionId.current
-    val file = remember(block.url, sessionId) { resolveMdMediaFile(context, block.url, sessionId) }
+    val file = rememberMdMediaFile(block.url, sessionId) // nanoMuse: 文件检查在IO线程完成。
     val filename = remember(block.url) { filenameFromMdUrl(block.url) }
-    var showPlayer by remember { mutableStateOf(false) }
+    var showPlayer by remember(sessionId, block.url) { mutableStateOf(false) } // nanoMuse: 不跨媒体保留弹窗。
 
-    val thumbnail by produceState<Bitmap?>(initialValue = null, key1 = file?.absolutePath) {
-        val f = file ?: run { value = null; return@produceState }
-        value = withContext(Dispatchers.IO) {
+    // nanoMuse: 缩略图和预览状态绑定文件归属，取消不作为媒体错误吞掉。
+    val thumbnailKey = Triple(sessionId, block.url, file?.absolutePath)
+    val thumbnailResult by produceState<PreparedPresentation<Triple<String?, String, String?>, Bitmap?>?>(null, thumbnailKey) {
+        val currentFile = file ?: return@produceState
+        value = preparePresentation(thumbnailKey, Dispatchers.IO) {
             val retriever = MediaMetadataRetriever()
             try {
-                retriever.setDataSource(f.absolutePath)
-                val bmp = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                android.util.Log.d("MdStream", "video thumbnail ${f.name} -> ${bmp?.width}x${bmp?.height}")
-                bmp
-            } catch (t: Throwable) {
-                android.util.Log.w("MdStream", "video thumbnail failed: ${t.message}")
+                retriever.setDataSource(currentFile.absolutePath)
+                retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
                 null
             } finally {
-                try { retriever.release() } catch (_: Throwable) {}
+                retriever.release()
             }
         }
     }
+    val thumbnail = thumbnailResult?.forKey(thumbnailKey)
 
     if (showPlayer && file != null) {
         com.openminis.app.ui.media.MinisFullscreenVideoPlayer(
@@ -2453,28 +2450,55 @@ private fun RenderMdAudio(block: MdBlock.Audio) {
     val context = LocalContext.current
     val colors = currentMdColors()
     val sessionId = LocalMarkdownSessionId.current
-    val file = remember(block.url, sessionId) { resolveMdMediaFile(context, block.url, sessionId) }
+    val file = rememberMdMediaFile(block.url, sessionId) // nanoMuse: 文件检查在IO线程完成。
     val filename = remember(block.url) { filenameFromMdUrl(block.url) }
 
-    val player = remember(file?.absolutePath) {
-        if (file == null) null else try {
-            MediaPlayer().apply { setDataSource(file.absolutePath); prepare() }
-        } catch (t: Throwable) {
-            android.util.Log.w("MdStream", "audio prepare failed: ${t.message}")
-            null
+    // nanoMuse: 准备回调和播放器所有权均绑定当前媒体，退出时取消并释放。
+    val playerKey = Triple(sessionId, block.url, file?.absolutePath)
+    var hasPreparationFailed by remember(playerKey) { mutableStateOf(false) }
+    val prepared by produceState<PreparedPresentation<Triple<String?, String, String?>, MediaPlayer>?>(null, playerKey) {
+        val currentFile = file ?: return@produceState
+        try {
+            val owned = awaitPreparedResource(
+                create = { MediaPlayer() },
+                release = { it.release() },
+            ) { player, ready, failed ->
+                player.setOnPreparedListener { ready() }
+                player.setOnErrorListener { _, what, extra ->
+                    failed(IllegalStateException("audio prepare failed: $what/$extra"))
+                    true
+                }
+                player.setDataSource(currentFile.absolutePath)
+                player.prepareAsync()
+            }
+            try {
+                coroutineContext.ensureActive()
+                value = PreparedPresentation(playerKey, owned.value)
+                awaitCancellation()
+            } finally {
+                owned.close()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            hasPreparationFailed = true
+            android.util.Log.w("MdStream", "audio preparation failed", failure)
         }
     }
-    DisposableEffect(player) {
-        onDispose { try { player?.release() } catch (_: Throwable) {} }
-    }
-    var isPlaying by remember { mutableStateOf(false) }
-    var positionMs by remember { mutableStateOf(0) }
-    val durationMs = player?.duration ?: 0
+    val player = prepared?.forKey(playerKey)
+    var isPlaying by remember(playerKey) { mutableStateOf(false) }
+    var positionMs by remember(playerKey) { mutableStateOf(0) }
+    val durationMs = remember(player) { try { player?.duration ?: 0 } catch (_: IllegalStateException) { 0 } }
 
-    LaunchedEffect(isPlaying) {
+    LaunchedEffect(player, isPlaying) {
         while (isPlaying && player != null) {
-            positionMs = try { player.currentPosition } catch (_: Throwable) { 0 }
-            if (!player.isPlaying) { isPlaying = false; break }
+            try {
+                positionMs = player.currentPosition
+                if (!player.isPlaying) { isPlaying = false; break }
+            } catch (_: IllegalStateException) {
+                isPlaying = false
+                break
+            }
             delay(200)
         }
     }
@@ -2482,9 +2506,12 @@ private fun RenderMdAudio(block: MdBlock.Audio) {
         player?.setOnCompletionListener {
             isPlaying = false
             positionMs = 0
-            try { player.seekTo(0) } catch (_: Throwable) {}
+            try { player.seekTo(0) } catch (_: IllegalStateException) { }
         }
-        onDispose { try { player?.setOnCompletionListener(null) } catch (_: Throwable) {} }
+        onDispose {
+            // nanoMuse: prepareState的清理可能先释放播放器，解绑不得阻止剩余清理。
+            try { player?.setOnCompletionListener(null) } catch (_: IllegalStateException) { }
+        }
     }
 
     val tint = colors.link
@@ -2495,7 +2522,7 @@ private fun RenderMdAudio(block: MdBlock.Audio) {
             .clip(RoundedCornerShape(10.dp))
             .background(colors.inlineCodeBg)
             .border(0.5.dp, colors.tableBorder, RoundedCornerShape(10.dp))
-            .clickable(enabled = file != null) {
+            .clickable(enabled = player != null || (file != null && hasPreparationFailed)) { // nanoMuse: 准备中不误开外部播放器。
                 if (player == null) {
                     file?.let { openMdMediaExternally(context, it, "audio/*") }
                 } else {
@@ -2589,6 +2616,7 @@ internal object TableHScrollStates {
 @Composable
 private fun RenderTable(block: MdBlock.Table) {
     val colors = currentMdColors()
+    val presentation = checkNotNull(LocalMdInlinePresentation.current) // nanoMuse: 表格不在组合阶段解析。
     val colCount = maxOf(block.headers.size, block.rows.maxOfOrNull { it.size } ?: 0)
     if (colCount == 0) return
 
@@ -2748,11 +2776,11 @@ private fun RenderTable(block: MdBlock.Table) {
                         ) {
                             val cellText = cells.getOrElse(colIndex) { "" }
                             MdText(
-                                text = MarkdownParseCaches.inline(cellText, colors),
+                                text = presentation.text.getValue(cellText),
                                 fontSize = 14.sp,
                                 fontWeight = if (isHeader) FontWeight.SemiBold else null,
                                 color = colors.text,
-                                inlineContent = rememberKatexInlineContent(14.sp, MarkdownParseCaches.mathLatex(cellText)),
+                                inlineContent = rememberKatexInlineContent(14.sp, presentation.math.getValue(cellText)),
                                 // Long-press selects the whole cell rather than a
                                 // sentence-fragment of it: a cell holding "1,200"
                                 // or "v1.2, beta" would otherwise stop at the
@@ -2991,6 +3019,44 @@ private object MarkdownParseCaches {
         sizer = { k, _ -> k.length },
     )
 
+    // nanoMuse: 独立保存完整呈现结果，内联LRU淘汰不影响已显示的快照。
+    private val presentationLru = Lru<Pair<MdBlock, MdColors>, MdInlinePresentation>(
+        budget = CHAR_BUDGET_PER_CACHE,
+        sizer = { key, _ -> key.first.raw.length },
+    )
+
+    /** 仅查询，禁止在组合阶段补做解析。 */
+    fun cachedPresentation(block: MdBlock, colors: MdColors): MdInlinePresentation? =
+        synchronized(presentationLru) { presentationLru[block to colors] }
+
+    /** 在后台准备块及子块用到的全部内联结果。 */
+    fun presentation(block: MdBlock, colors: MdColors): MdInlinePresentation {
+        cachedPresentation(block, colors)?.let { return it }
+        val texts = linkedSetOf("") // nanoMuse: 不齐的表格行会补空单元格。
+        collectPresentationTexts(block, texts)
+        val result = MdInlinePresentation(colors,
+            texts.associateWith { inline(it, colors) }, texts.associateWith { mathLatex(it) })
+        synchronized(presentationLru) { presentationLru[block to colors] = result }
+        return result
+    }
+
+    private fun collectPresentationTexts(block: MdBlock, texts: MutableSet<String>) {
+        when (block) {
+            is MdBlock.Paragraph -> texts.add(block.raw)
+            is MdBlock.Heading -> texts.add(block.text)
+            is MdBlock.UnorderedList -> block.items.forEach {
+                texts.add(it.text); it.children.forEach { child -> collectPresentationTexts(child, texts) }
+            }
+            is MdBlock.OrderedList -> block.items.forEach {
+                texts.add(it.text); it.children.forEach { child -> collectPresentationTexts(child, texts) }
+            }
+            is MdBlock.TaskList -> block.items.forEach { texts.add(it.text) }
+            is MdBlock.Table -> { texts.addAll(block.headers); block.rows.forEach { texts.addAll(it) } }
+            is MdBlock.BlockQuote -> block.innerBlocks.forEach { collectPresentationTexts(it, texts) }
+            else -> Unit
+        }
+    }
+
     // Double-checked get: the lock is held only for map access, never during a
     // parse — a slow parse on Default must not block a main-thread hit on a
     // DIFFERENT key. A concurrent miss on the same key computes twice and the
@@ -3121,25 +3187,8 @@ private object MarkdownParseCaches {
      *  same texts the RenderBlock branches feed to inline()/mathLatex();
      *  anything missed simply computes lazily on first composition (once). */
     fun prewarm(blocks: List<MdBlock>, colors: MdColors) {
-        for (b in blocks) {
-            when (b) {
-                is MdBlock.Paragraph -> { inline(b.raw, colors); mathLatex(b.raw) }
-                is MdBlock.Heading -> { inline(b.text, colors); mathLatex(b.text) }
-                is MdBlock.UnorderedList -> b.items.forEach {
-                    inline(it.text, colors); mathLatex(it.text); prewarm(it.children, colors)
-                }
-                is MdBlock.OrderedList -> b.items.forEach {
-                    inline(it.text, colors); mathLatex(it.text); prewarm(it.children, colors)
-                }
-                is MdBlock.TaskList -> b.items.forEach { inline(it.text, colors); mathLatex(it.text) }
-                is MdBlock.Table -> {
-                    b.headers.forEach { inline(it, colors); mathLatex(it) }
-                    b.rows.forEach { row -> row.forEach { inline(it, colors); mathLatex(it) } }
-                }
-                is MdBlock.BlockQuote -> prewarm(b.innerBlocks, colors)
-                else -> Unit // code blocks / media / HR / math-display don't inline-parse
-            }
-        }
+        // nanoMuse: 同时预热完整呈现快照，后续主线程无需再次读取内联缓存。
+        blocks.forEach { presentation(it, colors) }
     }
 
     /**
@@ -3161,6 +3210,7 @@ private object MarkdownParseCaches {
         synchronized(inlineLru) { inlineLru[last.raw to colors] = ann }
         val math = mathLatexIncremental(last.raw)
         synchronized(mathLru) { mathLru[last.raw] = math }
+        presentation(last, colors) // nanoMuse: 增量尾部也发布完整快照。
     }
 }
 

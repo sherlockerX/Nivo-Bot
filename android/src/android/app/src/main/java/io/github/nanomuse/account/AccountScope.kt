@@ -87,6 +87,7 @@ object AccountScope {
     val accountPaths: List<String> = listOf(
         "minis-global/memory",
         "minis-global/nanomuse/feed",
+        "minis-global/nanomuse/growth/coach-v2", // nanoMuse: 新教练记录跟随已有账户空间迁移。
         "minis-global/nanomuse/feed-preferences.md",
         "minis-global/nanomuse/goals.json",
         "minis-global/nanomuse/avatar",

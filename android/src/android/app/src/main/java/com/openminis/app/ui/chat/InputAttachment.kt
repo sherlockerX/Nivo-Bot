@@ -9,6 +9,8 @@ data class InputAttachment(
     val uri: Uri,
     val mimeType: String,
     val kind: Kind,
+    // nanoMuse: 待完成的粘贴随附件转移，发送时等待后台写入，删除不会重新插入卡片。
+    val pendingPaste: io.github.nanomuse.chat.PendingPasteFile? = null,
 ) {
     enum class Kind { IMAGE, DOCUMENT }
 

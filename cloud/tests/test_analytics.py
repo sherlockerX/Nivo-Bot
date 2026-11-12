@@ -658,7 +658,7 @@ def test_a_device_reports_its_own_model_by_ids_only():
         say_hello(None)
         rows = [dict(r) for r in cloud.db.devices_detail()]
         assert rows[0]["llm_provider"] == "openrouter"
-        say_hello({"provider": "sk-live-abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "model": "https://x"})
+        say_hello({"provider": "sk-proj-" + "x" * 70, "model": "https://x"})
         rows = [dict(r) for r in cloud.db.devices_detail()]
         assert rows[0]["llm_provider"] == "openrouter" and rows[0]["llm_model"] == "anthropic/claude-sonnet-4.5"
         say_hello({"provider": "cloud", "model": "Qwen/Qwen3.6-27B-FP8"})

@@ -1,3 +1,5 @@
+> **Nivo Bot派生版：**まず[OPEN_SOURCE.md](../../OPEN_SOURCE.md)と[製品サイト](../../site/README.md)をご覧ください。以下は出典を保つための上流READMEです。ダウンロード、サービス、コミュニティの説明はnanoMuseのものであり、この派生版の提供内容ではありません。
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse：あなたのすべてのデバイスのための、オープンソースのパーソナルエージェント">
 </p>

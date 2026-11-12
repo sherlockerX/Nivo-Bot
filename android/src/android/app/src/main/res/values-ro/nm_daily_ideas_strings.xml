@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Idei zilnice</string>
+    <string name="nm_daily_ideas_all">Vezi toate</string>
+    <string name="nm_daily_ideas_prefill">Atinge pentru a completa mesajul</string>
+    <string name="nm_daily_ideas_evergreen">Subiecte mereu utile. Știrile necesită verificarea surselor și datelor.</string>
+    <string name="nm_daily_ideas_rotation">Două idei pe categorie zilnic, stabile în aceeași zi și repetate după șapte zile.</string>
+    <string name="nm_daily_category_ideas">Idei</string>
+    <string name="nm_daily_category_work">Muncă</string>
+    <string name="nm_daily_category_life">Viață</string>
+    <string name="nm_daily_category_learn">Învățare</string>
+    <string name="nm_daily_category_family">Familie și relații</string>
+    <string name="nm_daily_category_media">Creare de conținut</string>
+    <string name="nm_daily_category_more">Mai multe idei</string>
+    <string name="nm_daily_ideas_check_hot_topic">Verifică subiecte de filmat azi</string>
+</resources>

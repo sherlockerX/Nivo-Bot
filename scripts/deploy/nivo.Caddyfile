@@ -1,0 +1,12 @@
+# 仅用于独立静态容器，公网HTTPS由主Caddy提供。
+:80 {
+    root * /site/current
+    encode zstd gzip
+    header X-Content-Type-Options nosniff
+    header Referrer-Policy strict-origin-when-cross-origin
+    @metadata path /release.json / /index.html /developers.html
+    header @metadata Cache-Control "no-cache"
+    @downloads path /downloads/*
+    header @downloads Cache-Control "public, max-age=3600"
+    file_server
+}

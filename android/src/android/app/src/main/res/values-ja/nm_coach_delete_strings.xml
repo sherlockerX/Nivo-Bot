@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">%1$d件の会話を削除しますか？</string>
+    <string name="nm_coach_delete_retention">関連するCoachの抜粋は読み取り専用で残ります。元のメッセージへのリンクは使用できなくなります。</string>
+    <string name="nm_coach_delete_keep">チャットのみ削除し、抜粋を残す</string>
+    <string name="nm_coach_delete_purge">関連するテーマの記録も削除</string>
+    <string name="nm_coach_delete_failed">削除が完了していません。チャットが削除されても抜粋が残っている可能性があります。記録の削除を再試行してください。</string>
+    <string name="nm_coach_delete_account_changed">アカウントが変わりました。閉じてから現在のアカウントで開き直してください。</string>
+    <string name="nm_coach_delete_retry">記録の削除を再試行</string>
+    <string name="nm_coach_conversation_group">毎日の練習</string>
+</resources>

@@ -1,6 +1,8 @@
 package io.github.nanomuse.ui.home
 
 import androidx.annotation.StringRes
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChatBubble
@@ -17,11 +19,7 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.openminis.app.R
 
-/**
- * The bottom bar: chat, Mosaic, coach (Muse's feed, turned into training), goals, library. Icons are outlined at rest and filled when
- * selected, no labels — the bar reads as glyphs, the way Muse draws it. Ideas is a page of the
- * home without a place in the bar ([inBar] false): the drawer opens it.
- */
+/** 底部导航使用图标；点子和待办由抽屉打开，不增加底栏按钮。 */
 enum class HomeTab(
     @StringRes val label: Int,
     val icon: ImageVector,
@@ -33,5 +31,7 @@ enum class HomeTab(
     FEED(R.string.nm_tab_coach, Icons.Outlined.School, Icons.Filled.School), // Mosaic: the Coach tab
     GOALS(R.string.nm_tab_goals, Icons.Outlined.CheckBox, Icons.Filled.CheckBox),
     LIBRARY(R.string.nm_tab_library, Icons.Outlined.Category, Icons.Filled.Category),
+    FOCUS(R.string.nm_focus_title, Icons.Outlined.Timer, Icons.Filled.Timer, inBar = false),
+    TODO(R.string.nm_todo_title, Icons.Outlined.CheckBox, Icons.Filled.CheckBox, inBar = false),
     IDEAS(R.string.nm_tab_ideas, Icons.Outlined.Lightbulb, Icons.Filled.Lightbulb, inBar = false),
 }

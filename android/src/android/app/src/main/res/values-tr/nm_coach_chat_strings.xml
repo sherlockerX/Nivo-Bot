@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Alıştırma kayıtları</string>
+    <string name="nm_coach_chat_city_intro">Bir kurs seçin, kayıtları inceleyin veya konu sohbetinde öğrenmeye devam edin.</string>
+    <string name="nm_coach_chat_archive_intro">Öğrenme, Günlük alıştırma konu sohbetlerinde gerçekleşir. Başlatmak konuyu açar ve yapay zekâ öğretimini başlatır.</string>
+    <string name="nm_coach_chat_open_practice">Günlük alıştırmada devam et</string>
+    <string name="nm_coach_chat_view_original">Asıl mesajı göster</string>
+    <string name="nm_coach_chat_source_unavailable">Asıl mesajın bağlantısı kullanılamıyor. Kaydedilen alıntı hâlâ okunabilir.</string>
+    <string name="nm_coach_chat_saved_draft">Kaydedilmiş gönderilmemiş taslak</string>
+    <string name="nm_coach_chat_review_in_chat">Bu kaydı tartışmak veya düzeltmek için konu sohbetine devam edin.</string>
+    <string name="nm_coach_chat_archive">Arşivi göster</string>
+    <string name="nm_coach_chat_end_today">Bugünlük bu kadar</string>
+    <string name="nm_coach_chat_independent_check">Bağımsız doğrulama</string>
+    <string name="nm_coach_chat_understanding">Anlama kanıtı</string>
+    <string name="nm_coach_chat_application">Uygulama kanıtı</string>
+    <string name="nm_coach_chat_delayed_review">Daha sonra tekrar</string>
+    <string name="nm_coach_chat_discussion">Tartışma</string>
+    <string name="nm_coach_chat_archive_failed">Sohbet kaydedildi, arşiv güncellenemedi</string>
+    <string name="nm_coach_chat_retry_archive">Arşiv güncellemesini yeniden dene</string>
+    <string name="nm_coach_chat_next_lesson">Sonraki derse başla</string>
+    <string name="nm_coach_chat_back_to_conversation">Sohbete dön</string>
+    <string name="nm_coach_chat_source_invalidated">Kaynak düzenlendi veya silindi. Bu alıntı artık güncel kanıt olarak kullanılamaz.</string>
+    <string name="nm_coach_chat_summary">Ders özeti</string>
+    <string name="nm_coach_chat_summary_version">Kurs sürümü: %1$s; kaynak revizyonu: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Bu özetin kaynakları geçersizdir ve güncel sonuçları destekleyemez.</string>
+    <string name="nm_coach_chat_corrections">Düzeltmeler</string>
+    <string name="nm_coach_chat_hypotheses">Çözülmemiş hipotezler</string>
+    <string name="nm_coach_chat_show_records">Tüm sohbeti göster</string>
+    <string name="nm_coach_chat_hide_records">Sohbeti gizle</string>
+    <string name="nm_coach_chat_hide_sources">Kaynakları gizle</string>
+</resources>

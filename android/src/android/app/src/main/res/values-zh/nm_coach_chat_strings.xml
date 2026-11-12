@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">练习记录</string>
+    <string name="nm_coach_chat_city_intro">选择课程、回顾档案，或回到专题对话继续学习。</string>
+    <string name="nm_coach_chat_archive_intro">学习在“每日练习”的专题对话中进行。点击后打开专题并开始AI教学。</string>
+    <string name="nm_coach_chat_open_practice">在每日练习继续</string>
+    <string name="nm_coach_chat_view_original">查看原始消息</string>
+    <string name="nm_coach_chat_source_unavailable">暂无法定位原始消息，已保存的原文摘录仍可回看。</string>
+    <string name="nm_coach_chat_saved_draft">已保存的未发送草稿</string>
+    <string name="nm_coach_chat_review_in_chat">继续进入专题对话，讨论或更正这份记录。</string>
+    <string name="nm_coach_chat_archive">查看档案</string>
+    <string name="nm_coach_chat_end_today">今天到这里</string>
+    <string name="nm_coach_chat_independent_check">独立验证</string>
+    <string name="nm_coach_chat_understanding">理解证据</string>
+    <string name="nm_coach_chat_application">应用证据</string>
+    <string name="nm_coach_chat_delayed_review">延迟回访</string>
+    <string name="nm_coach_chat_discussion">讨论</string>
+    <string name="nm_coach_chat_archive_failed">对话已保存，档案整理失败</string>
+    <string name="nm_coach_chat_retry_archive">重试整理</string>
+    <string name="nm_coach_chat_next_lesson">开始下一课</string>
+    <string name="nm_coach_chat_back_to_conversation">回到对话</string>
+    <string name="nm_coach_chat_source_invalidated">来源已编辑或删除，这份摘录不再作为当前证据。</string>
+    <string name="nm_coach_chat_summary">本课摘要</string>
+    <string name="nm_coach_chat_summary_version">课程版本：%1$s；来源修订：%2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">摘要来源已失效，不可用于当前判断。</string>
+    <string name="nm_coach_chat_corrections">更正记录</string>
+    <string name="nm_coach_chat_hypotheses">未决假设</string>
+    <string name="nm_coach_chat_show_records">展开全部原话</string>
+    <string name="nm_coach_chat_hide_records">收起全部原话</string>
+    <string name="nm_coach_chat_hide_sources">收起来源</string>
+</resources>

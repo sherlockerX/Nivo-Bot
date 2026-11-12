@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">กลุ่มและแท็ก</string>
+    <string name="nm_todo_choose_category">เลือกหรือสร้าง</string>
+    <string name="nm_todo_category_hint">กลุ่มและแท็กที่บันทึกไว้จะใช้กับงานถัดไปได้</string>
+    <string name="nm_todo_category_search">ค้นหาหรือป้อนชื่อใหม่</string>
+    <string name="nm_todo_category_create">สร้าง “%1$s”</string>
+    <string name="nm_todo_category_empty">ยังไม่มีหมวดหมู่ที่บันทึก</string>
+    <string name="nm_todo_category_manage">ดูและสร้าง</string>
+    <string name="nm_todo_selected">เลือกแล้ว</string>
+    <string name="nm_coach_explore_title">ฝึกเพื่อชีวิตจริง</string>
+    <string name="nm_coach_explore_areas">สำรวจความสามารถ</string>
+    <string name="nm_coach_explore_add">เพิ่มหลักสูตร</string>
+    <string name="nm_coach_explore_next">เรียนต่อจากครั้งก่อน</string>
+    <string name="nm_coach_explore_progress">แสดงความสามารถแล้ว %1$d จาก %2$d หน่วย</string>
+    <string name="nm_coach_explore_more">ตัวเลือกเพิ่มเติม</string>
+</resources>

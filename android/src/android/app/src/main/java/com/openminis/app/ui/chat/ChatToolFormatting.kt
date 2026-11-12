@@ -94,15 +94,15 @@ internal fun toolDisplayName(toolName: String): String = when (toolName) {
  * Mirrors iOS ToolLiveSheet.toolTitle so the wording matches per tool.
  */
 internal fun toolTitleLabel(toolName: String): String = when (toolName) {
-    "shell_execute" -> "Nicholasx is using Shell"
-    "file_read" -> "Nicholasx is reading File"
-    "file_write" -> "Nicholasx is using Editor"
-    "file_edit" -> "Nicholasx is editing File"
-    "browser_use" -> "Nicholasx is using Browser"
-    "read_image" -> "Nicholasx is reading Image"
-    "memory_write", "memory_get" -> "Nicholasx is using Memory"
-    "web_search" -> "Nicholasx is using Search"
-    else -> "Nicholasx is using ${toolDisplayName(toolName)}"
+    "shell_execute" -> "Nivo Bot is using Shell"
+    "file_read" -> "Nivo Bot is reading File"
+    "file_write" -> "Nivo Bot is using Editor"
+    "file_edit" -> "Nivo Bot is editing File"
+    "browser_use" -> "Nivo Bot is using Browser"
+    "read_image" -> "Nivo Bot is reading Image"
+    "memory_write", "memory_get" -> "Nivo Bot is using Memory"
+    "web_search" -> "Nivo Bot is using Search"
+    else -> "Nivo Bot is using ${toolDisplayName(toolName)}"
 }
 
 // nanoMuse: the same label once the step is over (issue #67 — the sheet's bottom bar
@@ -111,15 +111,15 @@ internal fun toolTitleLabel(toolName: String): String = when (toolName) {
 internal fun toolTitleLabel(toolName: String, status: ToolBlockStatus?): String = when (status) {
     null, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING, ToolBlockStatus.PENDING -> toolTitleLabel(toolName)
     ToolBlockStatus.SUCCESS -> when (toolName) {
-        "shell_execute" -> "Nicholasx used Shell"
-        "file_read" -> "Nicholasx read File"
-        "file_write" -> "Nicholasx used Editor"
-        "file_edit" -> "Nicholasx edited File"
-        "browser_use" -> "Nicholasx used Browser"
-        "read_image" -> "Nicholasx read Image"
-        "memory_write", "memory_get" -> "Nicholasx used Memory"
-        "web_search" -> "Nicholasx used Search"
-        else -> "Nicholasx used ${toolDisplayName(toolName)}"
+        "shell_execute" -> "Nivo Bot used Shell"
+        "file_read" -> "Nivo Bot read File"
+        "file_write" -> "Nivo Bot used Editor"
+        "file_edit" -> "Nivo Bot edited File"
+        "browser_use" -> "Nivo Bot used Browser"
+        "read_image" -> "Nivo Bot read Image"
+        "memory_write", "memory_get" -> "Nivo Bot used Memory"
+        "web_search" -> "Nivo Bot used Search"
+        else -> "Nivo Bot used ${toolDisplayName(toolName)}"
     }
     ToolBlockStatus.FAILED -> "${toolDisplayName(toolName).replaceFirstChar { it.uppercase() }} failed"
     ToolBlockStatus.CANCELLED -> "${toolDisplayName(toolName).replaceFirstChar { it.uppercase() }} stopped"

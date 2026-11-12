@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Идеи на каждый день</string>
+    <string name="nm_daily_ideas_all">Смотреть все</string>
+    <string name="nm_daily_ideas_prefill">Нажмите, чтобы заполнить сообщение</string>
+    <string name="nm_daily_ideas_evergreen">Темы без срока давности. Новости требуют проверки источников и дат.</string>
+    <string name="nm_daily_ideas_rotation">По две идеи на категорию в день, без изменений в течение дня, повторяются через семь дней.</string>
+    <string name="nm_daily_category_ideas">Идеи</string>
+    <string name="nm_daily_category_work">Работа</string>
+    <string name="nm_daily_category_life">Жизнь</string>
+    <string name="nm_daily_category_learn">Учёба</string>
+    <string name="nm_daily_category_family">Семья и отношения</string>
+    <string name="nm_daily_category_media">Создание контента</string>
+    <string name="nm_daily_category_more">Другие идеи</string>
+    <string name="nm_daily_ideas_check_hot_topic">Проверить темы для съёмки сегодня</string>
+</resources>

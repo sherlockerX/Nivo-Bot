@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">¿Eliminar %1$d conversaciones?</string>
+    <string name="nm_coach_delete_retention">Los extractos de Coach se conservan como registros de solo lectura. Los enlaces originales dejarán de estar disponibles.</string>
+    <string name="nm_coach_delete_keep">Eliminar solo el chat y conservar extractos</string>
+    <string name="nm_coach_delete_purge">Eliminar también el archivo del tema</string>
+    <string name="nm_coach_delete_failed">No se completó la eliminación. El chat puede haberse eliminado y conservarse los extractos. Reintenta limpiar el archivo.</string>
+    <string name="nm_coach_delete_account_changed">La cuenta cambió. Cierra este diálogo y vuelve a abrirlo en la cuenta actual.</string>
+    <string name="nm_coach_delete_retry">Reintentar limpieza del archivo</string>
+    <string name="nm_coach_conversation_group">Práctica diaria</string>
+</resources>

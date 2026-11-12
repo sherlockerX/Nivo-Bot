@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Padam %1$d perbualan?</string>
+    <string name="nm_coach_delete_retention">Petikan Coach berkaitan kekal sebagai rekod baca sahaja. Pautan asal tidak lagi tersedia.</string>
+    <string name="nm_coach_delete_keep">Padam sembang sahaja, simpan petikan</string>
+    <string name="nm_coach_delete_purge">Padam juga arkib topik berkaitan</string>
+    <string name="nm_coach_delete_failed">Pemadaman belum selesai. Sembang mungkin dipadam tetapi petikan masih ada. Cuba bersihkan arkib lagi.</string>
+    <string name="nm_coach_delete_account_changed">Akaun berubah. Tutup dialog dan buka semula dalam akaun semasa.</string>
+    <string name="nm_coach_delete_retry">Cuba bersihkan arkib lagi</string>
+    <string name="nm_coach_conversation_group">Latihan harian</string>
+</resources>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">บันทึกการฝึก</string>
+    <string name="nm_coach_chat_city_intro">เลือกหลักสูตร ทบทวนบันทึก หรือเรียนต่อในการสนทนาของหัวข้อ</string>
+    <string name="nm_coach_chat_archive_intro">การเรียนอยู่ในการสนทนาหัวข้อของแบบฝึกประจำวัน เมื่อเริ่ม ระบบจะเปิดหัวข้อและเริ่มสอนด้วย AI</string>
+    <string name="nm_coach_chat_open_practice">เรียนต่อในแบบฝึกประจำวัน</string>
+    <string name="nm_coach_chat_view_original">ดูข้อความต้นฉบับ</string>
+    <string name="nm_coach_chat_source_unavailable">ไม่พบลิงก์ข้อความต้นฉบับ แต่ยังอ่านข้อความที่บันทึกไว้ได้</string>
+    <string name="nm_coach_chat_saved_draft">ฉบับร่างที่บันทึกไว้และยังไม่ได้ส่ง</string>
+    <string name="nm_coach_chat_review_in_chat">สนทนาต่อในหัวข้อเพื่อพูดคุยหรือแก้ไขบันทึกนี้</string>
+    <string name="nm_coach_chat_archive">ดูคลังบันทึก</string>
+    <string name="nm_coach_chat_end_today">วันนี้พอแค่นี้</string>
+    <string name="nm_coach_chat_independent_check">การตรวจสอบด้วยตนเอง</string>
+    <string name="nm_coach_chat_understanding">หลักฐานความเข้าใจ</string>
+    <string name="nm_coach_chat_application">หลักฐานการนำไปใช้</string>
+    <string name="nm_coach_chat_delayed_review">ทบทวนภายหลัง</string>
+    <string name="nm_coach_chat_discussion">การสนทนา</string>
+    <string name="nm_coach_chat_archive_failed">บันทึกการสนทนาแล้ว แต่จัดเก็บบันทึกไม่สำเร็จ</string>
+    <string name="nm_coach_chat_retry_archive">ลองจัดเก็บบันทึกอีกครั้ง</string>
+    <string name="nm_coach_chat_next_lesson">เริ่มบทเรียนถัดไป</string>
+    <string name="nm_coach_chat_back_to_conversation">กลับไปที่การสนทนา</string>
+    <string name="nm_coach_chat_source_invalidated">ต้นฉบับถูกแก้ไขหรือลบแล้ว ข้อความนี้ใช้เป็นหลักฐานปัจจุบันไม่ได้</string>
+    <string name="nm_coach_chat_summary">สรุปบทเรียน</string>
+    <string name="nm_coach_chat_summary_version">รุ่นหลักสูตร: %1$s; รุ่นแหล่งข้อมูล: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">แหล่งข้อมูลของสรุปนี้ใช้ไม่ได้ จึงใช้สนับสนุนข้อสรุปปัจจุบันไม่ได้</string>
+    <string name="nm_coach_chat_corrections">บันทึกการแก้ไข</string>
+    <string name="nm_coach_chat_hypotheses">สมมติฐานที่ยังไม่ได้ข้อยุติ</string>
+    <string name="nm_coach_chat_show_records">แสดงบทสนทนาทั้งหมด</string>
+    <string name="nm_coach_chat_hide_records">ซ่อนบทสนทนาทั้งหมด</string>
+    <string name="nm_coach_chat_hide_sources">ซ่อนแหล่งข้อมูล</string>
+</resources>

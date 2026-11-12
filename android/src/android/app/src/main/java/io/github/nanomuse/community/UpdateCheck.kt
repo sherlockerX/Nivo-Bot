@@ -17,23 +17,19 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The installed version and the latest one, side by side (shared contract C2). The latest
- * comes from the download index on nanomuse.cn first, then GitHub's latest release; it is
- * looked up at most once a day and the answer kept, with a "check now" for a stale or failed
- * check. Only the two lines of the Version row live on this; the in-app APK download on the
- * About page is the upstream UpdateChecker, untouched.
+ * 版本栏仅检查Nicholasx的GitHub发行版，保留一天缓存与既有离线策略。
+ * 使用分支独立的缓存，避免显示升级前保存的上游版本。
  */
 object UpdateCheck {
     private const val TAG = "UpdateCheck"
-    private const val PREFS = "nm.update"
+    private const val PREFS = "nicholasx.update.v2"
     private const val KEY_LATEST = "latest"
     private const val KEY_CHECKED_AT = "checked_at"
     private const val KEY_FAILED = "failed"
 
-    /** Where "Update" goes on Android: the download page, with the APK and the store links. */
-    const val DOWNLOAD_URL = "https://nanomuse.cn/dl/"
-    const val INDEX_URL = "https://nanomuse.cn/dl/index.json"
-    const val GITHUB_LATEST_URL = "https://api.github.com/repos/nano-muse/nanoMuse/releases/latest"
+    /** 当前分支的下载入口；没有公开发行版时不回退到上游。 */
+    const val DOWNLOAD_URL = "https://github.com/sherlockerX/Nicholasx/releases"
+    const val GITHUB_LATEST_URL = "https://api.github.com/repos/sherlockerX/Nicholasx/releases/latest"
 
     /** A check is repeated at most this often on its own. */
     const val FRESH_MS = 24L * 60 * 60 * 1000
@@ -111,15 +107,14 @@ object UpdateCheck {
         }
     }
 
-    /** The index on nanomuse.cn, then GitHub; null when neither answered with a version. */
+    /** 只读取当前分支，尚无公开发行版或请求失败时返回null。 */
     internal fun fetchLatest(): String? {
-        get(INDEX_URL)?.let { parseIndex(it) }?.let { return it }
         return get(GITHUB_LATEST_URL)?.let { parseGitHubLatest(it) }
     }
 
     private fun get(url: String): String? = try {
         val req = Request.Builder().url(url).get()
-            .header("User-Agent", "nanoMuse-Android/${BuildConfig.VERSION_NAME}")
+            .header("User-Agent", "Nicholasx-Android/${BuildConfig.VERSION_NAME}")
             .header("Accept", "application/json")
             .build()
         http.newCall(req).execute().use { r ->

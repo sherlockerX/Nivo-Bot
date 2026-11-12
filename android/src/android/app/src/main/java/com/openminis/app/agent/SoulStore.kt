@@ -75,7 +75,7 @@ data class SoulMetadata(
         const val DISPLAY_EMOJI = "🐾"
 
         val DEFAULT = SoulMetadata(
-            name = "Nicholasx", // Mosaic: the personal build's agent name
+            name = "Nivo Bot", // Mosaic: the personal build's agent name
 
             // Default emoji is intentionally empty — UI uses the fixed
             // [displayEmoji] sparkle and [SoulMDParser.serialize] no longer
@@ -321,7 +321,7 @@ object SoulStore {
     // Mosaic: the personal build ships its persona here (Chinese, the owner's language), so a
     // fresh install and "Restore default" both give it; nanoMuse's English default is replaced.
     val DEFAULT_CONTENT: String = """---
-name: "Nicholasx"
+name: "Nivo Bot"
 style: ""
 lang: "zh"
 ---

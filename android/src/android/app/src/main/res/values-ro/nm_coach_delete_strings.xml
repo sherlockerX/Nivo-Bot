@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Ștergi %1$d conversații?</string>
+    <string name="nm_coach_delete_retention">Extrasele Coach asociate rămân doar pentru citire. Legăturile originale nu vor mai fi disponibile.</string>
+    <string name="nm_coach_delete_keep">Șterge doar chatul, păstrează extrasele</string>
+    <string name="nm_coach_delete_purge">Șterge și arhiva subiectului</string>
+    <string name="nm_coach_delete_failed">Ștergerea nu s-a încheiat. Chatul poate fi șters, dar extrasele rămân. Reîncearcă ștergerea arhivei.</string>
+    <string name="nm_coach_delete_account_changed">Contul s-a schimbat. Închide dialogul și redeschide-l în contul curent.</string>
+    <string name="nm_coach_delete_retry">Reîncearcă ștergerea arhivei</string>
+    <string name="nm_coach_conversation_group">Practică zilnică</string>
+</resources>

@@ -86,16 +86,15 @@ object FeedUi {
     val calendarOpen = MutableStateFlow(false)
 }
 
-/**
- * Mosaic: the Coach tab. A grey canvas, the ability in training, today's recall, then today's
- * training cards under a "Today · Sunday · 1 Nov 2026" heading: white cards with an icon tile, a
- * title, a few lines, the question with its answer and review, and a footer of discuss · info.
- * Earlier days are in the training calendar; when no card was written today, one card says when
- * they come and writes them on a tap, and a run that wrote none says why.
- */
+/** 单一教练入口保留旧日历与设置，训练内容使用新的共享课程视图。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedTab(
+    coachViewModel: com.openminis.app.ui.chat.ChatViewModel? = null,
+    onOpenChat: () -> Unit = {},
+    onOpenPractice: (String) -> Unit = {},
+    isOpeningPractice: Boolean = false, // 打开练习要写档案和数据库，期间在教练页显示进度。
+    onOpenConversation: (String, String?) -> Unit = { _, _ -> },
     header: @Composable () -> Unit,
     onDiscuss: (FeedPost) -> Unit,
     onEditRoutine: (String) -> Unit,
@@ -109,57 +108,23 @@ fun FeedTab(
 ) {
     val context = LocalContext.current
     val posts by FeedStore.posts.collectAsState()
-    val generating by FeedFlow.generating.collectAsState()
-    val failure by FeedFlow.writeFailure.collectAsState()
     val settingsOpen by FeedUi.settingsOpen.collectAsState()
     val calendarOpen by FeedUi.calendarOpen.collectAsState()
-    val responses by io.github.nanomuse.growth.GrowthStore.responses.collectAsState()
-    val growth by io.github.nanomuse.growth.GrowthStore.state.collectAsState()
     var infoPost by remember { mutableStateOf<FeedPost?>(null) }
-    var growthOpen by remember { mutableStateOf(false) } // Mosaic
     var calendarDay by remember { mutableStateOf<String?>(null) }
 
-    // The routine needs a model; retry quietly whenever the tab shows.
-    LaunchedEffect(Unit) { runCatching { FeedFlow.ensureRoutine(context) } }
-
-    // Mosaic: the page is today; every earlier day is in the calendar.
+    // nanoMuse: 教练内容与主聊天共用领域服务；浏览页面不会启动模型或隐藏定时任务。
     val today = todayKey()
-    val todayPosts = remember(posts, today) { posts.filter { it.day == today } }
-    val earlierOpen = remember(posts, responses, today) {
-        posts.filter { it.day != today && it.track != null && it.prompt.isNotBlank() && it.id !in responses }
-    }
-    val nothingPlanned = remember(posts, growth) { io.github.nanomuse.growth.GrowthFlow.plan(posts).isEmpty() }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MuseTones.canvas),
-        // The last card ends above the floating pill, which overlays the page.
-        contentPadding = PaddingValues(bottom = 28.dp + bottomInset),
-    ) {
-        item(key = "header") { header() }
-        // Mosaic: the ability in training on top, then today's recall.
-        item(key = "growth") { GrowthCard(today = todayPosts, onOpen = { growthOpen = true }) }
-        item(key = "recall") { RecallCard() }
-        item(key = "today-title") { DayTitle(dayLabel(today)) }
-        if (earlierOpen.isNotEmpty()) item(key = "earlier") {
-            EarlierLine(earlierOpen.size) { calendarDay = earlierOpen.first().day; FeedUi.calendarOpen.value = true }
-        }
-        when {
-            generating -> item(key = "generating") { Box(Modifier.animateItem()) { GeneratingCard() } }
-            todayPosts.isEmpty() || (failure != null && !nothingPlanned) -> item(key = "write") {
-                WriteCard(empty = todayPosts.isEmpty(), nothingPlanned = nothingPlanned, failure = failure, onWriteNow = { FeedFlow.generateNow(context) })
-            }
-        }
-        items(todayPosts, key = { it.id }) { post -> // the model leads with what matters most
-            PostCard(
-                post = post,
-                onDiscuss = { onDiscuss(post) },
-                onInfo = { infoPost = post },
-                modifier = Modifier.animateItem(), // new posts settle in, removed ones fade out
-            )
-        }
-    }
-
-    if (growthOpen) GrowthSheet(onDismiss = { growthOpen = false }, onChat = onChat) // Mosaic
+    io.github.nanomuse.ui.coach.CoachPage(
+        header = header,
+        bottomInset = bottomInset,
+        onChat = { onChat("", it) },
+        onOpenChat = onOpenChat,
+        onOpenPractice = onOpenPractice,
+        isOpeningPractice = isOpeningPractice,
+        onOpenConversation = onOpenConversation,
+        viewModel = coachViewModel,
+    )
 
     if (calendarOpen) {
         CoachCalendarSheet(

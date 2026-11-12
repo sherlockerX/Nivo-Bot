@@ -372,7 +372,9 @@ private fun RecordCloud(
             if (row.mediaPath != null) {
                 MosaicPhoto(row, store, size, Modifier.fillMaxSize())
             } else {
-                CloudLabel(row.entry.text.trim().ifEmpty { piece.habit?.title.orEmpty() }, size, MaterialTheme.colorScheme.onSurface)
+                val recordLabel = row.entry.text.trim().ifEmpty { piece.habit?.title.orEmpty() }
+                    .ifEmpty { stringResource(R.string.nm_focus_linked_record) }
+                CloudLabel(recordLabel, size, MaterialTheme.colorScheme.onSurface)
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -480,13 +482,14 @@ private fun RecordList(records: List<DayPiece.Record>, store: MosaicStore, onOpe
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        row.entry.text.trim().ifEmpty { stringResource(R.string.nm_mosaic_record_photo) },
+                        row.entry.text.trim().ifEmpty { stringResource(if (row.mediaPath != null) R.string.nm_mosaic_record_photo else R.string.nm_focus_linked_record) },
                         fontSize = 14.sp,
                         lineHeight = 19.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    io.github.nanomuse.ui.focus.FocusRecordSummary(row.entry.id)
                     val habitLabel = piece.habit?.let { habit -> if (piece.done) habit.title + " ✓" else habit.title }
                     Text(
                         listOfNotNull(formats.recordedAt(row.entry), habitLabel).joinToString(" · "),

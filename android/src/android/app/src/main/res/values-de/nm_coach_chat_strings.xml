@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Übungsaufzeichnungen</string>
+    <string name="nm_coach_chat_city_intro">Wähle einen Kurs, sieh deine Aufzeichnungen an oder lerne im Themengespräch weiter.</string>
+    <string name="nm_coach_chat_archive_intro">Du lernst in den Themengesprächen unter Tägliche Übung. Beim Start öffnet sich das Thema und der KI-Unterricht beginnt.</string>
+    <string name="nm_coach_chat_open_practice">In Tägliche Übung fortfahren</string>
+    <string name="nm_coach_chat_view_original">Originalnachricht ansehen</string>
+    <string name="nm_coach_chat_source_unavailable">Der Link zur Originalnachricht ist nicht verfügbar. Der gespeicherte Auszug bleibt lesbar.</string>
+    <string name="nm_coach_chat_saved_draft">Gespeicherter ungesendeter Entwurf</string>
+    <string name="nm_coach_chat_review_in_chat">Besprich oder korrigiere diesen Eintrag im Themengespräch.</string>
+    <string name="nm_coach_chat_archive">Archiv ansehen</string>
+    <string name="nm_coach_chat_end_today">Für heute beenden</string>
+    <string name="nm_coach_chat_independent_check">Eigenständige Überprüfung</string>
+    <string name="nm_coach_chat_understanding">Verständnisbelege</string>
+    <string name="nm_coach_chat_application">Anwendungsbelege</string>
+    <string name="nm_coach_chat_delayed_review">Spätere Wiederholung</string>
+    <string name="nm_coach_chat_discussion">Besprechung</string>
+    <string name="nm_coach_chat_archive_failed">Gespräch gespeichert, Archivaktualisierung fehlgeschlagen</string>
+    <string name="nm_coach_chat_retry_archive">Archivaktualisierung wiederholen</string>
+    <string name="nm_coach_chat_next_lesson">Nächste Lektion starten</string>
+    <string name="nm_coach_chat_back_to_conversation">Zurück zum Gespräch</string>
+    <string name="nm_coach_chat_source_invalidated">Die Quelle wurde bearbeitet oder gelöscht. Dieser Auszug gilt nicht mehr als aktueller Beleg.</string>
+    <string name="nm_coach_chat_summary">Zusammenfassung der Lektion</string>
+    <string name="nm_coach_chat_summary_version">Kursversion: %1$s; Quellrevision: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Diese Zusammenfassung hat ungültige Quellen und stützt keine aktuellen Schlussfolgerungen.</string>
+    <string name="nm_coach_chat_corrections">Korrekturen</string>
+    <string name="nm_coach_chat_hypotheses">Offene Hypothesen</string>
+    <string name="nm_coach_chat_show_records">Vollständiges Gespräch anzeigen</string>
+    <string name="nm_coach_chat_hide_records">Gespräch ausblenden</string>
+    <string name="nm_coach_chat_hide_sources">Quellen ausblenden</string>
+</resources>

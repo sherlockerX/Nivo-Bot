@@ -1,3 +1,5 @@
+> **Bản fork Nivo Bot:** Bắt đầu với [OPEN_SOURCE.md](../../OPEN_SOURCE.md) và [trang sản phẩm](../../site/README.md). README gốc được giữ để ghi nguồn; các bản tải, dịch vụ và cộng đồng thuộc nanoMuse, không phải bản fork này.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: trợ lý cá nhân mã nguồn mở cho mọi thiết bị của bạn">
 </p>

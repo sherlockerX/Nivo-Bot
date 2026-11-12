@@ -104,6 +104,10 @@ object ChatViewModelStore {
     @Synchronized
     fun ownerFor(sessionId: String): ViewModelStoreOwner {
         val key = resolveKey(sessionId)
+        // nanoMuse: 返回同一账号时重新创建已失效的VM，避免复用已取消的旧Scope。
+        stores[key]?.takeIf { store ->
+            store.keys().any { (store[it] as? ChatViewModel)?.nmAccountIsCurrent() == false }
+        }?.let { stores.remove(key); it.clear() }
         val store = stores.getOrPut(key) {
             Log.d(TAG, "allocate store for $key (total=${stores.size + 1})")
             ViewModelStore()

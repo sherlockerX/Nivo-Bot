@@ -28,6 +28,7 @@ Anything else is a hand edit marked `// nanoMuse:` in the file.
 
     python scripts/rebrand.py            # apply, then report what is still upstream's
     python scripts/rebrand.py --check    # report only, write nothing
+    python scripts/rebrand.py --android-brand-only  # 仅更新Android品牌与版本
 """
 
 from __future__ import annotations
@@ -50,7 +51,11 @@ APP_ID = "io.github.nanomuse.app"
 NAME = "Nicholasx"  # Mosaic: the personal build's product name
 VERSION_NAME = "1.0.6"
 VERSION_CODE = 49
-REPO = "nano-muse/nanoMuse"
+# Android采用独立发行版本；iOS保留既有版本，不能据此宣称平台功能同步。
+ANDROID_VERSION_NAME = "2.0.0"
+ANDROID_VERSION_CODE = 51
+ANDROID_NAME = "Nivo Bot"
+REPO = "sherlockerX/Nicholasx"  # Nicholasx：本分支的源码与反馈入口
 REPO_URL = f"https://github.com/{REPO}"
 PRIVACY_URL = f"{REPO_URL}/blob/main/docs/privacy.md"
 
@@ -75,8 +80,8 @@ def gradle() -> None:
         APP / "build.gradle.kts",
         [
             (r'applicationId = "[^"]+"', f'applicationId = "{APP_ID}"'),
-            (r"versionCode = \d+", f"versionCode = {VERSION_CODE}"),
-            (r'versionName = "[^"]+"', f'versionName = "{VERSION_NAME}"'),
+            (r"versionCode = \d+", f"versionCode = {ANDROID_VERSION_CODE}"),
+            (r'versionName = "[^"]+"', f'versionName = "{ANDROID_VERSION_NAME}"'),
         ],
     )
 
@@ -146,17 +151,26 @@ def soul_defaults() -> None:
 
 
 def links() -> None:
+    """更新当前分支的发行入口，防止再次品牌化时恢复上游地址。"""
+    owner, repository = REPO.split("/", 1)
     edit(
         JAVA / "data" / "UpdateChecker.kt",
         [
-            (r'private const val OWNER = "[^"]+"', 'private const val OWNER = "nano-muse"'),
-            (r'private const val REPO = "[^"]+"', 'private const val REPO = "nanoMuse"'),
+            (r'private const val OWNER = "[^"]+"', f'private const val OWNER = "{owner}"'),
+            (r'private const val REPO = "[^"]+"', f'private const val REPO = "{repository}"'),
             (
                 r'const val RELEASES_URL: String = "[^"]+"',
                 f'const val RELEASES_URL: String = "{REPO_URL}/releases"',
             ),
         ],
     )
+    community = MAIN / "java" / "io" / "github" / "nanomuse" / "community" / "UpdateCheck.kt"
+    if community.is_file():
+        edit(community, [
+            (r'const val DOWNLOAD_URL = "[^"]+"', f'const val DOWNLOAD_URL = "{REPO_URL}/releases"'),
+            (r'const val GITHUB_LATEST_URL = "[^"]+"',
+             f'const val GITHUB_LATEST_URL = "https://api.github.com/repos/{REPO}/releases/latest"'),
+        ])
     edit(
         JAVA / "ui" / "settings" / "AboutScreen.kt",
         [
@@ -573,8 +587,8 @@ def check() -> int:
     gradle_text = (APP / "build.gradle.kts").read_text(encoding="utf-8")
     for want in (
         f'applicationId = "{APP_ID}"',
-        f"versionCode = {VERSION_CODE}",
-        f'versionName = "{VERSION_NAME}"',
+        f"versionCode = {ANDROID_VERSION_CODE}",
+        f'versionName = "{ANDROID_VERSION_NAME}"',
     ):
         if want not in gradle_text:
             print(f"  ! app/build.gradle.kts lacks {want}")
@@ -602,6 +616,10 @@ def main(argv: list[str] | None = None) -> int:
     if args in (["-h"], ["--help"]):
         print(__doc__.strip())
         return 0
+    if args == ["--android-brand-only"]:
+        android_brand_only()
+        print(f"{len(set(changed))} Android brand files changed")
+        return 0
     if args not in ([], ["--check"]):
         print(f"usage: {sys.argv[0]} [--check]  (unknown: {' '.join(args)})", file=sys.stderr)
         return 2
@@ -621,6 +639,7 @@ def main(argv: list[str] | None = None) -> int:
     notification_icons()
     notification_faces()
     reword()
+    android_brand_only()
     ios()
     for path in sorted(set(changed)):
         print(f"  edited {path}")
@@ -628,6 +647,26 @@ def main(argv: list[str] | None = None) -> int:
     problems = check() + ios_check()
     print("clean" if problems == 0 else f"{problems} leftovers")
     return 1 if problems else 0
+
+
+def android_brand_only() -> None:
+    """仅更新Android可见品牌和版本，保留iOS、协议、包名、用户目录及签名身份。"""
+    gradle()
+    for path in sorted(RES.glob("values*/*.xml")):
+        text = path.read_text(encoding="utf-8")
+        new = text.replace("Nicholasx", ANDROID_NAME)
+        if new != text:
+            ET.fromstring(new.encode("utf-8"))
+            path.write_text(new, encoding="utf-8")
+            changed.append(str(path.relative_to(ROOT)))
+    targets = [JAVA / "agent" / "SoulStore.kt", JAVA / "config" / "ConfigBuiltins.kt"]
+    targets.extend((JAVA / "ui").rglob("*.kt"))
+    targets.extend((MAIN / "java/io/github/nanomuse/ui").rglob("*.kt"))
+    targets.append(MAIN / "java/io/github/nanomuse/avatar/AvatarShare.kt")
+    # GitHub仓库标识不随品牌更名；旧对话中的协议前缀不修改。
+    for path in targets:
+        if path.is_file():
+            edit(path, [(r"(?<!/)Nicholasx(?!/)", ANDROID_NAME)])
 
 
 if __name__ == "__main__":

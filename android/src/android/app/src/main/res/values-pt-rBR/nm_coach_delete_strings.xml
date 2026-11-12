@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Excluir %1$d conversas?</string>
+    <string name="nm_coach_delete_retention">Os trechos relacionados do Coach ficam como registros somente para leitura. Os links originais ficarão indisponíveis.</string>
+    <string name="nm_coach_delete_keep">Excluir só o chat e manter trechos</string>
+    <string name="nm_coach_delete_purge">Excluir também o arquivo do tópico</string>
+    <string name="nm_coach_delete_failed">A exclusão não terminou. O chat pode ter sido removido enquanto os trechos permanecem. Tente limpar o arquivo novamente.</string>
+    <string name="nm_coach_delete_account_changed">A conta mudou. Feche esta janela e abra novamente na conta atual.</string>
+    <string name="nm_coach_delete_retry">Tentar limpeza do arquivo</string>
+    <string name="nm_coach_conversation_group">Prática diária</string>
+</resources>

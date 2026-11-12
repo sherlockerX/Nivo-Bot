@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">Mga grupo at tag</string>
+    <string name="nm_todo_choose_category">Pumili o gumawa</string>
+    <string name="nm_todo_category_hint">Magagamit sa susunod na gawain ang mga naka-save na grupo at tag.</string>
+    <string name="nm_todo_category_search">Maghanap o maglagay ng pangalan</string>
+    <string name="nm_todo_category_create">Gumawa ng “%1$s”</string>
+    <string name="nm_todo_category_empty">Wala pang naka-save na kategorya.</string>
+    <string name="nm_todo_category_manage">Tingnan at gumawa</string>
+    <string name="nm_todo_selected">Napili</string>
+    <string name="nm_coach_explore_title">Pagsasanay para sa buhay</string>
+    <string name="nm_coach_explore_areas">Tuklasin ang kakayahan</string>
+    <string name="nm_coach_explore_add">Magdagdag ng kurso</string>
+    <string name="nm_coach_explore_next">Ipagpatuloy ang pag-aaral</string>
+    <string name="nm_coach_explore_progress">%1$d sa %2$d yunit ang naipakita</string>
+    <string name="nm_coach_explore_more">Iba pang opsyon</string>
+</resources>

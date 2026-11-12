@@ -1,3 +1,5 @@
+> **Nivo Bot fork:** The policy below is preserved from upstream. For this fork, read the security-reporting section of [OPEN_SOURCE.md](OPEN_SOURCE.md); do not assume upstream response times or channels apply. Never post secrets or exploit details in public issues.
+
 # Security
 
 nanoMuse runs an agent that executes shell commands, code, network requests and email on your behalf, gated by a Sentinel. Where the line between "gated" and "not gated" sits is written down in [docs/sentinel.md](docs/sentinel.md#what-this-does-and-does-not-protect-against); please read it before reporting, and before deploying.

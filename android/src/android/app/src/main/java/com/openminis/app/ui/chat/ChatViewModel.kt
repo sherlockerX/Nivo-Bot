@@ -7,7 +7,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewModelScope as lifecycleScope
 import androidx.compose.foundation.lazy.LazyListState
 import com.openminis.app.agent.Level
 import com.openminis.app.agent.ToolLoopDetector
@@ -99,6 +99,13 @@ class ChatViewModel(
     val skillRepository: com.openminis.app.data.repository.SkillRepository? = null,
     val mcpRepository: com.openminis.app.data.repository.MCPRepository? = null,
 ) : ViewModel() {
+
+    // nanoMuse: 每个VM固定账号代次，所有子协程和Room写入沿用此凭证。
+    private val nmAccountOperation = io.github.nanomuse.account.AccountData.captureOperation()
+    private val viewModelScope = kotlinx.coroutines.CoroutineScope(lifecycleScope.coroutineContext + nmAccountOperation)
+
+    /** nanoMuse: 账号切换后的缓存VM必须重新创建，不能复用旧历史或已取消的Scope。 */
+    internal fun nmAccountIsCurrent(): Boolean = nmAccountOperation.isCurrent()
 
     companion object {
         internal const val TAG = "ChatViewModel"
@@ -960,7 +967,7 @@ class ChatViewModel(
      * the text field verbatim — worse-looking than a chip, but nothing is lost.
      */
     fun stashPastedTextAsFile(text: String): InputAttachment? {
-        val dir = java.io.File(context.cacheDir, "pasted_text").apply { mkdirs() }
+        val dir = java.io.File(context.cacheDir, "pasted_text") // nanoMuse: 输入回调只分配路径，目录和文件由后台创建。
         // Timestamp + short uuid: sorts chronologically in a file listing and
         // cannot collide when two pastes land in the same millisecond.
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US)
@@ -968,12 +975,12 @@ class ChatViewModel(
         val name = "Pasted_$stamp-${java.util.UUID.randomUUID().toString().take(8)}.txt"
         val file = java.io.File(dir, name)
         return try {
-            file.writeText(text)
             val attachment = InputAttachment(
                 fileName = name,
                 uri = android.net.Uri.fromFile(file),
                 mimeType = "text/plain",
                 kind = InputAttachment.Kind.DOCUMENT,
+                pendingPaste = io.github.nanomuse.chat.PendingPasteFile(file = file, text = text), // nanoMuse: 立即显示卡片，不等待磁盘。
             )
             addAttachment(attachment)
             AppLogger.info(
@@ -1049,6 +1056,191 @@ class ChatViewModel(
     // nanoMuse: 不重放历史事件，只发布经过正常结束校验的最终正文。
     private val _finalReplies = MutableSharedFlow<io.github.nanomuse.chat.FinalReplyReady>(extraBufferCapacity = 16)
     val finalReplies = _finalReplies.asSharedFlow()
+
+    // nanoMuse: 教练语音策略绑定具体消息，入口标记在下一次发送时即被消费。
+    private val nmCoachTurns = io.github.nanomuse.coach.CoachTurnRouting()
+    private val nmNextCoachTurn = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val nmCoachRequests = io.github.nanomuse.coach.CoachRequestTracker()
+    /** nanoMuse: 教练界面只观察自己的请求，不把普通聊天运行显示成训练等待。 */
+    val nmCoachRequest: kotlinx.coroutines.flow.StateFlow<io.github.nanomuse.coach.CoachRequestState?> = nmCoachRequests.state
+
+    // nanoMuse: 档案故障独立于模型请求，重试整理不再次发送用户原话。
+    private val _nmCoachArchiveError = MutableStateFlow<String?>(null)
+    val nmCoachArchiveError: StateFlow<String?> = _nmCoachArchiveError.asStateFlow()
+    private val nmStartingLesson = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** nanoMuse: 只接受当前账户服务中的权威专题绑定，不通过分组名或聊天标题授权。 */
+    fun nmIsCoachPractice(): Boolean = runCatching {
+        io.github.nanomuse.coach.CoachRuntime.service(context).topicForConversation(activeSessionId)?.status == "active"
+    }.getOrDefault(false)
+
+    /** nanoMuse: 等待历史、模型绑定和草稿恢复后再消费专题进入意图。 */
+    suspend fun nmAwaitSessionReady() { sessionLoaded.first { it } }
+
+    private fun nmCoachHostAllowed(id: String = activeSessionId): Boolean =
+        io.github.nanomuse.home.MainChat.isMain(context, id) || runCatching {
+            io.github.nanomuse.coach.CoachRuntime.service(context).topicForConversation(id)?.status == "active"
+        }.getOrDefault(false)
+
+    /** nanoMuse: 手动恢复只补写已有消息的档案，保留正常聊天输入。 */
+    fun nmRetryCoachArchive() {
+        viewModelScope.launch {
+            _nmCoachArchiveError.value = io.github.nanomuse.coach.CoachConversationArchive.retry(
+                context, chatRepository, activeSessionId)
+        }
+    }
+
+    private suspend fun nmArchiveCoachMessage(id: String, role: String, text: String) {
+        // 没有文字的消息（只发图片或文件）没有可归档的原话，跳过而不是留下永远失败的待办。
+        if (text.isBlank() || !nmIsCoachPractice() || nmScheduledRun != null || nmTaskDispatchId != null) return
+        _nmCoachArchiveError.value = io.github.nanomuse.coach.CoachConversationArchive.save(
+            context, chatRepository, activeSessionId, id, role, text)
+    }
+
+    /** nanoMuse: 结束只归档当前课，不等同于通过考核；下一课由用户明确开始。 */
+    fun nmEndCoachLesson(lessonId: String) {
+        // 与开始共用进行中标记：连点或开始、结束同时进行时只执行第一次。
+        if (_isStreaming.value || _isCompacting.value || !nmIsCoachPractice() || !nmStartingLesson.compareAndSet(false, true)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                io.github.nanomuse.sync.ConversationSync.exclusive {
+                    val archiveFailure = io.github.nanomuse.coach.CoachConversationArchive.retryLocked(context, chatRepository, activeSessionId)
+                    if (archiveFailure != null) _nmCoachArchiveError.value = archiveFailure
+                    else {
+                        val service = io.github.nanomuse.coach.CoachRuntime.service(context)
+                        val result = service.execute(io.github.nanomuse.coach.CoachCommand(
+                            "end_lesson", java.util.UUID.randomUUID().toString(), service.state.value.revision, lessonId),
+                            scope = io.github.nanomuse.coach.CoachConversationScope(activeSessionId))
+                        _nmCoachArchiveError.value = result.message.takeUnless { result.success }
+                    }
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { _nmCoachArchiveError.value = failure.message ?: context.getString(R.string.nm_coach_failed) }
+            finally { nmStartingLesson.set(false) }
+        }
+    }
+
+    /** nanoMuse: 当前专题明确续课，不把礼貌回复或更正当作开始新课的意图。 */
+    fun nmStartCoachLesson() {
+        if (_isStreaming.value || _isCompacting.value || !nmIsCoachPractice() || !nmStartingLesson.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                val lessonId = withContext(Dispatchers.IO) {
+                    io.github.nanomuse.sync.ConversationSync.exclusive {
+                        val service = io.github.nanomuse.coach.CoachRuntime.service(context)
+                        val topic = service.topicForConversation(activeSessionId) ?: error("请重新打开当前专题")
+                        val scope = io.github.nanomuse.coach.CoachConversationScope(activeSessionId)
+                        // 与从教练页打开专题一致：先恢复暂停的当前课，暂停期间留下的原话才能整理进去；
+                        // 课程改版后锁定的旧课不恢复，由 start_lesson 按新标准开始新课。
+                        val current = topic.activeSessionId?.let { id -> service.state.value.sessions.find { it.id == id } }
+                        if (current?.status == "paused" && !current.requiresCourseReview && current.course.version ==
+                            service.state.value.tracks.find { it.course.id == current.course.id }?.course?.version) {
+                            val resumed = service.execute(io.github.nanomuse.coach.CoachCommand("resume_session",
+                                java.util.UUID.randomUUID().toString(), service.state.value.revision, current.id), scope = scope)
+                            check(resumed.success) { resumed.message }
+                        }
+                        val failure = io.github.nanomuse.coach.CoachConversationArchive.retryLocked(context, chatRepository, activeSessionId)
+                        check(failure == null) { failure.orEmpty() }
+                        val started = service.execute(io.github.nanomuse.coach.CoachCommand("start_lesson",
+                            java.util.UUID.randomUUID().toString(), service.state.value.revision, topic.id), scope = scope)
+                        check(started.success) { started.message }
+                        val lesson = service.state.value.sessions.single { it.id == started.targetId }
+                        if (lesson.status == "paused") {
+                            val resumed = service.execute(io.github.nanomuse.coach.CoachCommand("resume_session",
+                                java.util.UUID.randomUUID().toString(), service.state.value.revision, lesson.id), scope = scope)
+                            check(resumed.success) { resumed.message }
+                        }
+                        started.targetId
+                    }
+                }
+                _nmCoachArchiveError.value = null
+                // 保存草稿优先；用户可用现有输入开始这一课，不能自动消费附件。
+                if (_inputText.value.isBlank() && _attachments.value.isEmpty() && _pastedTexts.value.isEmpty()) {
+                    nmSendCoachRequest(context.getString(R.string.nm_coach_start), lessonId)
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { _nmCoachArchiveError.value = failure.message ?: context.getString(R.string.nm_coach_failed) }
+            finally { nmStartingLesson.set(false) }
+        }
+    }
+
+    /** nanoMuse: 显式教练请求不进入普通消息队列，失败保留领域中的原始回答。 */
+    fun nmSendCoachRequest(prompt: String, sessionId: String? = null) {
+        val busy = _isStreaming.value || _isCompacting.value || _promptQueue.value.isNotEmpty() || pendingSendText != null
+        if (!nmCoachRequests.begin(sessionId, nmCoachSnapshot(sessionId), busy)) return
+        if (sessionId != null && nmCoachSnapshot(sessionId) == null) {
+            nmCoachRequests.reject("session_missing", "这次训练已失效，请重新读取课程后继续。")
+            return
+        }
+        if (!nmConversationAvailable()) {
+            nmCoachRequests.reject("conversation_unavailable", "主聊天暂时不可用，已保存内容保留，请稍后重试。")
+            return
+        }
+        if (prompt.isBlank()) {
+            nmCoachRequests.reject("empty_request", "请先选择要继续的训练。")
+            return
+        }
+        nmMarkCoachTurn()
+        sendMessage(prompt)
+        if (nmCoachRequest.value?.isAwaitingConfirmation == true) return
+        if (!_isStreaming.value) {
+            nmCoachRequests.reject("send_not_started", _error.value ?: "教练请求尚未发送，请在主聊天检查模型或上下文提示后重试。")
+            return
+        }
+    }
+
+    /** nanoMuse: 只停止当前教练请求，普通主聊天请求不受影响。 */
+    fun nmCancelCoachRequest() {
+        if (nmCoachRequest.value?.isRunning != true) return
+        if (nmCoachRequest.value?.isAwaitingConfirmation == true && pendingSendText != null) {
+            cancelCompactBeforeSend()
+            return
+        }
+        nmFinishCoachRequest(cancelled = true)
+        cancelStream()
+    }
+
+    private fun nmCoachSnapshot(id: String?): io.github.nanomuse.coach.CoachRequestSnapshot? =
+        if (id == null) null else runCatching {
+            io.github.nanomuse.coach.CoachRuntime.service(context).state.value.sessions.find { it.id == id }?.let {
+                io.github.nanomuse.coach.CoachRequestSnapshot(it.id, it.stage, it.pendingTurnId, it.revision)
+            }
+        }.getOrNull()
+
+    private fun nmFinishCoachRequest(cancelled: Boolean = false) {
+        val owner = nmCoachRequests.currentOwner()
+        nmFinishCoachRequest(owner, owner?.userId?.let(nmCoachTurns::currentAuthorization), cancelled)
+    }
+
+    /** nanoMuse: 异步收尾只持有自己的请求和授权代次，不读取最新回合冒充旧任务。 */
+    private fun nmFinishCoachRequest(
+        owner: io.github.nanomuse.coach.CoachRequestOwner?,
+        authorization: io.github.nanomuse.coach.CoachTurnAuthorization?,
+        cancelled: Boolean = false,
+        error: String? = _error.value,
+    ) {
+        val request = nmCoachRequest.value?.takeIf { it.requestId == owner?.requestId }
+        nmCoachRequests.finish(owner, nmCoachSnapshot(request?.sessionId), error, cancelled)
+        authorization?.let(nmCoachTurns::revoke)
+    }
+
+    /** nanoMuse: 压缩确认沿用同一请求；发起失败时结束它，不创建无目标替代请求。 */
+    private fun nmSendPendingCoach(text: String, coachTurn: Boolean) {
+        sendMessage(text, skipContextCheck = true, coachTurn = coachTurn)
+        if (coachTurn && !_isStreaming.value) nmCoachRequests.reject("send_not_started",
+            _error.value ?: "教练请求未发送，原内容已保留，请重试。")
+    }
+
+    /** nanoMuse: 教练界面在调用主要聊天发送前标记这一条用户回合。 */
+    fun nmMarkCoachTurn() { nmNextCoachTurn.set(true) }
+
+    private fun nmCoachDenial(): String? = nmCoachTurns.denialReason(
+        _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id, activeSessionId,
+        io.github.nanomuse.home.MainChat.isMain(context, activeSessionId), nmScheduledRun != null,
+        nmTaskDispatchId != null, (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true,
+        isBoundPractice = nmIsCoachPractice())
+
+    private fun nmCoachAvailable(): Boolean = nmCoachDenial() == null
 
     private val _stopStaleReadAloud = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val stopStaleReadAloud: SharedFlow<Unit> = _stopStaleReadAloud.asSharedFlow()
@@ -1195,6 +1387,7 @@ class ChatViewModel(
         nmScheduledRun?.launch(viewModelScope, dispatcher, block) ?: viewModelScope.launch(dispatcher, block = block)
 
     private fun nmConversationAvailable(): Boolean {
+        if (!nmAccountOperation.isCurrent()) return false // nanoMuse: 旧页面不能重新发起工具或模型请求。
         val key = realSessionId.ifEmpty { sessionId }
         if (io.github.nanomuse.chat.SessionDeleteGuard.isDeleting(key)) return false
         val allowed = io.github.nanomuse.routines.ScheduledRunScopes.canStartChat(key, nmTaskDispatchId)
@@ -1294,6 +1487,9 @@ class ChatViewModel(
                 providerRepository, context,
             ),
             memoryEnabled = _memoryEnabled.value,
+            coachEnabled = nmCoachAvailable(), // nanoMuse: 定时任务与旁聊不暴露教练读写入口。
+            todoEnabled = nmAccountOperation.isCurrent() && nmCoachAvailable() &&
+                io.github.nanomuse.home.MainChat.isMain(context, activeSessionId), // nanoMuse: 待办只在主聊天开放。
         )
 
     /**
@@ -1365,7 +1561,7 @@ class ChatViewModel(
             ?: return com.openminis.app.data.repository.MemoryRepository.EntryMutationResult.IOError("Memory not available")
         val written = record.writtenContent
             ?: return com.openminis.app.data.repository.MemoryRepository.EntryMutationResult.NotFound
-        val result = repo.revokeEntry(written)
+        val result = nmAccountOperation.files { repo.revokeEntry(written) } // nanoMuse: 撤销同样受账号文件边界保护。
         if (result is com.openminis.app.data.repository.MemoryRepository.EntryMutationResult.Success) {
             _memoryToolRecords.value = _memoryToolRecords.value - record
         }
@@ -1429,7 +1625,7 @@ class ChatViewModel(
             ?: return com.openminis.app.data.repository.MemoryRepository.EntryMutationResult.IOError("Memory not available")
         val old = record.writtenContent
             ?: return com.openminis.app.data.repository.MemoryRepository.EntryMutationResult.NotFound
-        val result = repo.replaceEntryBody(old, newContent)
+        val result = nmAccountOperation.files { repo.replaceEntryBody(old, newContent) } // nanoMuse
         if (result is com.openminis.app.data.repository.MemoryRepository.EntryMutationResult.Success) {
             _memoryToolRecords.value = _memoryToolRecords.value.map {
                 if (it === record) it.copy(
@@ -3459,6 +3655,7 @@ class ChatViewModel(
      * up. Mirrors iOS `pendingSendText` / `pendingSendAttachments`.
      */
     private var pendingSendText: String? = null
+    private var nmPendingSendCoachTurn = false // nanoMuse: 压缩等待也保留这一条发送的语音策略。
 
     private val _showCompactBeforeSendPrompt = MutableStateFlow(false)
     val showCompactBeforeSendPrompt: StateFlow<Boolean> = _showCompactBeforeSendPrompt.asStateFlow()
@@ -3473,12 +3670,16 @@ class ChatViewModel(
         _showCompactBeforeSendPrompt.value = false
         val text = pendingSendText ?: return
         pendingSendText = null
+        val coachTurn = nmPendingSendCoachTurn.also { nmPendingSendCoachTurn = false } // nanoMuse
+        val coachRequestId = nmCoachRequest.value?.requestId // nanoMuse: 压缩续发不能绑定后来重试的新请求。
         viewModelScope.launch {
             val ok = awaitCompaction()
             if (!ok) {
                 AppLogger.warning(TAG, "[Context] pre-send compaction failed — sending anyway")
             }
-            sendMessage(text, skipContextCheck = true)
+            // nanoMuse: 压缩期间若用户停止，不能在压缩完成后悄悄发送已取消的教练请求。
+            if (!coachTurn || (nmCoachRequest.value?.isRunning == true && nmCoachRequest.value?.requestId == coachRequestId))
+                nmSendPendingCoach(text, coachTurn)
         }
     }
 
@@ -3487,7 +3688,8 @@ class ChatViewModel(
         _showCompactBeforeSendPrompt.value = false
         val text = pendingSendText ?: return
         pendingSendText = null
-        sendMessage(text, skipContextCheck = true)
+        val coachTurn = nmPendingSendCoachTurn.also { nmPendingSendCoachTurn = false } // nanoMuse
+        nmSendPendingCoach(text, coachTurn) // nanoMuse: 确认后沿用原教练请求身份。
     }
 
     /** Dialog dismissed — restore the text to the composer so it isn't lost. */
@@ -3495,6 +3697,8 @@ class ChatViewModel(
         _showCompactBeforeSendPrompt.value = false
         pendingSendText?.let { _inputText.value = it }
         pendingSendText = null
+        nmPendingSendCoachTurn = false // nanoMuse: 取消后不会污染下一条普通发送。
+        nmCoachRequests.cancelAwaiting() // nanoMuse: 取消确认结束原请求，不能留下等待或随后重发。
     }
 
     /**
@@ -3687,13 +3891,35 @@ class ChatViewModel(
     private val _nmFocusComposer = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val nmFocusComposer: kotlinx.coroutines.flow.SharedFlow<Unit> = _nmFocusComposer
 
-    /** Pre-fill the composer with [text] and ask for the keyboard. */
+    /** nanoMuse: 外部预填保留未提交的输入状态，并聚焦输入框供用户继续处理。 */
     fun nmPrefillComposer(text: String) {
-        setInputText(text)
+        val shouldProtect = io.github.nanomuse.chat.ExternalPromptPolicy.shouldProtect(
+            inputText = _inputText.value,
+            editingMessageId = _editingMessageId.value,
+            hasAttachments = _attachments.value.isNotEmpty(),
+            hasPastedTexts = _pastedTexts.value.isNotEmpty(),
+        )
+        if (shouldProtect) {
+            android.widget.Toast.makeText(context, R.string.nm_external_prompt_review_draft,
+                android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            setInputText(text)
+        }
+        _nmFocusComposer.tryEmit(Unit)
+    }
+
+    /** nanoMuse: 聊天中的点子按钮是明确追加操作，保留草稿、附件和编辑目标，由用户发送。 */
+    fun nmAppendComposerIdea(text: String) {
+        val draft = _inputText.value
+        setInputText(if (draft.isEmpty()) text else "$draft\n\n$text")
         _nmFocusComposer.tryEmit(Unit)
     }
 
     init {
+        // nanoMuse: 迁移开始同步取消，但不join；收尾可能仍在等待外层同步锁。
+        addCloseable("nm-account-operation", nmAccountOperation.onInvalidated {
+            viewModelScope.coroutineContext[Job]?.cancel(CancellationException("The account changed"))
+        })
         loadSession()
         // nanoMuse: rows synced from the account's other devices land in this chat while it is
         // open — reloaded from the database between turns, never under a running one; what
@@ -3763,7 +3989,8 @@ class ChatViewModel(
         // cold start. loadSession() is idempotent (re-checks isSafeMode
         // on entry; sessionLoaded gate prevents double-population), so
         // this is a clean "now finish the work you skipped" hook.
-        com.openminis.app.crash.CrashFrequencyDetector
+        // nanoMuse: 监听由ViewModel生命周期注销，删除会话后全局检测器不再持有历史消息。
+        val unregisterSafeMode = com.openminis.app.crash.CrashFrequencyDetector
             .registerSafeModeClearedListener {
                 viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
                     runCatching { loadSession() }
@@ -3775,6 +4002,7 @@ class ChatViewModel(
                         }
                 }
             }
+        addCloseable("nm-safe-mode-listener", AutoCloseable { unregisterSafeMode() })
         // nanoMuse: the main chat follows the chat slot (Settings › Models, the "Use it for"
         // card, a pick in a chat's picker: ModelSlots.followPick → mainChatFollows). Its row is
         // rewritten there; this view-model lives as long as the app, so it is told as well and
@@ -4001,6 +4229,7 @@ class ChatViewModel(
 
     /** Ensure the session exists in the database. Called before first message. */
     private suspend fun ensureSession(): String {
+        nmAccountOperation.requireCurrent() // nanoMuse: 已有ID同样不能绕过账号代次。
         if (realSessionId.isNotEmpty()) return realSessionId
         val modelId = currentModel?.id ?: providerRepository.allVisibleEntries().firstOrNull()?.model?.id ?: "unknown"
         // [T-memory-global-toggle-settings-ui-android] Snapshot the
@@ -4170,6 +4399,9 @@ class ChatViewModel(
             println("[T-HANG-DIAG] loadSession ENTER session=$sessionId isDraft=$isDraft")
             com.openminis.app.diagnostics.PerfLongCtx.step(sessionId, "loadSession.enter", "isDraft=$isDraft")
             try {
+            // nanoMuse: 重启后只重试待整理项，既不重新回答，也不自动开始新课。
+            if (!isDraft) _nmCoachArchiveError.value = io.github.nanomuse.coach.CoachConversationArchive.retry(
+                context, chatRepository, sessionId)
             val config = providerRepository.config.value
             _availableGroups.value = config.modelGroups
 
@@ -4836,6 +5068,61 @@ class ChatViewModel(
             uiBoundarySortOrder = null,
             version = 2,
         )
+    }
+
+    /** nanoMuse: 调度器已占用会话并完成加载，只同步本会话模型，不修改全局默认。 */
+    suspend fun nmApplyScheduledModel(binding: String?, modelId: String?, runId: String): Boolean {
+        if (!sessionLoaded.value || nmHasUnfinishedStream() || _isCompacting.value ||
+            !io.github.nanomuse.routines.ScheduledRunScopes.isActive(activeSessionId) ||
+            !io.github.nanomuse.routines.ScheduledRunScopes.canStartChat(activeSessionId, runId)) return false
+        val previousProvider = currentProvider
+        val previousModel = currentModel
+        val previousEntry = _activeEntryId.value
+        val previousGroup = _selectedGroupId.value
+        val previousGroupName = _selectedGroupName.value
+        val previousModelName = _modelName.value
+        val previousProviderName = _providerName.value
+        var didPersist = false
+        try {
+        currentProvider = null
+        currentModel = null
+        _activeEntryId.value = null
+        _selectedGroupId.value = null
+        _selectedGroupName.value = ""
+        _modelName.value = ""
+        _providerName.value = ""
+        val resolved = when {
+            !binding.isNullOrBlank() -> restoreFromBinding(binding)
+            !modelId.isNullOrBlank() -> findModelEntry(modelId)?.let { entry ->
+                restoreFromBinding(JSONObject().put("type", "entry").put("entryId", entry.id).toString())
+            } ?: false
+            else -> {
+                val groupId = providerRepository.defaultPrimaryGroupId
+                if (groupId != null && restoreFromBinding(JSONObject().put("type", "group").put("groupId", groupId).toString())) true
+                else applyNewChatDefaultModel()
+            }
+        }
+        if (!resolved || currentProvider == null || currentModel == null) return false
+        val actual = _selectedGroupId.value?.let { groupId ->
+            JSONObject().put("type", "group").put("groupId", groupId).put("lastEntryId", _activeEntryId.value)
+        } ?: JSONObject().put("type", "entry").put("entryId", _activeEntryId.value)
+        // nanoMuse: 数据库提交与内存确认一同完成，取消不留下已提交的新绑定与旧VM。
+        withContext(kotlinx.coroutines.NonCancellable) {
+            chatRepository.updateSessionBinding(activeSessionId, actual.toString(), requireNotNull(currentModel).id)
+            didPersist = true
+        }
+        return true
+        } finally {
+            if (!didPersist) {
+                currentProvider = previousProvider
+                currentModel = previousModel
+                _activeEntryId.value = previousEntry
+                _selectedGroupId.value = previousGroup
+                _selectedGroupName.value = previousGroupName
+                _modelName.value = previousModelName
+                _providerName.value = previousProviderName
+            }
+        }
     }
 
     /** Restore provider state from a JSON binding string. Returns true if successfully resolved. */
@@ -5537,6 +5824,10 @@ class ChatViewModel(
                 }
 
                 streamLaunched = runRerunStreamTail(initialProvider, "rerunFromToolBlock")
+            } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                AppLogger.warning(TAG_STREAM, "rerunFromToolBlock setup failed: ${e.message}")
+                _error.value = context.getString(R.string.nm_coach_failed)
             } finally {
                 if (!streamLaunched) {
                     AppLogger.info(TAG_STREAM, "rerunFromToolBlock _isStreaming=false (setup aborted)")
@@ -5669,6 +5960,10 @@ class ChatViewModel(
             }
 
             streamLaunched = runRerunStreamTail(provider, "retryFromMessage")
+            } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                AppLogger.warning(TAG_STREAM, "retryFromMessage setup failed: ${e.message}")
+                _error.value = context.getString(R.string.nm_coach_failed)
             } finally {
                 if (!streamLaunched) {
                     AppLogger.info(TAG_STREAM, "retry _isStreaming=false (setup aborted)")
@@ -5741,7 +6036,14 @@ class ChatViewModel(
             val target = messages[index]
             val cutoffSortOrder = resolveDeleteCutoffSortOrder(sid, messages, index, target)
             if (cutoffSortOrder >= 0) {
-                chatRepository.deleteMessagesAfter(sid, cutoffSortOrder)
+                try {
+                    chatRepository.deleteMessagesAfter(sid, cutoffSortOrder)
+                } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时数据库原样保留，提示而不让应用崩溃。
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    AppLogger.warning(TAG, "deleteFromMessage refused: ${e.message}")
+                    _error.value = context.getString(R.string.nm_coach_failed)
+                    return@launch
+                }
             }
 
             // Rebuild agentHistory from what survived, so the next turn is
@@ -6160,7 +6462,7 @@ class ChatViewModel(
      * current agent loop finishes, drainQueuedPrompts() consumes the queue.
      * Mirrors iOS AIChatViewModel.enqueuePrompt().
      */
-    fun enqueuePrompt(text: String) {
+    fun enqueuePrompt(text: String, coachTurn: Boolean = false) { // nanoMuse: 排队消息保持独立的教练语音标记。
         val trimmed = text.trim()
         val pendingAttachments = _attachments.value
         if ((trimmed.isBlank() && pendingAttachments.isEmpty()) || !_isStreaming.value) return
@@ -6185,6 +6487,7 @@ class ChatViewModel(
             isQueued = true,
             queuedPromptId = prompt.id,
         )
+        if (coachTurn) nmCoachTurns.markUser(chatMsg.id) // nanoMuse
         _messages.value = _messages.value + chatMsg
         clearAttachments()
         Log.i(TAG, "Enqueued prompt (${trimmed.length}ch, ${pendingAttachments.size} attachments), queue=${_promptQueue.value.size}")
@@ -6192,6 +6495,7 @@ class ChatViewModel(
 
     /** Remove a queued prompt and its chat message by prompt id. */
     fun removeQueuedPrompt(promptId: String) {
+        if (promptId in nmCommittingPromptIds) return // nanoMuse: 已开始落盘的批次由提交阶段收尾。
         _promptQueue.value = _promptQueue.value.filterNot { it.id == promptId }
         _messages.value = _messages.value.filterNot { it.queuedPromptId == promptId }
     }
@@ -6201,10 +6505,44 @@ class ChatViewModel(
         val msg = _messages.value.firstOrNull { it.id == messageId } ?: return
         if (!msg.isQueued) return
         val pid = msg.queuedPromptId ?: return
+        if (pid in nmCommittingPromptIds) return // nanoMuse: 附件等待期仍可撤回，落盘接管后不再撤回。
         _promptQueue.value = _promptQueue.value.filterNot { it.id == pid }
         _messages.value = _messages.value.filterNot { it.id == messageId }
         Log.i(TAG, "Withdrew queued message, queue=${_promptQueue.value.size}")
     }
+
+    // nanoMuse: 只在主线程接管/释放，避免等待附件期间提前消费队列。
+    private var nmCommittingPromptIds: Set<String> = emptySet()
+
+    /** nanoMuse: 附件等待可取消且可撤回，落盘阶段保留新增条目并完整提交界面。 */
+    private suspend fun <R> nmCommitPreparedQueue(
+        sid: String,
+        commit: suspend (List<QueuedPrompt>, PreparedAttachments) -> R,
+    ): R? = io.github.nanomuse.chat.commitPreparedQueue(
+        readQueue = { _promptQueue.value },
+        id = { it.id },
+        prepare = { batch -> prepareUserAttachments(batch.flatMap { it.attachments }, sid) },
+        onCommitting = { batch ->
+            nmCommittingPromptIds = batch.map { it.id }.toSet()
+            _messages.value = _messages.value.map { message ->
+                if (message.queuedPromptId in nmCommittingPromptIds) message.copy(isQueued = false) else message
+            }
+        },
+        commit = { batch, prepared ->
+            try {
+                commit(batch, prepared)
+            } finally {
+                nmCommittingPromptIds = emptySet()
+            }
+        },
+        onRollback = { batch ->
+            val pendingIds = batch.map { it.id }.toSet().intersect(_promptQueue.value.map { it.id }.toSet())
+            _messages.value = _messages.value.map { message ->
+                if (message.queuedPromptId in pendingIds) message.copy(isQueued = true) else message
+            }
+            nmCommittingPromptIds = emptySet()
+        },
+    )
 
     /**
      * [T-android-queued-message-interrupt-on-toolclose] Mid-tool-loop
@@ -6227,7 +6565,9 @@ class ChatViewModel(
      * entry — its sole purpose is to break up the consecutive-user run for
      * the next API call; chat history reconstruction would just hide it.
      */
-    private data class InjectedTurn(val newAssistantId: String)
+    // nanoMuse: 排队注入携带自己取得的授权代次，旧循环不能在收尾时撤掉新授权。
+    private data class InjectedTurn(val newAssistantId: String, val newUserId: String,
+        val coachAuthorization: io.github.nanomuse.coach.CoachTurnAuthorization?)
 
     private suspend fun injectQueuedPromptsAsNewTurn(
         finishedAssistantId: String,
@@ -6235,27 +6575,9 @@ class ChatViewModel(
         finishedAllToolBlocks: List<AssistantBlock>,
     ): InjectedTurn? {
         if (_promptQueue.value.isEmpty()) return null
-        val queued = _promptQueue.value
-        _promptQueue.value = emptyList()
-
-        // [T-android-queued-message-duplicated-on-inject] REMOVE the queued
-        // placeholder bubbles (the ones enqueuePrompt added with
-        // id="queued_msg_…") for the prompts we're injecting. Step (c) below
-        // appends a single combined user bubble (id=userEntity.id) for the same
-        // text — so flipping isQueued=false and KEEPING the placeholders (the
-        // old behaviour) rendered the message TWICE: once as the un-queued
-        // placeholder, once as the injected bubble. drainQueuedPrompts reuses
-        // its placeholders and never re-appends, so it didn't dupe; this mid-
-        // loop inject path appends a fresh bubble, so the placeholders must go.
-        val queuedIds = queued.map { it.id }.toSet()
-        val msgsAfterUnqueue = _messages.value.filterNot { m ->
-            m.queuedPromptId != null && queuedIds.contains(m.queuedPromptId)
-        }
-
-        // Build the combined user message from all queued prompts.
         val sid = ensureSession()
-        val combinedAttachments = queued.flatMap { it.attachments }
-        val prepared = prepareUserAttachments(combinedAttachments, sid)
+        return nmCommitPreparedQueue(sid) { queued, prepared ->
+        val queuedIds = queued.map { it.id }.toSet()
 
         val combinedParts = mutableListOf<AgentContentPart>()
         val combinedText = StringBuilder()
@@ -6282,7 +6604,7 @@ class ChatViewModel(
                 TAG_STREAM,
                 "injectQueuedPromptsAsNewTurn: ${queued.size} queued prompt(s) produced no content, skipping",
             )
-            return null
+            throw IllegalStateException(context.getString(R.string.nm_coach_failed)) // nanoMuse: 空批次保留原队列供用户修改。
         }
 
         // Bridge entry into agentHistory ONLY (not persisted). The tail
@@ -6291,15 +6613,13 @@ class ChatViewModel(
         // provider merges them — exactly the regression iOS hit at #579.
         // Empty/whitespace-only bridge text would itself be merged out by
         // some sanitizers; keep a small visible string for parity with iOS.
-        agentHistory.add(
-            LLMMessage(
+        val bridgeEntry = LLMMessage(
                 role = LLMMessage.Role.ASSISTANT,
                 content = "(Interrupted mid-task by a new user message. Decide based on the new message and overall context whether the prior task should continue — do not forget or abandon it unless the user explicitly says to stop, or the new message makes clear it is no longer needed.)",
                 contentParts = listOf(
                     AgentContentPart.Text("(Interrupted mid-task by a new user message. Decide based on the new message and overall context whether the prior task should continue — do not forget or abandon it unless the user explicitly says to stop, or the new message makes clear it is no longer needed.)"),
                 ),
-            ),
-        )
+            )
 
         // Persist the queued user message as its own DB row + append to
         // agentHistory so the next API call carries it.
@@ -6311,16 +6631,32 @@ class ChatViewModel(
         // without this the queued row would persist a literal `[Pasted#3]` and
         // the model would receive the marker instead of the text.
         val queuedPaste = buildPastedParts(userText, sid)
-        if (queuedPaste != null) {
-            _pastedTexts.value = _pastedTexts.value.filterNot { it.id in queuedPaste.consumedIds }
-        }
         val userPartsJson = buildUserPartsJson(
             userText,
             prepared.mediaRefPartsJson,
             prepared.attachedFilesXml,
             bodyPartsJson = queuedPaste?.partsJson,
         )
-        val userEntity = chatRepository.appendMessage(sid, "user", userPartsJson)
+        // nanoMuse: 新排队用户回合接管前，先明确结束旧教练请求，不能串用授权或等待标记。
+        kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.coach.CoachRequestLoop]?.close()
+        val userEntity = chatRepository.appendMessage(sid, "user", userPartsJson,
+            coachArchiveText = if (nmIsCoachPractice() && nmScheduledRun == null && nmTaskDispatchId == null) userText.takeIf { it.isNotBlank() } else null) // nanoMuse
+        // nanoMuse: 只有落盘成功才消费本批次，等待期间新入队的正文和附件继续保留。
+        _promptQueue.value = _promptQueue.value.filterNot { it.id in queuedIds }
+        if (queuedPaste != null) {
+            _pastedTexts.value = _pastedTexts.value.filterNot { it.id in queuedPaste.consumedIds }
+        }
+        agentHistory.add(bridgeEntry)
+        // nanoMuse: 人在前台提交的排队消息以落盘ID取得自己的授权，不继承旧回合。
+        val nmQueuedAuthorization = if (nmCoachHostAllowed(sid) && nmScheduledRun == null &&
+            nmTaskDispatchId == null && (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true) {
+            nmCoachTurns.authorize(userEntity.id, sid)
+        } else null
+        // nanoMuse: 授权后立刻交接，后续持久化或重绘被取消也能由同一finally撤销新用户授权。
+        kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.coach.CoachRequestLoop]
+            ?.replaceUser(userEntity.id, nmQueuedAuthorization)
+        // nanoMuse: 合并后的消息使用真实数据库ID，队列占位ID不能作为证据来源。
+        if (queued.any { nmCoachTurns.isCoachUser("queued_msg_${it.id}") }) nmCoachTurns.markUser(userEntity.id)
         io.github.nanomuse.sync.ConversationSync.sent(sid) // nanoMuse: pushed at send (C8), then "working" (C9)
         agentHistory.add(
             LLMMessage(
@@ -6353,7 +6689,7 @@ class ChatViewModel(
         val newAssistantId = "assistant_${System.currentTimeMillis()}"
         withContext(Dispatchers.Main) {
             // (a) + (b) one emit: build the post-finalize list.
-            _messages.value = msgsAfterUnqueue
+            _messages.value = _messages.value.filterNot { it.queuedPromptId in queuedIds } // nanoMuse: 使用当前列表，保留等待期间新加入的占位消息。
             updateAssistantMessage(
                 finishedAssistantId,
                 finishedAccumulatedText,
@@ -6395,7 +6731,9 @@ class ChatViewModel(
             "injectQueuedPromptsAsNewTurn: injected ${queued.size} queued prompt(s) as new turn, " +
                 "finishedId=$finishedAssistantId newId=$newAssistantId",
         )
-        return InjectedTurn(newAssistantId)
+        nmArchiveCoachMessage(userEntity.id, "user", userText) // nanoMuse: 可见提交完成后归档，归档失败也不丢失原消息。
+        InjectedTurn(newAssistantId, userEntity.id, nmQueuedAuthorization)
+        }
     }
 
     /**
@@ -6410,27 +6748,12 @@ class ChatViewModel(
         fallbackStrategy: com.openminis.app.data.model.FallbackStrategy,
     ) {
         while (_promptQueue.value.isNotEmpty()) {
-            val queued = _promptQueue.value
-            _promptQueue.value = emptyList()
+            val sid = ensureSession()
+            val isCommitted = nmCommitPreparedQueue(sid) { queued, prepared ->
             Log.i(TAG, "📨[DRAIN] Draining ${queued.size} queued prompt(s): " +
                 queued.joinToString(", ") { "${it.id}=\"${it.text.take(20)}...\"" })
 
-            // Flip isQueued=false on corresponding chat messages so they render as sent.
-            // T189: also clear queuedPromptId so a later retry of this bubble
-            // doesn't try to drop a phantom queue entry (and so the field state
-            // matches what retryFromMessage's truncate path now produces).
             val queuedIds = queued.map { it.id }.toSet()
-            _messages.value = _messages.value.map { m ->
-                if (m.queuedPromptId != null && queuedIds.contains(m.queuedPromptId)) {
-                    m.copy(isQueued = false, queuedPromptId = null)
-                } else m
-            }
-
-            // Build a combined user message (text + images from all queued prompts).
-            // Persist as a single row.
-            val sid = ensureSession()
-            val combinedAttachments = queued.flatMap { it.attachments }
-            val prepared = prepareUserAttachments(combinedAttachments, sid)
 
             // T132: same shape as sendMessage — caption(s) first, then for each
             // image emit "[attached image: <path>]" + ImageData, finally the
@@ -6451,23 +6774,31 @@ class ChatViewModel(
                 combinedParts.add(AgentContentPart.ImageData(part.data, part.mimeType, linuxPath = path, noVisionPlaceholder = visionPlaceholderFor(path)))
             }
             prepared.attachedFilesXml?.let { combinedParts.add(AgentContentPart.Text(it)) }
+            if (combinedParts.isEmpty()) throw IllegalStateException(context.getString(R.string.nm_coach_failed)) // nanoMuse: 无内容时保留队列。
 
             val userText = combinedText.toString()
             // [T-android-paste-mediaref] Same marker handling as the mid-loop
             // inject path above — see the note there for why queued prompts
             // need it at all.
             val drainPaste = buildPastedParts(userText, sid)
-            if (drainPaste != null) {
-                _pastedTexts.value =
-                    _pastedTexts.value.filterNot { it.id in drainPaste.consumedIds }
-            }
             val userPartsJson = buildUserPartsJson(
                 userText,
                 prepared.mediaRefPartsJson,
                 prepared.attachedFilesXml,
                 bodyPartsJson = drainPaste?.partsJson,
             )
-            chatRepository.appendMessage(sid, "user", userPartsJson)
+            val queuedUser = chatRepository.appendMessage(sid, "user", userPartsJson,
+                coachArchiveText = if (nmIsCoachPractice() && nmScheduledRun == null && nmTaskDispatchId == null)
+                    userText.takeIf { it.isNotBlank() } else null) // nanoMuse: 暂存失败时不消费原队列，允许重试。
+            _promptQueue.value = _promptQueue.value.filterNot { it.id in queuedIds } // nanoMuse: 仅消费落盘成功的ID。
+            if (drainPaste != null) {
+                _pastedTexts.value = _pastedTexts.value.filterNot { it.id in drainPaste.consumedIds }
+            }
+            _messages.value = _messages.value.map { message ->
+                if (message.queuedPromptId in queuedIds) message.copy(isQueued = false, queuedPromptId = null) else message
+            }
+            // nanoMuse: 上一回合结束后才发出的排队消息同样记入专题档案（与回合中插入的排队消息一致），失败只显示整理提示。
+            nmArchiveCoachMessage(queuedUser.id, "user", userText)
             io.github.nanomuse.sync.ConversationSync.sent(sid) // nanoMuse: pushed at send (C8), then "working" (C9)
 
             agentHistory.add(LLMMessage(
@@ -6478,7 +6809,11 @@ class ChatViewModel(
                     val bodyCount = combinedParts.takeWhile { it is AgentContentPart.Text }.size
                     listOf(AgentContentPart.Text(p.modelText)) + combinedParts.drop(bodyCount)
                 } ?: combinedParts,
+                dbMessageId = queuedUser.id, // nanoMuse: 排队转正后也不能用界面占位ID保存证据。
             ))
+            true
+            }
+            if (isCommitted != true) continue // nanoMuse: 等待期间已全部撤回，不启动空回合。
 
             try {
                 runAgentLoop(
@@ -6521,6 +6856,7 @@ class ChatViewModel(
     fun nmTakeCountableTurn(): Boolean = nmCountableTurn.also { nmCountableTurn = false }
 
     fun sendMessage(text: String) {
+        val coachTurn = nmNextCoachTurn.getAndSet(false) // nanoMuse: 发送失败也不保留入口标记。
         if (!nmConversationAvailable()) return // nanoMuse: 删除或任务独占期间不接受普通输入。
         // nanoMuse: "change your avatar to …" (and a pick while the options are
         // up) is handled in the app, not by the model.
@@ -6531,7 +6867,7 @@ class ChatViewModel(
         // nanoMuse: during the first conversation the text goes to the model as
         // it is; the model says what it meant in a `nanomuse-naming` block and
         // nmAfterTurn moves the phase (see FirstConversation).
-        sendMessage(nmText, skipContextCheck = false)
+        sendMessage(nmText, skipContextCheck = false, coachTurn = coachTurn) // nanoMuse
     }
 
     // ─── nanoMuse: changing the face from the chat ─────────────────────────
@@ -6891,14 +7227,17 @@ class ChatViewModel(
     }
 
     private fun nmAfterTurn() {
+        nmAccountOperation.requireCurrent() // nanoMuse: 迟到的回合不得写入新账号动态或目标。
         val sid = realSessionId.ifEmpty { sessionId }
         // Goal blocks in the reply just finished, and the turn budget of any
         // prompt addendum, are settled first — they apply to every session.
         io.github.nanomuse.chat.SessionAddenda.onTurnFinished(sid)
         nmAllowanceHeadsUp()
         _messages.value.lastOrNull { it.role == "assistant" }?.content?.let { text ->
-            io.github.nanomuse.goals.GoalFlow.afterTurn(context, sid, text)
-            io.github.nanomuse.feed.FeedFlow.afterTurn(context, sid, text)
+            nmAccountOperation.files { // nanoMuse: 旧回合与迁移不能交错改写固定目录。
+                io.github.nanomuse.goals.GoalFlow.afterTurn(context, sid, text)
+                io.github.nanomuse.feed.FeedFlow.afterTurn(context, sid, text)
+            }
             // Mosaic: the naming ritual is off, so the first answer starts the first feed day (once per install).
             io.github.nanomuse.feed.FeedFlow.writeFirstDay(context)
         }
@@ -6927,7 +7266,7 @@ class ChatViewModel(
      *   chunk) token count and pop the dialog again — iOS guards the identical
      *   re-entry with `skipCompactCheck`.
      */
-    private fun sendMessage(text: String, skipContextCheck: Boolean) {
+    private fun sendMessage(text: String, skipContextCheck: Boolean, coachTurn: Boolean = false) { // nanoMuse
         if (io.github.nanomuse.chat.SessionDeleteGuard.isDeleting(realSessionId.ifEmpty { sessionId })) return // nanoMuse: 私有异步续派沿用当前任务，普通入口已检查任务独占。
         // [T-android-paste-mediaref] `[Pasted#N]` markers are NOT expanded here
         // any more.
@@ -6946,9 +7285,13 @@ class ChatViewModel(
         // here — clearing at this point would strip the content out from under
         // a send that then bails on the context-check paths below.
         val trimmed = text.trim()
+        // nanoMuse: 只捕获本次真实用户发起时的授权，后台派发不因旧聊天内容取得权限。
+        val nmTrustedCoachUser = nmCoachHostAllowed() &&
+            nmScheduledRun == null && nmTaskDispatchId == null &&
+            (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true
         // While streaming, enqueue instead of silently dropping (iOS: send vs enqueuePrompt).
         if (_isStreaming.value) {
-            enqueuePrompt(text)
+            enqueuePrompt(text, coachTurn = coachTurn) // nanoMuse
             return
         }
         // T180: allow attachments-only sends (no caption). Mirrors iOS, where
@@ -6973,6 +7316,8 @@ class ChatViewModel(
                 PreSendContextAction.PROCEED -> {}
                 PreSendContextAction.COMPACT_THEN_SEND -> {
                     pendingSendText = text
+                    nmPendingSendCoachTurn = coachTurn // nanoMuse
+                    if (coachTurn) nmCoachRequests.awaitConfirmation()
                     _inputText.value = ""
                     compactAndSendPending()
                     return
@@ -6981,6 +7326,8 @@ class ChatViewModel(
                     // Park the text on the VM (not the composer) so the dialog
                     // owns it; cancelCompactBeforeSend puts it back.
                     pendingSendText = text
+                    nmPendingSendCoachTurn = coachTurn // nanoMuse
+                    if (coachTurn) nmCoachRequests.awaitConfirmation()
                     _inputText.value = ""
                     _showCompactBeforeSendPrompt.value = true
                     return
@@ -7041,8 +7388,12 @@ class ChatViewModel(
         val editingId = _editingMessageId.value
         if (editingId != null) _editingMessageId.value = null
 
+        // nanoMuse: 在启动异步准备前固定请求代次，旧准备任务不能绑定后续重试。
+        val nmSendOwner = if (coachTurn) nmCoachRequests.currentOwner() else null
         nmLaunchSetup { // nanoMuse: 准备和内层流式协程共用任务父Job。
             streamJob = coroutineContext[Job] // nanoMuse: Stop during the setup (session, attachments, the user row) cancels it too, not only the agent loop launched below (#340)
+            var nmSetupOwner = nmSendOwner
+            var nmSetupAuthorization: io.github.nanomuse.coach.CoachTurnAuthorization? = null
             var streamLaunched = false
             var userRowShown = false // nanoMuse: set once the person's line is on screen; a Stop before that gives the composer its text back (#340)
             try {
@@ -7059,11 +7410,6 @@ class ChatViewModel(
             // BEFORE persisting, so the stored message carries a mediaRef per
             // paste instead of one huge text part.
             val pasted = buildPastedParts(trimmed, activeSessionId)
-            if (pasted != null) {
-                // Safe to clear now: the content is on disk and the parts JSON
-                // below references it, so nothing depends on the buffer any more.
-                _pastedTexts.value = _pastedTexts.value.filterNot { it.id in pasted.consumedIds }
-            }
 
             // Save user message — text + persisted mediaRef parts so images survive
             // a session reload (T128). Non-image attachments still only contribute
@@ -7074,12 +7420,12 @@ class ChatViewModel(
                 prepared.attachedFilesXml,
                 bodyPartsJson = pasted?.partsJson,
             )
-            val persistedUser = chatRepository.appendMessage(activeSessionId, "user", userPartsJson)
-            io.github.nanomuse.sync.ConversationSync.sent(activeSessionId) // nanoMuse: the person's line reaches the other devices at send (C8), then "working" (C9)
-            io.github.nanomuse.chat.RoutineWakes.claim(activeSessionId, persistedUser.id) // nanoMuse: a routine's prompt is marked as such on its row
-
-            val userMsg = ChatMessage(
-                id = persistedUser.id,
+            kotlinx.coroutines.currentCoroutineContext().let { if (!it.isActive) throw CancellationException() } // nanoMuse: 落盘接管前仍允许取消并恢复草稿。
+            val (persistedUser, userMsg) = withContext(NonCancellable) { // nanoMuse: 落盘与可见提交必须一起完成，避免Stop留下不可见的已存消息。
+            val savedUser = chatRepository.appendMessage(activeSessionId, "user", userPartsJson,
+                coachArchiveText = if (nmTrustedCoachUser && nmIsCoachPractice()) trimmed.takeIf { it.isNotBlank() } else null) // nanoMuse
+            val savedMessage = ChatMessage(
+                id = savedUser.id,
                 role = "user",
                 // The bubble shows the SHORT body with markers removed; the
                 // pasted blocks appear beside it as file cards (below).
@@ -7100,8 +7446,24 @@ class ChatViewModel(
                 attachmentNames = prepared.attachmentNames + (pasted?.uiNames ?: emptyList()),
                 attachmentUris = prepared.nonImageUris + (pasted?.uiUris ?: emptyList()),
             )
-            _messages.value = _messages.value + userMsg
-            userRowShown = true // nanoMuse: (#340)
+            _messages.value = _messages.value + savedMessage
+            userRowShown = true // nanoMuse: 界面已显示后，归档失败或取消不得重复恢复原稿。
+            if (pasted != null) {
+                _pastedTexts.value = _pastedTexts.value.filterNot { it.id in pasted.consumedIds }
+            }
+            savedUser to savedMessage
+            }
+            io.github.nanomuse.sync.ConversationSync.sent(activeSessionId) // nanoMuse
+            io.github.nanomuse.chat.RoutineWakes.claim(activeSessionId, persistedUser.id) // nanoMuse
+            if (coachTurn) nmCoachTurns.markUser(userMsg.id) // nanoMuse: 使用已持久化的用户消息ID。
+            // nanoMuse: 授权绑定落盘后的消息ID；后台完成只能延续这一回合。
+            kotlinx.coroutines.currentCoroutineContext().let { if (!it.isActive) throw CancellationException() } // nanoMuse
+            if (coachTurn) {
+                if (!nmCoachRequests.bindUser(userMsg.id, nmSetupOwner?.requestId)) throw CancellationException()
+                nmSetupOwner = nmSetupOwner?.copy(userId = userMsg.id)
+            }
+            if (nmTrustedCoachUser) nmSetupAuthorization = nmCoachTurns.authorize(userMsg.id, activeSessionId)
+            if (nmTrustedCoachUser) nmArchiveCoachMessage(userMsg.id, "user", userMsg.content)
             val imageParts = prepared.imageParts
 
             // T132: build the user contentParts in iOS order — caption first
@@ -7248,6 +7610,7 @@ class ChatViewModel(
                 // [T-android-stale-streamjob-clears-isstreaming] guard — see
                 // `var streamJob` KDoc; identical pattern as runRerunStreamTail.
                 if (streamJob === coroutineContext[Job]) {
+                    nmFinishCoachRequest(nmSetupOwner, nmSetupAuthorization) // nanoMuse: 只收尾本次准备任务。
                     AppLogger.info(TAG_STREAM, "send _isStreaming=false (about to set)")
                     _isStreaming.value = false
                 } else {
@@ -7259,14 +7622,23 @@ class ChatViewModel(
                 // nanoMuse: Stop before the user row is on screen means the message was not sent; the
                 // composer gets its text and attachments back instead of losing them (#340)
                 if (!streamLaunched && !userRowShown) {
-                    if (_inputText.value.isEmpty()) _inputText.value = text
-                    if (_attachments.value.isEmpty()) _attachments.value = currentAttachments
+                    _inputText.value = io.github.nanomuse.chat.restoreFailedText(text, _inputText.value)
+                    _attachments.value = io.github.nanomuse.chat.restoreFailedAttachments(currentAttachments, _attachments.value) { it.id }
                 }
                 throw e
+            } catch (failure: Exception) {
+                // nanoMuse: 本地消息或归档暂存失败时恢复原输入，不能只结束转圈却丢失用户内容。
+                if (!streamLaunched && !userRowShown) {
+                    _inputText.value = io.github.nanomuse.chat.restoreFailedText(text, _inputText.value)
+                    _attachments.value = io.github.nanomuse.chat.restoreFailedAttachments(currentAttachments, _attachments.value) { it.id }
+                }
+                _error.value = failure.message ?: context.getString(R.string.nm_coach_failed)
             } finally {
                 if (!streamLaunched) {
+                    nmFinishCoachRequest(nmSetupOwner, nmSetupAuthorization,
+                        cancelled = !kotlinx.coroutines.currentCoroutineContext().isActive) // nanoMuse
                     AppLogger.info(TAG_STREAM, "send _isStreaming=false (setup aborted)")
-                    _isStreaming.value = false
+                    if (streamJob === coroutineContext[Job]) _isStreaming.value = false // nanoMuse: 旧准备任务不能清除新任务忙碌状态。
                 }
             }
         }
@@ -7624,6 +7996,10 @@ class ChatViewModel(
                 }
                 AppLogger.info(TAG_STREAM, "retryLast streamJob EXIT")
             }
+            } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                AppLogger.warning(TAG_STREAM, "retryLast setup failed: ${e.message}")
+                _error.value = context.getString(R.string.nm_coach_failed)
             } finally {
                 if (!streamLaunched) {
                     AppLogger.info(TAG_STREAM, "retryLast _isStreaming=false (setup aborted)")
@@ -8047,6 +8423,28 @@ class ChatViewModel(
         fallbackProviders: List<FallbackCandidate> = emptyList(),
         fallbackStrategy: com.openminis.app.data.model.FallbackStrategy = com.openminis.app.data.model.FallbackStrategy.default,
     ) {
+        nmAccountOperation.requireCurrent() // nanoMuse: 包括取消清理或旧页面重新派发。
+        // nanoMuse: 取消后的旧循环不得重新取得授权，收尾固定到本循环的请求与用户代次。
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive) throw CancellationException()
+        val nmInitialUserId = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id
+        var nmLoopFailure: String? = null
+        var nmLoopCancelled = false
+        val nmLoop = io.github.nanomuse.coach.CoachRequestLoop(
+            nmInitialUserId,
+            finish = { owner -> nmFinishCoachRequest(owner, null, nmLoopCancelled, nmLoopFailure ?: _error.value) },
+            revoke = nmCoachTurns::revoke,
+            initialOwner = nmCoachRequests.ownerForUser(nmInitialUserId),
+            initialAuthorization = nmInitialUserId?.let(nmCoachTurns::currentAuthorization),
+        )
+        nmLoop.userId?.let { initialUserId ->
+            // nanoMuse: 用户在前台主动重试/恢复同一消息时，重新绑定该真实回合。
+            if (nmCoachHostAllowed() && nmScheduledRun == null &&
+                nmTaskDispatchId == null && (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true) {
+                nmLoop.bindAuthorization(nmCoachTurns.authorize(initialUserId, activeSessionId))
+            }
+        }
+        try {
+        withContext(nmLoop) { // nanoMuse: 工具和队列注入沿用所在循环的身份，不跟随全局最新消息。
         AppLogger.info(TAG_STREAM, "runAgentLoop ENTER provider=${provider.javaClass.simpleName} historySize=${agentHistory.size}")
         // [T-android-mem-probe-trust] Send-path context shape. The existing
         // `messages-shape` probe only runs on session LOAD, so the 2026-08-15
@@ -8106,6 +8504,8 @@ class ChatViewModel(
         // toolInputMap)` continues to slice only the current turn's blocks
         // (turnStartBlockIndex is captured at iteration start to 0 after reset).
         var assistantId = "assistant_${System.currentTimeMillis()}"
+        // nanoMuse: 新回合只继承对应用户消息，普通后续话题不会继承教练策略。
+        nmCoachTurns.beginAssistant(assistantId, _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id)
         val allToolBlocks = mutableListOf<AssistantBlock>()
         // Per-tool ring of the most recent `accumulated` JSON snapshots emitted
         // by `LLMStreamChunk.ToolInputDelta`. Capped at TOOL_INPUT_CHUNK_RING_MAX
@@ -8329,6 +8729,7 @@ class ChatViewModel(
                     // the new bubble starts empty and buildTurnParts slices only
                     // the new turn's blocks.
                     assistantId = freshAssistantId
+                    nmCoachTurns.beginAssistant(assistantId, _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id) // nanoMuse
                     accumulatedText = ""
                     allToolBlocks.clear()
                     allToolInputs.clear()
@@ -9220,7 +9621,10 @@ class ChatViewModel(
                 }
                 val turnParts = buildTurnParts(allToolBlocks, turnStartBlockIndex, toolInputMap)
                 val blockMeta = allToolBlocks.filter { it.kind == "tool_use" }.associateBy { it.id }
-                persistAssistantTurn(turnParts, lastUsage, turnReasoningContent, blockMeta)
+                val nmIsFinalTeaching = io.github.nanomuse.chat.isFinalReplyReady(turnFinishReason, turnText,
+                    allToolBlocks.any { it.kind == "tool_use" && it.toolStatus in setOf(ToolBlockStatus.PENDING, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING) })
+                val nmFinalDbId = persistAssistantTurn(turnParts, lastUsage, turnReasoningContent, blockMeta,
+                    coachArchiveText = turnText.takeIf { nmIsFinalTeaching && nmIsCoachPractice() && nmScheduledRun == null && nmTaskDispatchId == null })
                 // [T-error-persist-android] Empty-response hint: the model ended a
                 // turn (finish=stop/end_turn) with no visible text anywhere in the
                 // reply and no tool blocks — the user just sees a blank bubble.
@@ -9333,7 +9737,9 @@ class ChatViewModel(
                 if (io.github.nanomuse.chat.isFinalReplyReady(turnFinishReason, turnText,
                     allToolBlocks.any { it.kind == "tool_use" && it.toolStatus in setOf(ToolBlockStatus.PENDING, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING) })) {
                     kotlinx.coroutines.currentCoroutineContext().let { current -> if (!current.isActive) throw kotlinx.coroutines.CancellationException() }
-                    _finalReplies.emit(io.github.nanomuse.chat.FinalReplyReady(assistantId, java.util.UUID.randomUUID().toString(), turnText))
+                    nmFinalDbId?.let { nmArchiveCoachMessage(it, "assistant", turnText) }
+                    _finalReplies.emit(io.github.nanomuse.chat.FinalReplyReady(assistantId, java.util.UUID.randomUUID().toString(), turnText,
+                        systemOnly = nmIsCoachPractice() || nmCoachTurns.isCoach(assistantId))) // nanoMuse: 专题普通教学正文同样只走系统语音。
                 }
                 // Auto-title after first exchange
                 if (turn == 0) generateSessionTitleIfNeeded()
@@ -9501,6 +9907,15 @@ class ChatViewModel(
                 // shells or touching the filesystem on `{}` args.
                 val preflightError = preflightValidateToolCall(name, args, agentTools)
                 if (preflightError != null) {
+                    // nanoMuse: 格式校验也会在工具分发前失败，教练界面必须得到失败状态。
+                    if (name in setOf(io.github.nanomuse.coach.CoachAgentBridge.QUERY, io.github.nanomuse.coach.CoachAgentBridge.COMMAND)) {
+                        if (!kotlinx.coroutines.currentCoroutineContext().isActive) throw CancellationException() // nanoMuse
+                        _messages.value.lastOrNull { it.role == "user" && !it.isQueued && it.id == nmLoop.userId }?.let { user ->
+                            nmCoachRequests.observe(user.id, null, null)
+                            nmLoop.bindRequest(nmCoachRequests.ownerForUser(user.id)) // nanoMuse
+                            nmCoachRequests.toolFailure(user.id, "invalid_tool_arguments", preflightError)
+                        }
+                    }
                     val chunkRing: List<String> = toolInputChunkRings.remove(id) ?: emptyList()
                     AppLogger.warning(
                         "ToolPreflight",
@@ -9726,6 +10141,8 @@ class ChatViewModel(
                         finishedAccumulatedText = accumulatedText,
                         finishedAllToolBlocks = allToolBlocks,
                     )
+                } catch (e: CancellationException) {
+                    throw e // nanoMuse: Stop不能降级为注入失败后继续旧回合。
                 } catch (e: Exception) {
                     Log.e(TAG, "injectQueuedPromptsAsNewTurn failed", e)
                     null
@@ -9738,6 +10155,8 @@ class ChatViewModel(
                     // iteration top, so clearing means new turn's blocks
                     // span [0..size).
                     assistantId = handled.newAssistantId
+                    nmLoop.replaceUser(handled.newUserId, handled.coachAuthorization) // nanoMuse: 生命周期跟随新用户和授权代次。
+                    nmCoachTurns.beginAssistant(assistantId, _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id) // nanoMuse
                     accumulatedText = ""
                     allToolBlocks.clear()
                     allToolInputs.clear()
@@ -9769,6 +10188,16 @@ class ChatViewModel(
             }
         } else {
             AppLogger.info(TAG_STREAM, "runAgentLoop EXIT (loop body ended naturally)")
+        }
+        // nanoMuse: 本轮已结束就核对领域提交，不等待随后普通排队消息耗时完成。
+        }
+        } catch (failure: Exception) {
+            if (failure !is kotlinx.coroutines.CancellationException) nmLoopFailure = failure.message ?: "教练请求处理失败，请重试。"
+            throw failure
+        } finally {
+            // nanoMuse: 旧finally仅结束保存的请求身份，不能取消新请求或撤销新授权。
+            nmLoopCancelled = !kotlinx.coroutines.currentCoroutineContext().isActive
+            nmLoop.close()
         }
     }
 
@@ -9833,6 +10262,7 @@ class ChatViewModel(
         assistantId: String,
         currentText: String,
     ): ToolExecutionResult {
+        nmAccountOperation.requireCurrent() // nanoMuse: 所有工具先拒绝旧代次；短文件操作另有原子边界。
         // T330: tri-state permission gating moved into the offload IPC
         // handler (OffloadGate). The CLIs land there whether the LLM
         // emitted a named tool call or a raw shell command, so the gate
@@ -9844,8 +10274,15 @@ class ChatViewModel(
         val toolTitle = try { JSONObject(argsJson).optString("tool_title", name) } catch (_: Exception) { name }
 
         return when (name) {
+            // nanoMuse: 教练只通过明确工具修改共享状态，普通Markdown不会触发命令。
+            io.github.nanomuse.coach.CoachAgentBridge.QUERY,
+            io.github.nanomuse.coach.CoachAgentBridge.COMMAND -> executeCoachTool(name, argsJson, assistantId)
+            io.github.nanomuse.focus.FocusAgentBridge.QUERY,
+            io.github.nanomuse.focus.FocusAgentBridge.COMMAND, // nanoMuse: 专注复用当前主聊天授权和风险门禁。
+            io.github.nanomuse.todo.TodoAgentBridge.QUERY,
+            io.github.nanomuse.todo.TodoAgentBridge.COMMAND -> executeTodoTool(name, argsJson) // nanoMuse: 进入独立待办门禁。
             FileReadTool.NAME -> {
-                val result = FileReadTool.execute(argsJson, activeSessionId, context)
+                val result = nmAccountOperation.files { FileReadTool.execute(argsJson, activeSessionId, context) }
                 // Record skill usage when SKILL.md under /var/minis/skills/<id>/ is read.
                 if (result.success) {
                     runCatching {
@@ -9859,10 +10296,10 @@ class ChatViewModel(
                 }
                 result
             }
-            FileWriteTool.NAME -> FileWriteTool.execute(argsJson, activeSessionId, context).also {
+            FileWriteTool.NAME -> nmAccountOperation.files { FileWriteTool.execute(argsJson, activeSessionId, context) }.also {
                 if (it.success) maybeReloadSkillsForPath(argsJson)
             }
-            FileEditTool.NAME -> FileEditTool.execute(argsJson, activeSessionId, context).also {
+            FileEditTool.NAME -> nmAccountOperation.files { FileEditTool.execute(argsJson, activeSessionId, context) }.also {
                 if (it.success) maybeReloadSkillsForPath(argsJson)
             }
             // T178: pass sessionId + context so read_image routes through
@@ -9876,6 +10313,136 @@ class ChatViewModel(
             "memory_write" -> executeMemoryWriteTool(argsJson)
             "memory_get" -> executeMemoryGetTool(argsJson)
             else -> ToolExecutionResult("Unknown tool: $name", false)
+        }
+    }
+
+    /** nanoMuse: 待办只信任本循环的主聊天用户；审批等待后和每次存储操作前重新校验。 */
+    private suspend fun executeTodoTool(name: String, argsJson: String): ToolExecutionResult {
+        val loop = kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.coach.CoachRequestLoop]
+        val host = io.github.nanomuse.todo.TodoToolHost(
+            access = {
+                withContext(Dispatchers.Main.immediate) { // nanoMuse: 界面和历史列表在主线程取得同一快照。
+                    val user = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }
+                    // nanoMuse: 工具结果也使用USER角色，必须按真实泡泡ID寻找正文回合。
+                    val savedId = agentHistory.lastOrNull { it.role == LLMMessage.Role.USER &&
+                        it.dbMessageId == user?.id && it.contentParts.none { part -> part is AgentContentPart.ToolResult } }?.dbMessageId
+                    io.github.nanomuse.todo.TodoToolAccess(
+                        isAccountCurrent = nmAccountOperation.isCurrent(),
+                        isMain = io.github.nanomuse.home.MainChat.isMain(context, activeSessionId),
+                        isScheduled = nmScheduledRun != null, isTaskDispatch = nmTaskDispatchId != null,
+                        sessionId = activeSessionId, loopUserId = loop?.userId,
+                        authorization = loop?.authorization,
+                        currentAuthorization = loop?.userId?.let(nmCoachTurns::currentAuthorization),
+                        user = user?.takeIf { it.id == savedId }?.let {
+                            io.github.nanomuse.todo.TodoToolUser(it.id, it.content, activeSessionId)
+                        },
+                    )
+                }
+            },
+            guard = { toolName, arguments ->
+                val isDelete = toolName in setOf(io.github.nanomuse.todo.TodoAgentBridge.COMMAND, io.github.nanomuse.focus.FocusAgentBridge.COMMAND) &&
+                    runCatching { JSONObject(arguments).optString("action") in setOf("delete","delete_category") }.getOrDefault(false)
+                val assessment = if (isDelete) io.github.nanomuse.guard.RiskAssessment(
+                    io.github.nanomuse.guard.RiskClass.DESTRUCTIVE, context.getString(R.string.nm_routine_delete),
+                ) else io.github.nanomuse.guard.RiskAssessment.SAFE
+                val gate = io.github.nanomuse.guard.RiskGate.check(activeSessionId,
+                    io.github.nanomuse.guard.GuardKind.SHELL, assessment, preview = toolName)
+                (gate as? io.github.nanomuse.guard.GateOutcome.Denied)?.message
+            },
+            focusFactory = { // nanoMuse: 专注固定账号，模型不能指定身份。
+                nmAccountOperation.requireCurrent()
+                io.github.nanomuse.focus.FocusStore.get(context)
+            },
+            storageFactory = {
+                nmAccountOperation.requireCurrent()
+                io.github.nanomuse.todo.TodoStoreToolStorage(io.github.nanomuse.todo.TodoStore.get(context))
+            },
+        )
+        return withContext(Dispatchers.IO + nmAccountOperation) { host.execute(name, argsJson) }
+    }
+
+    /** nanoMuse: 把可信的当前用户原话和真实消息ID交给命令服务校验证据。 */
+    private suspend fun executeCoachTool(name: String, argsJson: String, assistantId: String): ToolExecutionResult {
+        // nanoMuse: 提供方迟到的工具调用不能替已取消循环绑定或修改新用户回合。
+        val nmToolContext = kotlinx.coroutines.currentCoroutineContext()
+        if (!nmToolContext.isActive) throw CancellationException()
+        val nmLoop = nmToolContext[io.github.nanomuse.coach.CoachRequestLoop]
+        val user = _messages.value.lastOrNull { it.role == "user" && !it.isQueued &&
+            (nmLoop == null || it.id == nmLoop.userId) }
+            ?: return ToolExecutionResult("No current user message is available.", false)
+        val requestArgs = runCatching { JSONObject(argsJson) }.getOrNull()
+        val action = requestArgs?.optString("action").orEmpty()
+        val target = requestArgs?.optString("targetId").orEmpty()
+        val requestSession = if (name == io.github.nanomuse.coach.CoachAgentBridge.COMMAND &&
+            action in setOf("answer", "coach_reply", "resume_session", "request_hint", "action_report", "lesson_message", "end_lesson")) runCatching {
+            val state = io.github.nanomuse.coach.CoachRuntime.service(context).state.value
+            if (action == "action_report") state.actions.find { it.id == target }?.sessionId
+            else state.sessions.find { it.id == target }?.id
+        }.getOrNull() else null
+        nmCoachRequests.observe(user.id, requestSession, nmCoachSnapshot(requestSession))
+        nmLoop?.bindRequest(nmCoachRequests.ownerForUser(user.id)) // nanoMuse: 首次自然语言工具调用后固定请求代次。
+        val mutationKey = if (name == io.github.nanomuse.coach.CoachAgentBridge.COMMAND)
+            "$action:$target:${requestArgs?.optString("operationId").orEmpty()}" else null
+        // nanoMuse: 门禁返回可定位原因，已授权用户回合切后台后仍能完成本地操作。
+        nmCoachDenial()?.let { reason ->
+            val message = when (reason) {
+                "main_required" -> "请在主要聊天或已绑定的每日练习专题中使用教练。"
+                "foreground_required" -> "本次请求尚未取得前台用户授权。请回到应用重试。"
+                "scheduled_forbidden", "dispatch_forbidden" -> "定时或后台派发任务不能修改教练记录。"
+                else -> "缺少当前用户回合，请重新发送请求。"
+            }
+            nmCoachRequests.toolFailure(user.id, reason, message, mutationKey)
+            return ToolExecutionResult(JSONObject().put("success", false).put("reason", reason).put("message", message).toString(), false)
+        }
+        // nanoMuse: 本地可撤销写入仍经过统一哨兵入口，不提供删除或外发动作。
+        val gate = io.github.nanomuse.guard.RiskGate.check(activeSessionId,
+            io.github.nanomuse.guard.GuardKind.SHELL, io.github.nanomuse.guard.RiskAssessment.SAFE,
+            preview = name)
+        if (gate is io.github.nanomuse.guard.GateOutcome.Denied) {
+            nmCoachRequests.toolFailure(user.id, "permission_denied", gate.message, mutationKey)
+            return ToolExecutionResult(gate.message, false)
+        }
+        return try {
+            val service = io.github.nanomuse.coach.CoachRuntime.service(context)
+            val coachScope = io.github.nanomuse.coach.CoachConversationScope(activeSessionId,
+                isMain = io.github.nanomuse.home.MainChat.isMain(context, activeSessionId))
+            val bridge = io.github.nanomuse.coach.CoachAgentBridge({ service.state.value }, coachScope) { command, input ->
+                service.execute(command, input, coachScope)
+            }
+            // nanoMuse: 队列占位泡泡尚未重绘时，采用同一当前用户消息的持久化ID。
+            val messageId = if (user.id.startsWith("queued_msg_")) {
+                agentHistory.lastOrNull { it.role == LLMMessage.Role.USER }?.dbMessageId
+                    ?: return ToolExecutionResult("Current user message has not been persisted.", false)
+            } else user.id
+            val input = io.github.nanomuse.coach.CoachUserInput(messageId, user.content, activeSessionId)
+            if (action in setOf("start_lesson", "end_lesson") && nmIsCoachPractice()) {
+                val archiveFailure = io.github.nanomuse.coach.CoachConversationArchive.retry(context, chatRepository, activeSessionId)
+                if (archiveFailure != null) {
+                    _nmCoachArchiveError.value = archiveFailure
+                    return ToolExecutionResult("Finish saving this lesson's archive before changing lessons: $archiveFailure", false)
+                }
+            }
+            val result = if (name == io.github.nanomuse.coach.CoachAgentBridge.QUERY) bridge.query(argsJson)
+                else bridge.command(argsJson, input)
+            if (result.success) {
+                nmCoachTurns.markUser(user.id)
+                nmCoachTurns.markAssistant(assistantId)
+                nmCoachRequests.toolSuccess(user.id, mutationKey)
+                // start成功后才有正式sessionId，立即绑定以核对setup是否真正推进。
+                if (action == "start") {
+                    val startedId = runCatching { JSONObject(result.output).optString("targetId") }.getOrNull()
+                    startedId?.let { nmCoachSnapshot(it) }?.let { nmCoachRequests.expectMutationReply(user.id, action, it) }
+                }
+                if (action in setOf("answer", "action_report")) {
+                    nmCoachSnapshot(requestSession)?.let { nmCoachRequests.expectMutationReply(user.id, action, it) }
+                }
+            } else nmCoachRequests.toolFailure(user.id, "tool_failed", result.output, mutationKey)
+            result
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            nmCoachRequests.toolFailure(user.id, "tool_failed", failure.message.orEmpty(), mutationKey)
+            ToolExecutionResult("Coach request was not saved: ${failure.message.orEmpty()}", false)
         }
     }
 
@@ -9911,7 +10478,7 @@ class ChatViewModel(
      * AIChatViewModel+ConcurrentTools read_image branch.
      */
     private suspend fun executeReadImageTool(argsJson: String): ToolExecutionResult {
-        val base = ReadImageTool.execute(argsJson, activeSessionId, context)
+        val base = nmAccountOperation.files { ReadImageTool.execute(argsJson, activeSessionId, context) }
         // [T-android-vision-group / GH#182] Optional caller instruction focusing
         // what to learn from the image.
         val customPrompt = try {
@@ -10343,7 +10910,7 @@ class ChatViewModel(
             val msg = "Memory writes are disabled for this session (user toggled /memory off). Reads remain available."
             return ToolExecutionResult(msg, false, toolTitle = "Memory (disabled)")
         }
-        val result = MemoryTools.executeMemoryWrite(argsJson, repo)
+        val result = nmAccountOperation.files { MemoryTools.executeMemoryWrite(argsJson, repo) }
         // Record for SessionMemorySheet
         val content = try {
             JSONObject(argsJson).optString("content", "")
@@ -10360,7 +10927,7 @@ class ChatViewModel(
 
     private fun executeMemoryGetTool(argsJson: String): ToolExecutionResult {
         val repo = memoryRepository ?: return ToolExecutionResult("Error: Memory not available", false)
-        val result = MemoryTools.executeMemoryGet(argsJson, repo)
+        val result = nmAccountOperation.files { MemoryTools.executeMemoryGet(argsJson, repo) }
         val keywords = try {
             JSONObject(argsJson).optString("keywords", "")
         } catch (_: Exception) { "" }
@@ -10692,7 +11259,9 @@ class ChatViewModel(
         usage: LLMUsage?,
         reasoningContent: String? = null,
         toolBlockMeta: Map<String, AssistantBlock> = emptyMap(),
+        coachArchiveText: String? = null, // nanoMuse: 只有已确认结束的教学正文进入恢复队列。
     ): String? {
+        nmAccountOperation.requireCurrent() // nanoMuse: 包括NonCancellable中的迟到收尾。
         if (parts.isEmpty()) return null
         val partsJson = buildAssistantPartsJson(parts, toolBlockMeta)
         val tokenJson = usage?.let {
@@ -10704,6 +11273,7 @@ class ChatViewModel(
             // [T-token-attribution-snapshot] From the live request context, not
             // the session row — see currentModelSnapshot().
             modelSnapshot = currentModelSnapshot(),
+            coachArchiveText = coachArchiveText, // nanoMuse
         )
         // nanoMuse: 记录真实行 ID，后续错误写入及清除不再猜测最后一行。
         val rows = _messages.value
@@ -10727,6 +11297,7 @@ class ChatViewModel(
         ,
         reasoningContent: String? = null,
     ) {
+        nmAccountOperation.requireCurrent() // nanoMuse: 兼容路径也拒绝旧账号回合。
         if (text.isEmpty() && (toolBlocks == null || toolBlocks.isEmpty())) return
 
         val partsJson = buildString {
@@ -10765,6 +11336,7 @@ class ChatViewModel(
 
     /** Persist tool results as a user-role message (mirrors iOS behavior). */
     private suspend fun persistToolResultMessage(parts: List<AgentContentPart>): String? {
+        nmAccountOperation.requireCurrent() // nanoMuse: 已完成工具的迟到结果不能在新空间落盘。
         val results = parts.filterIsInstance<AgentContentPart.ToolResult>()
         if (results.isEmpty()) return null
         val partsJson = buildString {
@@ -10781,6 +11353,7 @@ class ChatViewModel(
     }
 
     private fun buildSystemPrompt(): String? {
+        nmAccountOperation.requireCurrent() // nanoMuse: 旧VM不能读取新账号提示上下文。
         // Cache-friendly layout: keep `base` byte-stable by stripping out anything
         // that varies per request, then append a "Runtime context" suffix at the
         // very end with all the dynamic bits (date, timezone, locale, configured
@@ -10933,10 +11506,10 @@ CLI tools at /usr/local/bin with the `android-` prefix give you access to Androi
 - android-weather <latitude> <longitude> — Open-Meteo forecast (current + hourly + daily). No API key needed.
 - android-shizuku-cli — invoke privileged Android system APIs (package management, settings, system commands) via Shizuku when granted. Curated subcommands return structured JSON; for anything not covered, fall back to `android-shizuku-cli exec <any shell command>` which runs the command via `sh -c` with Shizuku privilege (same surface as `adb shell`). Run with no args (or --help) for the subcommand list.
 - android-a11y-cli — drive system UI (read screen, tap, type, swipe, scroll) via the Android AccessibilityService when enabled. Run with no args (or --help) for the subcommand list.
-- minis-open <url-or-path>: Opens a resource inside Nicholasx without leaving the chat. Accepts http/https URLs (→ built-in WebKit preview) and chat-resource file paths under /var/minis/** (→ built-in file preview, routed by extension: images to the image viewer, .md to markdown preview, .html to HTML preview, .pdf/office docs to QuickLook, audio/video to the media player, else share sheet). Examples: minis-open https://example.com, minis-open /var/minis/workspace/report.md, minis-open /var/minis/attachments/chart.png. Prefer this over android-open for anything that can be previewed in-app so the user doesn't lose conversation context. Use android-open for non-web schemes (tel:, mailto:, geo:, intent:, etc.) or when the user explicitly wants the system handler.
+- minis-open <url-or-path>: Opens a resource inside Nivo Bot without leaving the chat. Accepts http/https URLs (→ built-in WebKit preview) and chat-resource file paths under /var/minis/** (→ built-in file preview, routed by extension: images to the image viewer, .md to markdown preview, .html to HTML preview, .pdf/office docs to QuickLook, audio/video to the media player, else share sheet). Examples: minis-open https://example.com, minis-open /var/minis/workspace/report.md, minis-open /var/minis/attachments/chart.png. Prefer this over android-open for anything that can be previewed in-app so the user doesn't lose conversation context. Use android-open for non-web schemes (tel:, mailto:, geo:, intent:, etc.) or when the user explicitly wants the system handler.
 - minis-sessions-cli: Manage chat sessions. `list` recent or by date range, `search --keywords` cross-session, `messages --id` to read, `send` to create/continue a session, `retry` to re-run, `status` to check, `open` to navigate the app UI. Run --help for full options.
 - minis-model-use: Invoke other LLM models pre-configured by the user. Use `minis-model-use list` to see them (includes each model's modality capabilities like image_output, audio_output, etc.), `minis-model-use search <query>` to filter by name/provider. `minis-model-use run --model <id_or_name>` sends an OpenAI-compatible messages request; pass input via --input <json_file> or stdin, output goes to stdout or --output <path>. The OpenAI shape is the PRIMARY input for every model and modality; standard params are auto-converted to the underlying provider, so do not hand-write provider-native bodies as the primary input. For provider-specific extras the standard schema doesn't model (web-search plugins, image-to-image fields, TTS/video or other custom endpoints), escape hatches exist for OpenAI-compatible providers (they error or are ignored on Anthropic/Gemini models): `extra_body` (object merged verbatim into the request body), a custom `endpoint` path, and a top-level `passthrough` envelope for fully verbatim requests with RAW (unparsed) responses. Results may carry `warnings` (fields that were ignored/downgraded and why) and `applied_extras` (which extras actually took effect) — read them to self-correct. Run --help for the full contract before using these. Models may support multimodal output (image generation, TTS/audio, video) — check the modalities field in list output. For image_output models, pass generation params in the input JSON: top-level `n`/`size`/`quality`/`prompt` (OpenAI /images/generations style) or `generation_config.{aspect_ratio,image_size,number_of_images,person_generation}` (Gemini). Run with --help for full usage.
-- minis-config: Read or change Nicholasx settings programmatically. Run `minis-config --help` for subcommands and `minis-config topic-help <topic>` for details on a specific area. For array-valued fields (e.g. `models`, `groups`, `envvars`, `defaults.agentLoopEntries`) the `get` subcommand accepts `--filter <keywords>` (whitespace-AND, case-insensitive substring match against each element's JSON) and `--page <N> --page-size <N>` (default 20, max 100) — use these instead of dumping the full list when you only need a subset, and check the response's `pagination` / `agent_hint` fields for the next-page command. Every write triggers an in-app confirmation sheet and is logged to a revertable audit (1000-entry rolling log). After a successful change the response includes a `user_message` field — relay it (or paraphrase) so the user knows how to review or revert via Settings → Logs → Config Changes. If the call returns `permission_denied`, the user has disabled minis-config in [Settings → Permissions](minis://settings/permissions); relay that message and don't retry. You CAN add new providers and write their `apiKey` (literal string OR a `${'$'}${'$'}ENV_VAR` reference to copy from an env var at write time), but `get` never echoes API keys / OAuth tokens / env var values back — those reads return `permission_denied` by design. OAuth tokens and env var values are not settable via this tool; for an env var, point the user at [Set ENV_NAME](minis://settings/environments?create_key=ENV_NAME&create_value=) so they enter the value themselves.
+- minis-config: Read or change Nivo Bot settings programmatically. Run `minis-config --help` for subcommands and `minis-config topic-help <topic>` for details on a specific area. For array-valued fields (e.g. `models`, `groups`, `envvars`, `defaults.agentLoopEntries`) the `get` subcommand accepts `--filter <keywords>` (whitespace-AND, case-insensitive substring match against each element's JSON) and `--page <N> --page-size <N>` (default 20, max 100) — use these instead of dumping the full list when you only need a subset, and check the response's `pagination` / `agent_hint` fields for the next-page command. Every write triggers an in-app confirmation sheet and is logged to a revertable audit (1000-entry rolling log). After a successful change the response includes a `user_message` field — relay it (or paraphrase) so the user knows how to review or revert via Settings → Logs → Config Changes. If the call returns `permission_denied`, the user has disabled minis-config in [Settings → Permissions](minis://settings/permissions); relay that message and don't retry. You CAN add new providers and write their `apiKey` (literal string OR a `${'$'}${'$'}ENV_VAR` reference to copy from an env var at write time), but `get` never echoes API keys / OAuth tokens / env var values back — those reads return `permission_denied` by design. OAuth tokens and env var values are not settable via this tool; for an env var, point the user at [Set ENV_NAME](minis://settings/environments?create_key=ENV_NAME&create_value=) so they enter the value themselves.
 - minis-scheduled: Create and manage scheduled tasks — prompts that run automatically at a chosen time. `minis-scheduled create --time HH:MM --prompt "..." [--label L] [--repeat once|daily|weekdays|custom --days mon,tue,...] [--target new|follow-up|rerun --session <id> --message <id>] [--model <modelId>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]` schedules it; `list` shows existing tasks (with nextTriggerMs and run history), `delete --id <taskId>`, `enable`/`disable --id <taskId>`, and `run --id <taskId>` fires one immediately. Target modes: `new` runs the prompt in a fresh chat; `follow-up` appends the prompt to an existing chat (--session); `rerun` re-runs an existing chat (--session) from a chosen user message (--message). Use this when the user asks to "remind me / do X every morning / run this later / schedule a task". Run --help for full usage.
 Interactive terminal: minis://open_terminal opens a terminal for tasks that require interactive stdin (passwords, ssh, TUI apps like htop/vi). Write it as a Markdown link in your response — the app opens it when tapped. The optional init_command parameter pre-fills (NOT executes) a command; it MUST be fully percent-encoded (spaces → %20, & → %26, | → %7C, etc.). Only use this for genuinely interactive sessions — for everything else, use shell_execute. Examples: [Open Terminal](minis://open_terminal), [Login to SSH](minis://open_terminal?init_command=ssh%20user%40host).
 
@@ -10970,8 +11543,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         // intentionally NOT gated by this toggle: skills are part of the
         // tool surface and SOUL.md is part of identity, both orthogonal
         // to the memory feature.
-        val globalMemoryFragment = if (memoryOn) memoryRepository?.loadGlobalMemoryFragment() else null
-        val dailyMemoryFragment = if (memoryOn) memoryRepository?.loadRecentDailyMemoryFragment() else null
+        val globalMemoryFragment = nmAccountOperation.files { if (memoryOn) memoryRepository?.loadGlobalMemoryFragment() else null }
+        val dailyMemoryFragment = nmAccountOperation.files { if (memoryOn) memoryRepository?.loadRecentDailyMemoryFragment() else null }
         // [XSessionDiag] Hypothesis 3: ties the memory-injection sizes to a
         // SESSION id. MemoryRepository itself has no session context, so its own
         // `memory/daily-inject` line (which names the source files) cannot say who
@@ -11004,11 +11577,19 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                 base,
                 io.github.nanomuse.guard.RiskPolicy.promptParagraph(),
                 io.github.nanomuse.hands.Hands.promptParagraph(context),
+                io.github.nanomuse.coach.CoachAgentBridge.promptParagraph(), // nanoMuse: 稳定教练规则，无全量历史注入。
+                io.github.nanomuse.focus.FocusAgentBridge.promptParagraph(), // nanoMuse: 计时事实与任务完成分开。
+                io.github.nanomuse.todo.TodoAgentBridge.promptParagraph(), // nanoMuse: 稳定待办协议，任务按需查询。
             ),
             volatileSections = listOf(
                 skillFragment,
                 mcpFragment,
                 namingAddendum,
+                // nanoMuse: 当前专题短上下文；教练档案读不出来时这一轮不带它，聊天照常进行。
+                runCatching {
+                    io.github.nanomuse.coach.CoachAgentBridge.conversationPrompt(
+                        io.github.nanomuse.coach.CoachRuntime.service(context).state.value, sessionKey)
+                }.getOrNull(),
                 io.github.nanomuse.media.MediaModels.promptParagraph(context),
                 io.github.nanomuse.mosaic.MosaicAgent.promptParagraph(context, withRecent = memoryOn), // Mosaic: the life log
                 // Mosaic: no computers paragraph; it pointed the agent at the relay and the desktop app.
@@ -11035,7 +11616,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                 false,
             )
         }
-        val result = MemoryTools.executeMemoryWrite(argsJson, repo)
+        val result = nmAccountOperation.files { MemoryTools.executeMemoryWrite(argsJson, repo) }
         val content = try {
             JSONObject(argsJson).optString("content", "")
         } catch (_: Exception) { "" }
@@ -11051,7 +11632,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
 
     fun executeMemoryGet(argsJson: String): MemoryTools.ToolResult {
         val repo = memoryRepository ?: return MemoryTools.ToolResult("Error: Memory not available", false)
-        val result = MemoryTools.executeMemoryGet(argsJson, repo)
+        val result = nmAccountOperation.files { MemoryTools.executeMemoryGet(argsJson, repo) }
         val keywords = try {
             JSONObject(argsJson).optString("keywords", "")
         } catch (_: Exception) { "" }
@@ -11169,10 +11750,12 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
      * NOT inlined into the LLM payload (parity with iOS processAttachments,
      * AIChatViewModel.swift L1552-1645).
      */
-    private fun prepareUserAttachments(
+    private suspend fun prepareUserAttachments(
         attachments: List<InputAttachment>,
         sessionId: String,
-    ): PreparedAttachments {
+    ): PreparedAttachments = withContext(Dispatchers.IO) { // nanoMuse: 文件读取、图片处理和复制都不占用界面线程。
+        // nanoMuse: 任意发送/排队路径都等待完整文件，失败交由现有草稿恢复处理。
+        attachments.forEach { it.pendingPaste?.awaitReady() }
         val imageParts = mutableListOf<LLMMessage.ImagePart>()
         val imageUris = mutableListOf<Uri>()
         val imageNames = mutableListOf<String>()
@@ -11380,7 +11963,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         }
 
         // Order matches UserAttachmentList convention: images first, then files.
-        return PreparedAttachments(
+        PreparedAttachments(
             imageParts = imageParts,
             imageUris = imageUris,
             attachmentNames = imageNames + nonImageNames,
@@ -12056,6 +12639,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
     }
 
     fun cancelStream() {
+        nmFinishCoachRequest(cancelled = true) // nanoMuse: 停止必须结束教练等待，但不删除待评估答案。
         AppLogger.info(TAG_STREAM, "cancelStream invoked _isStreaming=false (sid=$activeSessionId)")
         nmScheduledRun?.job?.cancel() // nanoMuse: 用户停止必须同时取消准备与实际执行，不能留下成功自报的外层Job。
         streamJob?.cancel()
@@ -12132,9 +12716,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
 
             val initialProvider = currentProvider
             if (initialProvider == null) {
-                AppLogger.warning(TAG, "resumeQueueAfterCancel: no provider, dropping queue")
-                _promptQueue.value = emptyList()
-                _messages.value = _messages.value.filterNot { it.isQueued }
+                AppLogger.warning(TAG, "resumeQueueAfterCancel: no provider, retaining queue") // nanoMuse: 模型暂不可用时保留用户输入和附件。
                 return@launch
             }
             var provider: LLMProvider = initialProvider
@@ -12204,6 +12786,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                         AppLogger.info(TAG_STREAM, "resumeQueueAfterCancel drainQueuedPrompts RETURN")
                     } catch (e: CancellationException) {
                         AppLogger.info(TAG_STREAM, "resumeQueueAfterCancel drain CANCELLED")
+                        throw e // nanoMuse: 取消必须向任务父Job传播。
                     } catch (e: Exception) {
                         AppLogger.error(TAG_STREAM, "resumeQueueAfterCancel drain EXCEPTION ${e.javaClass.simpleName}: ${e.message}")
                         Log.e(TAG, "Queued drain error (resumeQueueAfterCancel)", e)
@@ -12224,7 +12807,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                     }
                 } catch (e: CancellationException) {
                     AppLogger.info(TAG_STREAM, "resumeQueueAfterCancel streamJob CANCELLED waiting for slot")
-                }
+                    throw e // nanoMuse
+                } finally {
                 // [T-android-stale-streamjob-clears-isstreaming] guard.
                 if (streamJob === coroutineContext[Job]) {
                     AppLogger.info(TAG_STREAM, "resumeQueueAfterCancel _isStreaming=false (about to set)")
@@ -12233,6 +12817,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                     AppLogger.info(TAG_STREAM, "resumeQueueAfterCancel _isStreaming SKIPPED (stale job)")
                 }
                 AppLogger.info(TAG_STREAM, "resumeQueueAfterCancel streamJob EXIT")
+                }
             }
         }
     }
@@ -12528,6 +13113,9 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
 
     override fun onCleared() {
         super.onCleared()
+        nmCoachTurns.clear() // nanoMuse: 不让语音策略跨聊天宿主生存。
+        nmCoachRequests.clear() // nanoMuse: 请求状态不跨账户或宿主保留。
+        nmNextCoachTurn.set(false) // nanoMuse
         // Tear down whichever shell was actually serving this VM. Terminate
         // both ids when the rename happened, since a draft shell may still
         // linger if the agent ran a tool before `ensureSession()`.

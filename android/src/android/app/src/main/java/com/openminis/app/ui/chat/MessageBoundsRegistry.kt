@@ -49,6 +49,12 @@ class MessageBoundsRegistry {
         return entries.values.firstOrNull { y in it.bounds.top..it.bounds.bottom }?.markdown
     }
 
+    // nanoMuse: 系统选区工具栏需要来源ID，不能从选中文字猜测是否属于教练。
+    /** 返回与选区纵向范围相交的消息，供朗读策略检查完整连续选区。 */
+    fun messageIdsAt(rect: Rect): List<String> = entries.filterValues { entry ->
+        entry.bounds.bottom >= rect.top && entry.bounds.top <= rect.bottom
+    }.keys.map { it.first }.distinct()
+
     /**
      * Direct messageId → markdown lookup, used by the MinisTextKit selection
      * toolbar so it can resolve the parent message's source even when both

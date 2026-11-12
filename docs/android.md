@@ -1,5 +1,34 @@
 # The Android app
 
+## Personal tasks
+
+Open **Tasks** below **Ideas** in the chat drawer. The upper-right menu opens Calendar, Priority matrix, Groups, Status and Completion statistics. Create a task with a title, then optionally add notes, a planned date, a due date, one group and multiple tags. Important and urgent are explicit choices. A due date does not create a reminder or scheduled AI run.
+
+Tasks use a shared light/dark palette, status summaries and compact search. The floating quick-add capsule uses the same canvas and bottom fade as Ideas; the list reserves its measured height, including multi-line input and the keyboard. Tap the task's status control to complete or reopen it, or the capsule's options icon to open the full editor. Calendar dates are selectable and clearable; large text uses a scrollable date strip. The priority matrix opens each quadrant's task list. Task details and editing use scrollable bottom sheets.
+
+Groups and tags now have a saved directory. In the editor, tap Group for a single choice or Tags for multiple choices, search existing names, or explicitly create a new name. Created names stay available even when you cancel the task editor or delete the task. The upper-right **Groups and tags** module lets you create categories before using them. Empty groups also appear in the Groups view. Existing task categories are collected during the database upgrade; model-created tasks use the same directory.
+
+Local task backups now use format version 2 and include unused groups and tags. Import still reads version 1 and rebuilds its categories from imported tasks. Directory names belong to the current account and are cleared when that account’s local data is discarded. Task completion tag snapshots remain unchanged. Native chat tools can query `kind: "categories"` with search and pagination before reusing a name.
+
+The main chat can query, create and update these same tasks through native tools. Completion requires an explicit report in the current user turn. A tool reports success after persistence; ordinary generated text does not create a task. Task management also works directly in the app without a model.
+
+Mutations check `expectedRevision` both at the tool boundary and inside the database transaction. A mismatch returns `code: "stale_revision"`, the task ID and the expected/current revisions without changing the task or its history. Query the latest task before applying an updated request. An exact retry of an already successful `operationId` returns its original result; it does not write again or replace later edits. Reusing that ID for different content is refused. Search matches current content and task IDs; `dateField: "created"` filters the creation date in the device's local timezone. Old titles are not indexed.
+
+External prompts from Ideas, profile and device actions preserve an occupied chat composer, including edits, attachments and pasted text. They open the chat for review rather than sending or replacing the draft. Tapping an idea inside the chat explicitly appends it and leaves sending to you. Hidden chats pause streaming presentation work and resume from the latest state when shown; model execution and saving continue.
+
+In a daily fragment, choose linked tasks and select Link only, In progress or Completed. Completion has its own date, which can be backdated when recording an earlier activity. The draft keeps the selection. Saving the fragment and changing the tasks happen in one transaction; a conflict keeps the draft for review. Reopening a fragment does not replay its old status changes. Deleting a fragment keeps the task; deleting a task preserves existing fragment snapshots.
+
+Completion statistics show day, week, month and year distributions using completion dates and tag snapshots saved at completion. Each task has weight one, split equally among its tags; untagged tasks form their own slice. The chart shows tag share and the number of related tasks. It measures completed items, not time or effort. Reopening or deleting a task removes its contribution, including from past periods. Tap a slice or legend to review its tasks and linked fragments.
+
+Tasks and their links belong to the current local account. Existing daily fragments retain their device-local storage behavior. The upper-right menu exports and imports a versioned local JSON backup including tasks, state history and replay records. Existing IDs keep local edits; the result reports missing fragment links. Photos are not included. This is separate from the general app backup and does not enable cloud task sync.
+
+
+## Coach exploration
+
+The Coach home uses the chat canvas, compact upper-right actions and themed vector scenes: bamboo for principles and judgment, a round-table debate for perspectives, an exchange window for English, a speaking stage for expression, a shared workbench for leadership and a trail for execution. Custom courses use a compass. The illustrations are drawn locally and do not animate continuously.
+
+The continuation card shows the current unit and verified unit count. Each course card opens its lesson archive, where practice continues in the existing Daily practice conversation. Courses, conversation records and results remain available in the header; calendar and settings are in its More menu. Scene cards and session archives are loaded as individual list items. Progress comes from saved evidence; viewing a card never marks a unit complete.
+
 Local Nicholasx builds: [provider setup, timing, sandbox and CLI fixes](android-local-fixes.md).
 
 `android/` is nanoMuse for the phone: [OpenMinis](https://github.com/OpenMinis/OpenMinis)
@@ -30,6 +59,8 @@ installs over the old one and keeps its data. No Play Store listing: *Settings �
 the installed build next to the newest release (`nanomuse.cn/dl/index.json` first, this
 repository's GitHub Releases second: *Latest 0.1.x, you have it* / *0.1.x is out, tap to
 update*) and offers the download.
+
+The task interface shares light and dark cards, status summaries and compact search. Capture a task from the fixed list composer, or complete and reopen it from its status control; unfinished tasks appear first. Other views use a compact add action. Details and editing use a scrolling bottom panel with calendar date selection and clearing. Large text uses a scrolling date strip, quadrants select one readable result list, and the chart places the completed count at its centre with selectable tag rows.
 
 ## Install
 
@@ -448,3 +479,65 @@ Completion dots represent unread results and disappear on entering that chat. A 
 The running notification has no loading bar. Its collapsed form shows the task count and a compact preview; expanded text lists each running conversation with its request preview and independently measured duration. Starting another task does not reset existing clocks, and finished tasks stop timing. The current pet remains visible. Updates reuse one notification silently; Android 16 promotion uses standard BigTextStyle rather than a progress style. Available display space depends on the OS and device.
 
 The diary toolbar calendar and record-date editor use the same green/red recording rings as the other calendar views. They support month navigation, date input and Today. Future dates have no ring, and editing still prevents future dates. The picker queries daily saved-record counts without loading pictures or record text.
+
+## Local Coach practice
+
+The Coach tab is the course map and archive. Its upper-right controls open evidence, course records and course management. Starting a unit opens its topic conversation in the Daily practice group. One topic keeps the same conversation across days, while each explicitly started lesson has a separate record. Ending a lesson closes that record; greetings, corrections and follow-up questions do not automatically start another lesson. Existing scores and legacy exercises remain available without conversion to new mastery.
+
+Teaching supports connected explanations, mechanisms, examples, competing theories, counterexamples and free questions before practice. Psychology, psychoanalysis and philosophy have distinct evidence boundaries: interpretations of a case are hypotheses, not proof of another person's hidden motives. The app supplies this protocol to the user's model; teaching quality still depends on that model and needs real-provider evaluation.
+
+Understanding and application are checked separately using exact saved user quotations. A formal independent attempt needs a question saved before the answer. Hinted answers, simulated responses, reported real actions and delayed reviews remain distinguishable. Final demonstrated status requires both dimensions and a valid review at least 24 hours later, timed by the host. Ending a lesson does not certify mastery or automatically advance the unit.
+
+The main chat does not display the Coach archive bar. Open archives from Coach or from a Daily practice topic.
+
+The main chat manages course discovery, proposals, explicit version-bound confirmation, pausing and real-action reports. Bound practice chats may access only their own topic. Ordinary side chats, scheduled work and delegated requests cannot change Coach records. Records link back to their original chat messages; editing or deleting a source invalidates dependent evidence. Conversation deletion offers keeping read-only excerpts or removing associated topic archives.
+
+Ordinary teaching text and real user messages are archived without requiring a tool call on every turn. Archive work has a persistent retry queue: retrying organization does not resend a model request. The chat remains usable after a model error or archive failure. Changing lessons requires pending organization to finish. The keyboard remains the input method. Completed Coach replies use Android system TTS; this is sentence playback after final completion, not token-streaming speech.
+
+Local records use schema 3 in `minis-global/nanomuse/growth/coach-v2/`, with atomic snapshots and a previous valid backup. Schema 2 history remains readable. This implementation is Android-only; it does not update iOS or synchronize Coach archives between devices.
+
+## Daily chat ideas
+
+The main chat offers Ideas, Work, Life, Learning, Family and relationships, Content creation, and More ideas. Each category has 14 built-in suggestions in Chinese and English; two rotate by the device's local date, with no repeat within a seven-day cycle. Suggestions stay stable during the same day and after restart; foreground resume and date checks refresh them after midnight or a time-zone change. This is a local seven-day rotation, not an automatic daily online content-generation service.
+
+Selecting a card adds its prompt to the composer without replacing an existing draft or sending automatically. The strip collapses while typing or while a reply is being generated. The full Ideas page retains its confirmation flow. Content creation also has a daily visible Check today's filmable topics entry: sending it asks the model to verify dates and sources online and produce a practical filming plan. If verification is unavailable, it must say so and offer evergreen topics instead of presenting invented trends. It does not publish content or create reminders.
+
+## Local Android quality updates
+
+Coach navigation keeps its scroll position on return and shows progress while opening a practice conversation. Stable list keys keep loading and error rows from changing the identity of the content below them. The conversation-deletion dialog reads Coach links in the background and waits for that lookup; a loading failure or account change leaves deletion disabled. The daily idea strip reserves the card row's height before its first catalogue load, scales that space with text and starts a separate loading state after a language change.
+
+Drawer search uses a compact header when space is short, with secondary actions in its menu; entering selection closes the keyboard. Coach course actions wrap, the home/chat name pill can grow with text, and shared top bars measure their navigation and action controls before allocating the title width. Mosaic editor subtitles use a single ellipsized line. Chat menus, sheets, previews and menu-related back handling follow the chat's visibility when another tab or the drawer is open.
+
+Conversation creation records its account owner before inserting the chat and shares a migration boundary with account changes. A transition invalidates old Coach services before moving their files and keeps the space closed if restoration fails. Preferences, routines and target backups remain available for a retry in the same process; the restored identity is published before the feed refresh. Removing account chats clears each owner only after that chat's data and files have been removed, so a failed deletion stops migration with the remaining owners intact.
+
+Ordinary chat ViewModels from the previous account cancel their work when migration begins. Direct memory and file tools, memory-context loading, Room message appends and asynchronous event-log writes retain and check the account generation captured when the operation began. Late operations therefore fail the generation check instead of adopting the newly active account. Migration retry tracking is held in memory: retrying within the same process does not provide automatic recovery after that process is killed. These protections cover the listed app entry points; external shell processes and other background services still require separate isolation checks.
+
+Scheduled-task target and message pickers use the current account's owned conversations, and dispatch rechecks ownership and the account-transition generation. Account changes cancel old scheduled work; an ordinary Coach cache refresh does not. A task-level lease prevents overlapping first runs from creating separate dedicated chats. Reused task chats apply the task's current model binding to both the loaded chat and storage, including a return to the current default; an unsuccessful change restores the previous model without changing the app-wide default.
+
+Large pasted text becomes an attachment while its file is written in the background. Sending waits for preparation; failed or cancelled preparation preserves queued content, and restoring an ordinary failed send keeps both its original text/attachments and the next draft. Queued batches consume only their successfully persisted IDs. Local Markdown media resolves full paths for the specified conversation or declared shared directories, without scanning other conversations for matching filenames. Audio prepares asynchronously with explicit cleanup on failure, cancellation and disposal. Markdown renders immutable snapshots prepared for the current palette, including the incremental streaming tail, and chat ViewModels unregister their safe-mode listener when released.
+
+Search results omit group headings while a query is active so the landscape keyboard leaves more room for conversations. Android service-start restrictions are handled at both launch and foreground promotion: a denied promotion stops the service without restarting it or changing its declared type. This prevents the denial from crashing the app; it does not guarantee background execution when Android disallows it.
+
+### Translucent pet header
+
+The home chat pet header uses a single 4dp backdrop blur with a fading lower edge. Messages scroll behind it, while their top content inset still lets the oldest message move fully clear of the header. The blur samples only the message list, excluding the pet animation and header controls. Name and round-button surfaces are translucent; the pet image or video remains sharp, including any background already present in that asset. Android versions below 12 use a translucent tint fallback.
+
+## Focus and reusable categories
+
+Starting a session opens an immersive screen with the task, a large timer and pause/resume controls. Ending asks for confirmation and saves only measured time. Minimize returns to the app without stopping the timer. Screen-on is optional. Screen unlock and process recreation restore the same active session; the app does not bypass the system lock screen.
+
+Choose a background before starting. The default mountain landscape is drawn with vectors. **Import background** opens the system file picker and stores an app-private copy of each chosen file, up to 24 files and 20MB per file. Select from saved backgrounds for later sessions. Removing a background deletes only the app copy. Backgrounds are isolated by account and are not sent to AI tools; invalid or missing files fall back to the landscape.
+
+Focus tool responses include `view_url`, `sampledAt`, `currentElapsedMs` and `remainingMs`. Command retries preserve the original receipt. If `isReplaySnapshot` is true, read `currentState` for the current timer instead of treating the old receipt as live. `deadline_reached` distinguishes a pause requested after expiry from an early pause. Notifications and `minis://views/focus` open Focus.
+
+Task tools support `create_category` and `delete_category` for reusable groups and tags. Deletion requires the exact category name, kind and `expectedCreatedAt` from a fresh category query. It removes current category assignments, increments affected task revisions and preserves tasks and completed history. Exact retries cannot delete a subsequently recreated category. Category command receipts use an additional backup field compatible with older task backups.
+
+Open **Focus** below Tasks in the sidebar. Choose a task or name what you are working on, then start a countdown, stopwatch or break. Pause time is excluded. The stopwatch has a 12-hour limit; countdowns accept 1–180 minutes. The timer survives page changes and process recreation within the same boot. After a device reboot, an unfinished timer pauses conservatively. System power saving may delay alerts; elapsed countdown time is still capped.
+
+The top-right controls open records, day/week/month/year statistics, and JSON export. Statistics count finished focus intervals, split across local calendar boundaries, and exclude breaks and deleted records. A finished timer never marks a task done. Task details also show related focus time.
+
+In a daily record, choose finished focus sessions to describe what the time was spent on. Selections survive drafts and are committed atomically with the record. Diary snapshots remain available after deleting a focus record.
+
+The main chat offers `focus_query` and `focus_command` through the same current-user and account gate as Tasks. Commands start, pause, resume, finish or delete actual timers; callers cannot fabricate past duration. JSON export is available; focus JSON import is not included.
+
+In **Tasks → Groups and tags → Browse and create**, delete a group or tag after reviewing the confirmation. Tasks remain; group deletion moves them to Ungrouped, and tag deletion removes current associations. Historical completion snapshots remain unchanged.

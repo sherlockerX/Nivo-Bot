@@ -15,8 +15,7 @@ import org.json.JSONObject
  *
  * 1. Truncation repair — if [args] is empty but [rawTail] looks like a JSON object
  *    that just got cut, retry parsing with a small set of closure suffixes appended.
- * 2. Type coercion — for each required field present but not a String, coerce via
- *    `toString()` so the downstream blank-string preflight check has something usable.
+ * 2.nanoMuse：仅对声明为string的必填字段做文本转换，保留整数等原生类型供下游严格校验。
  * 3. Fuzzy field-name match — for each missing required field, look for a sibling key
  *    whose Levenshtein distance is exactly 1 and rename it. Catches one-off typos
  *    like `comand` → `command`.
@@ -59,8 +58,9 @@ object ToolJsonRepair {
             }
         }
 
-        // Strategy 2: type coercion on required fields.
+        // nanoMuse：文本修复只适用于string字段，不能把合法整数或结构化参数改成字符串。
         for (field in toolDef.required) {
+            if (toolDef.parameters[field]?.type?.lowercase() != "string") continue
             if (!args.has(field)) continue
             val raw = args.opt(field) ?: continue
             if (raw is String) continue

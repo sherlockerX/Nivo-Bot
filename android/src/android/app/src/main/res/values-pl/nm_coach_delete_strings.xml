@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Usunąć %1$d rozmów?</string>
+    <string name="nm_coach_delete_retention">Powiązane fragmenty Coach pozostaną tylko do odczytu. Linki do oryginałów będą niedostępne.</string>
+    <string name="nm_coach_delete_keep">Usuń tylko czat, zachowaj fragmenty</string>
+    <string name="nm_coach_delete_purge">Usuń też archiwum tematu</string>
+    <string name="nm_coach_delete_failed">Usuwanie nie zostało zakończone. Czat może być usunięty, ale fragmenty pozostają. Ponów czyszczenie archiwum.</string>
+    <string name="nm_coach_delete_account_changed">Konto zostało zmienione. Zamknij okno i otwórz je na bieżącym koncie.</string>
+    <string name="nm_coach_delete_retry">Ponów czyszczenie archiwum</string>
+    <string name="nm_coach_conversation_group">Codzienna praktyka</string>
+</resources>

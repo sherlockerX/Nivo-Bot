@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">연습 기록</string>
+    <string name="nm_coach_chat_city_intro">과정을 선택하거나 기록을 돌아보고, 주제 대화에서 학습을 이어가세요.</string>
+    <string name="nm_coach_chat_archive_intro">학습은 매일 연습의 주제 대화에서 진행됩니다. 시작하면 주제가 열리고 AI 수업이 시작됩니다.</string>
+    <string name="nm_coach_chat_open_practice">매일 연습에서 계속하기</string>
+    <string name="nm_coach_chat_view_original">원본 메시지 보기</string>
+    <string name="nm_coach_chat_source_unavailable">원본 메시지 링크를 사용할 수 없습니다. 저장된 발췌문은 계속 볼 수 있습니다.</string>
+    <string name="nm_coach_chat_saved_draft">저장된 미전송 초안</string>
+    <string name="nm_coach_chat_review_in_chat">이 기록을 논의하거나 수정하려면 주제 대화에서 계속하세요.</string>
+    <string name="nm_coach_chat_archive">기록 보기</string>
+    <string name="nm_coach_chat_end_today">오늘은 여기까지</string>
+    <string name="nm_coach_chat_independent_check">독립 검증</string>
+    <string name="nm_coach_chat_understanding">이해 근거</string>
+    <string name="nm_coach_chat_application">적용 근거</string>
+    <string name="nm_coach_chat_delayed_review">나중에 복습</string>
+    <string name="nm_coach_chat_discussion">대화</string>
+    <string name="nm_coach_chat_archive_failed">대화는 저장되었지만 기록 정리에 실패했습니다</string>
+    <string name="nm_coach_chat_retry_archive">기록 정리 다시 시도</string>
+    <string name="nm_coach_chat_next_lesson">다음 수업 시작</string>
+    <string name="nm_coach_chat_back_to_conversation">대화로 돌아가기</string>
+    <string name="nm_coach_chat_source_invalidated">원본이 수정되거나 삭제되었습니다. 이 발췌문은 현재 근거로 사용할 수 없습니다.</string>
+    <string name="nm_coach_chat_summary">수업 요약</string>
+    <string name="nm_coach_chat_summary_version">과정 버전: %1$s; 원본 수정 버전: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">이 요약의 출처가 무효화되어 현재 판단의 근거로 사용할 수 없습니다.</string>
+    <string name="nm_coach_chat_corrections">수정 기록</string>
+    <string name="nm_coach_chat_hypotheses">미해결 가설</string>
+    <string name="nm_coach_chat_show_records">전체 원문 펼치기</string>
+    <string name="nm_coach_chat_hide_records">전체 원문 접기</string>
+    <string name="nm_coach_chat_hide_sources">출처 접기</string>
+</resources>

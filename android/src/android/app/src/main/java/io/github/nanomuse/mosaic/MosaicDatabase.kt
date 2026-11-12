@@ -295,12 +295,16 @@ interface MosaicDao {
 }
 
 /**
- * Version 3 (version 1 plus `days.form`, then `entries.mood`). The schema is exported to
- * `app/schemas/` (the module's KSP argument); each version adds an explicit migration and never
- * falls back to a destructive one, since these are the person's records.
+ * 版本6增加按账号隔离的专注记录与日记关联，保留日记与任务历史。
+ * 结构由KSP导出至app/schemas，每次升级使用显式迁移，禁止破坏性回退。
  */
 @Database(
     entities = [
+        io.github.nanomuse.focus.FocusSession::class,
+        io.github.nanomuse.focus.FocusSpan::class,
+        io.github.nanomuse.focus.FocusOperation::class,
+        io.github.nanomuse.focus.FocusEntryLink::class,
+        io.github.nanomuse.focus.FocusDraftLink::class,
         MosaicHabit::class,
         MosaicHabitSchedule::class,
         MosaicHabitDay::class,
@@ -308,12 +312,23 @@ interface MosaicDao {
         MosaicMediaAsset::class,
         MosaicDayInfo::class,
         MosaicDraft::class,
+        io.github.nanomuse.todo.TodoTask::class,
+        io.github.nanomuse.todo.TodoCategory::class,
+        io.github.nanomuse.todo.TodoEntryLink::class,
+        io.github.nanomuse.todo.TodoDraftLink::class,
+        io.github.nanomuse.todo.TodoOperation::class,
+        io.github.nanomuse.todo.TodoEvent::class,
     ],
-    version = 3,
+    version = 6,
     exportSchema = true,
 )
 abstract class MosaicDatabase : RoomDatabase() {
     abstract fun dao(): MosaicDao
+
+    /** 待办与碎片共享事务，查询始终显式限定账号。 */
+    abstract fun todoDao(): io.github.nanomuse.todo.TodoDao
+
+    abstract fun focusDao(): io.github.nanomuse.focus.FocusDao
 
     companion object {
         @Volatile private var instance: MosaicDatabase? = null
@@ -335,7 +350,7 @@ abstract class MosaicDatabase : RoomDatabase() {
 
         fun get(context: Context): MosaicDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, MosaicDatabase::class.java, "mosaic.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, io.github.nanomuse.todo.TodoMigration.MIGRATION_3_4, io.github.nanomuse.todo.TodoMigration.MIGRATION_4_5, io.github.nanomuse.focus.FocusMigration.MIGRATION_5_6)
                 .build()
                 .also { instance = it }
         }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -42,7 +43,7 @@ import io.github.nanomuse.ui.avatar.rememberAvatarSize
 
 /** The soft disc the face sits on — Muse draws its character on a pale circle. */
 @Composable
-fun avatarDiscColor(): Color = MuseTones.disc
+fun avatarDiscColor(): Color = MuseTones.disc.copy(alpha = 0.32f)
 
 /**
  * Muse's page header, shared by the Ideas / Goals / Library tabs and, in a taller form, by the
@@ -85,9 +86,9 @@ fun MuseHeader(
             } else {
                 Spacer(Modifier.height(10.dp))
             }
-            // Two lines are always reserved so the bar does not jump when a status appears.
+            // 保留默认双行占位，大字号时按照文字实际高度增长。
             Box(
-                modifier = Modifier.height(PILL_AREA_HEIGHT).then(pullUp(if (disc != null) PILL_OVERLAP else 0.dp)),
+                modifier = Modifier.heightIn(min = PILL_AREA_HEIGHT).then(pullUp(if (disc != null) PILL_OVERLAP else 0.dp)),
                 contentAlignment = Alignment.TopCenter,
             ) {
                 MuseNamePill(
@@ -130,7 +131,8 @@ fun MuseNamePill(
     val base = modifier
         .shadow(2.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.16f), spotColor = Color.Black.copy(alpha = 0.16f))
         .clip(shape)
-        .background(MuseTones.surface)
+        .background(MuseTones.surface.copy(alpha = if (MuseTones.isDark) 0.58f else 0.5f))
+        .border(0.5.dp, MuseTones.hairline.copy(alpha = 0.35f), shape)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = (if (onClick != null) base.clickable(onClick = onClick) else base)
@@ -176,9 +178,9 @@ fun MuseRoundButton(
         Surface(
             onClick = onClick,
             shape = CircleShape,
-            color = MuseTones.surface,
-            border = if (MuseTones.isDark) BorderStroke(1.dp, MuseTones.hairline) else null,
-            shadowElevation = 2.dp,
+            color = MuseTones.surface.copy(alpha = if (MuseTones.isDark) 0.58f else 0.5f),
+            border = BorderStroke(0.5.dp, MuseTones.hairline.copy(alpha = 0.35f)),
+            shadowElevation = 1.dp,
             modifier = Modifier.size(44.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {

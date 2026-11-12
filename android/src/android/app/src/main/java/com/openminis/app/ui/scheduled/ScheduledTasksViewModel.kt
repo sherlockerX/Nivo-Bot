@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map // nanoMuse
+import kotlinx.coroutines.flow.combine // nanoMuse
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -25,6 +25,7 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
 
     private val manager = ScheduledTaskManager(appContext)
     private val app get() = appContext as com.openminis.app.MinisApp
+    private val account = io.github.nanomuse.routines.ScheduledAccountAccess.capture(appContext) // nanoMuse: 页面不能跨账号继续读取旧目标。
 
     /**
      * [T-android-scheduled-lateinit-crash-156] True when the Application's
@@ -57,7 +58,9 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
 
     val tasks: StateFlow<List<ScheduledTask>> = manager.store().observe()
         // nanoMuse: goal checks are scheduled tasks too, but the Goals tab owns them.
-        .map { list -> list.filterNot { it.hidden } }
+        .combine(io.github.nanomuse.account.AccountData.epoch) { list, _ -> // nanoMuse: 仅真实账号迁移清空旧页面，同账号教练刷新不影响任务。
+            if (account.isCurrent(appContext)) list.filterNot { it.hidden } else emptyList()
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ── [T-android-scheduled-tasks-full] Picker data for the editor ──
@@ -73,18 +76,23 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
 
     suspend fun listSessions(limit: Int = 100): List<SessionOption> = withContext(Dispatchers.IO) {
         if (!ready()) return@withContext emptyList()
-        app.chatRepository.querySessionsMeta(
-            sessionIds = null, keywords = null, limit = limit, startMs = null, endMs = null,
-        ).map {
-            SessionOption(it.id, it.title?.ifBlank { null } ?: "Untitled", it.lastActive)
+        account.locked(appContext) { // nanoMuse: 权威owner过滤先于limit，不读取其他账号的首条消息。
+            val owned = account.ownedIds(appContext)
+            io.github.nanomuse.routines.ScheduledAccountPolicy.visible(
+                app.chatRepository.dao.listSessions(), owned, limit) { it.id }.map {
+                SessionOption(it.id, it.title?.ifBlank { null } ?: "Untitled", it.updatedAt)
+            }
         }
     }
 
     suspend fun listUserMessages(sessionId: String): List<MessageOption> = withContext(Dispatchers.IO) {
         if (!ready()) return@withContext emptyList()
-        app.chatRepository.loadMessages(sessionId)
-            .filter { it.role == "user" }
-            .map { MessageOption(it.id, extractPreview(it.partsJson), it.createdAt) }
+        account.locked(appContext) { // nanoMuse: 直接传入别人的sessionId也不能读取消息。
+            if (sessionId !in account.ownedIds(appContext)) return@locked emptyList()
+            app.chatRepository.loadMessages(sessionId)
+                .filter { it.role == "user" }
+                .map { MessageOption(it.id, extractPreview(it.partsJson), it.createdAt) }
+        }
     }
 
     /** Best-effort human-readable label for a `model_binding` JSON string —
@@ -140,7 +148,7 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
 
     fun setEnabled(taskId: String, enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { // nanoMuse: 预检或冲突失败不能产生未捕获异常。
-            try { manager.setEnabled(taskId, enabled) }
+            try { account.locked(appContext) { manager.setEnabled(taskId, enabled) } } // nanoMuse: 旧账号页面不能操作新账号任务。
             catch (failure: IllegalArgumentException) {
                 withContext(Dispatchers.Main) { android.widget.Toast.makeText(appContext, failure.message, android.widget.Toast.LENGTH_LONG).show() }
             }
@@ -148,16 +156,16 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
     }
 
     fun delete(taskId: String) {
-        viewModelScope.launch(Dispatchers.IO) { manager.delete(taskId) }
+        viewModelScope.launch(Dispatchers.IO) { account.locked(appContext) { manager.delete(taskId) } } // nanoMuse
     }
 
     suspend fun get(taskId: String): ScheduledTask? = withContext(Dispatchers.IO) {
-        manager.get(taskId)
+        account.locked(appContext) { manager.get(taskId) } // nanoMuse
     }
 
     suspend fun upsert(task: ScheduledTask, isNew: Boolean): ScheduledTask =
         withContext(Dispatchers.IO) {
-            if (isNew) manager.create(task) else manager.update(task)
+            account.locked(appContext) { if (isNew) manager.create(task) else manager.update(task) } // nanoMuse
         }
 
     /**
@@ -178,6 +186,7 @@ class ScheduledTasksViewModel(private val appContext: Context) : ViewModel() {
             val sid = runCatching {
                 com.openminis.app.scheduled.ScheduledAgentRunner.run(
                     appContext, task, waitForCompletion = false,
+                    expectedAccount = account, allowUnsaved = true, // nanoMuse: 未保存预览仅由仍属同账号的编辑页授权。
                 )
             }.getOrNull()
             _runNowState.value = RunNowState(

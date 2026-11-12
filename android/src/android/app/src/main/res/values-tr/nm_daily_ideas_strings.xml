@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_daily_ideas_title">Günlük fikirler</string>
+    <string name="nm_daily_ideas_all">Tümünü gör</string>
+    <string name="nm_daily_ideas_prefill">Mesajı doldurmak için dokunun</string>
+    <string name="nm_daily_ideas_evergreen">Her zaman geçerli konular. Güncel haberler için kaynak ve tarih kontrolü gerekir.</string>
+    <string name="nm_daily_ideas_rotation">Her kategoride günde iki fikir, gün boyunca sabit kalır ve yedi gün sonra tekrar eder.</string>
+    <string name="nm_daily_category_ideas">Fikirler</string>
+    <string name="nm_daily_category_work">İş</string>
+    <string name="nm_daily_category_life">Yaşam</string>
+    <string name="nm_daily_category_learn">Öğrenme</string>
+    <string name="nm_daily_category_family">Aile ve ilişkiler</string>
+    <string name="nm_daily_category_media">İçerik üretimi</string>
+    <string name="nm_daily_category_more">Diğer fikirler</string>
+    <string name="nm_daily_ideas_check_hot_topic">Bugün çekilecek haberleri doğrula</string>
+</resources>

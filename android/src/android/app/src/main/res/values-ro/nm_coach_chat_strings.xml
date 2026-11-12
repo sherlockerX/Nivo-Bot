@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">Înregistrări de practică</string>
+    <string name="nm_coach_chat_city_intro">Alege un curs, consultă înregistrările sau continuă să înveți în conversația temei.</string>
+    <string name="nm_coach_chat_archive_intro">Învățarea are loc în conversațiile din Practică zilnică. Pornirea deschide tema și începe lecția cu AI.</string>
+    <string name="nm_coach_chat_open_practice">Continuă în Practică zilnică</string>
+    <string name="nm_coach_chat_view_original">Vezi mesajul original</string>
+    <string name="nm_coach_chat_source_unavailable">Linkul către mesajul original nu este disponibil. Fragmentul salvat poate fi citit în continuare.</string>
+    <string name="nm_coach_chat_saved_draft">Ciornă salvată, netrimisă</string>
+    <string name="nm_coach_chat_review_in_chat">Continuă conversația temei pentru a discuta sau corecta această înregistrare.</string>
+    <string name="nm_coach_chat_archive">Vezi arhiva</string>
+    <string name="nm_coach_chat_end_today">Atât pentru azi</string>
+    <string name="nm_coach_chat_independent_check">Verificare independentă</string>
+    <string name="nm_coach_chat_understanding">Dovezi de înțelegere</string>
+    <string name="nm_coach_chat_application">Dovezi de aplicare</string>
+    <string name="nm_coach_chat_delayed_review">Recapitulare ulterioară</string>
+    <string name="nm_coach_chat_discussion">Discuție</string>
+    <string name="nm_coach_chat_archive_failed">Conversație salvată, actualizarea arhivei a eșuat</string>
+    <string name="nm_coach_chat_retry_archive">Reîncearcă actualizarea arhivei</string>
+    <string name="nm_coach_chat_next_lesson">Începe lecția următoare</string>
+    <string name="nm_coach_chat_back_to_conversation">Înapoi la conversație</string>
+    <string name="nm_coach_chat_source_invalidated">Sursa a fost editată sau ștearsă. Acest fragment nu mai este o dovadă actuală.</string>
+    <string name="nm_coach_chat_summary">Rezumatul lecției</string>
+    <string name="nm_coach_chat_summary_version">Versiunea cursului: %1$s; revizia sursei: %2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">Sursele acestui rezumat nu sunt valide și nu pot susține concluziile actuale.</string>
+    <string name="nm_coach_chat_corrections">Corecturi</string>
+    <string name="nm_coach_chat_hypotheses">Ipoteze nerezolvate</string>
+    <string name="nm_coach_chat_show_records">Arată conversația completă</string>
+    <string name="nm_coach_chat_hide_records">Ascunde conversația</string>
+    <string name="nm_coach_chat_hide_sources">Ascunde sursele</string>
+</resources>

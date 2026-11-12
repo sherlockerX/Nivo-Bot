@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_todo_categories">Gruplar ve etiketler</string>
+    <string name="nm_todo_choose_category">Seç veya oluştur</string>
+    <string name="nm_todo_category_hint">Kaydedilen gruplar ve etiketler sonraki görevlerde kullanılabilir.</string>
+    <string name="nm_todo_category_search">Ara veya yeni ad gir</string>
+    <string name="nm_todo_category_create">“%1$s” oluştur</string>
+    <string name="nm_todo_category_empty">Henüz kayıtlı kategori yok.</string>
+    <string name="nm_todo_category_manage">Görüntüle ve oluştur</string>
+    <string name="nm_todo_selected">Seçili</string>
+    <string name="nm_coach_explore_title">Yaşam için pratik</string>
+    <string name="nm_coach_explore_areas">Becerilerini keşfet</string>
+    <string name="nm_coach_explore_add">Kurs ekle</string>
+    <string name="nm_coach_explore_next">Kaldığın yerden devam et</string>
+    <string name="nm_coach_explore_progress">%2$d ünitenin %1$d tanesi gösterildi</string>
+    <string name="nm_coach_explore_more">Diğer seçenekler</string>
+</resources>

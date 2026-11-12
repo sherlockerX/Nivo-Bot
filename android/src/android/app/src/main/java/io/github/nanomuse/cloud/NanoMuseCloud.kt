@@ -18,6 +18,7 @@ import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -559,7 +560,7 @@ object NanoMuseCloud {
     suspend fun signOutEverywhere(context: Context, includingThis: Boolean, keep: Boolean = false) = withContext(Dispatchers.IO) {
         val key = apiKey(context) ?: throw CloudException("bad_key", "Not signed in")
         call(context, "POST", "/v1/auth/sign-out-all", JSONObject().put("all", includingThis), token = key)
-        if (includingThis) forgetLocally(context, keep)
+        if (includingThis) forgetLocally(context, keep, key)
         Unit
     }
 
@@ -571,7 +572,8 @@ object NanoMuseCloud {
     suspend fun deleteAccount(context: Context) = withContext(Dispatchers.IO) {
         val key = apiKey(context) ?: throw CloudException("bad_key", "Not signed in")
         call(context, "POST", "/v1/auth/delete", null, token = key)
-        forgetLocally(context, keep = false)
+        forgetLocally(context, keep = false, expectedKey = key)
+        Unit
     }
 
     private fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(80)
@@ -584,15 +586,24 @@ object NanoMuseCloud {
      * returns only once the key is gone, so nothing made in the gap is filed under the account
      * that left. All of it inside the sync lock, so no push reads the gap as deletions.
      */
-    private suspend fun forgetLocally(context: Context, keep: Boolean) {
+    private suspend fun forgetLocally(context: Context, keep: Boolean, expectedKey: String?): Boolean {
         val ctx = context.applicationContext
-        io.github.nanomuse.hub.Hub.stop(ctx)
-        val account = io.github.nanomuse.account.AccountData.key(ctx)
-        io.github.nanomuse.sync.ConversationSync.exclusive {
-            if (account.isNotEmpty()) io.github.nanomuse.account.AccountData.leave(ctx, account, keep)
-            instance(ctx)?.let { repo(ctx)?.removeInstance(it.id) }
-            clear(ctx)
-            if (account.isNotEmpty()) io.github.nanomuse.account.AccountData.enter(ctx, io.github.nanomuse.account.AccountScope.LOCAL)
+        return io.github.nanomuse.sync.ConversationSync.exclusive {
+            // 旧退出或401请求迟到时，不能清掉后来登录的新账号。
+            if (apiKey(ctx) != expectedKey) return@exclusive false
+            io.github.nanomuse.account.AccountData.withTransition {
+                withContext(NonCancellable) {
+                    io.github.nanomuse.hub.Hub.stop(ctx)
+                    val account = io.github.nanomuse.account.AccountData.key(ctx)
+                    if (account.isNotEmpty()) {
+                        io.github.nanomuse.account.AccountData.migrate(ctx, account, io.github.nanomuse.account.AccountScope.LOCAL, keep)
+                    }
+                    instance(ctx)?.let { repo(ctx)?.removeInstance(it.id) }
+                    clear(ctx)
+                    io.github.nanomuse.account.AccountData.completeMigration(ctx)
+                }
+            }
+            true
         }
     }
 
@@ -605,57 +616,53 @@ object NanoMuseCloud {
         val repo = repo(context) ?: throw CloudException("no_repository", "Provider storage is not ready")
         val apiKey = reply.optString("api_key").takeIf { it.isNotBlank() }
             ?: throw CloudException("bad_reply", "The relay sent no key")
-        // contract C12: who was here before the key is written — the phone's own set (signed
-        // out), or an account a sign-in reached without a sign-out (nothing of it is deleted
-        // without the sheet's question: it is put aside, as *Keep* would)
         val before = io.github.nanomuse.account.AccountData.key(context)
+        val expectedKey = apiKey(context)
+        val after = io.github.nanomuse.account.AccountScope.key(reply.optJSONObject("account")?.optString("id"), apiKey)
         // The host the code was sent to is the host the key is for; the relay's own idea of
         // its public address (`base_url`) is informational.
         val base = baseUrl(context)
 
-        // One instance per relay: signing in again on the same phone refreshes the key and
-        // keeps the entries, groups and the image model that already point at it.
-        val existing = instance(context)
-        val inst = existing?.let {
-            if (it.customBaseURL == base) it else it.copy(customBaseURL = base).also(repo::updateInstance)
-        } ?: ProviderInstance(
-            id = UUID.randomUUID().toString(),
-            label = LABEL,
-            providerType = ProviderType.openAI,
-            credentialType = ProviderCredential.apiKey,
-            customBaseURL = base,
-            appendV1Suffix = true,
-        ).also { repo.addInstance(it) }
-        repo.saveApiKey(inst.id, apiKey)
-        prefs(context).edit().putString(KEY_INSTANCE, inst.id).remove(KEY_ENDED).apply()
-
-        // The models the relay serves — same `/v1/models` call every provider gets; the relay
-        // includes modalities so the picture model is recognised as one.
-        runCatching { repo.refreshModels(inst) }
-        provisionDefaults(context, repo, inst, reply.optJSONArray("models"))
-        // the menu as sent with the key; the catalog beyond it comes with the first /v1/models
-        rememberModels(context, reply.optJSONArray("models"), stamp = false)
-        runCatching { syncModels(context, apiKey) }
-
-        saveAccount(context, reply)
-        if (reply.optBoolean("created", false)) prefs(context).edit().putBoolean(KEY_FRESH, true).apply()
-        val after = io.github.nanomuse.account.AccountData.key(context)
-        if (after != before) {
-            io.github.nanomuse.sync.ConversationSync.exclusive {
-                io.github.nanomuse.account.AccountData.leave(context, before, keep = true)
-                io.github.nanomuse.account.AccountData.enter(context, after)
+        return io.github.nanomuse.sync.ConversationSync.exclusive {
+            check(io.github.nanomuse.account.AccountData.key(context) == before && apiKey(context) == expectedKey) {
+                "The account changed; retry sign-in"
             }
-            // the profile bookkeeping (the rev last worn, the face's hash, the other devices'
-            // connections) was the account before's: with it kept, a new account whose rev is
-            // not past the old one's would be read as "nothing new" and its name and face
-            // never worn here
-            ProfileSync.forget(context)
+            val inst = io.github.nanomuse.account.AccountData.withTransition {
+                // 文件迁移开始后完成本地事务，页面取消不留下可写的半迁移空间。
+                withContext(NonCancellable) {
+                    io.github.nanomuse.hub.Hub.stop(context)
+                    if (after != before) {
+                        io.github.nanomuse.account.AccountData.migrate(context, before, after, keep = true)
+                        ProfileSync.forget(context)
+                    }
+                    val existing = instance(context)
+                    val provider = existing?.let {
+                        if (it.customBaseURL == base) it else it.copy(customBaseURL = base).also(repo::updateInstance)
+                    } ?: ProviderInstance(
+                        id = UUID.randomUUID().toString(), label = LABEL,
+                        providerType = ProviderType.openAI, credentialType = ProviderCredential.apiKey,
+                        customBaseURL = base, appendV1Suffix = true,
+                    ).also(repo::addInstance)
+                    // 新身份只在目录完全恢复后发布，创建锁覆盖密钥和账号信息写入。
+                    repo.saveApiKey(provider.id, apiKey)
+                    prefs(context).edit().putString(KEY_INSTANCE, provider.id).remove(KEY_ENDED).apply()
+                    saveAccount(context, reply)
+                    if (reply.optBoolean("created", false)) prefs(context).edit().putBoolean(KEY_FRESH, true).apply()
+                    io.github.nanomuse.account.AccountData.completeMigration(context)
+                    provider
+                }
+            }
+            // 网络操作不占用创建锁；外层同步锁仍阻止另一次身份切换插入。
+            runCatching { repo.refreshModels(inst) }
+            provisionDefaults(context, repo, inst, reply.optJSONArray("models"))
+            rememberModels(context, reply.optJSONArray("models"), stamp = false)
+            runCatching { syncModels(context, apiKey) }
+            _signedIn.value = true
+            io.github.nanomuse.hub.Hub.restart(context)
+            ProfileSync.pullSoon(context)
+            io.github.nanomuse.sync.ConversationSync.signedIn(context)
+            requireNotNull(account(context))
         }
-        _signedIn.value = true
-        io.github.nanomuse.hub.Hub.restart(context) // the new key joins the hub
-        ProfileSync.pullSoon(context) // the name and look the account's other devices wear
-        io.github.nanomuse.sync.ConversationSync.signedIn(context) // the account's conversations (contract C7)
-        return account(context)!!
     }
 
     /** Re-read the balance. Returns null (and forgets the account) when the key is gone. */
@@ -664,12 +671,17 @@ object NanoMuseCloud {
         val key = repo(context)?.loadApiKey(inst.id) ?: return@withContext null
         try {
             val me = call(context, "GET", "/v1/me", null, token = key)
-            saveAccount(context, me)
-            // the menu and the catalog move slowly: once an hour is plenty
-            if (System.currentTimeMillis() - prefs(context).getLong(KEY_MODELS_AT, 0) > MODELS_FRESH_MS) {
-                runCatching { syncModels(context, key) }
+            io.github.nanomuse.sync.ConversationSync.exclusive {
+                if (apiKey(context) != key) return@exclusive account(context)
+                // 余额请求不得把旧账号身份写回新空间；归属标识变化需重新走登录迁移。
+                val refreshedOwner = io.github.nanomuse.account.AccountScope.key(me.optJSONObject("account")?.optString("id"), key)
+                if (refreshedOwner != io.github.nanomuse.account.AccountData.key(context)) return@exclusive account(context)
+                io.github.nanomuse.account.AccountData.withSessionCreation(context) { saveAccount(context, me) }
+                if (System.currentTimeMillis() - prefs(context).getLong(KEY_MODELS_AT, 0) > MODELS_FRESH_MS) {
+                    runCatching { syncModels(context, key) }
+                }
+                account(context)
             }
-            account(context)
         } catch (e: CloudException) {
             if (e.status == 401) {
                 // Revoked elsewhere, or the relay was reset: the provider cannot answer any
@@ -678,9 +690,10 @@ object NanoMuseCloud {
                 // (contract C12). Only `account_deleted` — the account itself is gone at the
                 // relay — leaves nothing to come back to, and the data goes.
                 val keep = io.github.nanomuse.account.AccountScope.keepOnRefusedKey(e.code)
-                forgetLocally(context, keep)
-                if (keep) prefs(context).edit().putBoolean(KEY_ENDED, true).apply()
-                null
+                if (forgetLocally(context, keep, key)) {
+                    if (keep) prefs(context).edit().putBoolean(KEY_ENDED, true).apply()
+                    null
+                } else account(context)
             } else {
                 account(context)
             }
@@ -699,7 +712,8 @@ object NanoMuseCloud {
         if (inst != null && key != null) {
             runCatching { call(context, "POST", "/v1/auth/sign-out", null, token = key) }
         }
-        forgetLocally(context, keep)
+        forgetLocally(context, keep, key)
+        Unit
     }
 
     /**

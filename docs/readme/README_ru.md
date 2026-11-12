@@ -1,3 +1,5 @@
+> **Форк Nivo Bot:** Начните с [OPEN_SOURCE.md](../../OPEN_SOURCE.md) и [сайта продукта](../../site/README.md). Исходный README сохранён для указания авторства; загрузки, сервисы и сообщество относятся к nanoMuse, а не к этому форку.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nano-muse/nanoMuse/main/assets/brand/nanomuse-cover.png" alt="nanoMuse: открытый персональный агент для всех ваших устройств">
 </p>

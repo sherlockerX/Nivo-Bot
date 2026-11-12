@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_chat_records">練習記録</string>
+    <string name="nm_coach_chat_city_intro">コースを選び、記録を振り返り、トピックの会話で学習を続けられます。</string>
+    <string name="nm_coach_chat_archive_intro">学習は「毎日の練習」のトピック別会話で行います。開始するとトピックが開き、AIによる授業が始まります。</string>
+    <string name="nm_coach_chat_open_practice">毎日の練習で続ける</string>
+    <string name="nm_coach_chat_view_original">元のメッセージを見る</string>
+    <string name="nm_coach_chat_source_unavailable">元のメッセージへのリンクは利用できません。保存済みの抜粋は引き続き確認できます。</string>
+    <string name="nm_coach_chat_saved_draft">保存済みの未送信下書き</string>
+    <string name="nm_coach_chat_review_in_chat">この記録について話したり訂正したりするには、トピックの会話を続けてください。</string>
+    <string name="nm_coach_chat_archive">記録を見る</string>
+    <string name="nm_coach_chat_end_today">今日はここまで</string>
+    <string name="nm_coach_chat_independent_check">自力での確認</string>
+    <string name="nm_coach_chat_understanding">理解の根拠</string>
+    <string name="nm_coach_chat_application">応用の根拠</string>
+    <string name="nm_coach_chat_delayed_review">後日の復習</string>
+    <string name="nm_coach_chat_discussion">対話</string>
+    <string name="nm_coach_chat_archive_failed">会話は保存済みです。記録の整理に失敗しました</string>
+    <string name="nm_coach_chat_retry_archive">記録の整理を再試行</string>
+    <string name="nm_coach_chat_next_lesson">次の授業を始める</string>
+    <string name="nm_coach_chat_back_to_conversation">会話に戻る</string>
+    <string name="nm_coach_chat_source_invalidated">元の内容は編集または削除されています。この抜粋は現在の根拠には使えません。</string>
+    <string name="nm_coach_chat_summary">授業の要約</string>
+    <string name="nm_coach_chat_summary_version">コースの版：%1$s、出典の改訂：%2$s</string>
+    <string name="nm_coach_chat_summary_invalidated">この要約の出典は無効です。現在の判断には使えません。</string>
+    <string name="nm_coach_chat_corrections">訂正記録</string>
+    <string name="nm_coach_chat_hypotheses">未解決の仮説</string>
+    <string name="nm_coach_chat_show_records">すべての原文を表示</string>
+    <string name="nm_coach_chat_hide_records">すべての原文を閉じる</string>
+    <string name="nm_coach_chat_hide_sources">出典を閉じる</string>
+</resources>

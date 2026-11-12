@@ -1,40 +1,35 @@
-# The landing page (legacy)
+# Nivo Bot产品网站
 
-The nanoMuse homepage now lives in [nano-muse/nano-muse.github.io](https://github.com/nano-muse/nano-muse.github.io)
-and is served at <https://nanomuse.cn/>, with a GitHub Pages copy at <https://nano-muse.github.io/>.
-`site/index.html` here is a redirect to it;
-the page below — the Python line's site with the promo film — is kept as `legacy.html` and
-still published by `.github/workflows/pages.yml` under `https://nano-muse.github.io/nanoMuse/legacy.html`.
+`site/index.html`是本分支的产品入口，不再跳转到上游网站。旧页面保留在`legacy.html`，默认发布工具不会包含旧页或上游素材。
 
-`legacy.html` is one static page, no framework, English and 中文 in the same file (the toggle
-in the top right, `?lang=zh` or `?lang=en` in the URL).
-
-## Preview
-
-The page uses the app's dragon (`web/public/avatars/dragon-*.webp`, one picture per mood) plus
-the app's screenshots. Those files are copied into `site/assets/`, not committed — the
-"Assemble site/assets" step in `.github/workflows/pages.yml` shows which; run its lines from the
-repository root, then:
+## 预览
 
 ```bash
-cd site && python3 -m http.server 8000      # http://localhost:8000/legacy.html
+python -m http.server 8080 --bind 127.0.0.1 --directory site
 ```
 
-## What is where
+打开http://127.0.0.1:8080/。无框架依赖、远程字体、分析追踪或模型请求。原创SVG与HTML交互用于功能示意，不伪装成真实用户数据。
 
-| File | Purpose |
+|文件|职责|
 |---|---|
-| `legacy.html` | The earlier page. Every string appears twice, in `<span class="en">` and `<span class="zh">`. |
-| `style.css` | Colours, type and radii copied from `web/src/index.css`; light and dark. |
-| `site.js` | The language toggle and the phone in the hero, which plays one task end to end. |
-| `assets/` (generated) | `mascot.js` (the dragon's moods as `<img>`s) + `mascot.css`, the dragon pictures, icons, fonts, `screens/` from `docs/screenshots/`, `cover.png`. |
-| `media/` | The promo video and its poster, rendered from `promo/storyboard.html` by `promo/render.py` (see `promo/README.md`). Committed: 1.7 MB. |
+|index.html|产品叙事、功能演示入口、FAQ和下载|
+|product.css|响应式布局、移动端、减少动态效果与开发者页样式|
+|product.js|流程切换、示例计时、菜单、下载元信息|
+|developers.html|构建、模块、贡献、数据边界和许可|
+|release.json|版本与下载状态的唯一来源|
+|brand-mark.svg|原创网站字标，不替换App图标|
 
-The phone mock in the hero is not a video: it is the app's own markup, with the dragon's
-pictures where the drawn red panda used to be (the panda left the app in 0.1.23).
+## 下载配置
 
-## Domain
+当前目标为`https://nivo.8666886.xyz/`，`release.json`采用`channel: public`并填写对应安装包的HTTPS地址和SHA256。部署必须同时上传安装包、对应源码ZIP和校验文件，不能只更新元信息。开发预览可使用`local-preview`和同源相对APK路径，不应误写为公开正式版。
 
-`nanomuse.cn` is served by the showcase server, which pulls the homepage repository every minute
-(`demo/showcase/README.md`, "Other sites on the same Caddy"); GitHub Pages publishes the same
-repository at `nano-muse.github.io`. One push to that repository's `main` updates both.
+## 校验和部署
+
+```bash
+python scripts/site/check_site.py --root site
+python scripts/site/build_site.py --root site --output build/product-site
+```
+
+输出目录只包含产品页白名单。可以上传到静态主机，或手动触发现有`.github/workflows/pages.yml`。工作流保持手动触发，不会因为本地整理自动公开。若部署到`sherlockerX/Nicholasx`的GitHub Pages，通常路径为`https://sherlockerx.github.io/Nicholasx/`，这只是部署配置目标，不代表已上线。
+
+开发者完整指南见[OPEN_SOURCE.md](../OPEN_SOURCE.md)。

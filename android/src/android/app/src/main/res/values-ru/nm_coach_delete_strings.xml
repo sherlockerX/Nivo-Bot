@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nm_coach_delete_count">Удалить %1$d диалогов?</string>
+    <string name="nm_coach_delete_retention">Связанные выдержки Coach останутся только для чтения. Ссылки на оригиналы станут недоступны.</string>
+    <string name="nm_coach_delete_keep">Удалить чат, сохранить выдержки</string>
+    <string name="nm_coach_delete_purge">Также удалить архив темы</string>
+    <string name="nm_coach_delete_failed">Удаление не завершено. Чат мог быть удалён, а выдержки остались. Повторите очистку архива.</string>
+    <string name="nm_coach_delete_account_changed">Аккаунт изменился. Закройте окно и откройте его в текущем аккаунте.</string>
+    <string name="nm_coach_delete_retry">Повторить очистку архива</string>
+    <string name="nm_coach_conversation_group">Ежедневная практика</string>
+</resources>
