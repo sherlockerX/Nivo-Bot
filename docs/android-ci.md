@@ -34,6 +34,8 @@
 
 工作流使用JDK21、Go1.26、Android SDK36、NDK27.2.12479018和CMake3.22.1。先构建PRoot、Alpine沙盒输入和rclone，再生成arm64的Debug与Release APK。原生缓存按源码及工具链版本失效，gomobile版本与rclone模块固定一致。
 
+CI将Kotlin编译放在Gradle进程内，配置4GB堆并限制为2个worker，避免独立Kotlin守护进程的默认小堆在大型Compose源码上耗尽。该设置只在工作流中生效，本机Gradle配置不受影响。
+
 工作流执行本分支相关的JVM单元测试，并编译Android设备测试源码；APK生成后再用`aapt`和`apksigner`核对身份、架构、版本及签名。测试报告和Release混淆映射单独保留14天。此流程不运行模拟器或真实手机，不能代替手机上的交互、后台恢复、沙盒与模型服务验收。
 
 构建辅助脚本可在无Android SDK的环境独立验证：

@@ -48,7 +48,9 @@ jobs:
           persist-credentials: false
 
       - name: Test CI helpers
-        run: python3 -m unittest discover -s scripts/android -p test_ci_helpers.py -v
+        run: |
+          python3 -m unittest discover -s scripts/android -p test_ci_helpers.py -v
+          python3 -m unittest discover -s scripts/release -p test_release_tools.py -v
 
       # Android不依赖iSH，避免递归拉取整个iOS依赖树。
       - name: Android native source
@@ -113,7 +115,16 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           signing=(-Pnm.unsignedRelease=true)
           if [[ "$SIGNED_RELEASE" == true ]]; then signing=(-Pnm.requireReleaseKey=true); fi
-          bash gradlew --console=plain --no-daemon --max-workers=2 -Pnm.uiTest=true "${signing[@]}" :app:assembleDebug :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.provider.*' --tests 'com.openminis.app.sandbox.*' --tests 'com.openminis.app.ui.chat.*' --tests 'com.openminis.app.ui.sessions.*' :app:compileDebugAndroidTestKotlin :app:assembleRelease
+          # 单进程编译避免Kotlin守护进程使用默认小堆，并为大型Compose源码提供足够内存。
+          bash gradlew --console=plain --no-daemon --max-workers=2 \
+            '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8' \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pnm.uiTest=true "${signing[@]}" \
+            :app:assembleDebug :app:testDebugUnitTest \
+            --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.provider.*' \
+            --tests 'com.openminis.app.sandbox.*' --tests 'com.openminis.app.ui.chat.*' \
+            --tests 'com.openminis.app.ui.sessions.*' \
+            :app:compileDebugAndroidTestKotlin :app:assembleRelease
 
       - name: Verify packages and prepare downloads
         env:
