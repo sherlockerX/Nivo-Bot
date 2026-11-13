@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://nivo.8666886.xyz/sitemap.xml

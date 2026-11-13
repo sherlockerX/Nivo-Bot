@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: 检查并打包产品页
         run: |
+          python3 scripts/site/render_site.py --check
+          python3 -m unittest discover -s scripts/site -p test_site.py -v
           python3 scripts/site/check_site.py --root site
           python3 scripts/site/build_site.py --root site --output build/product-site
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d

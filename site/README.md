@@ -1,35 +1,54 @@
 # Nivo Bot产品网站
 
-`site/index.html`是本分支的产品入口，不再跳转到上游网站。旧页面保留在`legacy.html`，默认发布工具不会包含旧页或上游素材。
+多页静态产品站，部署在`https://nivo.8666886.xyz/`。没有运行框架、远程字体、分析追踪器或模型请求。
 
-## 预览
+|页面|职责|
+|---|---|
+|`index.html`|解释产品、使用流程和下一步|
+|`features.html`、`features/*.html`|六张原创功能图轮播与独立详页|
+|`models.html`、`models/*.html`|服务商筛选、22种接入教程|
+|`downloads.html`|平台、渠道和版本选择、历史记录与文件校验|
+|`releases/*.html`|每版固定的说明与对应源码|
+|`developers.html`、`privacy.html`|源码、贡献、许可和数据边界|
+
+## 修改内容和预览
+
+页面与原创SVG是生成文件，编辑`scripts/site/content.py`中的功能和教程内容，或`render_site.py`的页面结构，再重新生成。样式和交互直接修改`product.css`与`product.js`。图像是功能示意，不是手机截图，也不使用真实个人数据。
 
 ```bash
-python -m http.server 8080 --bind 127.0.0.1 --directory site
+python scripts/site/render_site.py
+python -m http.server 8783 --bind 127.0.0.1 --directory site
 ```
 
-打开http://127.0.0.1:8080/。无框架依赖、远程字体、分析追踪或模型请求。原创SVG与HTML交互用于功能示意，不伪装成真实用户数据。
+教程首先对照Android的`OwnKeyPresets.kt`、服务商配置页和模型槽位，再引用各厂商官方文档。每篇保留核对日期和官方入口；账户限制、价格和模型可用性仍以对应平台为准。网站不收集API Key，不代访客调用模型验证。
 
-|文件|职责|
-|---|---|
-|index.html|产品叙事、功能演示入口、FAQ和下载|
-|product.css|响应式布局、移动端、减少动态效果与开发者页样式|
-|product.js|流程切换、示例计时、菜单、下载元信息|
-|developers.html|构建、模块、贡献、数据边界和许可|
-|release.json|版本与下载状态的唯一来源|
-|brand-mark.svg|原创网站字标，不替换App图标|
+## 加入后续版本
 
-## 下载配置
+`releases.json`采用版本2清单，字段说明见[产品站维护指南](../docs/product-site.md)。新增发行记录后重新生成页面即可扩展版本历史，不覆盖旧安装文件。`release.json`继续保留旧入口兼容。
 
-当前目标为`https://nivo.8666886.xyz/`，`release.json`采用`channel: public`并填写对应安装包的HTTPS地址和SHA256。部署必须同时上传安装包、对应源码ZIP和校验文件，不能只更新元信息。开发预览可使用`local-preview`和同源相对APK路径，不应误写为公开正式版。
+当前保留Android v2.0.0（51）的正式APK与对应源码原文件。iOS状态为`unreleased`，没有虚构下载链接。未来可配置`apk`、`ipa`、`app-store`或`testflight`发行方式；商店入口不要求填写不存在的IPA文件哈希。
 
-## 校验和部署
+## 检查与构建
 
 ```bash
+python scripts/site/render_site.py --check
+python -m unittest discover -s scripts/site -p test_site.py -v
 python scripts/site/check_site.py --root site
 python scripts/site/build_site.py --root site --output build/product-site
 ```
 
-输出目录只包含产品页白名单。可以上传到静态主机，或手动触发现有`.github/workflows/pages.yml`。工作流保持手动触发，不会因为本地整理自动公开。若部署到`sherlockerX/Nicholasx`的GitHub Pages，通常路径为`https://sherlockerx.github.io/Nicholasx/`，这只是部署配置目标，不代表已上线。
+输出目录必须为空。`site-manifest.json`是可发布文件白名单，构建不会夹带`legacy.html`、本机配置、私钥或其他额外文件。`downloads/`中的发行二进制由部署单独保留，不放进源码仓库。
 
-开发者完整指南见[OPEN_SOURCE.md](../OPEN_SOURCE.md)。
+可选浏览器验收需要Playwright及其Chromium：
+
+```bash
+python scripts/site/browser_qa.py --url http://127.0.0.1:8783/ --output build/site-qa --full
+```
+
+检查包含轮播、服务商搜索、手机导航、复制、平台和渠道切换、浏览器返回、网络失败，以及隔离数据下的多版本排序和iOS商店分发。真实发行清单不会被测试数据修改。
+
+## 部署
+
+现站运行在Netcatty管理的独立`nivo-site`容器，入口为`/opt/nivo-site/www/current`。新前端发布使用独立目录和原子符号链接切换，保留旧版及现有下载文件，公网Caddy代理继续使用原域名。
+
+仓库的Pages工作流仍保持手动触发；不会因普通推送自动改变公网托管位置。许可与上游归属保留GPL-3.0-or-later、nanoMuse和OpenMinis说明。

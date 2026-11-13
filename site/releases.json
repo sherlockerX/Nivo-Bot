@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "product": "Nivo Bot",
+  "updatedAt": "2026-11-13",
+  "platforms": [
+    {"id": "android", "name": "Android", "status": "available"},
+    {"id": "ios", "name": "iOS", "status": "unreleased", "message": "iOS版目前尚未公开发布，没有可用的安装包或TestFlight入口。后续版本会在这里说明实际分发方式与系统要求。", "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/blob/master/docs/ios.md"}
+  ],
+  "releases": [
+    {
+      "id": "android-2.0.0-51-arm64",
+      "platform": "android",
+      "version": "2.0.0",
+      "versionCode": 51,
+      "channel": "stable",
+      "distribution": "apk",
+      "releasedAt": "2026-11-12",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 31171812,
+      "summary": "让对话、待办、专注、生活碎片与成长教练连接起来。",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk",
+      "sha256": "4388b91f88422625185a5baba1baa43f1ba2558ab9484eb64b29455605241d85",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip",
+      "sourceSha256": "d28ab85b8285178aabac350469dba3a87dff1a9924118d88036eff4e7b7b354b",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "notesUrl": "releases/android-2.0.0.html",
+      "notes": ["通过聊天工具管理待办与专注", "可复用的分组、标签和多种任务视图", "可恢复的全屏专注与本地背景", "每日碎片关联实际任务和专注时段", "教练档案连接每日练习对话"]
+    }
+  ]
+}
