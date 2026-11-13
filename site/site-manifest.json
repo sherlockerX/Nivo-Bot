@@ -11,9 +11,12 @@
     "features/fragments.html",
     "features/ideas.html",
     "features/tasks.html",
+    "getting-started.html",
     "index.html",
+    "install.html",
     "media/chat.svg",
     "media/coach.svg",
+    "media/focus-preview.svg",
     "media/focus.svg",
     "media/fragments.svg",
     "media/ideas.svg",
@@ -49,6 +52,7 @@
     "releases/android-2.0.0.html",
     "robots.txt",
     "site-manifest.json",
-    "sitemap.xml"
+    "sitemap.xml",
+    "versions.html"
   ]
 }

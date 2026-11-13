@@ -184,6 +184,7 @@
       window.history.pushState(null, '', url);
     };
     const renderHistory = releases => {
+      if (!historyTable) return;
       historyTable.replaceChildren();
       if (!releases.length) { historyTable.append(node('p', '这个平台暂时没有公开发行记录。', 'muted')); return; }
       const table = node('table'), head = node('thead'), headerRow = node('tr'), body = node('tbody');

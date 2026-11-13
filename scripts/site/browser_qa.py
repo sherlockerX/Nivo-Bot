@@ -29,7 +29,14 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         page.on("pageerror", lambda error: report["pageErrors"].append(str(error)))
         page.goto(base, wait_until="networkidle")
         expect(page.get_by_role("heading", level=1)).to_contain_text("想法说出来")
+        expect(page.locator("[data-carousel], [data-provider], [data-downloads]")).to_have_count(0)
+        expect(page.locator(".entry-grid > a")).to_have_count(3)
         page.screenshot(path=str(output / "home-desktop.png"), full_page=True)
+        page.get_by_role("navigation", name="主导航", exact=True).get_by_role(
+            "link", name="功能画廊"
+        ).click()
+        expect(page).to_have_url(base + "features.html")
+        page.screenshot(path=str(output / "gallery-desktop.png"), full_page=True)
         region = page.locator("[data-carousel]")
         region.get_by_role("tab", name="个人待办").click()
         expect(page.locator("#slide-tasks")).to_be_visible()
@@ -49,6 +56,11 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         page.locator("#provider-search").fill("no-match-fixture")
         expect(page.locator("#provider-empty")).to_be_visible()
         record("服务商搜索、类别筛选和无结果状态")
+        expect(page.locator(".start-guide")).to_have_count(0)
+        page.locator(".entry-banner").click()
+        expect(page).to_have_url(base + "getting-started.html")
+        expect(page.locator(".start-guide")).to_be_visible()
+        record("首页、功能画廊、服务商目录和入门说明独立切换")
         page.goto(base + "models/gemini.html", wait_until="networkidle")
         expect(page.locator(".config-card")).to_contain_text(
             "https://generativelanguage.googleapis.com/v1beta"
@@ -60,11 +72,38 @@ def run(base: str, output: Path, full: bool = False) -> dict:
             == "https://generativelanguage.googleapis.com/v1beta"
         )
         record("模型配置说明与复制基础URL")
+        page.get_by_role("navigation", name="本篇目录").get_by_role(
+            "link", name="App怎么填"
+        ).click()
+        page.wait_for_function(
+            "Math.abs(document.querySelector('#configure').getBoundingClientRect().top - (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) + 20)) < 4"
+        )
+        assert (
+            page.locator("#configure").bounding_box()["y"]
+            >= page.locator(".site-header").bounding_box()["height"]
+        )
+        page.screenshot(path=str(output / "guide-scrolled-desktop.png"))
+        record("教程锚点跳转位于常驻导航下方")
         page.goto(base + "downloads.html", wait_until="networkidle")
         expect(page.locator("#release-message")).to_contain_text("1个可用版本")
         expect(page.locator("#release-content a.button")).to_have_attribute(
             "href", "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk"
         )
+        expect(page.locator("#release-history")).to_have_count(0)
+        page.screenshot(path=str(output / "downloads-desktop.png"), full_page=True)
+        page.get_by_role("navigation", name="当前栏目").get_by_role("link", name="版本历史").click()
+        expect(page).to_have_url(base + "versions.html")
+        expect(page.locator("#release-history")).to_contain_text("2.0.0")
+        page.get_by_role("navigation", name="当前栏目").get_by_role(
+            "link", name="安装与升级"
+        ).click()
+        expect(page).to_have_url(base + "install.html")
+        expect(page.locator("main")).to_contain_text("Android安装步骤")
+        page.go_back(wait_until="networkidle")
+        expect(page).to_have_url(base + "versions.html")
+        page.go_back(wait_until="networkidle")
+        expect(page).to_have_url(base + "downloads.html")
+        record("下载、版本历史与安装说明独立页面及后退恢复")
         page.get_by_role("tab", name="iOS").click()
         expect(page.locator("#release-content")).to_contain_text("尚未公开发布")
         expect(page.locator("#release-content a.button")).to_have_count(0)
@@ -74,7 +113,6 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         page.locator("#release-channel").select_option("beta")
         expect(page.locator("#release-content")).to_contain_text("当前渠道暂无版本")
         expect(page.locator("#release-channel")).to_be_enabled()
-        page.screenshot(path=str(output / "downloads-desktop.png"), full_page=True)
         record("下载平台、未发布iOS、空渠道与浏览器返回")
 
         # 未来版本仅通过网络拦截构造，不修改或发布真实发行清单。
@@ -139,6 +177,17 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         }""")
         expect(phone.locator("#slide-tasks")).to_be_visible()
         record("手机轮播触摸事件切换")
+        phone.evaluate(
+            "window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'})"
+        )
+        assert abs(phone.locator(".site-header").bounding_box()["y"]) <= 1
+        expect(phone.get_by_role("navigation", name="页面切换")).to_be_visible()
+        phone.screenshot(path=str(output / "mobile-scrolled-navigation.png"))
+        phone.get_by_role("navigation", name="页面切换").get_by_role(
+            "link", name="下载应用"
+        ).click()
+        expect(phone).to_have_url(base + "downloads.html")
+        record("手机下滑后直接使用常驻页面标签跳转")
         phone.get_by_role("button", name="导航").click()
         expect(phone.locator("#navigation")).to_be_visible()
         phone.get_by_role("navigation", name="主导航").get_by_role("link", name="模型接入").click()
@@ -165,7 +214,16 @@ def run(base: str, output: Path, full: bool = False) -> dict:
                 assert not page.evaluate("document.documentElement.scrollWidth > innerWidth + 1"), (
                     f"Overflow {width} {target}"
                 )
+                page.evaluate(
+                    "window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'})"
+                )
+                header = page.locator(".site-header").bounding_box()
+                assert abs(header["y"]) <= 1, f"Header disappeared {width} {target}"
+                assert page.locator(".site-header").evaluate(
+                    "el => {const r=el.getBoundingClientRect(); return el.contains(document.elementFromPoint(r.width/2, r.height/2));}"
+                ), f"Header covered {target}"
         record(f"{len(targets)}页×4种宽度无整页横向溢出")
+        record(f"{len(targets)}页×4种宽度滚动到底后顶部导航保持可见")
         for target, name in [
             ("index.html", "home-mobile.png"),
             ("features.html", "gallery-mobile.png"),

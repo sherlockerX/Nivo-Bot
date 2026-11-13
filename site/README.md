@@ -8,12 +8,16 @@
 |`features.html`、`features/*.html`|六张原创功能图轮播与独立详页|
 |`models.html`、`models/*.html`|服务商筛选、22种接入教程|
 |`downloads.html`|平台、渠道和版本选择、历史记录与文件校验|
+|`getting-started.html`|接入基础概念和常见问题|
+|`versions.html`、`install.html`|独立版本历史与安装升级说明|
 |`releases/*.html`|每版固定的说明与对应源码|
 |`developers.html`、`privacy.html`|源码、贡献、许可和数据边界|
 
 ## 修改内容和预览
 
 页面与原创SVG是生成文件，编辑`scripts/site/content.py`中的功能和教程内容，或`render_site.py`的页面结构，再重新生成。样式和交互直接修改`product.css`与`product.js`。图像是功能示意，不是手机截图，也不使用真实个人数据。
+
+首页提供简洁的页面入口，轮播集中在功能画廊。全站常驻顶部导航，手机通过常驻页面标签切换栏目；教程目录与锚点预留导航高度。各个功能、教程、版本历史、安装说明均独立URL，不在首页重复叠加。
 
 ```bash
 python scripts/site/render_site.py

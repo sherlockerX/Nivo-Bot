@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Shortened the product homepage to dedicated page entrances, separated model basics, release history and installation instructions, and kept desktop and mobile navigation visible while scrolling with anchored reading offsets.
+
 - Rebuilt the Nivo website into separate product, feature, model setup, download, release and project pages; added six original feature illustrations, 22 provider guides, mobile carousel controls, a versioned platform catalogue and explicit unpublished iOS status while retaining existing release files.
 
 - Bounded the synthetic child JVMs used by process-capture stress tests and included captured output in failure diagnostics, preserving the complete 250-run output check on shared CI hosts.
