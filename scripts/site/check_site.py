@@ -154,6 +154,8 @@ def check(root: Path, allow_local: bool = False) -> dict:
     homepage = (root / "index.html").read_text(encoding="utf-8")
     if 'name="google-site-verification"' not in homepage:
         errors.append("Homepage is missing Google Search Console verification")
+    if 'name="msvalidate.01" content="1BD387A09BAFE629130E03EFB5265857"' not in homepage:
+        errors.append("Homepage is missing Bing Webmaster Tools verification")
     if '"@type":"SoftwareApplication"' not in homepage:
         errors.append("Homepage is missing SoftwareApplication structured data")
     if '"operatingSystem":"Android 8.0 and later"' not in homepage:

@@ -16,6 +16,7 @@ REPO = "https://github.com/sherlockerX/Nivo-Bot"
 ASSET_HASH = ""
 GOOGLE_SITE_VERIFICATION = "QVsEHxt7qwqGw9QpgACh-3VsNUXY6RNqMSVKd5DIol0"
 GOOGLE_VERIFICATION_FILE = "google29070eb2e5de147a.html"
+BING_SITE_VERIFICATION = "1BD387A09BAFE629130E03EFB5265857"
 INDEXNOW_KEY = "1f804be1a33b1ddba7ee8b064dab28f5"
 
 
@@ -102,6 +103,7 @@ def page(path: str, title: str, description: str, body: str, section: str) -> st
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f4f3ec"><meta name="description" content="{esc(description)}">
 <meta name="google-site-verification" content="{GOOGLE_SITE_VERIFICATION}">
+<meta name="msvalidate.01" content="{BING_SITE_VERIFICATION}">
 <meta property="og:title" content="{esc(title)} · Nivo Bot"><meta property="og:description" content="{esc(description)}"><meta property="og:type" content="website">
 <meta property="og:image" content="{ORIGIN}media/chat.svg"><link rel="canonical" href="{ORIGIN}{path if path != "index.html" else ""}">
 <title>{esc(title)} · Nivo Bot</title><link rel="icon" href="{prefix}brand-mark.svg" type="image/svg+xml">{structured_data}

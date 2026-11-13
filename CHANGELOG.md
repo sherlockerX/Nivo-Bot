@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Added persistent Bing Webmaster Tools ownership verification to the product website and its deployment checks.
+
 - Improved product-site text contrast, heading spacing and mobile reading sizes, preserved Google ownership verification files, and added website/application structured data and dated sitemaps with an IndexNow ownership file.
 
 - Shortened the product homepage to dedicated page entrances, separated model basics, release history and installation instructions, and kept desktop and mobile navigation visible while scrolling with anchored reading offsets.
