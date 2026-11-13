@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Improved product-site text contrast, heading spacing and mobile reading sizes, preserved Google ownership verification files, and added website/application structured data and dated sitemaps with an IndexNow ownership file.
+
 - Shortened the product homepage to dedicated page entrances, separated model basics, release history and installation instructions, and kept desktop and mobile navigation visible while scrolling with anchored reading offsets.
 
 - Rebuilt the Nivo website into separate product, feature, model setup, download, release and project pages; added six original feature illustrations, 22 provider guides, mobile carousel controls, a versioned platform catalogue and explicit unpublished iOS status while retaining existing release files.

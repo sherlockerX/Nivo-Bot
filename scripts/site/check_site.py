@@ -21,8 +21,11 @@ CORE_FILES = {
     "release.json",
     "releases.json",
     "brand-mark.svg",
+    "sitemap.xml",
+    "robots.txt",
 }
 SUFFIXES = {".html", ".css", ".js", ".json", ".svg", ".xml", ".txt"}
+VERIFICATION_FILES = {"google29070eb2e5de147a.html"}
 
 
 def site_files(root: Path) -> list[str]:
@@ -117,6 +120,11 @@ def check(root: Path, allow_local: bool = False) -> dict:
     errors.extend(f"Missing file: {name}" for name in files if not (root / name).is_file())
     pages = {}
     for name in files:
+        if name in VERIFICATION_FILES:
+            expected = ("google-site-verification: " + name).encode()
+            if (root / name).read_bytes() != expected:
+                errors.append("Google verification file was changed")
+            continue
         if not name.endswith(".html") or not (root / name).is_file():
             continue
         parser = Page()
@@ -143,6 +151,15 @@ def check(root: Path, allow_local: bool = False) -> dict:
             if parsed.fragment and relative in pages and parsed.fragment not in pages[relative].ids:
                 errors.append(f"{name}: Missing anchor: {value}")
     catalogue = json.loads((root / "releases.json").read_text(encoding="utf-8"))
+    homepage = (root / "index.html").read_text(encoding="utf-8")
+    if 'name="google-site-verification"' not in homepage:
+        errors.append("Homepage is missing Google Search Console verification")
+    if '"@type":"SoftwareApplication"' not in homepage:
+        errors.append("Homepage is missing SoftwareApplication structured data")
+    if '"operatingSystem":"Android 8.0 and later"' not in homepage:
+        errors.append("SoftwareApplication operating system is inaccurate")
+    if "<lastmod>" not in (root / "sitemap.xml").read_text(encoding="utf-8"):
+        errors.append("Sitemap is missing lastmod dates")
     errors.extend(validate_releases(catalogue))
     for release in catalogue.get("releases", []):
         if release.get("notesUrl") not in pages:

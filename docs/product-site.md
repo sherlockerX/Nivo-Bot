@@ -18,6 +18,16 @@ Nivo Bot站点采用独立HTML页面，目录页支持浏览器搜索、后退�
 
 信息结构参考[Linear](https://linear.app/features)的独立功能入口、[Raycast](https://www.raycast.com/)的产品图叙事和[Obsidian](https://obsidian.md/download)的平台下载分区；未复制其品牌图像或界面。
 
+## 阅读与搜索发现
+
+正文采用深绿文字，次要说明也须保持可辨认的对比度；桌面正文基准为19像素，手机教程为18像素。中文沿用宋体，英文与数字采用Times New Roman；代码保留等宽字体。标题不再压缩字距，正文链接增加下划线。浏览器验收计算正文颜色与背景的实际对比度，并检查手机和电脑布局。
+
+生成器保留Google Search Console的首页验证标签和原始HTML验证文件。验证文件只提供指定正文，不加入页面导航，不进入sitemap，也不得因后续部署而删除。IndexNow根目录key文件是公开的站点验证标记，不是账户API密钥；提交网址时只发送sitemap中的公开页面，不发送下载包或后台资料。
+
+首页的WebSite与SoftwareApplication结构化数据描述网站名和Android应用。不得虚构评分、评价或已发布iOS版本；结构化数据也不保证富结果或排名。sitemap列出38个内容页面，`lastmod`依据内容维护日期，不能为催抓取而伪造日期。发布新版本时应同步更新应用结构化信息与版本目录。
+
+站点所有权验证、sitemap提交、抓取请求、搜索引擎收录是不同状态。Google Search Console和Bing Webmaster Tools的结果应分别记录，IndexNow的200或202只代表通知被接受，不代表已收录。Edge是浏览器，默认搜索通常由Bing提供。参考[Google站点地图说明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)、[请求抓取](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl)与[IndexNow协议](https://www.indexnow.org/documentation)。
+
 ## 发布版本清单
 
 `site/releases.json`：

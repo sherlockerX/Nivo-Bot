@@ -9,6 +9,7 @@ import shutil
 import tarfile
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from build_site import build
@@ -42,6 +43,17 @@ class ProductSiteTests(unittest.TestCase):
         """内容源重建的结果应与公开页面逐字节一致。"""
         for name, content in generated(ROOT).items():
             self.assertEqual((ROOT / name).read_bytes(), content.encode("utf-8"), name)
+
+    def test_search_verification_is_not_a_content_page(self) -> None:
+        """验证文件保留原始字节，不加入搜索内容页清单。"""
+        name = "google29070eb2e5de147a.html"
+        self.assertEqual((ROOT / name).read_bytes(), ("google-site-verification: " + name).encode())
+        sitemap = ET.fromstring((ROOT / "sitemap.xml").read_bytes())
+        namespace = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        urls = [item.text for item in sitemap.findall("s:url/s:loc", namespace)]
+        self.assertEqual(len(urls), 38)
+        self.assertFalse(any(name in url for url in urls))
+        self.assertTrue(all(url.startswith("https://nivo.8666886.xyz/") for url in urls))
 
     def test_unreleased_ios_has_no_fabricated_download(self) -> None:
         """未发布iOS只保留状态和进度入口。"""

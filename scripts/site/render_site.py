@@ -14,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[2] / "site"
 ORIGIN = "https://nivo.8666886.xyz/"
 REPO = "https://github.com/sherlockerX/Nivo-Bot"
 ASSET_HASH = ""
+GOOGLE_SITE_VERIFICATION = "QVsEHxt7qwqGw9QpgACh-3VsNUXY6RNqMSVKd5DIol0"
+GOOGLE_VERIFICATION_FILE = "google29070eb2e5de147a.html"
+INDEXNOW_KEY = "1f804be1a33b1ddba7ee8b064dab28f5"
 
 
 def esc(value: object) -> str:
@@ -60,12 +63,48 @@ def page(path: str, title: str, description: str, body: str, section: str) -> st
     local_nav = (
         f'<nav class="page-nav wrap" aria-label="当前栏目">{sublinks}</nav>' if sublinks else ""
     )
+    structured_data = ""
+    if path == "index.html":
+        structured_data = (
+            '<script type="application/ld+json">'
+            + json.dumps(
+                [
+                    {
+                        "@context": "https://schema.org",
+                        "@type": "WebSite",
+                        "name": "Nivo Bot",
+                        "url": ORIGIN,
+                    },
+                    {
+                        "@context": "https://schema.org",
+                        "@type": "SoftwareApplication",
+                        "name": "Nivo Bot",
+                        "applicationCategory": "ProductivityApplication",
+                        "operatingSystem": "Android 8.0 and later",
+                        "softwareVersion": "2.0.0",
+                        "url": ORIGIN,
+                        "downloadUrl": ORIGIN + "downloads.html",
+                        "isAccessibleForFree": True,
+                        "offers": {
+                            "@type": "Offer",
+                            "price": "0",
+                            "priceCurrency": "USD",
+                        },
+                        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                    },
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            + "</script>"
+        )
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f4f3ec"><meta name="description" content="{esc(description)}">
+<meta name="google-site-verification" content="{GOOGLE_SITE_VERIFICATION}">
 <meta property="og:title" content="{esc(title)} · Nivo Bot"><meta property="og:description" content="{esc(description)}"><meta property="og:type" content="website">
 <meta property="og:image" content="{ORIGIN}media/chat.svg"><link rel="canonical" href="{ORIGIN}{path if path != "index.html" else ""}">
-<title>{esc(title)} · Nivo Bot</title><link rel="icon" href="{prefix}brand-mark.svg" type="image/svg+xml">
+<title>{esc(title)} · Nivo Bot</title><link rel="icon" href="{prefix}brand-mark.svg" type="image/svg+xml">{structured_data}
 <link rel="stylesheet" href="{prefix}product.css?v={ASSET_HASH}"><script src="{prefix}product.js?v={ASSET_HASH}" defer></script></head>
 <body data-root="{prefix or "./"}" data-page="{section}"><a class="skip" href="#main">跳到正文</a>
 <div class="site-header"><header class="header"><a class="brand" href="{prefix}index.html"><img src="{prefix}brand-mark.svg" width="32" height="32" alt=""><span>Nivo Bot<span class="accent">.</span></span></a>
@@ -575,12 +614,19 @@ def generated(root: Path) -> dict[str, str]:
             "downloads",
         )
     paths = sorted(name for name in outputs if name.endswith(".html"))
+    sitemap_date = json.loads((root / "releases.json").read_text(encoding="utf-8"))["updatedAt"]
     outputs["sitemap.xml"] = (
         '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        + "".join(f"<url><loc>{ORIGIN}{p if p != 'index.html' else ''}</loc></url>" for p in paths)
+        + "".join(
+            f"<url><loc>{ORIGIN}{p if p != 'index.html' else ''}</loc><lastmod>{sitemap_date}</lastmod></url>"
+            for p in paths
+        )
         + "</urlset>"
     )
     outputs["robots.txt"] = f"User-agent: *\nAllow: /\nSitemap: {ORIGIN}sitemap.xml\n"
+    # 搜索引擎验证文件必须保留原始正文，不加入导航，也不进入站点地图。
+    outputs[GOOGLE_VERIFICATION_FILE] = "google-site-verification: " + GOOGLE_VERIFICATION_FILE
+    outputs[INDEXNOW_KEY + ".txt"] = INDEXNOW_KEY
     files = sorted(
         [
             *outputs,

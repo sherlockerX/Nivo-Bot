@@ -29,6 +29,29 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         page.on("pageerror", lambda error: report["pageErrors"].append(str(error)))
         page.goto(base, wait_until="networkidle")
         expect(page.get_by_role("heading", level=1)).to_contain_text("想法说出来")
+        expect(page.locator('meta[name="google-site-verification"]')).to_have_attribute(
+            "content", "QVsEHxt7qwqGw9QpgACh-3VsNUXY6RNqMSVKd5DIol0"
+        )
+        structured_data = page.locator('script[type="application/ld+json"]').all_text_contents()
+        assert any('"@type":"SoftwareApplication"' in value for value in structured_data)
+        assert page.locator("body").evaluate(
+            "el => getComputedStyle(el).fontFamily.includes('Times New Roman')"
+        )
+        text_contrast = page.locator("body").evaluate(
+            """el => {
+              const rgb = value => value.match(/[\\d.]+/g).slice(0,3).map(Number);
+              const luminance = color => rgb(color).map(v => {
+                v /= 255;
+                return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+              }).reduce((sum, v, i) => sum + v * [.2126,.7152,.0722][i], 0);
+              const fg = luminance(getComputedStyle(el).color);
+              const bg = luminance(getComputedStyle(el).backgroundColor);
+              return (Math.max(fg,bg) + .05) / (Math.min(fg,bg) + .05);
+            }"""
+        )
+        assert text_contrast >= 7, f"Body contrast below AAA: {text_contrast:.2f}:1"
+        report["bodyContrast"] = round(text_contrast, 2)
+        record("Google验证标签、Android结构化数据与正文AAA对比度")
         expect(page.locator("[data-carousel], [data-provider], [data-downloads]")).to_have_count(0)
         expect(page.locator(".entry-grid > a")).to_have_count(3)
         page.screenshot(path=str(output / "home-desktop.png"), full_page=True)
@@ -194,7 +217,15 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         expect(phone.get_by_role("heading", level=1)).to_contain_text("选一个模型")
         record("手机导航及系统减少动态效果")
         manifest = context.request.get(base + "site-manifest.json").json()
-        paths = [name for name in manifest["files"] if name.endswith(".html")]
+        sitemap = context.request.get(base + "sitemap.xml").text()
+        assert "<lastmod>" in sitemap
+        expect(context.request.get(base + "robots.txt")).to_be_ok()
+        record("公开robots与含更新时间的站点地图")
+        paths = [
+            name
+            for name in manifest["files"]
+            if name.endswith(".html") and not name.startswith("google")
+        ]
         targets = (
             paths
             if full
