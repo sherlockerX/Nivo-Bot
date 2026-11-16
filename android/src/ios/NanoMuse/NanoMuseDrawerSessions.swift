@@ -290,8 +290,10 @@ struct NanoMuseDrawerSessions: View {
     /// The session list's actions on one chat, in the Android build's order.
     @ViewBuilder
     private func menu(_ session: ChatSession, filed: Bool) -> some View {
-        Button { onPinMain(session.id) } label: {
-            Label(AppLocalized("Make this the main chat"), systemImage: "house")
+        if NivoMainChatRules.isEligible(isRemote: session.isRemote, source: session.source) {
+            Button { onPinMain(session.id) } label: {
+                Label(AppLocalized("Make this the main chat"), systemImage: "house")
+            }
         }
         Button { run { _ = await ChatStore.shared.toggleSessionPin(session.id) } } label: {
             Label(session.isPinned ? AppLocalized("Unpin") : AppLocalized("Pin"), systemImage: session.isPinned ? "pin.slash" : "pin")
@@ -388,10 +390,12 @@ struct NanoMuseDrawerSessions: View {
 
     private func deleteNow() {
         let ids = deleting
-        deleting = []
-        selecting = false
-        removed.formUnion(ids)
-        for id in ids { NanoMuseChatDelete.delete(id) }
+        Task { @MainActor in
+            guard await NanoMuseChatDelete.delete(ids) else { return }
+            deleting = []
+            selecting = false
+            removed.formUnion(ids)
+        }
     }
 
     /// The chat as a JSON or text file, handed to the share sheet.

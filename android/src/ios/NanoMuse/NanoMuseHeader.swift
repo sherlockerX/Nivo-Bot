@@ -91,37 +91,27 @@ final class NanoMuseMoodModel: ObservableObject {
 
 // MARK: - Header scrim
 
-/// What stands behind the Muse header over the main chat. Not a bar: a scrim, as Android's
-/// header wrapper since #331. A gradient of the canvas colour from 80 percent at the top edge
-/// through 35 percent a little past the middle to clear at the bottom, so the conversation
-/// scrolls under the header and dissolves into the canvas instead of stopping at a line; and,
-/// while the list is scrolled away from the latest message, a second fade in the full canvas
-/// colour from the top edge (Android's `nmTopFade`), so the older messages melt away under the
-/// face rather than show through it. The scrim takes the taps the material took before it, so
-/// a tap on the header never reaches a message under it.
+/// 宠物标题使用轻磨砂和低透明度底色，底缘渐隐，滚动时保持同一层次。
 struct NanoMuseHeaderScrim: View {
-    /// The list is scrolled up, away from the latest message.
+    /// 保留宿主接口，滚动位置不再改变背景的不透明度。
     var scrolledUp: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                stops: [
-                    .init(color: ChatColors.background.opacity(0.8), location: 0),
-                    .init(color: ChatColors.background.opacity(0.35), location: 0.55),
-                    .init(color: ChatColors.background.opacity(0), location: 1),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            LinearGradient(
-                colors: [ChatColors.background, ChatColors.background.opacity(0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .opacity(scrolledUp ? 1 : 0)
-            .animation(.easeInOut(duration: 0.25), value: scrolledUp)
+            if reduceTransparency {
+                ChatColors.background
+            } else {
+                Rectangle().fill(.ultraThinMaterial).opacity(0.32)
+                ChatColors.background.opacity(colorScheme == .dark ? 0.22 : 0.16)
+            }
         }
+        .mask(LinearGradient(stops: [
+            .init(color: .white.opacity(reduceTransparency ? 1 : 0.88), location: 0),
+            .init(color: .white.opacity(reduceTransparency ? 1 : 0.72), location: 0.65),
+            .init(color: .clear, location: 1)
+        ], startPoint: .top, endPoint: .bottom))
         .contentShape(Rectangle())
         // A tap on the bare scrim ends here: the rows the list has under the header (nmTopOverlay)
         // are not to be tapped through it. The header's own discs and pills lie over the scrim and

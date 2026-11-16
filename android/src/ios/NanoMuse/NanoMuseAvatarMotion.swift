@@ -43,6 +43,7 @@ final class NanoMuseAvatarMotion: ObservableObject {
     @Published private(set) var clipVersion = 0
 
     private var job: Task<Void, Never>?
+    private var jobID = UUID()
 
     private init() {
         rescan()
@@ -72,6 +73,7 @@ final class NanoMuseAvatarMotion: ObservableObject {
             }
         }
         clips = found
+        clipVersion &+= 1
     }
 
     // MARK: State
@@ -87,6 +89,7 @@ final class NanoMuseAvatarMotion: ObservableObject {
 
     /// A new face, or none: the old clips belonged to the old face.
     func clear() {
+        jobID = UUID()
         job?.cancel()
         job = nil
         progress = nil
@@ -96,6 +99,7 @@ final class NanoMuseAvatarMotion: ObservableObject {
     }
 
     func cancel() {
+        jobID = UUID()
         job?.cancel()
         job = nil
         if var p = progress { p.running = false; progress = p }
@@ -122,12 +126,17 @@ final class NanoMuseAvatarMotion: ObservableObject {
         let todo = Self.animated.filter { force || clips[$0] == nil }
         if todo.isEmpty { return false }
         job?.cancel()
+        let currentJob = UUID()
+        jobID = currentJob
+        let generation = NanoMuseAccountData.shared.generation
+        let faceID = store.meta.faceId
         progress = Progress(done: 0, total: todo.count, failed: [], running: true)
         let run = Task { @MainActor [self] in
             var failed: [NanoMuseMood] = []
             var lastError: String?
             for (i, mood) in todo.enumerated() {
-                if Task.isCancelled { break }
+                guard !Task.isCancelled, jobID == currentJob, NanoMuseAccountData.shared.generation == generation,
+                      store.meta.faceId == faceID else { return }
                 progress = Progress(done: i, total: todo.count, failed: failed, running: true, current: mood)
                 guard let frame = store.custom[mood] ?? store.custom[.idle] else {
                     failed.append(mood)
@@ -136,12 +145,13 @@ final class NanoMuseAvatarMotion: ObservableObject {
                 do {
                     let bytes = try await NanoMuseVideoGen.imageToVideo(ep, image: frame, prompt: Self.motionPrompt(mood), seconds: Self.seconds) { stage in
                         Task { @MainActor in
-                            guard var p = self.progress, p.running else { return }
+                            guard self.jobID == currentJob, var p = self.progress, p.running else { return }
                             p.stage = stage
                             self.progress = p
                         }
                     }
-                    if Task.isCancelled { break }
+                    guard !Task.isCancelled, jobID == currentJob, NanoMuseAccountData.shared.generation == generation,
+                          store.meta.faceId == faceID else { return }
                     try FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
                     try bytes.write(to: Self.clipFile(mood), options: .atomic)
                     clipVersion += 1
@@ -153,6 +163,7 @@ final class NanoMuseAvatarMotion: ObservableObject {
                     lastError = error.localizedDescription
                 }
             }
+            guard jobID == currentJob, NanoMuseAccountData.shared.generation == generation else { return }
             progress = Progress(done: todo.count, total: todo.count, failed: failed, running: false, error: lastError)
         }
         job = run

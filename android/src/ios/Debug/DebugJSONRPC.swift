@@ -354,7 +354,8 @@ final class DebugJSONRPC: @unchecked Sendable {
         case "provider.instances.update":
             return try await MainActor.run { try DebugRPCProvider.instancesUpdate(params: params) }
         case "provider.instances.delete":
-            return try await MainActor.run { try DebugRPCProvider.instancesDelete(params: params) }
+            // nanoMuse: 等待配置、凭证和同步回执，不以排队成功替代删除成功。
+            return try await DebugRPCProvider.instancesDelete(params: params)
         case "provider.models.list":
             return try await MainActor.run { try DebugRPCProvider.modelsList(params: params) }
         case "provider.thinkingRules.list":
@@ -388,7 +389,8 @@ final class DebugJSONRPC: @unchecked Sendable {
         case "provider.export":
             return try await MainActor.run { try DebugRPCProvider.exportInstance(params: params) }
         case "provider.import":
-            return try await MainActor.run { try DebugRPCProvider.importInstance(params: params) }
+            // nanoMuse: 导入返回值依赖异步持久化，不能在MainActor.run内同步读取。
+            return try await DebugRPCProvider.importInstance(params: params)
         case "provider.models.setAgentLoop":
             return try await MainActor.run { try DebugRPCProvider.modelsSetAgentLoop(params: params) }
         case "provider.models.setModality":

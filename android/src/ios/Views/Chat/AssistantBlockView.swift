@@ -21,8 +21,7 @@ struct AssistantBlockView: View {
     @Binding var detailBlock: AssistantBlock?
     private var isHighlighted: Bool { highlightedBlockId == block.id }
 
-    // nanoMuse: "Show the agent's steps" (Settings → Chat) is off by default — a finished
-    // message keeps to the conversation; the steps of the message still running stay visible.
+    // nanoMuse: 运行中和已完成的步骤共用折叠入口，摘要跟随当前步骤更新。
     @AppStorage(NanoMuseSteps.key) private var showSteps: Bool = NanoMuseSteps.defaultValue
     @Environment(\.nmStepsUnfolded) private var nmUnfolded // nanoMuse: the steps sheet shows every block
 
@@ -30,7 +29,7 @@ struct AssistantBlockView: View {
         if !nmUnfolded, NanoMuseSteps.hidden(block.kind, active: isActiveMessage, showSteps: showSteps) {
             // nanoMuse: the first hidden block stands for all of them as the fold line (NanoMuseStepsFold).
             if NanoMuseSteps.foldAnchor(message.blocks, active: isActiveMessage, showSteps: showSteps) == block.id {
-                NanoMuseStepsFold(message: message)
+                NanoMuseStepsFold(message: message, active: isActiveMessage)
             } else {
                 EmptyView()
             }

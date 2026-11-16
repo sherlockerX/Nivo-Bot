@@ -277,7 +277,8 @@ extension AIChatViewModel {
             // The entry could have been deleted out from under a still-valid
             // epoch only via a save() (which bumps configRevision → new key),
             // so a present cache value always still resolves; but guard anyway.
-            if let entry = store.entry(for: cachedId) { return entry }
+            // nanoMuse: 缓存命中同样不能绕过隐藏、凭证与文本能力校验。
+            if let entry = store.entry(for: cachedId), store.nmIsUsableChatEntry(entry) { return entry }
         }
         let resolved = resolveCurrentEntryUncached()
         Self.resolveCache[key] = resolved?.id ?? Self.resolveNilSentinel
@@ -294,8 +295,8 @@ extension AIChatViewModel {
                 // nanoMuse: a pinned entry whose provider is switched off (nanoMuse Cloud with
                 // *Use nanoMuse Cloud models* off, or any disabled provider) falls through to the
                 // default group like a deleted one, so the switch is honoured by old chats too.
-                if let entry = store.entry(for: entryId),
-                   store.instance(for: entry.providerInstanceId)?.isEnabled ?? false {
+                // nanoMuse: 主聊天和定时预检采用相同可用性规则。
+                if let entry = store.entry(for: entryId), store.nmIsUsableChatEntry(entry) {
                     logger.info("🔀RESOLVE directEntry=\(entryId) model=\(entry.model.id)")
                     return entry
                 }
@@ -315,9 +316,9 @@ extension AIChatViewModel {
                 // deleted one: re-resolve through ModelGroupRouter, which already
                 // filters by ModelGroupRouter.availableEntryIds (enabled +
                 // credential + not hidden).
-                if let entry = store.entry(for: resolvedEntryId),
-                   let inst = store.instance(for: entry.providerInstanceId),
-                   inst.isEnabled, inst.hasAnyCredential, !entry.isHidden {
+                // nanoMuse: 已从组中移除或改变为纯媒体能力的旧成员重新路由。
+                if let entry = store.entry(for: resolvedEntryId), store.nmIsUsableChatEntry(entry),
+                   store.group(for: groupId)?.memberEntryIds.contains(where: { store.entry(for: $0)?.id == entry.id }) == true {
                     logger.info("🔀RESOLVE group=\(groupId) resolvedEntry=\(resolvedEntryId) model=\(entry.model.id)")
                     return entry
                 }
@@ -353,7 +354,8 @@ extension AIChatViewModel {
         //    route to the credential-less instance, producing a 403 OAuth
         //    error every time the user opens an iCloud-synced session.
         if !cachedSessionModelId.isEmpty {
-            let matching = store.modelEntries.filter { $0.model.id == cachedSessionModelId && !$0.isHidden }
+            // nanoMuse: 缓存模型名不能恢复已禁用或非会话条目。
+            let matching = store.modelEntries.filter { $0.model.id == cachedSessionModelId && store.nmIsUsableChatEntry($0) }
 
             // 2a. **Prefer entries that live inside the default primary group.**
             //     This is what the chat header subtitle has been showing all
@@ -383,10 +385,6 @@ extension AIChatViewModel {
                     logger.info("🔀RESOLVE via cachedSessionModelId=\(self.cachedSessionModelId) → entry=\(entry.id) (defaultGroup member, credentialed)")
                     return entry
                 }
-                if let entry = inGroup.first {
-                    logger.info("🔀RESOLVE via cachedSessionModelId=\(self.cachedSessionModelId) → entry=\(entry.id) (defaultGroup member, no-credential fallback)")
-                    return entry
-                }
             }
 
             // 2b. No default-group match — fall back to first credentialed
@@ -399,17 +397,7 @@ extension AIChatViewModel {
                 logger.info("🔀RESOLVE via cachedSessionModelId=\(self.cachedSessionModelId) → entry=\(entry.id) (credentialed, outside default group)")
                 return entry
             }
-            // 2c. Last-ditch: first enabled (no credential) → first match.
-            if let entry = matching.first(where: { e in
-                store.instance(for: e.providerInstanceId)?.isEnabled == true
-            }) {
-                logger.warning("🔀RESOLVE via cachedSessionModelId=\(self.cachedSessionModelId) → entry=\(entry.id) (NO CREDENTIAL — request will likely fail)")
-                return entry
-            }
-            if let entry = matching.first {
-                logger.warning("🔀RESOLVE via cachedSessionModelId=\(self.cachedSessionModelId) → entry=\(entry.id) (instance disabled/missing)")
-                return entry
-            }
+            // nanoMuse: 所有同名来源不可用时交给默认组，不向禁用或无凭证来源发请求。
         }
 
         // 3. Try default group
@@ -478,8 +466,8 @@ extension AIChatViewModel {
             // (deleted → nil so the caller can fall through, mirroring the
             // historical auto-path behavior).
             // nanoMuse: and its provider is still switched on (see resolveCurrentEntryUncached).
-            guard let entry = store.entry(for: entryId),
-                  store.instance(for: entry.providerInstanceId)?.isEnabled ?? false else { return nil }
+            // nanoMuse: 子任务也只接受当前有效的会话模型。
+            guard let entry = store.entry(for: entryId), store.nmIsUsableChatEntry(entry) else { return nil }
             return entry
         case .group(let groupId, let resolvedEntryId):
             if let group = store.group(for: groupId),
@@ -489,9 +477,9 @@ extension AIChatViewModel {
             }
             // No routable member (e.g. everything temporarily disabled) —
             // fall back to the cached resolution iff still usable.
-            if let entry = store.entry(for: resolvedEntryId),
-               let inst = store.instance(for: entry.providerInstanceId),
-               inst.isEnabled, inst.hasAnyCredential, !entry.isHidden {
+            // nanoMuse: 只有仍在组内且可用的条目可用于旧解析回退。
+            if let entry = store.entry(for: resolvedEntryId), store.nmIsUsableChatEntry(entry),
+               store.group(for: groupId)?.memberEntryIds.contains(where: { store.entry(for: $0)?.id == entry.id }) == true {
                 return entry
             }
             return nil
@@ -504,15 +492,8 @@ extension AIChatViewModel {
     /// its id must not name a non-chat capability — those endpoints reject the
     /// chat/completions schema or stream nothing useful.
     static func isTitleEligible(_ entry: ModelEntry) -> Bool {
-        // Declared modalities without text output = pure TTS/image/video/ASR
-        // model. No override (nil) counts as a normal text chat model —
-        // mirrors Android's "outs == null || outs.isEmpty() || contains(text)".
-        if let modality = entry.baseModel.modalityOverride, !modality.contains(.textOutput) {
-            return false
-        }
-        let idLower = entry.model.id.lowercased()
-        let nonChat = ["tts", "voiceclone", "voicedesign", "embedding", "embed-", "whisper", "image", "video"]
-        return !nonChat.contains { idLower.contains($0) }
+        // nanoMuse: 使用人工覆盖后的能力；能正常输出文本的混合模型仍可生成标题。
+        entry.model.nmSupportsConversation
     }
 
     /// [T-ios-regen-title-model-resolution #112] Ordered candidate list for the

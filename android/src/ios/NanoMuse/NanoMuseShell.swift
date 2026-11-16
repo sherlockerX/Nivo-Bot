@@ -35,17 +35,20 @@ enum NanoMuseShellPrefs {
 // MARK: - Tabs
 
 enum NanoMuseTab: String, CaseIterable, Identifiable {
-    case chat, feed, ideas, goals, library
+    case chat, mosaic, feed, ideas, todo, focus, goals, library
     var id: String { rawValue }
 
     /// The bar's glyphs. Ideas opens from the drawer, as in the Android build, where Mosaic took its place in the bar.
-    static var bar: [NanoMuseTab] { allCases.filter { $0 != .ideas } }
+    static var bar: [NanoMuseTab] { [.chat, .mosaic, .feed, .goals, .library] }
 
     var title: String {
         switch self {
         case .chat: return AppLocalized("tab.chat") // its own key: 聊天 as on Android, not upstream's 闲聊
+        case .mosaic: return AppLocalized("Mosaic")
         case .feed: return AppLocalized("Coach")
         case .ideas: return AppLocalized("Ideas")
+        case .todo: return AppLocalized("Tasks")
+        case .focus: return AppLocalized("Focus")
         case .goals: return AppLocalized("Goals")
         case .library: return AppLocalized("Library")
         }
@@ -54,8 +57,11 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .chat: return "bubble.left"
+        case .mosaic: return "square.grid.2x2"
         case .feed: return "graduationcap"
         case .ideas: return "lightbulb"
+        case .todo: return "checklist"
+        case .focus: return "timer"
         case .goals: return "checkmark.square"
         case .library: return "square.grid.2x2"
         }
@@ -64,8 +70,11 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
     var selectedSymbol: String {
         switch self {
         case .chat: return "bubble.left.fill"
+        case .mosaic: return "square.grid.2x2.fill"
         case .feed: return "graduationcap.fill"
         case .ideas: return "lightbulb.fill"
+        case .todo: return "checklist"
+        case .focus: return "timer"
         case .goals: return "checkmark.square.fill"
         case .library: return "square.grid.2x2.fill"
         }
@@ -85,6 +94,8 @@ struct NanoMuseRoot: View {
     @State private var setupDone = NanoMuseFirstRun.isDone
     @State private var showSetupSettings = false
     @State private var showClassicSettings = false
+    @ObservedObject private var life = NivoLifeModel.shared
+    @ObservedObject private var accountData = NanoMuseAccountData.shared
 
     /// The Muse shell on iPhone and iPad alike; off → the upstream layout.
     private var usesShell: Bool { shellEnabled }
@@ -109,7 +120,7 @@ struct NanoMuseRoot: View {
 
     var body: some View {
         Group {
-            if needsSetup == nil {
+            if !accountData.isReady || needsSetup == nil {
                 Color.clear
             } else if needsSetup == true {
                 NanoMuseFirstRunView(
@@ -142,12 +153,10 @@ struct NanoMuseRoot: View {
         }
         // The card for a step another device's Muse asks about, over the shell and the upstream layout alike.
         .nanoMuseRemoteApprovalPresenter()
-        .onAppear {
-            NanoMuseProfileSync.shared.start()
-            NanoMuseAccountData.shared.start() // C12: whose chat is whose; the reinstall sweep
-            NanoMuseSync.shared.start() // C7: conversations between the account's devices
-            NanoMuseStarWatch.shared.start()
-            NanoMuseStar.shared.dayOpened()
+        .modifier(NivoLifeClassicPresenter(enabled: !usesShell))
+        .disabled(accountData.isChangingAccount)
+        .overlay {
+            if accountData.isChangingAccount { NivoAccountRecoveryOverlay() }
         }
         .nmOnChange(of: scenePhase) { phase in
             // C1: one more day with the app, counted when it comes to the front. The personal
@@ -156,13 +165,33 @@ struct NanoMuseRoot: View {
             NanoMuseStar.shared.dayOpened()
         }
         .task {
-            hasSessions = !NanoMuseSync.shared.visible(await ChatStore.shared.listSessions()).isEmpty // C12: another account's chats do not count
-            // The feed's daily routine exists from the start, as on Android (a no-op without a model).
-            if needsSetup == false { await NanoMuseFeedFlow.ensureRoutine() }
+            await accountData.start()
+            await startAccountServices()
+        }
+        .nmOnChange(of: accountData.isChangingAccount) { changing in
+            if !changing { Task { await startAccountServices() } }
         }
         .onReceive(NotificationCenter.default.publisher(for: .sessionDidCreate)) { _ in
             hasSessions = true
         }
+        .alert(AppLocalized("Error"), isPresented: Binding(
+            get: { life.accountCleanupError != nil }, set: { if !$0 { life.accountCleanupError = nil } }
+        )) { Button(AppLocalized("Close")) { life.accountCleanupError = nil } } message: {
+            Text(life.accountCleanupError ?? "")
+        }
+    }
+
+    /// 文件恢复成功后才开放同步和生活资料，重试恢复也走同一个启动顺序。
+    @MainActor private func startAccountServices() async {
+        guard accountData.isReady, !accountData.isChangingAccount else { return }
+        NanoMuseProfileSync.shared.start()
+        NanoMuseSync.shared.start()
+        NanoMuseStarWatch.shared.start()
+        NanoMuseStar.shared.dayOpened()
+        await life.activate()
+        hasSessions = !NanoMuseSync.shared.visible(await ChatStore.shared.listSessions()).isEmpty
+        // 旧训练已转为回顾页，启动时不再自动创建旧版出题任务。
+        NanoMuseFeedFlow.retireLegacyRoutine()
     }
 }
 
@@ -246,6 +275,7 @@ final class NanoMuseMainChat: ObservableObject {
     @Published private(set) var liveId: String?
 
     private var cancellables: Set<AnyCancellable> = []
+    private var resolutionID = UUID()
 
     init() {
         NotificationCenter.default.publisher(for: .sessionDidCreate)
@@ -260,20 +290,32 @@ final class NanoMuseMainChat: ObservableObject {
             .store(in: &cancellables)
     }
 
+    /// 恢复当前账户的普通聊天，不把最近执行的训练或定时任务当成主聊天。
     func resolve() {
+        resolve(preferredID: UserDefaults.standard.string(forKey: Self.key))
+    }
+
+    private func resolve(preferredID: String?) {
+        let account = NanoMuseAccountData.shared
+        guard account.isReady, !account.isChangingAccount else { return }
+        let owner = account.current
+        let generation = account.generation
+        let token = UUID()
+        resolutionID = token
         Task { @MainActor [self] in
-            let remembered = UserDefaults.standard.string(forKey: Self.key)
-            // C10: a remembered chat of another account is not shown (NanoMuseSync.shows)
-            if let remembered, NanoMuseSync.shared.shows(remembered), await ChatStore.shared.sessionExists(id: remembered) {
-                set(remembered, draft: false)
+            let sessions = await ChatStore.shared.listSessions()
+            // 查询等待期间可能切号、主动新建或固定另一会话，旧结果不能覆盖新的选择。
+            guard resolutionID == token, account.isReady, !account.isChangingAccount,
+                  account.current == owner, account.generation == generation else { return }
+            let candidates = NanoMuseSync.shared.visible(sessions).map {
+                NivoMainChatRules.Candidate(id: $0.id, updatedAt: $0.updatedAt, isRemote: $0.isRemote, source: $0.source)
+            }
+            if let identifier = NivoMainChatRules.select(candidates, preferredID: preferredID) {
+                UserDefaults.standard.set(identifier, forKey: Self.key)
+                set(identifier, draft: false)
                 return
             }
-            let sessions = NanoMuseSync.shared.visible(await ChatStore.shared.listSessions())
-            if let latest = sessions.filter({ !$0.isRemote }).max(by: { $0.updatedAt < $1.updatedAt }) {
-                UserDefaults.standard.set(latest.id, forKey: Self.key)
-                set(latest.id, draft: false)
-                return
-            }
+            UserDefaults.standard.removeObject(forKey: Self.key)
             set(Self.draftPrefix + UUID().uuidString, draft: true)
         }
     }
@@ -282,20 +324,17 @@ final class NanoMuseMainChat: ObservableObject {
     /// back is pinned again when it is still there; otherwise the tab resolves as on a first
     /// launch — the account's own conversations, or a draft the account's synced main adopts.
     private func accountSwitched() {
-        Task { @MainActor [self] in
-            if let remembered = NanoMuseSync.shared.rememberedMainSession, NanoMuseSync.shared.shows(remembered), await ChatStore.shared.sessionExists(id: remembered) {
-                pin(remembered)
-                return
-            }
-            UserDefaults.standard.removeObject(forKey: Self.key)
-            resolve()
-        }
+        resolutionID = UUID()
+        chatId = nil
+        liveId = nil
+        isDraft = false
+        let remembered = NanoMuseSync.shared.rememberedMainSession ?? UserDefaults.standard.string(forKey: Self.key)
+        resolve(preferredID: remembered)
     }
 
     /// Pin another conversation to the Chat tab.
     func pin(_ id: String) {
-        UserDefaults.standard.set(id, forKey: Self.key)
-        set(id, draft: false)
+        resolve(preferredID: id)
     }
 
     /// C7: a synced main conversation takes the place of a draft that has not been sent yet.
@@ -306,6 +345,7 @@ final class NanoMuseMainChat: ObservableObject {
 
     /// Start the main chat over with an empty draft.
     func startFresh() {
+        resolutionID = UUID()
         UserDefaults.standard.removeObject(forKey: Self.key)
         set(Self.draftPrefix + UUID().uuidString, draft: true)
     }
@@ -320,6 +360,7 @@ final class NanoMuseMainChat: ObservableObject {
         guard isDraft, let realId = note.object as? String else { return }
         let draftId = (note.userInfo as? [String: String])?["draftId"]
         guard draftId == chatId else { return }
+        resolutionID = UUID()
         // The draft became a real session: remember it, keep the view as is
         // (the view model is already cached under the real id).
         UserDefaults.standard.set(realId, forKey: Self.key)
@@ -354,6 +395,8 @@ struct NanoMuseHomeView: View {
     @StateObject private var keyboard = NanoMuseKeyboardWatcher()
     @ObservedObject private var star = NanoMuseStar.shared
     @ObservedObject private var allowance = NanoMuseAllowance.shared
+    @ObservedObject private var life = NivoLifeModel.shared
+    @ObservedObject private var lifeNavigation = NivoLifeNavigation.shared
     /// The composer's voice panel stands in for the keyboard: the bottom bar leaves the same way.
     @ObservedObject private var voiceMode = VoiceModePreference.shared
     /// Read replies aloud, the switch in the main chat's ••• menu.
@@ -364,6 +407,7 @@ struct NanoMuseHomeView: View {
     @State private var tab: NanoMuseTab = .chat
     @State private var drawerOpen = false
     @State private var chatPath: [String] = []
+    @State private var thinkingAvailability: [String: Bool] = [:]
     /// The Muse header's measured height over the main chat (`nmTopOverlay`), without the status bar.
     @State private var chatHeaderHeight: CGFloat = 0
     @State private var showClassic = false
@@ -377,6 +421,8 @@ struct NanoMuseHomeView: View {
     @State private var showSharedFolders = false
     @State private var showChatFiles = false
     @State private var showDevices = false
+    @State private var showLegacyCoach = false
+    @State private var didCheckFocusRestoration = false
     @State private var agentName = NanoMuseHomeView.currentAgentName()
     /// Reduce Motion on: the bottom bar fades out for the keyboard instead of sliding down.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -417,6 +463,8 @@ struct NanoMuseHomeView: View {
             ZStack {
                 chatLayer
                     .environment(\.nmBottomOverlay, bottomBarHidden ? 0 : NanoMuseBottomBar.height)
+                    .environment(\.nmRunLayerVisible, tab == .chat && !drawerOpen && !showClassic && !showNanoMuseSettings)
+                    .onPreferenceChange(NanoMuseThinkingAvailabilityKey.self) { thinkingAvailability = $0 }
                     .background(ChatColors.background.ignoresSafeArea())
                     .opacity(tab == .chat ? 1 : 0)
                     .allowsHitTesting(tab == .chat)
@@ -459,6 +507,8 @@ struct NanoMuseHomeView: View {
                     tab = .chat
                 },
                 onIdeas: { tab = .ideas },
+                onTodo: { tab = .todo },
+                onFocus: { tab = .focus },
                 onSystemFiles: { showSystemFiles = true },
                 onAllChats: { showClassic = true },
                 onSettings: { showNanoMuseSettings = true }
@@ -496,6 +546,11 @@ struct NanoMuseHomeView: View {
                 FileBrowserView(rootPath: base, initialPath: base.appendingPathComponent("var/minis"), rootLabel: "/")
             }
         }
+        .sheet(isPresented: $showLegacyCoach) {
+            NanoMusePageSheet(title: AppLocalized("Legacy training")) {
+                NivoCoachLegacyArchive()
+            }
+        }
         .sheet(isPresented: $showDevices) {
             NanoMusePageSheet(title: AppLocalized("Computers")) { NanoMuseComputersView() }
         }
@@ -510,9 +565,17 @@ struct NanoMuseHomeView: View {
         }
         .onAppear {
             if main.chatId == nil { main.resolve() }
+            restoreFocusRoom()
             // A notification tap that launched the app cold: the conversation it named.
             if let id = NotificationNavigationStore.shared.takePending() { openSideChat(id) }
+            openLifeRoom()
         }
+        .nmOnChange(of: lifeNavigation.pendingRoom) { _ in openLifeRoom() }
+        .nmOnChange(of: life.accessScope) { scope in
+            if scope == nil { didCheckFocusRestoration = false }
+            else { restoreFocusRoom() }
+        }
+        .nmOnChange(of: tab) { _ in didCheckFocusRestoration = true }
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
             agentName = Self.currentAgentName()
         }
@@ -549,6 +612,8 @@ struct NanoMuseHomeView: View {
             case "goals": tab = .goals
             case "feed": tab = .feed
             case "ideas": tab = .ideas
+            case "todo": tab = .todo
+            case "focus": tab = .focus
             case "library": tab = .library
             default: break
             }
@@ -604,6 +669,7 @@ struct NanoMuseHomeView: View {
     }
 
     private func openSideChat(_ id: String) {
+        didCheckFocusRestoration = true
         drawerOpen = false
         tab = .chat
         if id == main.chatId {
@@ -674,6 +740,14 @@ struct NanoMuseHomeView: View {
                         .padding(.bottom, 6)
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
+                    // Android: the daily ideas strip lives below the main chat header. It only
+                    // prefills the composer; the user still decides whether to send it.
+                    if chatPath.isEmpty && !keyboard.visible && !voiceMode.isVoiceActive {
+                        NivoDailyIdeaStrip { prompt in prefillMainChat(prompt) }
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 6)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height
@@ -724,6 +798,7 @@ struct NanoMuseHomeView: View {
                 Button { rename.open(id) } label: { Label(AppLocalized("Rename chat"), systemImage: "pencil") }
             }
             Button { chatAction(.anchors) } label: { Label(AppLocalized("Conversation anchors"), systemImage: "bookmark") }
+            Button { chatAction(.voiceCall) } label: { Label(AppLocalized("Voice call"), systemImage: "phone") }
             // Read replies aloud: one switch for every chat, as the side chat's menu has it.
             Toggle(isOn: Binding(get: { voiceOutput.isEnabled }, set: { on in
                 voiceOutput.isEnabled = on
@@ -733,6 +808,10 @@ struct NanoMuseHomeView: View {
             }
             if !NanoMuseAppearance.shared.headerModel {
                 Button { chatAction(.model) } label: { Label(AppLocalized("Model"), systemImage: "cpu") }
+            }
+            // 聊天视图直接上报能力，未发送的草稿也能选择思考强度。
+            if let key = main.liveId ?? main.chatId, thinkingAvailability[key] == true {
+                Button { chatAction(.thinking) } label: { Label(AppLocalized("Thinking Intensity"), systemImage: "brain") }
             }
             Button(role: .destructive) { chatAction(.clearChat) } label: { Label(AppLocalized("Clear Chat"), systemImage: "trash") }
             Divider()
@@ -760,16 +839,43 @@ struct NanoMuseHomeView: View {
 
     // MARK: Rooms
 
+    /// 通知和深链共用一次性导航状态，冷启动先排队再打开。
+    private func openLifeRoom() {
+        guard let room = lifeNavigation.takePending() else { return }
+        didCheckFocusRestoration = true
+        if room == "routines" { drawerOpen = false; showRoutines = true; return }
+        guard let selected = NanoMuseTab(rawValue: room == "coach" ? "feed" : room) else { return }
+        drawerOpen = false
+        tab = selected
+    }
+
+    /// 只有上次留在全屏计时的会话才在冷启动恢复，不打断主动返回聊天的用户。
+    private func restoreFocusRoom() {
+        guard !didCheckFocusRestoration, let scope = life.accessScope else { return }
+        didCheckFocusRestoration = true
+        guard lifeNavigation.pendingRoom == nil else { return }
+        if NivoFocusPreferences.restorableSession(owner: scope.ownerKey, sessions: life.focusSessions) != nil { tab = .focus }
+    }
+
     @ViewBuilder
     private var roomLayer: some View {
         switch tab {
         case .chat:
             EmptyView()
+        case .mosaic:
+            NivoMosaicRoom(chrome: chrome)
         case .feed:
-            NanoMuseFeedRoom(
+            NivoCoachV2Room(
                 chrome: chrome,
-                onDiscuss: { post in discussPost(post) },
-                onChat: { title, opener in startSideChat(title: title, opener: opener) }
+                onOpenSession: { id in openSideChat(id) },
+                onOpenLegacy: { showLegacyCoach = true },
+                onCreateCourse: { prefillMainChat(AppLocalized("Help me choose an ability to develop and propose a course. Ask about my goals first, and wait for my confirmation before creating it.")) },
+                onManageDraft: { identifier in
+                    prefillMainChat(String(format: AppLocalized("Review course draft %@ with me. Explain its goals, methods and sources, and wait for my confirmation before activating it."), identifier))
+                },
+                onReviewCourse: { identifier in
+                    prefillMainChat(String(format: AppLocalized("Read course %@ and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly."), identifier))
+                }
             )
         case .ideas:
             NanoMuseIdeasRoom(
@@ -778,6 +884,10 @@ struct NanoMuseHomeView: View {
                 onCreateRoutine: { idea in createRoutine(from: idea) },
                 onStartGoal: { category, seed in startGoal(category, seed: seed) }
             )
+        case .todo:
+            NivoTodoRoom(chrome: chrome)
+        case .focus:
+            NivoFocusRoom(chrome: chrome)
         case .goals:
             NanoMuseGoalsRoom(
                 chrome: chrome,
@@ -807,13 +917,13 @@ struct NanoMuseHomeView: View {
     /// not on screen while the Ideas room is, so the routine was made and nothing opened.
     private func createRoutine(from idea: NanoMuseIdea) {
         let at = NanoMuseDay.parseClock(idea.time) ?? (hour: 9, minute: 0)
-        let routine = NanoMuseScheduler.shared.create(NanoMuseRoutine(
+        let routine = NanoMuseRoutine(
             label: String(idea.title.prefix(40)),
             prompt: idea.promptText,
             hour: at.hour,
             minute: at.minute,
             repeatMode: .daily
-        ))
+        )
         editingRoutine = routine
     }
 
@@ -1172,6 +1282,8 @@ struct NanoMuseDrawer: View {
     var onPinMain: (String) -> Void
     /// Ideas, out of the bar since Mosaic took its place there.
     var onIdeas: () -> Void
+    var onTodo: () -> Void
+    var onFocus: () -> Void
     var onSystemFiles: () -> Void
     var onAllChats: () -> Void
     var onSettings: () -> Void
@@ -1246,13 +1358,21 @@ struct NanoMuseDrawer: View {
                 .padding(.top, 18)
                 .padding(.bottom, 14)
 
-            fixedRow(AppLocalized("Main chat"), symbol: "house", selected: mainSelected) {
+            fixedRow(AppLocalized("Main chat"), symbol: "house", taskDot: mainId, selected: mainSelected) {
                 close()
                 onOpenMain()
             }
             fixedRow(AppLocalized("Ideas"), symbol: "lightbulb") {
                 close()
                 onIdeas()
+            }
+            fixedRow(AppLocalized("Tasks"), symbol: "checklist") {
+                close()
+                onTodo()
+            }
+            fixedRow(AppLocalized("Focus"), symbol: "timer") {
+                close()
+                onFocus()
             }
 
             // Android: "Side chats" (the search field while searching), then search, a new group,
@@ -1337,7 +1457,7 @@ struct NanoMuseDrawer: View {
         .accessibilityLabel(Text(label))
     }
 
-    private func fixedRow(_ title: String, symbol: String, value: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
+    private func fixedRow(_ title: String, symbol: String, value: String? = nil, taskDot: String? = nil, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: symbol)
@@ -1346,6 +1466,8 @@ struct NanoMuseDrawer: View {
                 Text(title)
                     .font(.body)
                 Spacer()
+                // Android: working, finished or failed, until the chat is looked at.
+                if let taskDot { NanoMuseTaskDot(session: taskDot) }
                 if let value {
                     Text(value)
                         .font(.footnote)

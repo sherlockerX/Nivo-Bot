@@ -27,7 +27,8 @@ enum ModelGroupRouter {
             return available.first
 
         case .loadBalance:
-            let index = abs(sessionId.hashValue) % available.count
+            // nanoMuse: 无符号位模式避免Int.min取绝对值溢出。
+            let index = Int(UInt(bitPattern: sessionId.hashValue) % UInt(available.count))
             logger.info("🔀ROUTE resolve loadBalance index=\(index) → \(available[index])")
             return available[index]
         }
@@ -83,6 +84,9 @@ enum ModelGroupRouter {
                 result.append((model: entry.model.displayName, instance: label, reason: AppLocalized("Disabled")))
             } else if !inst.hasAnyCredential {
                 result.append((model: entry.model.displayName, instance: label, reason: AppLocalized("Not logged in")))
+            // nanoMuse: 同一能力判断同时用于路由与失败说明。
+            } else if !entry.model.nmSupportsConversation {
+                result.append((model: entry.model.displayName, instance: label, reason: AppLocalized("This model may not work as an Agent")))
             }
         }
         return result
@@ -120,7 +124,8 @@ enum ModelGroupRouter {
                 logger.info("🔀ROUTE filter: instance \(instance.label) (\(instance.id)) has no credential for entry \(entryId)")
                 return false
             }
-            return true
+            // nanoMuse: 此路由用于主对话、轻量子任务和文本纠错，媒体工具使用自己的路由。
+            return store.nmIsUsableChatEntry(entry)
         }
     }
 }

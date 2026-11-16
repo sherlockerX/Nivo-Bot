@@ -135,6 +135,8 @@ extension AIChatViewModel {
     /// For UI, we merge consecutive assistant + tool-result turns into a single ChatMessage,
     /// matching how they appeared during the live session.
     func loadSession() async {
+        // nanoMuse: 直接打开会话也遵循编辑窗口，不能在异步提交期间替换消息身份。
+        guard !isTruncatingForRetry else { pendingSyncReloadOnIdle = true; return }
         guard let sessionId else { return }
 
         let sinceAppear = (CFAbsoluteTimeGetCurrent() - Self.onAppearTimestamp) * 1000
@@ -296,6 +298,7 @@ extension AIChatViewModel {
                     // range so compact-marker resolution can map raw[i] back
                     // to this merged UI row even when i is mid-stream.
                     let continuation = raw.toChatMessage(mediaResolver: resolver, showThinking: showThinking)
+                    assistant.nmSourceMessageIDs.formUnion(continuation.nmSourceMessageIDs) // nanoMuse: 合并显示保留全部来源身份。
                     let textParts = raw.parts.compactMap { if case .text(let s) = $0 { return s }; return nil }
                     let textBlockSummary = continuation.blocks.enumerated().compactMap { (i, b) -> String? in
                         guard b.kind == .text else { return nil }
@@ -1121,7 +1124,8 @@ extension AIChatViewModel {
         var resolvedEntryId: String? = nil
         if !cachedSessionModelId.isEmpty {
             for eid in group.memberEntryIds {
-                guard let entry = store.entry(for: eid), !entry.isHidden,
+                // nanoMuse: 旧缓存不能把纯媒体或语音专用模型绑回聊天。
+                guard let entry = store.entry(for: eid), store.nmIsUsableChatEntry(entry),
                       entry.model.id == cachedSessionModelId else { continue }
                 // [T-disabled-provider-via-group-ios] Don't stick to the cached
                 // model if its provider instance has been disabled (or lost its
@@ -1293,7 +1297,8 @@ extension AIChatViewModel {
             // Find ALL entries on this device matching the recorded modelId,
             // then prefer one whose instance is currently usable.
             let candidates = store.modelEntries.filter { entry in
-                entry.model.id == mid && !entry.isHidden
+                // nanoMuse: 继承上次选择和定时任务采用相同模型能力门槛。
+                entry.model.id == mid && store.nmIsUsableChatEntry(entry)
             }
             if candidates.isEmpty { continue }
             if let usable = candidates.first(where: { entry in
@@ -1323,37 +1328,8 @@ extension AIChatViewModel {
     /// videoOutput) — same logic as the picker's `nonTextOutputLabel`. A
     /// nil modalityOverride is assumed text-capable, matching the picker.
     private static func resolveLatestProviderTextEntry(store: ProviderConfigStore) -> ModelEntry? {
-        // Walk providers newest-first.
-        for instance in store.instances.reversed() {
-            guard instance.isEnabled, instance.hasAnyCredential else {
-                logger.info("[NewSessionDefault] latest-provider scan: skip instance=\(instance.label) (enabled=\(instance.isEnabled) hasCredential=\(instance.hasAnyCredential))")
-                continue
-            }
-            let entries = store.modelEntries.filter { e in
-                e.providerInstanceId == instance.id && !e.isHidden && isTextOutputModel(e.model)
-            }
-            guard let chosen = entries.last else {
-                logger.info("[NewSessionDefault] latest-provider scan: instance=\(instance.label) has no usable text-output entries")
-                continue
-            }
-            logger.info("[NewSessionDefault] latest-provider scan: picked instance=\(instance.label) entry=\(chosen.id.prefix(8)) modelId=\(chosen.model.id) (textEntriesInInstance=\(entries.count))")
-            return chosen
-        }
-        return nil
-    }
-
-    /// [T-newchat-default-model-fallback-ios] True when `model` produces text
-    /// output — i.e. NOT a pure image / audio / video generation model. Used
-    /// by the tier-3 fallback to exclude `gpt-image-2`, TTS models, etc.
-    /// from auto-selection on a fresh install. nil modalityOverride = assume
-    /// text (most models don't override, and historically text-output is the
-    /// default for chat models).
-    private static func isTextOutputModel(_ model: LLMModel) -> Bool {
-        guard let modality = model.modalityOverride else { return true }
-        if modality.contains(.imageOutput) { return false }
-        if modality.contains(.audioOutput) { return false }
-        if modality.contains(.videoOutput) { return false }
-        return true
+        // nanoMuse: 混合输出模型保留文本能力，避免重复的按媒体类型排除规则。
+        store.nmLatestChatEntry
     }
 
     /// Apply a ModelGroup's session defaults (thinking level) to the given session.
@@ -1884,7 +1860,13 @@ extension AIChatViewModel {
     /// Callers should write the returned id back to `agentHistory[i].dbMessageId`
     /// so compact logic can later resolve boundaries by id.
     @discardableResult
-    func persistAgentMessage(_ msg: AgentMessage, tokenUsage: TokenUsage? = nil, snapshots: [String: (toolName: String, snapshot: ToolSnapshot)] = [:], thoughtSignatures: [String: String] = [:], reasoningContent: String? = nil, streamInterruptCount: Int = 0, modelEntryId: String? = nil) async -> String? {
+    // nanoMuse: 最终正文和回合身份在调用前固定，异步保存不能借用后来回合的课次。
+    func persistAgentMessage(_ msg: AgentMessage, tokenUsage: TokenUsage? = nil, snapshots: [String: (toolName: String, snapshot: ToolSnapshot)] = [:], thoughtSignatures: [String: String] = [:], reasoningContent: String? = nil, streamInterruptCount: Int = 0, modelEntryId: String? = nil, nmArchiveFinalText: String? = nil, nmArchiveCapture: NivoCoachTurnCapture? = nil) async -> String? {
+        // nanoMuse: 后台任务也可能在runAgentLoop之前写入用户行，备份期间一并拒绝。
+        guard !NivoPersonalBackupAccess.isBusy else {
+            errorMessage = NivoPersonalBackupError.busy.localizedDescription
+            return nil
+        }
         let sid = self.sessionId ?? "nil"
         logger.info("[Persist] enter sid=\(sid.prefix(8)) role=\(msg.role.rawValue) parts=\(msg.parts.count)")
         guard let raw = await buildRawMessage(msg, tokenUsage: tokenUsage, snapshots: snapshots, thoughtSignatures: thoughtSignatures, reasoningContent: reasoningContent, streamInterruptCount: streamInterruptCount, modelEntryId: modelEntryId) else {
@@ -1892,7 +1874,24 @@ extension AIChatViewModel {
             return nil
         }
         logger.info("[Persist] built raw.sid=\(raw.sessionId.prefix(8)) raw.id=\(raw.id.prefix(8)) role=\(raw.role.rawValue)")
-        await ChatStore.shared.appendMessage(raw)
+        // nanoMuse: 暂存失败不能显示已保存；写入租约跨越两个actor，防止恢复任务提前清理。
+        NivoCoachArchiveWrites.begin(raw.id)
+        defer { NivoCoachArchiveWrites.end(raw.id) }
+        do {
+            guard !NivoPersonalBackupAccess.isBusy else { throw NivoPersonalBackupError.busy }
+            let capturedScope = NivoLifeModel.shared.accessScope
+            let staged = try await nmStageCoachMessage(raw, finalText: nmArchiveFinalText, capturedReply: nmArchiveCapture)
+            if let staged {
+                guard let capturedScope, NivoLifeModel.shared.accessScope == capturedScope,
+                      capturedScope.ownerKey == staged.ownerKey, sessionId == raw.sessionId else {
+                    throw NivoLifeError.accountChanged
+                }
+                try await ChatStore.shared.nmAppendCoachMessage(raw)
+            } else { await ChatStore.shared.appendMessage(raw) }
+        } catch {
+            errorMessage = NivoLifeModel.message(error)
+            return nil
+        }
         // Post-write DB sanity check: query count + max(sort_order) for this session
         let stats = await ChatStore.shared.sessionWriteStats(sessionId: raw.sessionId)
         logger.info("[Persist] post-write sid=\(raw.sessionId.prefix(8)) dbCount=\(stats.count) dbMaxSortOrder=\(stats.maxSortOrder)")

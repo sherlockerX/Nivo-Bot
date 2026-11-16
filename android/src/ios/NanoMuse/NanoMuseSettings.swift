@@ -76,8 +76,7 @@ struct NanoMuseSettingsHomeView: View {
             .buttonStyle(.plain)
             NanoMuseRowDivider()
             NanoMuseLinkRow(title: AppLocalized("Manage Providers")) { ProviderInstancesView() }
-            NanoMuseRowDivider()
-            NanoMuseLinkRow(title: AppLocalized("Image & video models")) { NanoMuseMediaModelsView() }
+            // Android: Models, Manage providers, Token usage. Pictures and clips are two rows of the Models page.
             NanoMuseRowDivider()
             NanoMuseLinkRow(title: AppLocalized("Token Usage")) { UsageStatsView() }
         }
@@ -155,7 +154,7 @@ struct NanoMuseSettingsHomeView: View {
 
     private var aboutCard: some View {
         NanoMuseCard {
-            NanoMuseLinkRow(title: AppLocalized("About nanoMuse")) { AboutView() }
+            NanoMuseLinkRow(title: AppLocalized("About Nivo Bot")) { AboutView() }
         }
     }
 }
@@ -165,9 +164,9 @@ struct NanoMuseSettingsHomeView: View {
 /// The project's public pages.
 enum NanoMuseLinks {
     /// The policy on the site (docs/privacy.md is its source), as Android's PRIVACY_URL.
-    static let privacy = URL(string: "https://nanomuse.cn/privacy/")!
+    static let privacy = NivoProduct.privacy
     /// The own-key guide on the site (docs/own-key.md), when the relay sent no address of its own (Android's OWN_KEY_DOCS).
-    static let ownKeyDocs = "https://nanomuse.cn/own-key"
+    static let ownKeyDocs = NivoProduct.modelGuide.absoluteString
 
     /// A new GitHub issue with the build and the device filled in (no personal data): the
     /// issue form's fields by id (.github/ISSUE_TEMPLATE/bug_report.yml); a bare `body`
@@ -176,7 +175,7 @@ enum NanoMuseLinks {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "?"
         let build = info?["CFBundleVersion"] as? String ?? "?"
-        var components = URLComponents(string: "https://github.com/nano-muse/nanoMuse/issues/new")!
+        var components = URLComponents(string: NivoProduct.repository.appendingPathComponent("issues/new").absoluteString)!
         components.queryItems = [
             URLQueryItem(name: "template", value: "bug_report.yml"),
             URLQueryItem(name: "labels", value: "bug,ios"),
@@ -184,7 +183,7 @@ enum NanoMuseLinks {
             URLQueryItem(name: "version", value: "\(version) (\(build))"),
             URLQueryItem(name: "os", value: "iOS \(UIDevice.current.systemVersion), \(UIDevice.current.model)"),
         ]
-        return components.url ?? URL(string: "https://github.com/nano-muse/nanoMuse/issues")!
+        return components.url ?? NivoProduct.repository.appendingPathComponent("issues")
     }
 }
 
@@ -216,6 +215,7 @@ struct NanoMuseRoutinesView: View {
     @ObservedObject private var scheduler = NanoMuseScheduler.shared
     @ObservedObject private var goals = NanoMuseGoalStore.shared
     @State private var editing: NanoMuseRoutine?
+    @State private var history: NanoMuseRoutine?
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -248,6 +248,9 @@ struct NanoMuseRoutinesView: View {
                 } label: {
                     Label(AppLocalized("Allow reminders"), systemImage: "bell")
                 }
+                NavigationLink { NivoRoutineQuietHoursView() } label: {
+                    Label(AppLocalized("Quiet hours"), systemImage: "moon")
+                }
                 Button {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 } label: {
@@ -262,6 +265,12 @@ struct NanoMuseRoutinesView: View {
         .sheet(item: $editing) { routine in
             NanoMuseRoutineEditor(routine: routine)
         }
+        .sheet(item: $history) { routine in NivoRoutineHistoryView(routineID: routine.id) }
+        .alert(AppLocalized("Could not save"), isPresented: Binding(
+            get: { scheduler.persistenceError != nil }, set: { if !$0 { scheduler.clearPersistenceError() } }
+        )) {
+            Button(AppLocalized("OK")) { scheduler.clearPersistenceError() }
+        } message: { Text(scheduler.persistenceError ?? "") }
     }
 
     private func label(for routine: NanoMuseRoutine) -> String {
@@ -279,13 +288,18 @@ struct NanoMuseRoutinesView: View {
                 if let next = routine.nextDue(after: Date()), routine.enabled {
                     Text(String(format: AppLocalized("next %@"), NanoMuseDay.relative(next))).font(.caption2).foregroundStyle(.tertiary)
                 }
-                if let last = routine.runs.first {
+                if routine.pendingRun != nil {
+                    Text(AppLocalized("Queued")).font(.caption).foregroundStyle(NanoMuseTones.action)
+                } else if let last = routine.runs.first, ["running", "interrupted"].contains(last.status ?? "") {
+                    Text(AppLocalized(last.status == "running" ? "Running" : "Interrupted"))
+                        .font(.caption2).foregroundStyle(.secondary)
+                } else if let last = routine.runs.first {
                     Text(String(format: last.ok ? AppLocalized("last run %@") : AppLocalized("last run %@, failed"), NanoMuseDay.relative(last.at)))
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             }
             Spacer()
-            if scheduler.running.contains(routine.id) {
+            if scheduler.running.contains(routine.id) || routine.pendingRun != nil {
                 ProgressView()
             } else {
                 Toggle("", isOn: Binding(get: { routine.enabled }, set: { scheduler.setEnabled(routine.id, $0) }))
@@ -295,11 +309,23 @@ struct NanoMuseRoutinesView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { editing = routine }
+        .onTapGesture {
+            if scheduler.running.contains(routine.id) || routine.pendingRun != nil { history = routine }
+            else { editing = routine }
+        }
+        .contextMenu {
+            Button { history = routine } label: { Label(AppLocalized("Run records"), systemImage: "clock.arrow.circlepath") }
+            Button { editing = routine } label: { Label(AppLocalized("Edit"), systemImage: "pencil") }
+                .disabled(scheduler.running.contains(routine.id) || routine.pendingRun != nil)
+        }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) { scheduler.delete(routine.id) } label: { Label(AppLocalized("Delete"), systemImage: "trash") }
             Button { Task { @MainActor in await scheduler.run(routine.id) } } label: { Label(AppLocalized("Run now"), systemImage: "play") }
                 .tint(NanoMuseTones.action)
+                .disabled(scheduler.running.contains(routine.id) || routine.pendingRun != nil)
+        }
+        .swipeActions(edge: .leading) {
+            Button { history = routine } label: { Label(AppLocalized("Run records"), systemImage: "clock.arrow.circlepath") }
         }
     }
 }

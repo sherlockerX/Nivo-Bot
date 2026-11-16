@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.repeatOnLifecycle
 import com.openminis.app.R
 import com.openminis.app.ui.theme.ChatColors
 import io.github.nanomuse.account.AccountData
@@ -95,7 +96,7 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val active=rows.firstOrNull { it.status in setOf("running","paused") }
     val task=tasks.firstOrNull { it.id==chosenTask }
-    LaunchedEffect(store.ownerEpoch) { title="";chosenTask=FocusUi.taskId.value }
+    // 账号切换由外层key(epoch)重建草稿；这里不再清空，否则每次切回本页都会丢掉已输入的标题和已选任务。
     LaunchedEffect(pendingTask) { pendingTask?.let { chosenTask=it;FocusUi.taskId.value=null } }
     LaunchedEffect(store,reload,rows) {
         try { store.refresh();spans=store.spans() }
@@ -205,15 +206,20 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
 private fun FocusClock(row:FocusSession,store:FocusStore) {
     val context=LocalContext.current
     var elapsed by remember(row) { mutableLongStateOf(FocusStore.elapsed(row,context)) }
+    val lifecycleOwner=androidx.lifecycle.compose.LocalLifecycleOwner.current
     LaunchedEffect(row.id,row.revision) {
-        while(row.status=="running") {
-            elapsed=FocusStore.elapsed(row,context)
-            if(elapsed>=row.targetMs) {
-                try { store.refresh() } catch(cancelled:CancellationException) { throw cancelled }
-                catch(_:Exception) { delay(2000);continue }
-                break
+        // 只在页面可见时走表。应用在后台时由闹钟结算并发“已结束”通知；
+        // 若这里在后台先结算，会把还没送达的闹钟取消，计时就无声结束。
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while(row.status=="running") {
+                elapsed=FocusStore.elapsed(row,context)
+                if(elapsed>=row.targetMs) {
+                    try { store.refresh() } catch(cancelled:CancellationException) { throw cancelled }
+                    catch(_:Exception) { delay(2000);continue }
+                    break
+                }
+                delay(1000)
             }
-            delay(1000)
         }
     }
     val shown=if(row.mode=="stopwatch") elapsed else (row.targetMs-elapsed).coerceAtLeast(0)

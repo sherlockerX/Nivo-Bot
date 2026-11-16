@@ -22,33 +22,41 @@ enum ChatStoreSyncHydrators {
         h.register(
             recordType: "SessionV2",
             builder: { id in await buildSession(id: id) },
-            merger: { record in await mergeSession(record: record) },
-            deletionApplier: { id in await deleteSession(id: id) }
+            // nanoMuse: 会话事务失败保留接收批次供重试。
+            merger: { record in try await mergeSession(record: record) },
+            // nanoMuse: 写入失败向同步游标屏障传播。
+            deletionApplier: { id in try await deleteSession(id: id) }
         )
 
         h.register(
             recordType: "MessageV2",
             builder: { id in await buildMessage(id: id) },
-            merger: { record in await mergeMessage(record: record) },
-            deletionApplier: { id in await deleteMessage(id: id) }
+            // nanoMuse: 消息写入或解码失败交给接收屏障重放。
+            merger: { record in try await mergeMessage(record: record) },
+            // nanoMuse: 删除等待实际聊天占位释放。
+            deletionApplier: { id in try await deleteMessage(id: id) }
         )
 
         h.register(
             recordType: "CompactMarkerV2",
             builder: { id in await buildCompactMarker(id: id) },
-            merger: { record in await mergeCompactMarker(record: record) },
-            deletionApplier: { id in await deleteCompactMarker(id: id) }
+            // nanoMuse: 摘要写入失败不能推进接收游标。
+            merger: { record in try await mergeCompactMarker(record: record) },
+            // nanoMuse: 摘要删除不能在任务读取上下文时执行。
+            deletionApplier: { id in try await deleteCompactMarker(id: id) }
         )
         h.register(
             recordType: "FolderV2",
             builder: { id in await buildFolder(id: id) },
-            merger: { record in await mergeFolder(record: record) },
-            deletionApplier: { id in await applyFolderDeletion(id: id) }
+            // nanoMuse: 分组的成员关系与删除标记共同提交。
+            merger: { record in try await mergeFolder(record: record) },
+            deletionApplier: { id in try await applyFolderDeletion(id: id) }
         )
         h.register(
             recordType: "SessionFileV2",
             builder: { id in await buildSessionFile(id: id) },
-            merger: { record in await mergeSessionFile(record: record) }
+            // nanoMuse: 附件写入失败必须重试，不能静默推进游标。
+            merger: { record in try await mergeSessionFile(record: record) }
         )
         h.register(
             recordType: "SkillV2",
@@ -59,7 +67,8 @@ enum ChatStoreSyncHydrators {
         h.register(
             recordType: "ProviderConfigV2",
             builder: { _ in await buildProviderConfig() },
-            merger: { record in await mergeProviderConfig(record: record) }
+            // nanoMuse: 严格恢复门禁或写盘失败不能被同步游标吞掉。
+            merger: { record in try await mergeProviderConfig(record: record) }
         )
         // [T-mcp-per-server-sync] Legacy whole-file servers.json record.
         // New devices NEVER emit it (builder returns nil — leftover upsert
@@ -80,6 +89,7 @@ enum ChatStoreSyncHydrators {
             merger: { record in await mergeMCPServerItem(record: record) },
             deletionApplier: { id in await applyMCPServerItemDeletion(id: id) }
         )
+        // nanoMuse: V3逐行写入和删除抛出实际错误，接收屏障保留失败批次供重放。
         // v3 per-record provider sync. Inbound applies via SQL UPSERT
         // and refreshes the ProviderConfigStore in-memory cache; op=delete
         // routes through deletionApplier which uses CASCADE on the
@@ -88,26 +98,26 @@ enum ChatStoreSyncHydrators {
         h.register(
             recordType: "ProviderInstanceV3",
             builder: { id in await buildProviderInstanceV3(id: id) },
-            merger: { record in await mergeProviderInstanceV3(record: record) },
-            deletionApplier: { id in await deleteProviderInstanceV3(id: id) }
+            merger: { record in try await mergeProviderInstanceV3(record: record) },
+            deletionApplier: { id in try await deleteProviderInstanceV3(id: id) }
         )
         h.register(
             recordType: "ProviderModelEntryV3",
             builder: { id in await buildProviderModelEntryV3(id: id) },
-            merger: { record in await mergeProviderModelEntryV3(record: record) },
-            deletionApplier: { id in await deleteProviderModelEntryV3(id: id) }
+            merger: { record in try await mergeProviderModelEntryV3(record: record) },
+            deletionApplier: { id in try await deleteProviderModelEntryV3(id: id) }
         )
         h.register(
             recordType: "ProviderModelGroupV3",
             builder: { id in await buildProviderModelGroupV3(id: id) },
-            merger: { record in await mergeProviderModelGroupV3(record: record) },
-            deletionApplier: { id in await deleteProviderModelGroupV3(id: id) }
+            merger: { record in try await mergeProviderModelGroupV3(record: record) },
+            deletionApplier: { id in try await deleteProviderModelGroupV3(id: id) }
         )
         h.register(
             recordType: "ProviderThinkingRuleV3",
             builder: { id in await buildProviderThinkingRuleV3(id: id) },
-            merger: { record in await mergeProviderThinkingRuleV3(record: record) },
-            deletionApplier: { id in await deleteProviderThinkingRuleV3(id: id) }
+            merger: { record in try await mergeProviderThinkingRuleV3(record: record) },
+            deletionApplier: { id in try await deleteProviderThinkingRuleV3(id: id) }
         )
         // Legacy whole-file env-vars record. New devices NEVER emit it
         // (builder returns nil — caller treats nil as "this builder
@@ -119,13 +129,15 @@ enum ChatStoreSyncHydrators {
         h.register(
             recordType: "EnvVarV2",
             builder: { _ -> PortableRecord? in nil },
-            merger: { record in await mergeEnvVars(record: record) }
+            // nanoMuse: 凭证导入失败不能确认当前接收批次。
+            merger: { record in try await mergeEnvVars(record: record) }
         )
         h.register(
             recordType: "EnvVarItem",
-            builder: { id in await buildEnvVarItem(id: id) },
-            merger: { record in await mergeEnvVarItem(record: record) },
-            deletionApplier: { id in await applyEnvVarItemDeletion(id: id) }
+            // nanoMuse: 凭证与元数据错误传播到发送/接收屏障。
+            builder: { id in try await buildEnvVarItem(id: id) },
+            merger: { record in try await mergeEnvVarItem(record: record) },
+            deletionApplier: { id in try await applyEnvVarItemDeletion(id: id) }
         )
         h.register(
             recordType: "SyncDeviceV2",
@@ -170,14 +182,12 @@ enum ChatStoreSyncHydrators {
             .buildPortable(synced)
     }
 
-    private static func mergeSession(record: PortableRecord) async {
-        // Reconstruct a SyncedSession from PortableRecord fields, then
-        // pass through ChatStore.mergeRemoteSession (which already has
-        // LWW-by-updatedAt logic for v1 — reused as-is).
-        guard let id = stringField(record, "sessionId") else { return }
+    // nanoMuse: 缺少必要元数据不能生成当前时间后覆盖本机，也不能静默确认。
+    private static func mergeSession(record: PortableRecord) async throws {
+        guard let id = stringField(record, "sessionId"), id == record.id.id,
+              let createdAt = dateField(record, "createdAt") else { throw NivoCloudChatSQLError.invalidRecord }
         let title = optionalStringField(record, "title")
         let modelId = stringField(record, "modelId") ?? "unknown"
-        let createdAt = dateField(record, "createdAt") ?? Date()
         let updatedAt = dateField(record, "updatedAt") ?? record.updatedAt
         let category = optionalStringField(record, "category")
         let memoryEnabled = (intField(record, "memoryEnabled") ?? 1) == 1
@@ -196,7 +206,7 @@ enum ChatStoreSyncHydrators {
         session.pinnedAt = pinnedAt
         // v2 doesn't currently track per-device origin in PortableRecord;
         // pass an empty string as a sentinel ("unknown remote device").
-        await ChatStore.shared.mergeRemoteSession(
+        try await ChatStore.shared.mergeRemoteSession(
             session, fromDeviceId: "",
             memoryEnabled: memoryEnabled,
             modelBinding: modelBinding,
@@ -206,10 +216,9 @@ enum ChatStoreSyncHydrators {
         )
     }
 
-    private static func deleteSession(id: String) async {
-        // Per §3.3.2: SessionV2 deletions are NOT propagated as hard
-        // deletes — they soft-tombstone instead.
-        _ = await TombstoneManager.shared.applyRemoteSessionDeletion(sessionId: id)
+    // nanoMuse: 会话删除共用事务入口，错误不能被当作已应用。
+    private static func deleteSession(id: String) async throws {
+        _ = try await TombstoneManager.shared.applyRemoteSessionDeletion(sessionId: id)
     }
 
     // MARK: - Folder
@@ -222,16 +231,12 @@ enum ChatStoreSyncHydrators {
             .buildPortable(synced)
     }
 
-    private static func mergeFolder(record: PortableRecord) async {
-        guard let id = stringField(record, "folderId") else { return }
-        let updatedAt = dateField(record, "updatedAt") ?? record.updatedAt
-        // [T-icloud-record-delete-resurrection] Same guard as mergeSkill: a
-        // folder dissolved locally moments ago can be re-pulled by
-        // fetchRecentV2 before the cloud delete lands.
-        if await ChatStore.shared.isRecentlyDeletedRecord(type: "Folder", id: id, remoteUpdatedAt: updatedAt) {
-            logger.info("[SyncCore] mergeFolder SKIP (recently deleted locally): id=\(id.prefix(8))")
-            return
+    // nanoMuse: 缺少标识不能当作已接收；防复活检查与版本比较在同一SQL事务内。
+    private static func mergeFolder(record: PortableRecord) async throws {
+        guard let id = stringField(record, "folderId"), id == record.id.id else {
+            throw NivoCloudChatSQLError.invalidRecord
         }
+        let updatedAt = dateField(record, "updatedAt") ?? record.updatedAt
         let folder = ChatFolder(
             id: id,
             name: stringField(record, "name") ?? "",
@@ -244,15 +249,15 @@ enum ChatStoreSyncHydrators {
             createdAt: dateField(record, "createdAt") ?? Date(),
             updatedAt: updatedAt
         )
-        guard !folder.name.isEmpty else { return }
-        await ChatStore.shared.applyRemoteFolder(folder)
+        try await ChatStore.shared.applyRemoteFolder(folder)
     }
 
     /// Inbound op=delete on FolderV2: members' folder_id cleared, folder row
     /// dropped, NO session deleted, no re-queue (delete-loop guard — the
     /// deleting peer already pushed the tombstone and its members' updates).
-    private static func applyFolderDeletion(id: String) async {
-        await ChatStore.shared.applyRemoteFolderDeletion(id: id)
+    // nanoMuse: 任一步失败向同步游标传播，不在部分成功后宣告分组已删除。
+    private static func applyFolderDeletion(id: String) async throws {
+        try await ChatStore.shared.applyRemoteFolderDeletion(id: id)
         logger.info("[SyncCore] applied FolderV2 deletion: id=\(id.prefix(8))")
     }
 
@@ -267,12 +272,14 @@ enum ChatStoreSyncHydrators {
             .buildPortable(synced)
     }
 
-    private static func mergeMessage(record: PortableRecord) async {
+    // nanoMuse: 严格验证消息来源，坏正文和缺少父记录不能被空数组替代后确认。
+    private static func mergeMessage(record: PortableRecord) async throws {
         guard let id = stringField(record, "messageId"),
+              id == record.id.id,
               let sessionId = stringField(record, "sessionId"),
               let role = stringField(record, "role"),
-              let createdAt = dateField(record, "createdAt") else { return }
-        let partsJson = stringField(record, "partsJson") ?? "[]"
+              let createdAt = dateField(record, "createdAt") else { throw NivoCloudChatSQLError.invalidRecord }
+        let partsJson = try messageBody(record)
         let tokenUsageJson = optionalStringField(record, "tokenUsageJson")
         let reasoningContent = optionalStringField(record, "reasoningContent")
         let streamInterruptCount = intField(record, "streamInterruptCount") ?? 0
@@ -282,7 +289,7 @@ enum ChatStoreSyncHydrators {
         // [T-token-attribution-snapshot] Absent from a sender on an older
         // build; nil flows through to the COALESCE guards in
         // mergeRemoteMessage, which keep whatever this device already has.
-        await ChatStore.shared.mergeRemoteMessage(
+        try await ChatStore.shared.mergeRemoteMessage(
             id: id, sessionId: sessionId, role: role,
             partsJson: partsJson, createdAt: createdAt,
             tokenUsageJson: tokenUsageJson, sortOrder: sortOrder,
@@ -296,12 +303,9 @@ enum ChatStoreSyncHydrators {
         )
     }
 
-    private static func deleteMessage(id: String) async {
-        // Per §3.3.1: single-message deletions are propagated. Use the
-        // same ChatStore helper v1 uses; it already takes care of *not*
-        // re-marking the row dirty (the deletion came from cloud, no
-        // need to re-push).
-        await ChatStore.shared.deleteLocalMessage(messageId: id)
+    // nanoMuse: 消息删除等待聊天空闲，不产生向云端反弹的删除记录。
+    private static func deleteMessage(id: String) async throws {
+        _ = try await NivoCloudChatAccess.delete(recordType: "MessageV2", id: id)
         // [T-ios-log-noise-reduction] INFO→DEBUG: per-record deletion trace,
         // ~6.4k lines per batch sync; not actionable in production.
         logger.debug("[SyncCore] applied MessageV2 deletion: id=\(id.prefix(8))")
@@ -345,13 +349,15 @@ enum ChatStoreSyncHydrators {
 
     // MARK: - CompactMarker merge
 
-    private static func mergeCompactMarker(record: PortableRecord) async {
+    // nanoMuse: 摘要归属与必要字段异常时保留批次，不能静默确认。
+    private static func mergeCompactMarker(record: PortableRecord) async throws {
         guard let id = stringField(record, "markerId"),
-              let sessionId = stringField(record, "sessionId") else { return }
-        let summary = stringField(record, "summary") ?? ""
+              id == record.id.id,
+              let sessionId = stringField(record, "sessionId"),
+              let summary = stringField(record, "summary"),
+              let createdAt = dateField(record, "createdAt") else { throw NivoCloudChatSQLError.invalidRecord }
         let firstKeptSortOrder = intField(record, "firstKeptSortOrder") ?? 0
         let compactedCount = intField(record, "compactedCount") ?? 0
-        let createdAt = dateField(record, "createdAt") ?? Date()
         let uiBoundarySortOrder = intField(record, "uiBoundarySortOrder")
         let boundaryMessageId = optionalStringField(record, "boundaryMessageId")
         let firstKeptMessageId = optionalStringField(record, "firstKeptMessageId")
@@ -368,7 +374,7 @@ enum ChatStoreSyncHydrators {
             lastCompactedMessageId: lastCompactedMessageId,
             version: markerVersion
         )
-        await ChatStore.shared.mergeRemoteCompactMarker(marker)
+        try await ChatStore.shared.mergeRemoteCompactMarker(marker)
     }
 
     /// Apply a remote tombstone for a compact marker. Mirrors deleteMessage:
@@ -376,8 +382,9 @@ enum ChatStoreSyncHydrators {
     /// to the cloud. Required for revertCompact to propagate across devices —
     /// without this, peer devices ignore the tombstone and re-push the marker
     /// on their next sync, resurrecting it.
-    private static func deleteCompactMarker(id: String) async {
-        let removed = await ChatStore.shared.deleteLocalCompactMarker(id: id)
+    // nanoMuse: 事务失败必须继续保留同步事件。
+    private static func deleteCompactMarker(id: String) async throws {
+        let removed = try await NivoCloudChatAccess.delete(recordType: "CompactMarkerV2", id: id)
         logger.info("[SyncCore] applied CompactMarkerV2 deletion: id=\(id.prefix(8)) removed=\(removed)")
     }
 
@@ -389,12 +396,13 @@ enum ChatStoreSyncHydrators {
         guard parts.count == 2 else { return nil }
         let sessionId = String(parts[0])
         let relativePath = String(parts[1])
-        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let fileURL = library.appendingPathComponent("MinisChat/minis/\(sessionId)/\(relativePath)")
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
-        let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
-        let fileSize = (attrs?[.size] as? Int) ?? 0
-        let modDate = (attrs?[.modificationDate] as? Date) ?? Date()
+        // nanoMuse: 发送也核对路径和真实元数据，不能上传会话目录外的链接目标。
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!.resolvingSymlinksInPath()
+        guard let fileURL = try? NivoCloudSessionFile.existingFile(root: library.appendingPathComponent("MinisChat/minis"),
+                  sessionID: sessionId, relativePath: relativePath),
+              let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+              let fileSize = attrs[.size] as? Int,
+              let modDate = attrs[.modificationDate] as? Date else { return nil }
         // Skip oversized files (single source of truth: UploadPolicy.maxFileSizeBytes).
         let maxSize = UploadPolicy.maxFileSizeBytes
         if fileSize > maxSize {
@@ -426,56 +434,21 @@ enum ChatStoreSyncHydrators {
         return portable
     }
 
-    private static func mergeSessionFile(record: PortableRecord) async {
+    // nanoMuse: 先校验和暂存再原子替换，失败向同步游标传播。
+    private static func mergeSessionFile(record: PortableRecord) async throws {
         guard let sessionId = stringField(record, "sessionId"),
               let relativePath = stringField(record, "relativePath"),
-              let asset = record.assets["asset"] else {
-            logger.warning("[SyncCore] mergeSessionFile: missing asset for id=\(record.id.id.prefix(16))")
-            return
+              record.id.id == sessionId + ":" + relativePath,
+              let asset = record.assets["asset"],
+              let fileSize = intField(record, "fileSize"), fileSize == asset.size else {
+            throw NivoCloudSessionFileError.invalidAsset
         }
-        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let destURL = library.appendingPathComponent("MinisChat/minis/\(sessionId)/\(relativePath)")
-        let fm = FileManager.default
-        let remoteFileUpdatedAt = dateField(record, "updatedAt") ?? record.updatedAt
-        // [T-icloud-deleted-session-resurrection] Refuse to recreate a file
-        // whose session was just deleted locally and isn't newer than the
-        // deletion. fetchRecentV2 can pull the still-present cloud SessionFile
-        // record back before the delete tombstone lands, writing the file back
-        // under a session the user already removed. (The session itself is
-        // blocked by mergeRemoteSession's guard; this covers the workspace
-        // files so a deleted session's content doesn't reappear on disk.)
-        if await ChatStore.shared.isResurrectionOfDeleted(sessionId, remoteUpdatedAt: remoteFileUpdatedAt) {
-            logger.info("[SyncCore] mergeSessionFile SKIP (session recently deleted — resurrection blocked): \(sessionId.prefix(8))/\(relativePath)")
-            return
-        }
-        // [T-icloud-cloud-overwrites-local-edits] Local-newer guard. The
-        // inbound record carries `updatedAt` (= sender's file mtime), and
-        // SessionFile content is user-editable on disk. Without this check
-        // we unconditionally removeItem+copyItem below, so a stale cloud
-        // record landing during the window between a local edit and its
-        // push silently destroys the newer local file (issue #41 —
-        // "cloud overwrites local"). Mirror the LWW already used by
-        // mergeRemoteSession/mergeRemoteMessage: if the local file is
-        // newer than the remote record (+ slack for clock drift), keep
-        // local and skip the apply. A missing local file always applies.
-        if let localAttrs = try? fm.attributesOfItem(atPath: destURL.path),
-           let localMtime = localAttrs[.modificationDate] as? Date {
-            let slack: TimeInterval = 5
-            if localMtime.timeIntervalSince(remoteFileUpdatedAt) > slack {
-                logger.info("[SyncCore] mergeSessionFile SKIP (local newer): \(sessionId.prefix(8))/\(relativePath) localMtime=\(localMtime) remoteUpdatedAt=\(remoteFileUpdatedAt)")
-                return
-            }
-        }
-        do {
-            try fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if fm.fileExists(atPath: destURL.path) { try? fm.removeItem(at: destURL) }
-            try fm.copyItem(at: asset.fileURL, to: destURL)
-            // [T-ios-log-noise-reduction] INFO→DEBUG: per-file apply trace,
-            // high-volume during batch sync; not actionable in production.
-            logger.debug("[SyncCore] applied SessionFileV2: \(sessionId.prefix(8))/\(relativePath) size=\(asset.size)")
-        } catch {
-            logger.error("[SyncCore] mergeSessionFile failed \(sessionId)/\(relativePath): \(error.localizedDescription)")
-        }
+        let remoteUpdatedAt = dateField(record, "updatedAt") ?? record.updatedAt
+        if try await ChatStore.shared.nmRemoteSessionFileIsDeleted(sessionID: sessionId, updatedAt: remoteUpdatedAt) { return }
+        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!.resolvingSymlinksInPath()
+        let root = library.appendingPathComponent("MinisChat/minis", isDirectory: true)
+        _ = try await NivoCloudSessionFile.receive(.init(sessionID: sessionId, relativePath: relativePath,
+            asset: asset.fileURL, expectedSize: fileSize, updatedAt: remoteUpdatedAt), root: root)
     }
 
     // MARK: - Skill
@@ -597,7 +570,9 @@ enum ChatStoreSyncHydrators {
         return SyncableTypeRegistry.shared.metadata(for: "ProviderConfigV2")?.buildPortable(synced)
     }
 
-    private static func mergeProviderConfig(record: PortableRecord) async {
+    private static func mergeProviderConfig(record: PortableRecord) async throws {
+        // nanoMuse: 配置写入跨await时固定来源代次，拒绝恢复后的迟到凭证。
+        let credentialGeneration = NanoMuseAccountData.shared.generation
         // [T-provider-sync-v3 S7] If v3 is the active sync surface for
         // ProviderConfig, silently drop inbound v2 records. New devices
         // emit BOTH v2 and v3 outbound during rollout so old peers can
@@ -631,13 +606,15 @@ enum ChatStoreSyncHydrators {
         // store internally, so we don't repeat the file write here.
         if #available(iOS 17.0, *) {
             let outcome = await CloudSyncEngine.mergeProviderConfig(remoteJson: json)
+            // nanoMuse: 配置未应用时不能先写入附带凭证。
+            if case .failedPersistence = outcome { throw CocoaError(.fileWriteUnknown) }
             // Import remote secrets after the config merge so any instance
             // newly added by the merger has its Keychain entry seeded.
             // V1's importProviderSecrets is itself last-write-wins by
             // remote updatedAt vs local Keychain savedAt — it will not
             // overwrite a locally-newer key.
             if let secretsJson = stringField(record, "secretsJson"), !secretsJson.isEmpty {
-                CloudSyncEngine.importProviderSecrets(secretsJson: secretsJson)
+                try CloudSyncEngine.importProviderSecrets(secretsJson: secretsJson, expectedGeneration: credentialGeneration)
             }
             // Honest outcome log. The previous "applied via v1 merger" line
             // was printed unconditionally, even when the merger had bailed
@@ -653,6 +630,8 @@ enum ChatStoreSyncHydrators {
                 logger.info("[SyncCore] ProviderConfigV2 merge skipped: own echo (\(json.count) chars)")
             case .skippedLocalDirty:
                 logger.info("[SyncCore] ProviderConfigV2 merge skipped: local pending upload (\(json.count) chars)")
+            case .failedPersistence:
+                throw CocoaError(.fileWriteUnknown)
             }
         } else {
             logger.info("[SyncCore] ProviderConfigV2 merge skipped: pre-iOS-17 (\(json.count) chars)")
@@ -751,17 +730,12 @@ enum ChatStoreSyncHydrators {
 
     // MARK: - EnvVars
 
-    private static func buildEnvVars() async -> PortableRecord? {
-        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let envURL = library.appendingPathComponent("MinisChat/env-vars.json")
-        guard let data = try? Data(contentsOf: envURL),
-              let json = String(data: data, encoding: .utf8) else { return nil }
-        let secrets: String = {
-            if #available(iOS 17.0, *) {
-                return CloudSyncEngine.exportEnvVarSecrets(envJson: json)
-            }
-            return "[]"
-        }()
+    // nanoMuse: 保留的旧协议构建入口也使用严格快照，iOS16不依赖V1引擎读取凭证。
+    private static func buildEnvVars() async throws -> PortableRecord? {
+        let snapshot = try EnvVarStore.shared.nmLegacySyncSnapshot()
+        let json = snapshot.metadata
+        let secrets = snapshot.secrets
+        let data = Data(json.utf8)
         // [T-apikey fc9a35ec] Stamp upload hash so v1's merger recognises
         // our own echo. Same rationale as buildProviderConfig.
         if #available(iOS 17.0, *) {
@@ -776,114 +750,78 @@ enum ChatStoreSyncHydrators {
         return SyncableTypeRegistry.shared.metadata(for: "EnvVarV2")?.buildPortable(synced)
     }
 
-    private static func mergeEnvVars(record: PortableRecord) async {
-        guard let json = stringField(record, "envVarsJson") else { return }
-        // [T-apikey fc9a35ec] Delegate to v1 merger (echo detection +
-        // per-id union with local-only preservation). Same reasoning as
-        // mergeProviderConfig above. The previous blind file write would
-        // wipe locally-added env vars whenever a stale snapshot arrived.
-        if #available(iOS 17.0, *) {
-            await MainActor.run {
-                CloudSyncEngine.mergeEnvVars(remoteJson: json)
-            }
-            if let secretsJson = stringField(record, "envSecretsJson"), !secretsJson.isEmpty {
-                CloudSyncEngine.importEnvVarSecrets(secretsJson: secretsJson)
-            }
+    // nanoMuse: 旧整包凭证的系统错误与代次失效向同步屏障传播。
+    private static func mergeEnvVars(record: PortableRecord) async throws {
+        let credentialGeneration = NanoMuseAccountData.shared.generation
+        guard let json = stringField(record, "envVarsJson"), json.utf8.count <= 16_777_216 else {
+            throw NivoEnvVarState.Failure.invalidRecord
         }
-        logger.info("[SyncCore] applied EnvVarV2 via v1 merger (\(json.count) chars)")
+        let entries = try JSONDecoder().decode([EnvVarEntry].self, from: Data(json.utf8))
+        try NivoEnvVarState.validate(entries)
+        let secrets = try envString(record, "envSecretsJson")
+        // nanoMuse: V2不依赖仅iOS17可用的V1引擎，iOS16也执行相同严格入口。
+        try NivoCloudCredentialAccess.perform(expectedGeneration: credentialGeneration) {
+            try EnvVarStore.shared.nmMergeLegacyMetadata(entries, secretsJSON: secrets)
+        }
     }
 
     // MARK: - EnvVarItem (per-variable)
 
-    /// Build a per-variable record. The `id` is the EnvVarEntry UUID,
-    /// also used as the CK recordName. Values are pulled from Keychain
-    /// at build time and base64-encoded into the record so a peer that
-    /// hasn't yet received the matching iCloud Keychain sync entry still
-    /// gets the value.
-    private static func buildEnvVarItem(id: String) async -> PortableRecord? {
-        let entry = await MainActor.run { EnvVarStore.shared.entry(id: id) }
-        guard let entry else {
-            // Local entry gone — caller (SyncCore) treats nil as "drop
-            // dirty row, no record to push". The op=delete path is
-            // separate (deletionApplier on the receiver side, op=delete
-            // on the dirty row on the sender side) so this nil only
-            // fires when an upsert was queued for an entry that's since
-            // been removed.
-            return nil
+    // nanoMuse: 从真实文件和Keychain读取同一快照，重试发送沿用修改时间。
+    private static func buildEnvVarItem(id: String) async throws -> PortableRecord? {
+        var result: PortableRecord?
+        try NivoCloudCredentialAccess.perform(expectedGeneration: NanoMuseAccountData.shared.generation) {
+            guard let entry = try EnvVarStore.shared.nmEntryForSync(id: id) else { return }
+            let secret = try NivoCredentialSyncKeychain.environmentSnapshot(key: entry.key)
+            let synced = SyncedEnvVar(id: entry.id, key: entry.key,
+                valueB64: Data((secret?.value ?? "").utf8).base64EncodedString(), note: entry.note,
+                createdAt: entry.createdAt, updatedAt: max(entry.version, secret?.version ?? .distantPast))
+            guard let built = SyncableTypeRegistry.shared.metadata(for: "EnvVarItem")?.buildPortable(synced) else {
+                throw NivoEnvVarState.Failure.invalidRecord
+            }
+            result = built
         }
-        let value = EnvVarStore.loadValueSync(forKey: entry.key) ?? ""
-        let valueB64 = Data(value.utf8).base64EncodedString()
-        let synced = SyncedEnvVar(
-            id: entry.id,
-            key: entry.key,
-            valueB64: valueB64,
-            note: entry.note,
-            createdAt: entry.createdAt,
-            updatedAt: Date()
-        )
-        return SyncableTypeRegistry.shared.metadata(for: "EnvVarItem")?.buildPortable(synced)
+        return result
     }
 
-    /// Apply an inbound per-variable record. Adds-or-replaces the entry
-    /// in env-vars.json by id, decodes valueB64 → Keychain. LWW
-    /// resolution by updatedAt happens in EnvVarStore.applyRemoteItem.
-    private static func mergeEnvVarItem(record: PortableRecord) async {
-        guard let id = stringField(record, "entryId") else {
-            logger.warning("[SyncCore] mergeEnvVarItem: missing entryId field")
-            return
+    // nanoMuse: 类型错误不能降级成字段缺省，解码失败不能确认接收。
+    private static func mergeEnvVarItem(record: PortableRecord) async throws {
+        let generation = NanoMuseAccountData.shared.generation
+        guard let id = stringField(record, "entryId"), id == record.id.id,
+              let key = stringField(record, "key") else { throw NivoEnvVarState.Failure.invalidRecord }
+        let value = try NivoEnvVarState.decodeValue(try envString(record, "valueB64"))
+        let note = try envString(record, "note") ?? ""
+        let createdAt = try envDate(record, "createdAt") ?? record.updatedAt
+        let updatedAt = try envDate(record, "updatedAt") ?? record.updatedAt
+        try NivoEnvVarState.validate([EnvVarEntry(id: id, key: key, createdAt: createdAt, note: note, updatedAt: updatedAt)])
+        if await ChatStore.shared.isRecentlyDeletedRecord(type: "EnvVarItem", id: id, remoteUpdatedAt: updatedAt) { return }
+        try NivoCloudCredentialAccess.perform(expectedGeneration: generation) {
+            try EnvVarStore.shared.applyRemoteItem(id: id, key: key, value: value, note: note,
+                createdAt: createdAt, updatedAt: updatedAt)
         }
-        guard let key = stringField(record, "key") else {
-            logger.warning("[SyncCore] mergeEnvVarItem: missing key for id=\(id.prefix(8))")
-            return
-        }
-        let valueB64 = stringField(record, "valueB64") ?? ""
-        let note = stringField(record, "note") ?? ""
-        let createdAt = dateField(record, "createdAt") ?? Date()
-        let updatedAt = dateField(record, "updatedAt") ?? record.updatedAt
-        // [T-icloud-record-delete-resurrection] Same guard as mergeSkill:
-        // applyRemoteItem unconditionally re-inserts an unknown id, so a
-        // just-deleted variable re-fetched by fetchRecentV2 before the cloud
-        // delete lands would resurrect without this check.
-        if await ChatStore.shared.isRecentlyDeletedRecord(type: "EnvVarItem", id: id, remoteUpdatedAt: updatedAt) {
-            logger.info("[SyncCore] mergeEnvVarItem SKIP (recently deleted locally): id=\(id.prefix(8))")
-            return
-        }
-        // [T-icloud-local-edit-clobber] In-flight local edit guard.
-        // EnvVarEntry has no local per-entry updatedAt, so applyRemoteItem
-        // can't LWW — it applies whatever arrives. A stale server copy
-        // re-fetched between a local edit and its push would overwrite the
-        // fresh value, and the pending dirty row would then push the stale
-        // value back up (the edit is fully lost). Mirror the ProviderConfig
-        // merger's rule: while this id has a pending local upsert, skip the
-        // inbound apply; the post-push fetch reconciles normally.
-        let pendingDirty = await ChatStore.shared.loadDirtyRecords()
-        if pendingDirty.contains(where: { $0.recordType == "EnvVarItem" && $0.recordId == id && $0.operation != "delete" }) {
-            logger.info("[SyncCore] mergeEnvVarItem SKIP (local upsert pending): id=\(id.prefix(8))")
-            return
-        }
-        let value: String = {
-            guard !valueB64.isEmpty,
-                  let data = Data(base64Encoded: valueB64),
-                  let s = String(data: data, encoding: .utf8) else { return "" }
-            return s
-        }()
-        await MainActor.run {
-            EnvVarStore.shared.applyRemoteItem(
-                id: id, key: key, value: value, note: note,
-                createdAt: createdAt, updatedAt: updatedAt
-            )
-        }
-        logger.info("[SyncCore] applied EnvVarItem id=\(id.prefix(8)) key=\(key)")
     }
 
-    /// Apply an inbound op=delete tombstone. Removes the entry by id
-    /// (NOT by key) — receiver doesn't need to know the key, the CK
-    /// record's recordName carries the entry UUID.
-    private static func applyEnvVarItemDeletion(id: String) async {
-        await MainActor.run {
-            EnvVarStore.shared.applyRemoteDeletion(id: id)
+    private static func envString(_ record: PortableRecord, _ key: String) throws -> String? {
+        switch record.fields[key] {
+        case nil, .null: return nil
+        case .string(let value): return value
+        default: throw NivoEnvVarState.Failure.invalidRecord
         }
-        logger.info("[SyncCore] applied EnvVarItem deletion id=\(id.prefix(8))")
+    }
+
+    private static func envDate(_ record: PortableRecord, _ key: String) throws -> Date? {
+        switch record.fields[key] {
+        case nil, .null: return nil
+        case .date(let value): return value
+        default: throw NivoEnvVarState.Failure.invalidRecord
+        }
+    }
+
+    // nanoMuse: 删除中的文件错误与账户恢复冲突同样保留重放机会。
+    private static func applyEnvVarItemDeletion(id: String) async throws {
+        try NivoCloudCredentialAccess.perform(expectedGeneration: NanoMuseAccountData.shared.generation) {
+            try EnvVarStore.shared.applyRemoteDeletion(id: id)
+        }
     }
 
     // MARK: - SyncDevice
@@ -1200,6 +1138,18 @@ enum ChatStoreSyncHydrators {
 
     // MARK: - Field accessors
 
+    // nanoMuse: 大正文附件和内联正文共享严格读取，支持旧V1及当前V2附件键。
+    private static func messageBody(_ record: PortableRecord) throws -> String {
+        let inline: String?
+        switch record.fields["partsJson"] {
+        case .string(let value), .json(let value): inline = value
+        case .none, .null: inline = nil
+        default: throw NivoCloudChatSQLError.invalidRecord
+        }
+        let asset = record.assets["partsJsonAsset"] ?? record.assets["partsAsset"] ?? record.assets["partsJson"]
+        return try NivoCloudMessageBody.read(inline: inline, assetURL: asset?.fileURL)
+    }
+
     private static func stringField(_ r: PortableRecord, _ key: String) -> String? {
         if case .string(let s) = r.fields[key] ?? .null { return s }
         return nil
@@ -1252,16 +1202,9 @@ enum ChatStoreSyncHydrators {
             .buildPortable(synced)
     }
 
-    private static func mergeProviderInstanceV3(record: PortableRecord) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            // [T-icloud-fresh-restore-provider-groups] Inbound dropped because the
-            // provider SQLite store hasn't finished its async open yet (fresh
-            // device race). fetchRecentV2 will NOT anchor this type until the DB
-            // is open, so the record is re-pulled next run — log it so the
-            // recovery is visible in the field.
-            logger.warning("[v3] mergeProviderInstanceV3 DROPPED (DB not open yet) id=\(record.id.id.prefix(8)) — will re-pull")
-            return
-        }
+    private static func mergeProviderInstanceV3(record: PortableRecord) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
         let id = record.id.id
         let label = stringField(record, "label") ?? ""
         let providerType = stringField(record, "providerType") ?? ""
@@ -1293,7 +1236,7 @@ enum ChatStoreSyncHydrators {
             logger.info("[v3] mergeProviderInstanceV3 SKIP (recently deleted locally): id=\(id.prefix(8))")
             return
         }
-        let applied = await db.upsertInstanceFromInbound(
+        let applied = try await db.upsertInstanceFromInbound(
             id: id, label: label, providerType: providerType,
             credentialType: credentialType, customBaseURL: customBaseURL,
             appendV1Suffix: appendV1Suffix,
@@ -1306,18 +1249,17 @@ enum ChatStoreSyncHydrators {
         )
         if applied {
             logger.info("[v3] applied ProviderInstanceV3 \(id.prefix(8)) label=\(label.prefix(20))")
-            await refreshStoreFromDB()
         } else {
             logger.info("[v3] skipped ProviderInstanceV3 \(id.prefix(8)) — local row is newer (LWW)")
         }
+        // nanoMuse: 数据库已存在的重复记录也能修复上一次失败或被取消的缓存镜像。
+        await refreshStoreFromDB()
     }
 
-    private static func deleteProviderInstanceV3(id: String) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] deleteProviderInstanceV3 DROPPED (DB not open yet) id=\(id.prefix(8))")
-            return
-        }
-        await db.deleteInstanceRow(id: id)
+    private static func deleteProviderInstanceV3(id: String) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
+        try await db.deleteInstanceRow(id: id)
         // CASCADE FK on provider_model_entries.provider_instance_id
         // already removes the instance's entries server-side too — but
         // peers issue their own per-entry op=delete records, so the
@@ -1350,11 +1292,9 @@ enum ChatStoreSyncHydrators {
             .buildPortable(synced)
     }
 
-    private static func mergeProviderModelEntryV3(record: PortableRecord) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] mergeProviderModelEntryV3 DROPPED (DB not open yet) id=\(record.id.id.prefix(8)) — will re-pull")
-            return
-        }
+    private static func mergeProviderModelEntryV3(record: PortableRecord) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
         let rawId = record.id.id
         let entryUpdatedAt = dateField(record, "updatedAt") ?? Date()
         // [T-provider-entry-id-canonicalize] Key the local upsert on the
@@ -1371,19 +1311,15 @@ enum ChatStoreSyncHydrators {
         // through LWW merge instead of duplicate insertion. The uuid is ignored
         // for identity (it remains only the cloud record's container id +
         // legacyUuid mapping below).
-        let canonInstanceId = stringField(record, "providerInstanceId") ?? ""
-        let canonBaseJson = stringField(record, "baseModelJson") ?? "{}"
-        let canonModelId = (try? JSONSerialization.jsonObject(with: Data(canonBaseJson.utf8)) as? [String: Any])?["id"] as? String
-        let id: String = {
-            // Already composite-keyed (peer migrated, or id contains "/") — keep.
-            if rawId.contains("/") { return rawId }
-            // Raw uuid + resolvable model → use the canonical composite key.
-            if let m = canonModelId, !canonInstanceId.isEmpty, !m.isEmpty {
-                return "\(canonInstanceId)/\(m)"
-            }
-            // Can't resolve (missing fields) — fall back to raw id (no worse than before).
-            return rawId
-        }()
+        // nanoMuse: 身份和正文必须一致；损坏记录不能先确认再让严格缓存永久读取失败。
+        guard let canonInstanceId = stringField(record, "providerInstanceId"), !canonInstanceId.isEmpty,
+              let canonBaseJson = stringField(record, "baseModelJson") else {
+            throw NivoPersonalBackupError.invalidPackage
+        }
+        let decodedModel = try JSONDecoder().decode(LLMModel.self, from: Data(canonBaseJson.utf8))
+        guard !decodedModel.id.isEmpty else { throw NivoPersonalBackupError.invalidPackage }
+        let id = "\(canonInstanceId)/\(decodedModel.id)"
+        guard !rawId.contains("/") || rawId == id else { throw NivoPersonalBackupError.invalidPackage }
         // [T-icloud-record-delete-resurrection] Same resurrection guard as the
         // instance merger: upsertEntryFromInbound re-inserts an absent row, so
         // a just-deleted model entry re-pulled by fetchRecentV2 before its
@@ -1402,7 +1338,7 @@ enum ChatStoreSyncHydrators {
             logger.info("[v3] mergeProviderModelEntryV3 SKIP (recently deleted locally): id=\(id.prefix(16))")
             return
         }
-        let applied = await db.upsertEntryFromInbound(
+        let applied = try await db.upsertEntryFromInbound(
             id: id,
             providerInstanceId: stringField(record, "providerInstanceId") ?? "",
             baseModelJson: stringField(record, "baseModelJson") ?? "{}",
@@ -1416,7 +1352,6 @@ enum ChatStoreSyncHydrators {
         )
         if applied {
             logger.info("[v3] applied ProviderModelEntryV3 \(id.prefix(8))")
-            await refreshStoreFromDB()
         }
         // [T-provider-entry-composite-key] Learn legacyUuid → compositeKey so any
         // group/binding/agent-loop reference still pointing at an old random uuid
@@ -1432,18 +1367,19 @@ enum ChatStoreSyncHydrators {
             let compositeKey = "\(instanceId)/\(modelId)"
             var pairs: [String: String] = [:]
             if let legacy = optionalStringField(record, "legacyUuid") { pairs[legacy] = compositeKey }
-            if !id.contains("/") { pairs[id] = compositeKey }  // peer still uuid-keyed
+            // nanoMuse: 使用远端原始ID学习映射，规范化后的id已不再包含旧UUID。
+            if !rawId.contains("/") { pairs[rawId] = compositeKey }
             if !pairs.isEmpty {
-                await MainActor.run { ProviderConfigStore.shared.learnLegacyUuids(pairs) }
+                try await ProviderConfigStore.shared.learnLegacyUuids(pairs)
             }
         }
+        // nanoMuse: 重复入站也安排只读刷新，不依赖云端再次改变这条模型。
+        await refreshStoreFromDB()
     }
 
-    private static func deleteProviderModelEntryV3(id: String) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] deleteProviderModelEntryV3 DROPPED (DB not open yet) id=\(id.prefix(8))")
-            return
-        }
+    private static func deleteProviderModelEntryV3(id: String) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
         // [T-provider-entry-id-canonicalize] The local DB keys entries by the
         // composite key, but the cloud can issue a delete for a pre-migration
         // RANDOM-UUID record id. Deleting only that raw uuid would no-op (the
@@ -1452,9 +1388,8 @@ enum ChatStoreSyncHydrators {
         // and delete the canonical row too. Delete both forms so an
         // un-normalized raw-uuid row (if any) is also cleared.
         let canonical = await MainActor.run { ProviderConfigStore.shared.canonicalEntryId(forLegacy: id) }
-        await db.deleteEntryRow(id: id)
+        try await db.deleteEntryRows(ids: Set([id, canonical].compactMap { $0 }))
         if let canonical, canonical != id {
-            await db.deleteEntryRow(id: canonical)
             logger.info("[v3] deleted ProviderModelEntryV3 \(id.prefix(8)) (+canonical \(canonical))")
         } else {
             logger.info("[v3] deleted ProviderModelEntryV3 \(id.prefix(16))")
@@ -1536,25 +1471,15 @@ enum ChatStoreSyncHydrators {
             """)
     }
 
-    private static func decodeGroupMemberTombstones(_ json: String?) -> (added: [String: Date], removed: [String: Date]) {
-        guard let json, !json.isEmpty, json != "{}",
-              let data = json.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return ([:], [:]) }
-        func mapOf(_ key: String) -> [String: Date] {
-            guard let sub = obj[key] as? [String: Double] else { return [:] }
-            var out: [String: Date] = [:]
-            for (k, v) in sub { out[k] = Date(timeIntervalSince1970: v) }
-            return out
-        }
-        return (mapOf("added"), mapOf("removed"))
+    // nanoMuse: 旧扁平删除表和新信封均须保留，损坏历史不能静默变成无删除记录。
+    private static func decodeGroupMemberTombstones(_ json: String?) throws -> (added: [String: Date], removed: [String: Date]) {
+        let history = try NivoProviderMemberHistory.decode(json)
+        return (history.added, history.removed)
     }
 
-    private static func mergeProviderModelGroupV3(record: PortableRecord) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] mergeProviderModelGroupV3 DROPPED (DB not open yet) id=\(record.id.id.prefix(8)) — will re-pull")
-            return
-        }
+    private static func mergeProviderModelGroupV3(record: PortableRecord) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
         let id = record.id.id
         // [T-icloud-record-delete-resurrection] Resurrection guard, as with the
         // instance/entry mergers: a just-deleted group re-pulled by fetchRecentV2
@@ -1573,12 +1498,15 @@ enum ChatStoreSyncHydrators {
         // truncated push from a buggy device) is visible in the log without a
         // repro. memberEntryIdsJson is the authoritative whole-list field —
         // upsertGroupFromInbound applies it as a unit under an updatedAt guard.
-        let inboundMembersJson = stringField(record, "memberEntryIdsJson") ?? "[]"
+        // nanoMuse: 该字段一直是必需列表，缺失不等于用户提交了空组。
+        guard let inboundMembersJson = stringField(record, "memberEntryIdsJson") else {
+            throw NivoPersonalBackupError.invalidPackage
+        }
         let inboundCount = ((try? JSONSerialization.jsonObject(with: Data(inboundMembersJson.utf8))) as? [Any])?.count ?? -1
         let localCount = (await db.groupRow(id: id)?["member_entry_ids_json"] as? String)
             .flatMap { ((try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? [Any])?.count } ?? -1
-        let (inboundAdded, inboundRemoved) = decodeGroupMemberTombstones(optionalStringField(record, "removedMembersJson"))
-        let applied = await db.upsertGroupFromInbound(
+        let (inboundAdded, inboundRemoved) = try decodeGroupMemberTombstones(optionalStringField(record, "removedMembersJson"))
+        let applied = try await db.upsertGroupFromInbound(
             id: id,
             name: stringField(record, "name") ?? "",
             strategy: stringField(record, "strategy") ?? "fallback",
@@ -1611,10 +1539,11 @@ enum ChatStoreSyncHydrators {
             let mergedCount = (await db.groupRow(id: id)?["member_entry_ids_json"] as? String)
                 .flatMap { ((try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? [Any])?.count } ?? -1
             logger.info("[v3] applied ProviderModelGroupV3 \(id.prefix(8)) members union-merged: local=\(localCount) inbound=\(inboundCount) → \(mergedCount) (added-tombstones=\(inboundAdded.count) removed-tombstones=\(inboundRemoved.count))")
-            await refreshStoreFromDB()
         } else {
             logger.info("[v3] skipped ProviderModelGroupV3 \(id.prefix(8)) (no scalar/member change) members(local=\(localCount) inbound=\(inboundCount))")
         }
+        // nanoMuse: 版本相同不表示内存与JSON镜像已经刷新成功。
+        await refreshStoreFromDB()
     }
 
     // MARK: - ProviderThinkingRuleV3 (T-icloud-thinking-rules-sync)
@@ -1645,11 +1574,9 @@ enum ChatStoreSyncHydrators {
     }
 
     /// Inbound upsert. LWW by `updatedAt` is enforced inside the DB call.
-    private static func mergeProviderThinkingRuleV3(record: PortableRecord) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] mergeProviderThinkingRuleV3 DROPPED (DB not open yet) id=\(record.id.id.prefix(8)) — will re-pull")
-            return
-        }
+    private static func mergeProviderThinkingRuleV3(record: PortableRecord) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
         let id = record.id.id
         // [T-icloud-record-delete-resurrection] Same resurrection guard the other
         // provider mergers use: a rule just deleted here must not be re-inserted by a
@@ -1662,17 +1589,11 @@ enum ChatStoreSyncHydrators {
         }
         guard let instanceId = stringField(record, "instanceId"), !instanceId.isEmpty else {
             logger.warning("[v3] mergeProviderThinkingRuleV3 SKIP (no instanceId) id=\(id.prefix(8))")
-            return
+            throw NivoPersonalBackupError.invalidPackage
         }
-        // A rule whose owning instance does not exist here would be invisible and
-        // un-deletable in the UI (the provider page is the only place it renders), so
-        // keep it out of the DB. The instance record syncs independently; when it
-        // arrives, a later push of this rule re-delivers it.
-        guard ProviderConfigStore.shared.config.instances.contains(where: { $0.id == instanceId }) else {
-            logger.info("[v3] mergeProviderThinkingRuleV3 SKIP (unknown instance \(instanceId.prefix(8))) id=\(id.prefix(8))")
-            return
-        }
-        let applied = await db.upsertThinkingRuleFromInbound(
+        // nanoMuse: 提供商可能已经落盘但尚未发布UI，存在性由数据库严格检查。
+        // 父记录尚未抵达时报错重放，不能依赖另一设备再次推送同一条规则。
+        let applied = try await db.upsertThinkingRuleFromInbound(
             id: id,
             instanceId: instanceId,
             sortOrder: intField(record, "sortOrder") ?? 0,
@@ -1686,64 +1607,54 @@ enum ChatStoreSyncHydrators {
             updatedAt: (dateField(record, "updatedAt") ?? Date()).timeIntervalSince1970
         )
         logger.info("[v3] mergeProviderThinkingRuleV3 \(applied ? "APPLIED" : "SKIPPED (local newer)") id=\(id.prefix(8))")
-        if applied {
-            // The resolver reads a synchronous in-memory cache, so an inbound change is
-            // invisible to the request path until the cache is reloaded.
-            await ProviderConfigStore.shared.reloadThinkingRuleCache()
-        }
+        // nanoMuse: 先读取完整提供商集合再更新规则，解决父记录已落盘但缓存仍旧的乱序。
+        await refreshStoreFromDB()
     }
 
     /// Inbound delete. The local row really is removed — the tombstone written by the
     /// ORIGINATING device is what stops the resurrection race; this side just applies.
-    private static func deleteProviderThinkingRuleV3(id: String) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] deleteProviderThinkingRuleV3 DROPPED (DB not open yet) id=\(id.prefix(8))")
-            return
-        }
-        await db.deleteThinkingRule(id: id)
+    private static func deleteProviderThinkingRuleV3(id: String) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
+        try await db.nmDeleteThinkingRule(id: id)
         logger.info("[v3] deleted ProviderThinkingRuleV3 \(id.prefix(8))")
-        await ProviderConfigStore.shared.reloadThinkingRuleCache()
+        // nanoMuse: 删除与新增使用同一可重试缓存刷新入口。
+        await refreshStoreFromDB()
     }
 
-    private static func deleteProviderModelGroupV3(id: String) async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] deleteProviderModelGroupV3 DROPPED (DB not open yet) id=\(id.prefix(8))")
-            return
-        }
-        await db.deleteGroupRow(id: id)
+    private static func deleteProviderModelGroupV3(id: String) async throws {
+        // nanoMuse: 初始化未完成或写盘失败时保留同步记录，不能当作成功跳过。
+        let db = try await nmProviderDatabaseForInbound()
+        try await db.deleteGroupRow(id: id)
         logger.info("[v3] deleted ProviderModelGroupV3 \(id.prefix(8))")
         await refreshStoreFromDB()
     }
 
-    /// After any V3 inbound mutation, re-hydrate the
-    /// ProviderConfigStore's in-memory `config` from the DB so the UI
-    /// reflects the change.
-    ///
-    /// [T-icloud-provider-sync-apply-coalesce] COALESCED. The sync framework
-    /// calls the per-record `mergeProviderXxxV3` once per inbound record, and
-    /// each applied record used to run a FULL refresh inline (dump all ~800
-    /// entries → dedupe → encode → write → bulkReplace). A single fetchRecentV2
-    /// batch can carry hundreds of provider records, so that produced hundreds
-    /// of full refreshes back-to-back on the main thread — the multi-frame
-    /// scroll stalls we traced (each [v3sync] applyMergedConfigFromSync line is
-    /// one full rebuild; the burst hit dozens per second). Instead, debounce:
-    /// each call marks the store "dirty" and (re)arms a short timer; the actual
-    /// refresh runs ONCE after the inbound burst goes quiet, collapsing N
-    /// rebuilds into 1. The dump itself already runs off the main thread; only
-    /// the final apply hops to @MainActor.
+    // nanoMuse: 入站先等排队的完整写入，避免新行被先前尚未完成的快照立即擦除。
+    /// 返回可用于入站的权威数据库；关闭、恢复和初始化故障均要求上层重放。
+    private static func nmProviderDatabaseForInbound() async throws -> ProviderConfigDB {
+        let store = ProviderConfigStore.shared
+        // nanoMuse: JSON镜像失败允许重试入站，完整配置写入失败仍阻止接收。
+        try await store.nmWaitForConfigurationWrites(allowingMirrorFailure: true)
+        try Task.checkCancellation()
+        guard !NivoPersonalBackupAccess.isBusy, !BackupRestoreJournal.hasPendingRecovery,
+              let database = store.db else { throw NivoPersonalBackupError.busy }
+        return database
+    }
+
+    // nanoMuse: 批量入站先在数据库提交，再合并缓存刷新，避免每条模型触发全页面更新。
+    /// 无论行是否变化都允许重试缓存，实际读取、镜像与发布由完整快照入口检查。
     private static func refreshStoreFromDB() async {
         await RefreshCoalescer.shared.schedule()
     }
 
-    /// Serializes + debounces provider-store refreshes so a burst of inbound
-    /// V3 merges collapses into a single full rebuild.
+    /// 合并短时间内的刷新请求，较新请求取消旧读取，数据库已提交的行保持不变。
     private actor RefreshCoalescer {
         static let shared = RefreshCoalescer()
         private var pending = false
         private var task: Task<Void, Never>?
-        /// Quiet window: a refresh fires this long after the LAST schedule()
-        /// call, so a tight burst of per-record merges produces one refresh.
-        private static let debounceNanos: UInt64 = 250_000_000  // 250ms
+        /// 最后一条记录之后等待250毫秒，让一批接收合并为一次缓存发布。
+        private static let debounceNanos: UInt64 = 250_000_000
 
         func schedule() {
             pending = true
@@ -1758,22 +1669,24 @@ enum ChatStoreSyncHydrators {
         private func fire() async {
             guard pending else { return }
             pending = false
-            await ChatStoreSyncHydrators.performRefreshStoreFromDB()
+            // nanoMuse: 版本变化后重新读数据库，不能把旧快照挂回延后发布队列。
+            do { try await ChatStoreSyncHydrators.performRefreshStoreFromDB() }
+            catch is CancellationError {}
+            catch NivoPersonalBackupError.snapshotChanged { schedule() }
+            catch NivoPersonalBackupError.busy { schedule() }
+            catch {
+                logger.error("[Nivo] provider cache refresh did not finish; database retained: \(error.localizedDescription)")
+            }
         }
     }
 
-    /// The actual refresh: dump the DB off-main, then apply on the main actor.
-    /// Calls applyMergedConfigFromSync which writes disk+DB and notifies
-    /// observers WITHOUT marking dirty (inbound updates don't loop back).
-    private static func performRefreshStoreFromDB() async {
-        guard let db = ProviderConfigStore.shared.db else {
-            logger.warning("[v3] refreshStoreFromDB skipped — DB not open yet")
-            return
+    // nanoMuse: V3权威数据库已写入，只刷新缓存和降级镜像，读取失败保留当前页面。
+    /// 恢复或并发编辑变化时由合并器重新读取，不把旧整包快照重写回SQLite。
+    private static func performRefreshStoreFromDB() async throws {
+        guard !NivoPersonalBackupAccess.isBusy, !BackupRestoreJournal.hasPendingRecovery else {
+            throw NivoPersonalBackupError.busy
         }
-        let fresh = await db.dumpProviderConfig()
-        await MainActor.run {
-            ProviderConfigStore.shared.applyMergedConfigFromSync(fresh)
-        }
+        try await ProviderConfigStore.shared.nmRefreshFromDatabase()
     }
 }
 

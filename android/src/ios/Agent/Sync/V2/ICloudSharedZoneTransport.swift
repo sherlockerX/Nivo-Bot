@@ -23,7 +23,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     let name = "iCloud"
     let capabilities: TransportCapabilities = [.deltaFetch, .assets, .persistence, .conflictDetect]
 
-    private var observeHandler: ((SyncInboundBatch) -> Void)?
+    // nanoMuse: 保留接收批次顺序，不再通过无序Task转交观察者。
+    private var observeHandler: (@MainActor (SyncInboundBatch) -> Void)?
 
     // MARK: - Configuration
 
@@ -87,6 +88,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     private var syncEngine: CKSyncEngine?
     private var stateSerialization: CKSyncEngine.State.Serialization?
     private let stateURL: URL
+    // nanoMuse: 同一CKSyncEngine也会更换账户，直接查询用独立代次拒绝跨账户结果。
+    private var nmAccountGeneration = UUID()
 
     /// In-memory etag cache. Records survived a save/fetch cycle so we
     /// reuse their CKRecord system fields on the next write — preserving
@@ -123,6 +126,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// Set to true whenever serverRecordCache mutates; cleared after
     /// flush. Avoids writing on every tiny change.
     private var etagCacheDirty: Bool = false
+    // nanoMuse: 磁盘缓存也按代次撤销，后台读取和延迟写入不能跨越账户切换。
+    private var nmEtagGeneration = UUID()
 
     /// Pending records to upload, accumulated by SyncCore's send() call
     /// and consumed by the engine's nextRecordZoneChangeBatch delegate.
@@ -198,7 +203,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// we don't re-query the same window after a quick relaunch.
     private static let recentFetchLastKey = "cloudSync.v2.recentFetchLastAt"
     /// In-flight guard.
-    private var recentFetchInFlight: Bool = false
+    // nanoMuse: 旧查询与看门狗只能释放自己占用的查询槽。
+    private var recentFetchIdentifier: UUID?
     /// Repeating timer that re-runs fetchRecentV2 every recentFetchInterval
     /// seconds while the engine is up.
     private var recentFetchTimer: DispatchSourceTimer?
@@ -379,10 +385,12 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// below so an engine-written newer entry is never clobbered by the stale
     /// disk version).
     private func loadEtagCache() {
-        Task.detached(priority: .utility) { [weak self, url = self.etagCacheURL] in
+        // nanoMuse: 读取与清除共用串行队列，重启读取不能越过先前的账户清理。
+        let generation = nmEtagGeneration
+        Self.etagFlushQueue.async { [weak self, url = self.etagCacheURL] in
             let (loaded, poisoned, skippedCap, byType) = Self.decodeEtagCache(from: url)
-            await MainActor.run {
-                guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self, self.nmEtagGeneration == generation else { return }
                 self.applyLoadedEtagCache(
                     loaded: loaded,
                     poisoned: poisoned,
@@ -483,10 +491,14 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
         // encoding doesn't race against subsequent mutations.
         let snapshot = serverRecordCache
         let url = etagCacheURL
+        let generation = nmEtagGeneration
         etagCacheDirty = false
-        Task.detached { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.etagFlushDebounce * 1_000_000_000))
-            await MainActor.run { self?.etagFlushScheduled = false }
+        // nanoMuse: 核对代次和提交队列之间不await，旧写入一定排在账户清理之前。
+        Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: UInt64(Self.etagFlushDebounce * 1_000_000_000)) }
+            catch { return }
+            guard let self, self.nmEtagGeneration == generation else { return }
+            self.etagFlushScheduled = false
             Self.etagFlushQueue.async {
                 var dict: [String: Data] = [:]
                 for (rid, record) in snapshot {
@@ -503,8 +515,22 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
         }
     }
 
+    // nanoMuse: 清理与旧缓存写入串行执行，取消延迟候选后不会再次复活旧账户的etag。
+    private func nmDiscardEtagCache() {
+        nmEtagGeneration = UUID()
+        serverRecordCache.removeAll()
+        etagCacheDirty = false
+        etagFlushScheduled = false
+        Self.etagFlushQueue.async { [url = etagCacheURL] in
+            do { try FileManager.default.removeItem(at: url) }
+            catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile { }
+            catch { logger.error("[SyncTransport] obsolete etag cleanup failed: \(error.localizedDescription)") }
+        }
+    }
+
     func start() async throws {
         guard syncEngine == nil else { return }
+        let generation = nmAccountGeneration
         logger.info("[SyncTransport] start STEP=enter")
         // Restore etag cache before any send; without this, the first
         // post-launch send rebuilds CKRecords without etags and the
@@ -540,6 +566,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
         // "the zones exist now" signal.
         logger.info("[SyncTransport] start STEP=ensureZonesExist begin")
         await ensureZonesExist()
+        // nanoMuse: 网络等待期间停用或更换账户，不允许旧启动过程再次安排查询。
+        guard syncEngine === engine, nmAccountGeneration == generation else { throw SyncTransportError.notStarted }
         logger.info("[SyncTransport] start STEP=ensureZonesExist done")
         // Now drive engine to flush pendingDatabaseChanges (the saveZone
         // entries we queued above). With zones already on cloud the
@@ -553,6 +581,7 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
             let nse = error as NSError
             logger.warning("[SyncTransport] start STEP=initialSendChanges error code=\(nse.code) desc=\(error.localizedDescription)")
         }
+        guard syncEngine === engine, nmAccountGeneration == generation else { throw SyncTransportError.notStarted }
         logger.info("[SyncTransport] start STEP=exit")
         // Kick the recent-window fast-path immediately, then schedule
         // a periodic re-run. Independent of CKSyncEngine's token-driven
@@ -588,7 +617,9 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     @MainActor
     private func fetchRecentV2() async {
         logger.info("[iCloudTrace] fetchRecentV2 entering")
-        guard !recentFetchInFlight else {
+        guard let engine = syncEngine else { return }
+        let generation = nmAccountGeneration
+        guard recentFetchIdentifier == nil else {
             logger.info("[iCloudTrace] fetchRecentV2 skip — already in flight")
             // Safety net: if a previous run got stuck for any reason
             // (CK never returning, system suspension, actor deadlock),
@@ -601,8 +632,9 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
             logger.info("[iCloudTrace] fetchRecentV2 skip — throttled until \(gate)")
             return
         }
-        recentFetchInFlight = true
-        defer { recentFetchInFlight = false }
+        let identifier = UUID()
+        recentFetchIdentifier = identifier
+        defer { if recentFetchIdentifier == identifier { recentFetchIdentifier = nil } }
         // Watchdog: forcibly clear the in-flight guard after 90s in
         // case of unrecoverable hang. Doesn't cancel the in-flight
         // CK call (Swift can't kill an awaiting URLSession data task),
@@ -611,8 +643,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
             try? await Task.sleep(nanoseconds: 90_000_000_000)
             await MainActor.run {
                 guard let self = self else { return }
-                if self.recentFetchInFlight {
-                    self.recentFetchInFlight = false
+                if self.recentFetchIdentifier == identifier {
+                    self.recentFetchIdentifier = nil
                     logger.warning("[iCloudTrace] fetchRecentV2 watchdog cleared in-flight after 90s")
                 }
             }
@@ -774,6 +806,9 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
                     return .failure(error)
                 }
             }.value
+            // nanoMuse: 老查询的结果不能写入重启后的缓存、游标或观察者。
+            guard syncEngine === engine, nmAccountGeneration == generation,
+                  recentFetchIdentifier == identifier else { return }
             switch outcome {
             case .success(let rows):
                 for (rec, p) in rows {
@@ -870,20 +905,20 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
             }
         }
         // Also poke CKSyncEngine to keep its token catching up.
-        if let engine = syncEngine {
-            do {
-                try await engine.fetchChanges()
-                logger.info("[iCloudTrace] fetchRecentV2 token-fetch ok")
-            } catch {
-                let nse = error as NSError
-                let ck = error as? CKError
-                logger.warning("[iCloudTrace] fetchRecentV2 engine.fetchChanges failed: code=\(nse.code) ck=\(ck?.code.rawValue ?? -1) desc=\(error.localizedDescription)")
-                fetchHadError = true
-                if let after = ck?.retryAfterSeconds {
-                    let until = Date().addingTimeInterval(after)
-                    if (self.retryAfter ?? .distantPast) < until {
-                        self.retryAfter = until
-                    }
+        do {
+            try await engine.fetchChanges()
+            guard syncEngine === engine, nmAccountGeneration == generation else { return }
+            logger.info("[iCloudTrace] fetchRecentV2 token-fetch ok")
+        } catch {
+            guard syncEngine === engine, nmAccountGeneration == generation else { return }
+            let nse = error as NSError
+            let ck = error as? CKError
+            logger.warning("[iCloudTrace] fetchRecentV2 engine.fetchChanges failed: code=\(nse.code) ck=\(ck?.code.rawValue ?? -1) desc=\(error.localizedDescription)")
+            fetchHadError = true
+            if let after = ck?.retryAfterSeconds {
+                let until = Date().addingTimeInterval(after)
+                if (self.retryAfter ?? .distantPast) < until {
+                    self.retryAfter = until
                 }
             }
         }
@@ -916,49 +951,35 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// CompactMarkerV2, and SessionV2 with `sessionId == X` (and
     /// `id == X` for SessionV2 since the parent record uses `id`).
     /// Bypasses the 24h time window of fetchRecentV2.
+    // nanoMuse: 必须拉完全部分页且每条结果有效，不能把部分结果交给破坏性替换。
     func fetchSessionPortables(sessionId: String) async throws -> [PortableRecord] {
+        guard let engine = syncEngine else { throw SyncTransportError.notStarted }
+        let generation = nmAccountGeneration
         let zoneID = CKRecordZone.ID(zoneName: Self.sharedZoneName)
         let registry = SyncableTypeRegistry.shared
+        let database = container.privateCloudDatabase
         var portables: [PortableRecord] = []
-        var byType: [String: Int] = [:]
-        // T-forcepull-id-field: SessionV2 has no user-defined `id` field —
-        // the row id is encoded into the CKRecord's recordName, while the
-        // queryable field is `sessionId` (see SyncedSession in
-        // SyncedTypes.swift: fields[F.string("sessionId", \.id)]).
-        // Querying `id == X` returns CloudKit "Unknown field 'id'" and
-        // aborts the whole Force Pull. Match the same `sessionId` field
-        // used by MessageV2/CompactMarkerV2.
-        let typesAndPredicate: [(String, NSPredicate)] = [
-            ("SessionV2", NSPredicate(format: "sessionId == %@", sessionId)),
-            ("MessageV2", NSPredicate(format: "sessionId == %@", sessionId)),
-            ("CompactMarkerV2", NSPredicate(format: "sessionId == %@", sessionId)),
-        ]
-        for (type, predicate) in typesAndPredicate {
-            logger.info("[iCloudTrace] fetchSessionPortables querying type=\(type) sid=\(sessionId.prefix(8))")
-            let query = CKQuery(recordType: type, predicate: predicate)
-            do {
-                let result = try await container.privateCloudDatabase.records(
-                    matching: query,
-                    inZoneWith: zoneID,
-                    desiredKeys: nil,
-                    resultsLimit: CKQueryOperation.maximumResults
-                )
-                for (_, recResult) in result.matchResults {
-                    if case .success(let rec) = recResult {
-                        byType[type, default: 0] += 1
-                        serverRecordCache[rec.recordID] = rec
-                        etagCacheDirty = true
-                        if let portable = toPortable(rec, registry: registry) {
-                            portables.append(portable)
-                        }
+        var identifiers = Set<SyncRecordID>()
+        for type in ["SessionV2", "MessageV2", "CompactMarkerV2"] {
+            let query = CKQuery(recordType: type, predicate: NSPredicate(format: "sessionId == %@", sessionId))
+            var page = try await database.records(matching: query, inZoneWith: zoneID,
+                desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults)
+            while true {
+                try Task.checkCancellation()
+                guard syncEngine === engine, nmAccountGeneration == generation else { throw SyncTransportError.notStarted }
+                for (_, result) in page.matchResults {
+                    let record = try result.get()
+                    guard let portable = toPortable(record, registry: registry), portable.id.type == type,
+                          identifiers.insert(portable.id).inserted, portables.count < 100_000 else {
+                        throw CocoaError(.fileReadCorruptFile)
                     }
+                    portables.append(portable)
+                    serverRecordCache[record.recordID] = record
+                    etagCacheDirty = true
                 }
-                logger.info("[iCloudTrace] fetchSessionPortables type=\(type) count=\(byType[type] ?? 0)")
-            } catch {
-                let nse = error as NSError
-                let ck = error as? CKError
-                logger.warning("[iCloudTrace] fetchSessionPortables type=\(type) failed: code=\(nse.code) ck=\(ck?.code.rawValue ?? -1) desc=\(error.localizedDescription)")
-                throw error
+                guard let cursor = page.queryCursor else { break }
+                page = try await database.records(continuingMatchFrom: cursor,
+                    desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults)
             }
         }
         return portables
@@ -998,12 +1019,30 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     }
 
     func stop() async {
+        // nanoMuse: 停用后旧候选与迟到回调不能重新写入状态文件。
+        NivoCloudCheckpointWriter.shared.invalidate(stateURL)
+        nmClearPendingOperations()
         syncEngine = nil
         recentFetchTimer?.cancel()
         recentFetchTimer = nil
     }
 
-    func observe(handler: @escaping (SyncInboundBatch) -> Void) {
+    // nanoMuse: 同步停用或重置必须结束旧等待者，不能让旧完成回调结算下一轮操作。
+    private func nmClearPendingOperations() {
+        nmAccountGeneration = UUID()
+        recentFetchIdentifier = nil
+        pendingRecords.removeAll()
+        pendingDeletes.removeAll()
+        pendingOutcomes.removeAll()
+        fetchAccumulator = nil
+        sendCompletion?.resume(throwing: SyncTransportError.notStarted)
+        sendCompletion = nil
+        fetchCompletion?.resume(throwing: SyncTransportError.notStarted)
+        fetchCompletion = nil
+    }
+
+    // nanoMuse: 观察者同步登记接收屏障，实际落库仍可异步等待。
+    func observe(handler: @escaping @MainActor (SyncInboundBatch) -> Void) {
         self.observeHandler = handler
     }
 
@@ -1011,6 +1050,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
 
     func send(_ batch: SyncOutboundBatch, trigger: SyncSendTrigger) async throws -> [SyncOutcome] {
         guard let engine = syncEngine else { throw SyncTransportError.notStarted }
+        // nanoMuse: 同一引擎可经历账户切换，完成回调同时核对代次。
+        let generation = nmAccountGeneration
         // H2 fix: refuse overlapping sends rather than clobbering the
         // pending continuation (the first awaiter would hang forever).
         // SyncCore's isSending guard makes this rare, but migration +
@@ -1118,7 +1159,7 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
             Task.detached { [weak self] in
                 do {
                     try await engine.sendChanges()
-                    await self?.completeSend()
+                    await self?.completeSend(engine: engine, generation: generation)
                 } catch {
                     let nse = error as NSError
                     let ck = error as? CKError
@@ -1126,7 +1167,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
                     if let after = ck?.retryAfterSeconds {
                         let until = Date().addingTimeInterval(after)
                         await MainActor.run { [weak self] in
-                            if let self, (self.retryAfter ?? .distantPast) < until {
+                            if let self, self.syncEngine === engine, self.nmAccountGeneration == generation,
+                               (self.retryAfter ?? .distantPast) < until {
                                 self.retryAfter = until
                                 logger.warning("[SyncTransport] CloudKit throttle: retry-after \(after)s (gate=\(until))")
                             }
@@ -1163,7 +1205,7 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
                         || ckCode == .zoneBusy
                         || ckCode == .networkUnavailable
                         || ckCode == .networkFailure {
-                        await self?.dropUnsentPending(error: error)
+                        await self?.dropUnsentPending(engine: engine, generation: generation)
                     }
                     // partialFailure / serviceUnavailable / other engine-
                     // wide errors still mean the per-record .sentRecordZoneChanges
@@ -1173,7 +1215,7 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
                     // the normal completion path so SyncCore clears
                     // dirty for successes and preserves dirty for
                     // failures.
-                    await self?.completeSendDespiteError(error)
+                    await self?.completeSendDespiteError(error, engine: engine, generation: generation)
                 }
             }
         }
@@ -1187,8 +1229,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// turn. SyncCore will requery sync_dirty_records next round and
     /// rebuild the batch by current priority order.
     @MainActor
-    private func dropUnsentPending(error: Error) {
-        guard let engine = syncEngine else { return }
+    private func dropUnsentPending(engine: CKSyncEngine, generation: UUID) {
+        guard syncEngine === engine, nmAccountGeneration == generation else { return }
         // Records that already have a pendingOutcome were processed
         // per-record by `sentRecordZoneChanges` — don't strip those
         // (their outcome will be applied normally). Drop the rest.
@@ -1207,7 +1249,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// per-record outcomes through `.sentRecordZoneChanges`. Resume the
     /// caller with whatever outcomes we have rather than treating the
     /// whole batch as lost.
-    private func completeSendDespiteError(_ error: Error) {
+    private func completeSendDespiteError(_ error: Error, engine: CKSyncEngine, generation: UUID) {
+        guard syncEngine === engine, nmAccountGeneration == generation else { return }
         let outcomes = Array(pendingOutcomes.values)
         pendingOutcomes.removeAll()
         flushEtagCacheIfDirty()
@@ -1222,7 +1265,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
         sendCompletion = nil
     }
 
-    private func completeSend() {
+    private func completeSend(engine: CKSyncEngine, generation: UUID) {
+        guard syncEngine === engine, nmAccountGeneration == generation else { return }
         let outcomes = Array(pendingOutcomes.values)
         pendingOutcomes.removeAll()
         flushEtagCacheIfDirty()
@@ -1240,6 +1284,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
 
     func fetchChanges(trigger: SyncFetchTrigger) async throws -> SyncInboundBatch {
         guard let engine = syncEngine else { throw SyncTransportError.notStarted }
+        // nanoMuse: 重置后的旧网络任务不得完成新一轮fetch的continuation。
+        let generation = nmAccountGeneration
         if fetchCompletion != nil {
             throw SyncTransportError.fetchInFlight
         }
@@ -1250,31 +1296,20 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
                 do {
                     try await engine.fetchChanges()
                 } catch {
-                    await self.completeFetchWithError(error)
+                    await self.completeFetchWithError(error, engine: engine, generation: generation)
                     return
                 }
-                await self.completeFetch()
+                await self.completeFetch(engine: engine, generation: generation)
             }
         }
     }
 
     func fullFetch(trigger: SyncFetchTrigger) async throws -> SyncInboundBatch {
-        // H5: resume any in-flight send/fetch awaiters with an error
-        // before tearing down the engine, otherwise their continuations
-        // are silently abandoned (caller hangs forever).
-        if let cont = sendCompletion {
-            cont.resume(throwing: SyncTransportError.notStarted)
-            sendCompletion = nil
-        }
-        if let cont = fetchCompletion {
-            cont.resume(throwing: SyncTransportError.notStarted)
-            fetchCompletion = nil
-        }
-        pendingRecords.removeAll()
-        pendingDeletes.removeAll()
-        pendingOutcomes.removeAll()
-        fetchAccumulator = nil
+        // nanoMuse: 结束旧等待者并撤销直接查询，旧回调不能使用新一轮等待槽。
+        nmClearPendingOperations()
         // Reset state.bin so the next fetch re-fetches everything.
+        // nanoMuse: 删除文件前取消延迟写入，避免新引擎读取旧游标。
+        NivoCloudCheckpointWriter.shared.invalidate(stateURL)
         stateSerialization = nil
         try? FileManager.default.removeItem(at: stateURL)
         syncEngine = nil
@@ -1282,7 +1317,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
         return try await fetchChanges(trigger: trigger)
     }
 
-    private func completeFetch() {
+    private func completeFetch(engine: CKSyncEngine, generation: UUID) {
+        guard syncEngine === engine, nmAccountGeneration == generation else { return }
         let acc = fetchAccumulator ?? (records: [], deletes: [])
         let batch = SyncInboundBatch(records: acc.records, deletes: acc.deletes, sourceDeviceId: nil)
         fetchAccumulator = nil
@@ -1291,7 +1327,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
         fetchCompletion = nil
     }
 
-    private func completeFetchWithError(_ error: Error) {
+    private func completeFetchWithError(_ error: Error, engine: CKSyncEngine, generation: UUID) {
+        guard syncEngine === engine, nmAccountGeneration == generation else { return }
         fetchAccumulator = nil
         fetchCompletion?.resume(throwing: error)
         fetchCompletion = nil
@@ -1412,24 +1449,50 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
 
 @available(iOS 17.0, *)
 extension ICloudSharedZoneTransport: CKSyncEngineDelegate {
-    nonisolated func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) {
+    // nanoMuse: 使用协议的异步见证，CloudKit才会等待本事件交接后再调用下一个事件。
+    nonisolated func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
         switch event {
         case .stateUpdate(let stateUpdate):
-            Task { @MainActor [weak self] in
-                self?.persistState(stateUpdate.stateSerialization)
+            await MainActor.run { [weak self] in
+                // nanoMuse: 仅当前引擎可以推进其状态文件。
+                guard let self, self.syncEngine === syncEngine else { return }
+                self.persistState(stateUpdate.stateSerialization)
             }
-        case .accountChange:
-            // Treat as start-from-scratch on next start().
-            Task { @MainActor [weak self] in
-                self?.serverRecordCache.removeAll()
-            }
+        case .accountChange(let accountChange):
+            // nanoMuse: 身份变化清空状态候选，旧引擎的回调不得落入新账户。
+            await Task { @MainActor [weak self] in
+                guard let self, self.syncEngine === syncEngine else { return }
+                // 新引擎首次启动也会报告signIn，不能因此反复销毁和重建引擎。
+                if case .signIn = accountChange.changeType {
+                    self.nmDiscardEtagCache()
+                    return
+                }
+                self.nmClearPendingOperations()
+                self.nmDiscardEtagCache()
+                NivoCloudCheckpointWriter.shared.invalidate(self.stateURL)
+                await SyncCore.shared.nmWaitForInbound()
+                guard self.syncEngine === syncEngine else { return }
+                NivoCloudCheckpointWriter.shared.invalidate(self.stateURL)
+                self.stateSerialization = nil
+                do { try FileManager.default.removeItem(at: self.stateURL) }
+                catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile { }
+                catch { logger.error("[SyncTransport] failed to remove obsolete account state: \(error.localizedDescription)") }
+                // CKSyncEngine自行处理身份变化，保留引擎以继续接收后续登录事件。
+            }.value
         case .fetchedRecordZoneChanges(let zoneChanges):
-            Task { @MainActor [weak self] in
-                self?.handleFetchedZoneChanges(zoneChanges)
+            // nanoMuse: 先占位再交接主线程，游标事件不能越过尚未分发的接收批次。
+            let handoff = NivoCloudInboundCheckpoint.shared.begin()
+            await MainActor.run { [weak self] in
+                defer { NivoCloudInboundCheckpoint.shared.finish(handoff, succeeded: self != nil) }
+                // nanoMuse: 停用或重建后旧批次会由新引擎重拉，不能继续投递。
+                guard let self, self.syncEngine === syncEngine else { return }
+                self.handleFetchedZoneChanges(zoneChanges)
             }
         case .sentRecordZoneChanges(let sent):
-            Task { @MainActor [weak self] in
-                self?.handleSentRecordZoneChanges(sent)
+            await MainActor.run { [weak self] in
+                // nanoMuse: 旧发送结果不能结算新引擎的等待者。
+                guard let self, self.syncEngine === syncEngine else { return }
+                self.handleSentRecordZoneChanges(sent)
             }
         case .fetchedDatabaseChanges, .didSendChanges, .didFetchChanges,
              .didFetchRecordZoneChanges, .willSendChanges, .willFetchChanges,
@@ -1445,7 +1508,8 @@ extension ICloudSharedZoneTransport: CKSyncEngineDelegate {
         syncEngine: CKSyncEngine
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
         await MainActor.run { [weak self] in
-            guard let self else { return nil as CKSyncEngine.RecordZoneChangeBatch? }
+            // nanoMuse: 重建后的旧引擎不能取走新引擎队列。
+            guard let self, self.syncEngine === syncEngine else { return nil as CKSyncEngine.RecordZoneChangeBatch? }
             let recs = self.pendingRecords; self.pendingRecords.removeAll()
             let dels = self.pendingDeletes; self.pendingDeletes.removeAll()
             guard !recs.isEmpty || !dels.isEmpty else { return nil }
@@ -1819,9 +1883,13 @@ extension ICloudSharedZoneTransport: CKSyncEngineDelegate {
 
     @MainActor
     private func persistState(_ state: CKSyncEngine.State.Serialization) {
-        self.stateSerialization = state
+        // nanoMuse: 接收任务正在等待聊天空闲时，磁盘继续保留上次已完整应用的游标。
         if let data = try? JSONEncoder().encode(state) {
-            try? data.write(to: stateURL, options: .atomic)
+            NivoCloudCheckpointWriter.shared.schedule(data: data, to: stateURL) { [weak self] in
+                self?.stateSerialization = state
+            } onFailure: { error in
+                logger.error("[SyncTransport] checkpoint write failed; retaining previous cursor: \(error.localizedDescription)")
+            }
         }
     }
 

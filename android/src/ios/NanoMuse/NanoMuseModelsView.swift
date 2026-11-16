@@ -25,6 +25,8 @@ struct NanoMuseModelsView: View {
 
     var body: some View {
         NanoMusePage(title: AppLocalized("Models")) {
+            NivoProviderMigrationNotice()
+            NivoProviderDeletionNotice()
             NanoMuseCard {
                 ForEach(Array(NanoMuseSlot.allCases.enumerated()), id: \.element) { index, slot in
                     if index > 0 { NanoMuseRowDivider() }
@@ -34,6 +36,7 @@ struct NanoMuseModelsView: View {
             if chatChanged {
                 NanoMuseCaption(text: AppLocalized("Applies to the main chat and to new chats; a side chat keeps its model."))
             }
+            NanoMuseVoiceModelsSection()
             // The account's models as a source. Off, nanoMuse Cloud leaves the pickers and the
             // automatic order; the sign-in stays. Not a delete: the Cloud instance is the account.
             if NanoMuseCloud.isSignedIn {
@@ -73,6 +76,7 @@ struct NanoMuseModelsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NanoMuseModelSlots.changed)) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: NanoMuseMediaModels.changed)) { _ in reload() }
+        .onReceive(ProviderConfigStore.shared.$config.receive(on: RunLoop.main)) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .sessionModelBindingChanged)) { _ in reload() }
         .sheet(isPresented: $adding) {
             NanoMuseOwnKeySheet { _ in reload() }

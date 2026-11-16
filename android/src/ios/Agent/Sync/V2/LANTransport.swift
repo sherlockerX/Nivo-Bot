@@ -48,7 +48,8 @@ final class LANTransport: SyncTransport {
         preconditionFailure("LANTransport not yet implemented")
     }
 
-    func observe(handler: @escaping (SyncInboundBatch) -> Void) {
+    // nanoMuse: 后续实际传输也必须在主隔离域按顺序登记接收批次。
+    func observe(handler: @escaping @MainActor (SyncInboundBatch) -> Void) {
         // Real implementation stores `handler` and calls it on inbound frames.
         // Skeleton: drop the handler on the floor, since no frames will arrive.
         _ = handler

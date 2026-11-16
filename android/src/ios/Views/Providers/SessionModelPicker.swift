@@ -9,15 +9,8 @@ struct SessionModelPicker: View {
     var ensureSessionId: (() async -> String)?
     @ObservedObject private var store = ProviderConfigStore.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var pendingNonTextOutput: PendingSelection?
-
-    private struct PendingSelection: Identifiable {
-        let id = UUID()
-        let entry: ModelEntry
-        let group: ModelGroup?
-        let modalityLabel: String
-        let isGroupBind: Bool
-    }
+    // nanoMuse: 选择器和运行器使用同一能力规则，失效组给出明确反馈。
+    @State private var selectionUnavailable = false
 
     init(sessionId: String?, ensureSessionId: (() async -> String)? = nil) {
         self.sessionId = sessionId
@@ -49,6 +42,7 @@ struct SessionModelPicker: View {
             title: "Choose Model",
             mode: .single,
             groupScope: .all,
+            candidateFilter: { $0.model.nmSupportsConversation },
             dismissOnSelect: false,
             currentEntryId: { [self] in currentEntryId },
             currentGroupId: { [self] in currentGroupId },
@@ -57,61 +51,22 @@ struct SessionModelPicker: View {
             onSelectInGroup: { entry, group in handleEntryTap(entry, inGroup: group) }
         ))
         .alert(
-            AppLocalized("This model may not work as an Agent"),
-            isPresented: Binding(
-                get: { pendingNonTextOutput != nil },
-                set: { if !$0 { pendingNonTextOutput = nil } }
-            ),
-            presenting: pendingNonTextOutput
-        ) { selection in
-            Button(AppLocalized("Choose another model"), role: .cancel) {
-                pendingNonTextOutput = nil
-            }
-            Button(AppLocalized("Use anyway")) {
-                let entry = selection.entry
-                let group = selection.group
-                let isGroupBind = selection.isGroupBind
-                pendingNonTextOutput = nil
-                if isGroupBind, let group {
-                    bindToGroup(group)
-                } else {
-                    bindToEntry(entry, inGroup: group)
-                }
-            }
-        } message: { selection in
-            Text(AppLocalized("\(selection.entry.model.displayName) outputs \(selection.modalityLabel) and usually can't drive an Agent task. Pick a text-output model for the session, or add this model to Available Models in Agent Loop so the agent can call it via minis-model-use when it needs to generate \(selection.modalityLabel)."))
+            AppLocalized("No model configured. Add a provider in Settings."),
+            isPresented: $selectionUnavailable
+        ) {
+            Button(AppLocalized("Choose another model"), role: .cancel) {}
         }
     }
 
     // MARK: - Non-text output guard
 
-    private func nonTextOutputLabel(for model: LLMModel) -> String? {
-        guard let modality = model.modalityOverride else { return nil }
-        if modality.contains(.imageOutput) { return AppLocalized("image") }
-        if modality.contains(.audioOutput) { return AppLocalized("audio") }
-        if modality.contains(.videoOutput) { return AppLocalized("video") }
-        return nil
-    }
-
     private func handleEntryTap(_ entry: ModelEntry, inGroup group: ModelGroup? = nil) {
-        if let label = nonTextOutputLabel(for: entry.model) {
-            pendingNonTextOutput = PendingSelection(entry: entry, group: group, modalityLabel: label, isGroupBind: false)
-            return
-        }
+        // nanoMuse: 组内手动选择和列表选择都不能绕过运行前的能力门槛。
+        guard store.nmIsUsableChatEntry(entry) else { selectionUnavailable = true; return }
         bindToEntry(entry, inGroup: group)
     }
 
     private func handleGroupTap(_ group: ModelGroup) {
-        guard let sid = sessionId,
-              let resolvedEntryId = ModelGroupRouter.resolve(group: group, sessionId: sid, store: store),
-              let resolvedEntry = store.entry(for: resolvedEntryId) else {
-            bindToGroup(group)
-            return
-        }
-        if let label = nonTextOutputLabel(for: resolvedEntry.model) {
-            pendingNonTextOutput = PendingSelection(entry: resolvedEntry, group: group, modalityLabel: label, isGroupBind: true)
-            return
-        }
         bindToGroup(group)
     }
 
@@ -125,7 +80,11 @@ struct SessionModelPicker: View {
     private func bindToGroup(_ group: ModelGroup) {
         Task {
             guard let sid = await resolveSessionId() else { return }
-            let resolvedEntryId = ModelGroupRouter.resolve(group: group, sessionId: sid, store: store) ?? ""
+            // nanoMuse: 不将纯媒体组持久化为空模型绑定。
+            guard let resolvedEntryId = ModelGroupRouter.resolve(group: group, sessionId: sid, store: store) else {
+                selectionUnavailable = true
+                return
+            }
             let source = SessionModelSource.group(groupId: group.id, resolvedEntryId: resolvedEntryId)
             let existing = store.binding(for: sid)
             let binding = SessionModelBinding(
@@ -154,6 +113,11 @@ struct SessionModelPicker: View {
     private func bindToEntry(_ entry: ModelEntry, inGroup group: ModelGroup? = nil) {
         Task {
             guard let sid = await resolveSessionId() else { return }
+            // nanoMuse: 创建会话期间模型配置可能已经变化，写入前再校验一次。
+            guard let current = store.entry(for: entry.id), store.nmIsUsableChatEntry(current) else {
+                selectionUnavailable = true
+                return
+            }
             let source: SessionModelSource
             if let group {
                 source = .group(groupId: group.id, resolvedEntryId: entry.id)

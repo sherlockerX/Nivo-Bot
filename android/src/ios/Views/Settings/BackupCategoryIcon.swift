@@ -60,6 +60,8 @@ struct BackupCategoryIcon: View {
         case .mcpServers: return "square.stack.3d.up.fill"
         case .voiceCorrections: return "waveform"
         case .environmentVariables: return "terminal.fill"
+        // nanoMuse: 个人成长数据独立备份入口。
+        case .personalData: return "person.crop.rectangle.stack.fill"
         }
     }
 
@@ -73,6 +75,8 @@ struct BackupCategoryIcon: View {
         case .mcpServers: return .cyan
         case .voiceCorrections: return .purple
         case .environmentVariables: return .brown
+        // nanoMuse: 沿用设置页的圆形分类配色。
+        case .personalData: return .mint
         }
     }
 }

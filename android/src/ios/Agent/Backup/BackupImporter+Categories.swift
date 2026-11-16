@@ -9,13 +9,18 @@ private let logger = AppLogger(category: "Backup")
 /// for DB-backed categories a full row-level snapshot would be prohibitive on a
 /// 100k-message database, so those record no file snapshot and rely on
 /// per-record LWW being idempotent (re-running a Merge import is a no-op).
-struct BackupRollbackSnapshot {
+// nanoMuse: 配置分享导入也跨actor等待快照和回滚；值只包含分类与文件URL。
+struct BackupRollbackSnapshot: Sendable {
     let category: BackupCategory
     /// live directory → saved copy
     var directories: [(live: URL, saved: URL)] = []
     /// live file → saved copy, for categories backed by a single file rather
     /// than a tree (provider-config.json).
     var files: [(live: URL, saved: URL)] = []
+    // nanoMuse: 首次导入创建的配置文件在回滚时必须恢复为不存在。
+    var absentFiles: [URL] = []
+    // nanoMuse: SQLite快照必须通过原连接恢复，不能套用普通文件原子替换。
+    var databases: [(live: URL, saved: URL)] = []
 }
 
 extension BackupImporter {
@@ -38,7 +43,13 @@ extension BackupImporter {
 
     // MARK: - Rollback
 
-    func snapshotForRollback(category: BackupCategory, staging: URL) throws -> BackupRollbackSnapshot {
+    // nanoMuse: 等待数据库在线快照，快照准备结束前不能进入正式导入。
+    func snapshotForRollback(category: BackupCategory, staging: URL) async throws -> BackupRollbackSnapshot {
+        // nanoMuse: 私有数据只快照本次租约的账户，空目录也记录，支持首次导入回滚。
+        if category == .personalData {
+            guard let personalLease else { throw NivoPersonalBackupError.busy }
+            return try NivoPersonalBackupFiles.snapshot(owner: personalLease.ownerKey, staging: staging)
+        }
         var snap = BackupRollbackSnapshot(category: category)
         let fm = FileManager.default
 
@@ -54,17 +65,28 @@ extension BackupImporter {
         // file rather than a directory, so it is snapshotted via a dedicated
         // file-level entry instead of the directory copy-aside used above.
         case .providers: liveDirs = []
-        // Environment variables merge into the live store rather than
-        // replacing a file, so there is nothing to snapshot.
-        case .chats, .skills, .voiceCorrections, .environmentVariables:
+        // nanoMuse: 环境变量元数据在下方按单文件保存回滚快照。
+        case .chats, .skills, .voiceCorrections, .environmentVariables, .personalData:
             liveDirs = []
         }
 
         // File-backed categories: snapshot the single file.
         if category == .providers {
-            let live = ProviderConfigStore.configFileURLForBackup
+            // nanoMuse: V3数据库含思考规则和本机选择，JSON镜像不能替代它。
+            let databaseSaved = staging.appendingPathComponent("providers-provider-config.db")
+            if let databaseLive = try await ProviderConfigStore.shared.nmSnapshotDatabaseForRollback(to: databaseSaved) {
+                try Data(databaseLive.path.utf8).write(
+                    to: staging.appendingPathComponent(databaseSaved.lastPathComponent + NivoBackupRollbackFiles.sqliteSidecarSuffix),
+                    options: .atomic)
+                snap.databases.append((live: databaseLive, saved: databaseSaved))
+            }
+        }
+        // nanoMuse: 环境变量元数据同样需要可恢复快照，不能只回滚新插入的Keychain值。
+        if category == .providers || category == .environmentVariables {
+            let live = category == .providers ? ProviderConfigStore.configFileURLForBackup : EnvVarStore.configFileURLForBackup
+            let savedName = "\(category.rawValue)-\(live.lastPathComponent)"
             if fm.fileExists(atPath: live.path) {
-                let saved = staging.appendingPathComponent("providers-provider-config.json")
+                let saved = staging.appendingPathComponent(savedName)
                 try? fm.removeItem(at: saved)
                 try fm.copyItem(at: live, to: saved)
                 // [review I4] Record the live target in a sidecar. Directory
@@ -72,31 +94,49 @@ extension BackupImporter {
                 // plain file cannot do — so without this, reconcileAtLaunch
                 // skipped the providers snapshot entirely and a crash mid
                 // provider-restore left it unrecoverable.
-                try? Data(live.path.utf8).write(
+                // nanoMuse: 无法记录恢复来源就中止准备，不能留一个不可恢复的快照。
+                try Data(live.path.utf8).write(
                     to: staging.appendingPathComponent(
-                        "providers-provider-config.json"
+                        savedName
                         + BackupRestoreJournal.fileSnapshotSidecarSuffix),
                     options: .atomic)
                 snap.files.append((live: live, saved: saved))
+            } else {
+                // nanoMuse: 首次导入的配置失败后必须恢复为原先不存在。
+                let saved = staging.appendingPathComponent(savedName + BackupRestoreJournal.absentFileSidecarSuffix)
+                try Data(live.path.utf8).write(to: saved, options: .atomic)
+                snap.absentFiles.append(live)
             }
         }
 
-        for live in liveDirs where fm.fileExists(atPath: live.path) {
+        // nanoMuse: 不存在的目标也登记缺席状态，避免失败后残留新建目录。
+        for live in liveDirs {
             let saved = staging.appendingPathComponent(
                 "\(category.rawValue)-\(live.lastPathComponent)", isDirectory: true)
+            if !fm.fileExists(atPath: live.path) {
+                let marker = staging.appendingPathComponent(saved.lastPathComponent + BackupRestoreJournal.absentFileSidecarSuffix)
+                try Data(live.path.utf8).write(to: marker, options: .atomic)
+                snap.absentFiles.append(live)
+                continue
+            }
             try? fm.removeItem(at: saved)
             try fm.copyItem(at: live, to: saved)
             // Record where this came from, so a launch-time reconcile after a
             // crash can restore it without re-deriving the mapping.
-            try? Data(live.path.utf8).write(
+            // nanoMuse: 路径标记失败必须与快照复制失败一样中止导入。
+            try Data(live.path.utf8).write(
                 to: saved.appendingPathComponent(".live-path"), options: .atomic)
             snap.directories.append((live: live, saved: saved))
         }
         return snap
     }
 
-    func rollback(_ snapshot: BackupRollbackSnapshot) throws {
+    // nanoMuse: 回滚等待数据库和缓存重载，不能用未等待的Task冒充已经恢复。
+    func rollback(_ snapshot: BackupRollbackSnapshot) async throws {
         let fm = FileManager.default
+        for pair in snapshot.databases {
+            try await ProviderConfigStore.shared.nmRestoreDatabase(from: pair.saved, live: pair.live)
+        }
         for pair in snapshot.directories {
             try fm.createDirectory(at: pair.live.deletingLastPathComponent(),
                                    withIntermediateDirectories: true)
@@ -107,14 +147,19 @@ extension BackupImporter {
             try BackupRestoreJournal.atomicReplace(directory: pair.saved, onto: pair.live)
         }
         for pair in snapshot.files {
-            _ = try? FileManager.default.replaceItemAt(pair.live, withItemAt: pair.saved)
+            // nanoMuse: 文件回滚保留快照并传播磁盘错误，支持下一次启动重试。
+            try BackupRestoreJournal.atomicReplaceFile(pair.saved, onto: pair.live)
         }
-        // A file-level provider rollback only rewrites the JSON on disk; the
-        // in-memory store still holds the merged config, so it must be reloaded
-        // or the UI would keep showing state that is no longer persisted.
-        if !snapshot.files.isEmpty {
-            Task { @MainActor in await ProviderConfigStore.shared.reloadFromDisk() }
+        for live in snapshot.absentFiles where fm.fileExists(atPath: live.path) { try fm.removeItem(at: live) }
+        // nanoMuse: JSON和数据库均恢复后才重载缓存，防止界面继续持有导入中的配置。
+        if snapshot.category == .providers {
+            // nanoMuse: 新插入凭证也要恢复缺席状态；已存在或之后更新的凭证不会删除。
+            if let credentialRestorePlan { try NivoCredentialRestore.rollback(credentialRestorePlan.receipt) }
+            try await ProviderConfigStore.shared.nmReloadFromDisk()
+            try await ProviderConfigStore.shared.nmReloadThinkingRuleCache()
+            await ProviderConfigStore.shared.nmDidRollbackConfiguration()
         }
+        if snapshot.category == .environmentVariables { await EnvVarStore.shared.reloadFromDisk() }
         logger.info("[Restore] rolled back \(snapshot.category.rawValue) (\(snapshot.directories.count) dir(s))")
     }
 
@@ -134,6 +179,8 @@ extension BackupImporter {
         case .voiceCorrections: return try await importVoiceCorrections(root: root)
         case .environmentVariables:
             return try await importEnvironmentVariables(root: root)
+        // nanoMuse: 值合并和引用文件在同一个可回滚边界内恢复。
+        case .personalData: return try await importPersonalData(root: root, fileIndex: fileIndex)
         }
     }
 
@@ -148,7 +195,8 @@ extension BackupImporter {
         // Folders first: sessions carry a folderId, and applying the folder
         // beforehand means the reference resolves immediately.
         for env in readJSONL(dataDir, base: "folders", as: ChatFolder.self) {
-            await store.applyRemoteFolder(env)
+            // nanoMuse: 显式恢复允许找回已删分组，但真实SQL失败必须触发整包回滚。
+            try await store.applyRemoteFolder(env, respectTombstones: false)
         }
 
         // Sessions before messages — restoreMessage requires the parent row.
@@ -376,9 +424,9 @@ extension BackupImporter {
 
         let before = await MainActor.run { ProviderConfigStore.shared.config.instances.count }
         if #available(iOS 17.0, *) {
-            await CloudSyncEngine.mergeProviderConfigForRestore(merged)
+            try await CloudSyncEngine.mergeProviderConfigForRestore(merged)
         } else {
-            await MainActor.run { Self.mergeProviderConfigFallback(merged) }
+            try await Self.mergeProviderConfigFallback(merged)
         }
         let after = await MainActor.run { ProviderConfigStore.shared.config.instances.count }
 
@@ -410,15 +458,18 @@ extension BackupImporter {
         let rules = readJSONL(root.appendingPathComponent("data", isDirectory: true),
                               base: "thinking_rules", as: BackupThinkingRuleRecord.self)
         if !rules.isEmpty {
-            let outcome = await Self.importThinkingRules(rules)
+            let outcome = try await Self.importThinkingRules(rules)
             report.imported += outcome.written
             report.skipped += outcome.skipped
         }
 
         // §3.3: credentials belong to this category and restore with it.
         // Absent for a "share copy" package, which is why nil is not an error.
-        if let creds = await MainActor.run(body: { BackupSecretsImporter.restore(from: root) }) {
-            report.credentialsRestored = creds.providersRestored
+        // nanoMuse: 凭证计划在快照前已校验，日志成功落盘后才允许写入。
+        if let credentialRestorePlan {
+            let creds = try BackupSecretsImporter.restore(credentialRestorePlan)
+            // nanoMuse: 此类别承载三类凭证，计数包含已验证的环境变量和MCP插入。
+            report.credentialsRestored = creds.total
             report.credentialsKept = creds.providersSkippedExisting
                 + creds.envVarsSkippedExisting + creds.mcpOAuthSkippedExisting
         }
@@ -442,12 +493,12 @@ extension BackupImporter {
     @MainActor
     private static func importThinkingRules(
         _ rules: [BackupThinkingRuleRecord]
-    ) async -> (written: Int, skipped: Int) {
-        guard let db = ProviderConfigStore.shared.db else { return (0, 0) }
+    ) async throws -> (written: Int, skipped: Int) {
+        guard let db = ProviderConfigStore.shared.db else { throw NivoSQLiteSnapshotError.invalidDatabase }
         var written = 0
         var skipped = 0
         for r in rules {
-            let applied = await db.upsertThinkingRuleFromInbound(
+            let applied = try await db.nmUpsertThinkingRule(
                 id: r.id,
                 instanceId: r.instanceId,
                 sortOrder: r.sortOrder,
@@ -462,10 +513,8 @@ extension BackupImporter {
             )
             if applied { written += 1 } else { skipped += 1 }
         }
-        // The resolver reads rules through a process-wide cache, so a restore
-        // that only touched SQLite would not affect the next request until the
-        // app restarted.
-        await ProviderConfigStore.shared.reloadThinkingRuleCache()
+        // nanoMuse: 规则缓存读取失败必须使导入失败，不能在下一次请求仍用旧规则时报告完成。
+        try await ProviderConfigStore.shared.nmReloadThinkingRuleCache()
         logger.info("[Restore] thinking rules: \(written) applied, \(skipped) skipped (local newer or unchanged)")
         return (written, skipped)
     }
@@ -521,7 +570,7 @@ extension BackupImporter {
     /// device-to-device convergence, not for "put my backup back" — but it
     /// must never delete, which is the property that was broken.
     @MainActor
-    static func mergeProviderConfigFallback(_ remote: ProviderConfig) {
+    static func mergeProviderConfigFallback(_ remote: ProviderConfig) async throws {
         let store = ProviderConfigStore.shared
         var local = store.config
 
@@ -583,7 +632,8 @@ extension BackupImporter {
         local.agentLoopGroupIds = Array(
             Set(local.agentLoopGroupIds).union(remote.agentLoopGroupIds))
 
-        store.applyConfig(local)
+        // nanoMuse: iOS16也等待JSON和SQLite成功，不以界面发布作为恢复完成依据。
+        try await store.nmApplyRestoredConfiguration(local)
         logger.info("[Restore] provider merge (iOS16 path): instances=\(local.instances.count) entries=\(local.modelEntries.count) groups=\(local.modelGroups.count)")
     }
 
@@ -629,21 +679,10 @@ extension BackupImporter {
         decoder.dateDecodingStrategy = .iso8601
         let incoming = try decoder.decode([EnvVarEntry].self, from: data)
 
-        await MainActor.run {
-            let store = EnvVarStore.shared
-            let existing = Set(store.entries.map(\.key))
-            for entry in incoming {
-                guard !existing.contains(entry.key) else {
-                    report.skipped += 1
-                    continue
-                }
-                // The secrets importer may already have written this key's
-                // value into the Keychain; keep it rather than blanking it.
-                let value = EnvVarStore.loadValueSync(forKey: entry.key) ?? ""
-                store.add(key: entry.key, value: value, note: entry.note)
-                report.imported += 1
-            }
-        }
+        // nanoMuse: 元数据合并不再次写Keychain，保留凭证事务的标记直到整包结束。
+        let outcome = try await EnvVarStore.shared.nmImportMetadata(incoming)
+        report.imported = outcome.imported
+        report.skipped = outcome.skipped
         return report
     }
 
@@ -714,6 +753,8 @@ extension BackupImporter {
         case .sharedFiles: return AIChatViewModel.minisSharedPersistentDir
         case .skills: return AIChatViewModel.minisSkillsPersistentDir
         case .memory: return AIChatViewModel.minisMemoryPersistentDir
+        // nanoMuse: 个人备份使用自己的固定白名单路径，仍保留类别隔离根。
+        case .personalData: return NanoMuseDirs.root
         case .providers, .mcpServers, .voiceCorrections, .environmentVariables:
             // These write single known files, not index-driven trees; give them
             // the app-group root so the check is still meaningful if one ever
@@ -902,7 +943,14 @@ extension BackupImporter {
 
     // MARK: - Store reloads (§8.1)
 
-    func reloadStores(for categories: Set<BackupCategory>) async {
+    // nanoMuse: 缓存读取失败必须保留恢复日志，不能报告导入完成。
+    func reloadStores(for categories: Set<BackupCategory>) async throws {
+        // nanoMuse: 成功导入也更新提供商与思考规则缓存，不依赖一次后续页面刷新。
+        if categories.contains(.providers) {
+            try await ProviderConfigStore.shared.nmReloadFromDisk()
+            try await ProviderConfigStore.shared.nmReloadThinkingRuleCache()
+        }
+        if categories.contains(.environmentVariables) { await EnvVarStore.shared.reloadFromDisk() }
         if categories.contains(.skills) {
             await MainActor.run { SkillStore.shared.reload() }
         }

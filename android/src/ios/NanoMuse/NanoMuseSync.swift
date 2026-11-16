@@ -53,80 +53,12 @@ final class NanoMuseSync: ObservableObject {
 
     // MARK: - Side table
 
-    /// One local session's place in the account's store.
-    struct Entry: Codable {
-        var cid: String
-        /// `main` or `side`, fixed when the session is first mapped.
-        var kind: String
-        /// The hub device the conversation came from; nil when it started on this phone.
-        var fromDevice: String?
-        var fromDeviceName: String?
-        /// What the relay last heard about the conversation itself.
-        var pushedTitle: String?
-        var pushedUpdatedAt: Int?
-        /// Message ids (lowercase) the relay already has, pushed or pulled.
-        var knownMids: Set<String> = []
-    }
-
-    /// A pulled text that could not be written yet (its chat was running a turn here).
-    struct Pending: Codable {
-        var mid: String
-        var cid: String
-        var role: String
-        var text: String
-        var createdAt: Int
-        var deviceName: String
-    }
-
-    private struct Store: Codable {
-        /// The account the table belongs to; another account starts from an empty one.
-        var account = ""
-        var cursor = 0
-        /// Local session id → entry.
-        var entries: [String: Entry] = [:]
-        /// The cid every device's main chat shares, once known.
-        var mainCid: String?
-        /// Conversations deleted locally whose tombstone has not reached the relay yet.
-        var pendingDeletes: [String] = []
-        /// Whether this table has pulled at least once: a push waits for that (C8 — a device that
-        /// has never pulled pulls first, so its main joins the account's instead of racing it).
-        var pulled = false
-        /// Message id (lowercase) → the name of the device it was written on, for the texts
-        /// that came down from elsewhere (the bubble's "From {device}").
-        var remoteMids: [String: String] = [:]
-        /// Pulled texts waiting for their chat to finish a turn here.
-        var deferred: [Pending] = []
-        /// C10: the local session the Chat tab showed when this account was last signed in, so
-        /// the same chat is the main one again when it comes back.
-        var mainSession: String?
-
-        init(account: String = "") {
-            self.account = account
-        }
-
-        /// The 0.1.36 table has none of the C8 fields; they default rather than fail the decode
-        /// (a failed decode would mean a fresh table — and every conversation pushed again under new cids).
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            account = try c.decodeIfPresent(String.self, forKey: .account) ?? ""
-            cursor = try c.decodeIfPresent(Int.self, forKey: .cursor) ?? 0
-            entries = try c.decodeIfPresent([String: Entry].self, forKey: .entries) ?? [:]
-            mainCid = try c.decodeIfPresent(String.self, forKey: .mainCid)
-            pendingDeletes = try c.decodeIfPresent([String].self, forKey: .pendingDeletes) ?? []
-            pulled = try c.decodeIfPresent(Bool.self, forKey: .pulled) ?? (cursor > 0)
-            remoteMids = try c.decodeIfPresent([String: String].self, forKey: .remoteMids) ?? [:]
-            deferred = try c.decodeIfPresent([Pending].self, forKey: .deferred) ?? []
-            mainSession = try c.decodeIfPresent(String.self, forKey: .mainSession)
-        }
-    }
-
-    /// C10: every account's table, by account key. The one signed in is `store` (and its copy
-    /// here is refreshed on every save); the others wait, and say which sessions are theirs.
-    private struct Tables: Codable {
-        var stores: [String: Store] = [:]
-        /// The key of the account the tables were last open for ("" before the first sign-in).
-        var current = ""
-    }
+    // nanoMuse: 与可移植回归共用真实持久模型，宿主只负责页面和网络接入。
+    typealias Entry = NivoRelayEntry
+    typealias Pending = NivoRelayPending
+    private typealias Store = NivoRelayStore
+    private typealias Tables = NivoRelayTables
+    private typealias Lease = NivoRelaySyncLifecycle.Lease
 
     private enum Keys {
         /// The local switch (Data controls). Default on, as the contract says.
@@ -152,12 +84,14 @@ final class NanoMuseSync: ObservableObject {
 
     private var store = Store()
     /// C10: the other accounts' tables (and the current one's last saved copy).
-    private var tables = Tables()
-    private var loaded = false
+    private var checkpoint = NivoRelaySyncState()
+    private var tables: Tables { checkpoint.tables }
+    private var loaded: Bool { checkpoint.isLoaded }
+    private var lifecycle = NivoRelaySyncLifecycle()
+    private var operationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var controlIntents = 0
     private var started = false
     private var inForeground = false
-    private var pulling = false
-    private var pushing = false
     private var pullAgain = false
     private var pushAgain = false
     private var pushDebounce: Task<Void, Never>?
@@ -193,11 +127,20 @@ final class NanoMuseSync: ObservableObject {
     /// and pulls narrow to the main; what came down stays, as ordinary chats.
     func setSideChats(_ on: Bool) {
         guard on != sideChats else { return }
-        sideChats = on
-        revision += 1
-        guard on, active else { return }
-        fullPullWanted = true
-        pull()
+        do {
+            try loadChecked()
+            invalidateRequests()
+            if on, !store.account.isEmpty {
+                // 范围扩展必须先保存回溯起点，重启不能漏掉此前没有拉取的旁聊。
+                store.cursor = 0
+                store.pulled = false
+                try save()
+            }
+            sideChats = on
+            revision += 1
+            fullPullWanted = on
+            if active { pull() }
+        } catch { note(error) }
     }
 
     /// The query a pull makes. `tail` is asked on a table's first pull (cursor 0) and on the
@@ -220,7 +163,12 @@ final class NanoMuseSync: ObservableObject {
     }
 
     private var active: Bool {
-        NanoMuseCloud.isSignedIn && enabled && haltedAccount != accountKey
+        // 个人构建关闭此中继会话同步入口，iCloud同步使用独立设置。
+        // nanoMuse: 备份冻结期间不拉取新的正文或删除，保证教练引用与聊天快照一致。
+        !NanoMuseOffline.isOn && NanoMuseAccountData.shared.isReady
+            && !NanoMuseAccountData.shared.isChangingAccount && !NivoPersonalBackupAccess.isBusy
+            && !BackupRestoreJournal.hasPendingRecovery
+            && NanoMuseCloud.isSignedIn && enabled && haltedAccount != accountKey
     }
 
     /// C10: the key a table is filed under — the relay's opaque `account.id`; the 0.1.38 key
@@ -254,7 +202,13 @@ final class NanoMuseSync: ObservableObject {
     /// The account a session belongs to — the one whose table maps it (it was pushed to or
     /// pulled from that account); nil for a session no account has synced.
     func owner(of sessionId: String) -> String? {
-        if !loaded { load() }
+        do { return try ownerChecked(of: sessionId) }
+        catch { note(error); return nil }
+    }
+
+    /// 账户迁移不能把不可读映射当成无归属，调用方必须处理失败。
+    func ownerChecked(of sessionId: String) throws -> String? {
+        try loadChecked(activateAccount: false)
         if store.entries[sessionId] != nil { return store.account }
         for (key, table) in tables.stores where key != store.account && table.entries[sessionId] != nil { return key }
         return nil
@@ -264,24 +218,27 @@ final class NanoMuseSync: ObservableObject {
     /// sync tables) and C12 (the owner row, `NanoMuseAccountData.shows`) both agree, and it is
     /// not the feed's working conversation, which is the agent's and no chat of the person's.
     func shows(_ sessionId: String) -> Bool {
-        !NanoMuseFeedFlow.isFeedSession(sessionId)
+        load()
+        return loaded && (accountKey.isEmpty || store.account == accountKey)
+            && !NanoMuseFeedFlow.isFeedSession(sessionId)
             && Self.visible(owner: owner(of: sessionId), current: accountKey) && NanoMuseAccountData.shared.shows(sessionId)
     }
 
     /// C12: the account's table goes with its chats (a sign-out without *Keep*, *Delete
     /// account*): a later sign-in starts a fresh table rather than reading the missing
     /// sessions as deletions and tombstoning them on the account's other devices.
-    func dropTable(for account: String) {
-        load()
-        guard loaded, !account.isEmpty else { return }
-        tables.stores.removeValue(forKey: account)
+    func dropTable(for account: String) throws {
+        try loadChecked(activateAccount: false)
+        guard !account.isEmpty else { return }
+        var candidate = tables
+        candidate.stores.removeValue(forKey: account)
+        if candidate.current == account { candidate.current = "" }
+        try checkpoint.commit(candidate, to: Self.syncFiles())
         if store.account == account {
-            store = Store(account: account)
+            store = Store()
             workingToSend = [:]
-            pushDebounce?.cancel()
+            invalidateRequests()
         }
-        guard let data = try? JSONEncoder().encode(tables) else { return }
-        try? data.write(to: Self.tablesURL, options: .atomic)
         revision += 1
     }
 
@@ -303,6 +260,10 @@ final class NanoMuseSync: ObservableObject {
     /// until the app was sent to the background and back or a session changed, so a fresh
     /// sign-in sat on an empty draft while the other device's main chat waited on the relay.
     func accountChanged() {
+        invalidateRequests()
+        serverEnabled = nil
+        conversationCount = 0
+        messageCount = 0
         load()
         if accountKey.isEmpty {
             // signed out: what the relay said about the account's conversations is forgotten and
@@ -330,17 +291,18 @@ final class NanoMuseSync: ObservableObject {
     /// The signed-in account is not the one `store` is for: file the current table, take the
     /// account's own (re-keyed from the 0.1.38 key when that is how it was filed) or a fresh
     /// one, start its cursor over (rule 4), clear presence, tell the lists and the main chat.
-    private func activate(_ key: String) {
+    private func activate(_ key: String) throws {
+        var candidate = tables
         let previous = tables.current
         if !previous.isEmpty {
-            store.mainSession = Self.localMainSessionId()
-            tables.stores[previous] = store
+            // 当前主会话偏好可能已经属于新账户，不把它覆盖到离开的账户。
+            candidate.stores[previous] = store
         }
         let legacyKey = legacyAccountKey
         var next: Store
-        if let own = tables.stores[key] {
+        if let own = candidate.stores[key] {
             next = own
-        } else if !legacyKey.isEmpty, legacyKey != key, let legacy = tables.stores.removeValue(forKey: legacyKey) {
+        } else if !legacyKey.isEmpty, legacyKey != key, let legacy = candidate.stores.removeValue(forKey: legacyKey) {
             next = legacy
         } else {
             next = Store(account: key)
@@ -349,16 +311,18 @@ final class NanoMuseSync: ObservableObject {
         // the cursor over: the next pull is the tail pull, and the push waits for it
         next.cursor = 0
         next.pulled = false
+        candidate.current = key
+        candidate.stores[key] = next
+        try checkpoint.commit(candidate, to: Self.syncFiles())
         store = next
-        tables.current = key
-        tables.stores[key] = next
-        save()
+        invalidateRequests()
         workingToSend = [:]
         fullPullWanted = false
         if haltedAccount != key { haltedAccount = nil }
         NanoMusePresence.shared.reset()
         // the lists and the Chat tab: off the view update that may have asked for the table
         Task { @MainActor [self] in
+            guard accountKey == key, store.account == key else { return }
             revision += 1
             NotificationCenter.default.post(name: .nanoMuseAccountSwitched, object: key)
             NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
@@ -366,6 +330,61 @@ final class NanoMuseSync: ObservableObject {
     }
 
     // MARK: - Lifecycle
+
+    /// 身份只在进程内比较，凭证不进入持久化表或诊断日志。
+    private var currentIdentity: NivoRelaySyncLifecycle.Identity {
+        .init(account: accountKey, credential: NanoMuseCloud.apiKey ?? "", endpoint: NanoMuseCloud.baseURL,
+              accountGeneration: NanoMuseAccountData.shared.generation)
+    }
+
+    /// 停用、切号、切换同步范围时撤销旧意图；实际请求结束前继续保留占位。
+    private func invalidateRequests() {
+        lifecycle.invalidate()
+        pullAgain = false
+        pushAgain = false
+        pushDebounce?.cancel()
+        pushDebounce = nil
+    }
+
+    private func beginOperation(requiresActive: Bool = true) throws -> Lease? {
+        if requiresActive { try loadChecked() }
+        guard !requiresActive || active else { return nil }
+        guard NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
+              !NivoPersonalBackupAccess.isBusy, !BackupRestoreJournal.hasPendingRecovery,
+              !requiresActive || store.account == accountKey else { return nil }
+        guard let lease = lifecycle.begin(currentIdentity) else { return nil }
+        syncing = true
+        return lease
+    }
+
+    private func requireCurrent(_ lease: Lease, requiresActive: Bool = true) throws {
+        try Task.checkCancellation()
+        guard lifecycle.accepts(lease, identity: currentIdentity),
+              !requiresActive || store.account == lease.intent.identity.account,
+              NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
+              !NivoPersonalBackupAccess.isBusy, !BackupRestoreJournal.hasPendingRecovery,
+              !requiresActive || active else { throw CancellationError() }
+    }
+
+    private func endOperation(_ lease: Lease) {
+        guard lifecycle.end(lease) else { return }
+        syncing = false
+        let waiters = operationWaiters
+        operationWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        drainRequests()
+    }
+
+    private func waitForOperation() async {
+        guard lifecycle.isBusy else { return }
+        await withCheckedContinuation { operationWaiters.append($0) }
+    }
+
+    private func drainRequests() {
+        guard !lifecycle.isBusy, controlIntents == 0, active else { return }
+        if pullAgain { pullAgain = false; pull(); return }
+        if pushAgain { pushAgain = false; schedulePush() }
+    }
 
     /// Called once from the app root: load the table, watch the app's life, pull.
     func start() {
@@ -426,9 +445,11 @@ final class NanoMuseSync: ObservableObject {
         if active { workingToSend[session] = false } // C9: "working: false" follows the turn's last push
         schedulePush()
         // Texts that arrived while this chat was busy go in once the activity tracker has let go.
-        if !store.deferred.isEmpty {
+        if active, !store.deferred.isEmpty {
+            let intent = lifecycle.intent(for: currentIdentity)
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                do { try await Task.sleep(nanoseconds: 1_500_000_000) } catch { return }
+                guard self.lifecycle.accepts(intent, identity: self.currentIdentity) else { return }
                 await self.flushDeferred()
             }
         }
@@ -469,11 +490,13 @@ final class NanoMuseSync: ObservableObject {
 
     /// The chat is about to be deleted locally: remember its cid for the tombstone.
     func conversationWillBeDeleted(_ sessionId: String) {
-        load()
-        guard let entry = store.entries.removeValue(forKey: sessionId) else { return }
-        store.pendingDeletes.append(entry.cid)
-        save()
-        schedulePush()
+        do {
+            try loadChecked()
+            guard store.entries[sessionId] != nil else { return }
+            store.removeLocalConversation(sessionId)
+            try save()
+            schedulePush()
+        } catch { note(error) }
     }
 
     /// The device a synced chat came from, for the drawer's "From Pixel 8"; nil for this phone's own.
@@ -490,55 +513,84 @@ final class NanoMuseSync: ObservableObject {
     /// Reads the relay's switch and counts.
     func refreshState() async {
         guard NanoMuseCloud.isSignedIn, let token = NanoMuseCloud.apiKey else { return }
+        var request: Lease?
         do {
+            guard controlIntents == 0, let lease = try beginOperation(requiresActive: false) else { return }
+            request = lease
+            defer { endOperation(lease) }
             let reply = try await NanoMuseCloud.call("GET", "/v1/sync/state", body: nil, token: token)
+            try requireCurrent(lease, requiresActive: false)
             apply(state: reply)
             lastError = nil
         } catch {
-            note(error)
+            note(error, for: request)
         }
     }
 
     /// The switch: off → the relay deletes everything and this phone stops; on → an empty store,
     /// this phone's conversations go up again.
     func setEnabled(_ on: Bool) async {
-        enabled = on
-        guard NanoMuseCloud.isSignedIn, let token = NanoMuseCloud.apiKey else { return }
+        var request: Lease?
+        controlIntents += 1
+        defer { controlIntents -= 1; drainRequests() }
         do {
+            invalidateRequests()
+            enabled = on
+            // 本地文件损坏也必须允许关闭云端同步；重新开启才要求本机表完整可读。
+            if on { try loadChecked() }
+            let intent = lifecycle.intent(for: currentIdentity)
+            await waitForOperation()
+            guard lifecycle.accepts(intent, identity: currentIdentity), !Task.isCancelled,
+                  let lease = try beginOperation(requiresActive: false) else { return }
+            request = lease
+            defer { endOperation(lease) }
+            let token = lease.intent.identity.credential
             let reply = try await NanoMuseCloud.call("PUT", "/v1/sync/state", body: ["enabled": on], token: token)
+            try requireCurrent(lease, requiresActive: false)
             apply(state: reply)
             lastError = nil
             if on {
-                load()
                 for key in store.entries.keys { store.entries[key]?.knownMids = []; store.entries[key]?.pushedTitle = nil }
                 // The relay's store is empty again: pull first (the cursor keeps counting), then
                 // everything this phone has goes up — the full backfill, oldest first.
                 store.pulled = false
-                save()
-                foregrounded()
+                try save()
+                pullAgain = true
+                if inForeground { startPullTimer() }
             } else {
                 pullTimer?.invalidate()
                 pullTimer = nil
             }
         } catch {
-            note(error)
+            note(error, for: request)
         }
     }
 
     /// "Delete synced conversations": the store is wiped, the switch stays.
     func deleteSynced() async {
-        guard NanoMuseCloud.isSignedIn, let token = NanoMuseCloud.apiKey else { return }
+        var request: Lease?
+        controlIntents += 1
+        defer { controlIntents -= 1; drainRequests() }
         do {
+            // 尽量准备本地映射，但文件故障不阻止用户删除中继中的数据。
+            load()
+            invalidateRequests()
+            let intent = lifecycle.intent(for: currentIdentity)
+            await waitForOperation()
+            guard lifecycle.accepts(intent, identity: currentIdentity), !Task.isCancelled,
+                  let lease = try beginOperation(requiresActive: false) else { return }
+            request = lease
+            defer { endOperation(lease) }
+            let token = lease.intent.identity.credential
             _ = try await NanoMuseCloud.call("DELETE", "/v1/sync/changes", body: nil, token: token)
+            try requireCurrent(lease, requiresActive: false)
             conversationCount = 0
             messageCount = 0
             lastError = nil
-            // What this phone has is still its own; the relay simply has nothing of it now.
-            load()
-            for key in store.entries.keys { store.entries[key]?.knownMids = []; store.entries[key]?.pushedTitle = nil }
-            save()
+            // 中继删除不清除本机已上传标记，否则下一次定时同步会立即把全部旧聊天再上传。
+            // 此操作不需要改写本地表，文件损坏也不应掩盖已完成的云端删除。
         } catch {
-            note(error)
+            note(error, for: request)
         }
     }
 
@@ -562,60 +614,67 @@ final class NanoMuseSync: ObservableObject {
         // Signed in since the last foreground: the minute pull starts now.
         if inForeground, pullTimer == nil { foregrounded() }
         pushDebounce?.cancel()
+        let intent = lifecycle.intent(for: currentIdentity)
         pushDebounce = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            guard !Task.isCancelled else { return }
-            self?.push()
+            guard !Task.isCancelled, let self,
+                  self.lifecycle.accepts(intent, identity: self.currentIdentity) else { return }
+            self.push()
         }
     }
 
     /// Everything the relay does not have yet: new or changed conversations, new texts, tombstones.
     func push() {
-        guard active, let token = NanoMuseCloud.apiKey else { return }
-        load()
+        guard active else { return }
+        do { try loadChecked() } catch { note(error); return }
         // A table that never pulled pulls first: the account's main may already exist, and our
         // main must join it rather than race it. The pull schedules this push when it is done.
         guard store.pulled else { pull(); return }
-        if pushing { pushAgain = true; return }
-        pushing = true
-        syncing = true
+        if lifecycle.isBusy || controlIntents > 0 { pushAgain = true; return }
+        let lease: Lease
+        do {
+            guard let started = try beginOperation() else { return }
+            lease = started
+        } catch { note(error); return }
         Task { @MainActor [self] in
-            defer {
-                pushing = false
-                syncing = pulling
-                if pushAgain { pushAgain = false; schedulePush() }
-            }
-            load()
+            defer { endOperation(lease) }
             do {
-                try await pushTombstones(token: token)
-                try await pushChanges(token: token)
+                try requireCurrent(lease)
+                try await pushTombstones(lease: lease)
+                try await pushChanges(lease: lease)
+                try requireCurrent(lease)
                 lastError = nil
                 sendWorking()
             } catch {
-                note(error)
+                note(error, for: lease)
             }
         }
     }
 
-    private func pushTombstones(token: String) async throws {
+    private func pushTombstones(lease: Lease) async throws {
         guard !store.pendingDeletes.isEmpty else { return }
         for cid in store.pendingDeletes {
+            try requireCurrent(lease)
             do {
-                _ = try await NanoMuseCloud.call("DELETE", "/v1/sync/conversations/\(cid)", body: nil, token: token)
+                _ = try await NanoMuseCloud.call("DELETE", "/v1/sync/conversations/\(cid)", body: nil,
+                    token: lease.intent.identity.credential)
             } catch let error as NanoMuseCloudError where error.status == 404 {
                 // already gone
             }
+            try requireCurrent(lease)
             store.pendingDeletes.removeAll { $0 == cid }
-            save()
+            try save()
         }
     }
 
-    private func pushChanges(token: String) async throws {
+    private func pushChanges(lease: Lease) async throws {
         // Oldest first (C8): a sign-in backfills the whole history in the order it happened, the
         // first conversation at the head.
         let every = await eligibleSessions().sorted { $0.createdAt < $1.createdAt }
+        try requireCurrent(lease)
         let mainId = ownMainSessionId()
-        let alive = Set(every.map(\.id))
+        let alive = try await ChatStore.shared.nmAccountSessionIDs()
+        try requireCurrent(lease)
         // C9: with the side-chat switch off only the main chat goes up — the one mapped as main,
         // or the shell's main when it has no entry yet. The side chats stay this phone's.
         // C10, rule 3: another account's conversations never go up under this one — only the
@@ -623,112 +682,141 @@ final class NanoMuseSync: ObservableObject {
         // C12: nor the chats another account, or nobody, owns on this phone.
         let sideChats = sideChats
         let sessions = every.filter { session in
-            guard Self.visible(owner: owner(of: session.id), current: store.account), NanoMuseAccountData.shared.shows(session.id) else { return false }
+            guard !store.pendingCreations.contains(session.id), Self.visible(owner: owner(of: session.id), current: store.account), NanoMuseAccountData.shared.shows(session.id) else { return false }
             return sideChats || session.id == mainId || store.entries[session.id]?.kind == "main"
         }
 
         // Sessions that vanished without passing through the drawer's delete (Clear-all, upstream list).
-        for (id, entry) in store.entries where !alive.contains(id) {
-            store.entries.removeValue(forKey: id)
-            store.pendingDeletes.append(entry.cid)
+        for id in Array(store.entries.keys) where !alive.contains(id) && !store.pendingCreations.contains(id) {
+            store.removeLocalConversation(id)
         }
         if !store.pendingDeletes.isEmpty {
-            save()
-            try await pushTombstones(token: token)
+            try save()
+            try await pushTombstones(lease: lease)
         }
 
         var conversations: [[String: Any]] = []
         var messages: [[String: Any]] = []
         // What each message record came from, to mark it known once accepted.
-        var pending: [(session: String, mid: String)] = []
+        var pending: [(session: String, mid: String, deleted: Bool)] = []
+
+        let previousEntryCount = store.entries.count
+        for session in sessions { ensureEntry(for: session, isMain: session.id == mainId) }
+        if previousEntryCount != store.entries.count { try save() }
 
         for session in sessions {
-            let entry = ensureEntry(for: session, isMain: session.id == mainId)
+            try requireCurrent(lease)
+            guard let entry = store.entries[session.id] else { continue }
             // The shell's main can map as side when another local session already holds the shared cid.
             guard Self.takes(kind: entry.kind, sideChats: sideChats) else { continue }
             let updated = Int(session.updatedAt.timeIntervalSince1970)
-            if entry.pushedTitle != (session.title ?? "") || entry.pushedUpdatedAt != updated {
-                var record: [String: Any] = [
-                    "cid": entry.cid,
-                    "kind": entry.kind,
-                    "created_at": Int(session.createdAt.timeIntervalSince1970),
-                    "updated_at": updated,
-                ]
-                if let title = session.title, !title.isEmpty { record["title"] = title }
-                conversations.append(record)
-            }
+            let sendsMetadata = entry.requiresConversationUpload(title: session.title ?? "", updatedAt: updated, hasMessageChanges: false)
+            var conversation: [String: Any] = [
+                "cid": entry.cid,
+                "kind": entry.kind,
+                "created_at": Int(session.createdAt.timeIntervalSince1970),
+                "updated_at": updated,
+            ]
+            if let title = session.title, !title.isEmpty { conversation["title"] = title }
+            if sendsMetadata { conversations.append(conversation) }
+            let previousMessageCount = messages.count
 
-            // Only a session that changed since its last push is read; the rest is known.
-            guard entry.knownMids.isEmpty || entry.pushedUpdatedAt != updated else { continue }
-            let local = await ChatStore.shared.loadMessages(sessionId: session.id)
-            let present = Set(local.map { $0.id.lowercased() })
+            // 清空与裁剪不保证改变会话时间，先严格读ID判定删除，再决定是否解码正文。
+            let present = try await ChatStore.shared.nmRelayMessageIDs(sessionID: session.id)
+            try requireCurrent(lease)
             // The first conversation's opening (what the app said on the agent's behalf) is virtual
             // here — in the message list, never in the database — so the other devices get it
             // from this table, under stable ids, dated just before the person's first line.
             let intro = Self.introRecords(for: session, cid: entry.cid)
             let introMids = Set(intro.compactMap { $0["mid"] as? String })
+            guard entry.requiresMessageScan(present: present, intro: introMids, updatedAt: updated) else { continue }
+            let local = try await ChatStore.shared.nmRelayMessages(sessionID: session.id, excludingKnown: entry.knownMids)
+            try requireCurrent(lease)
             // Texts that were deleted here since the relay got them.
             for mid in entry.knownMids where !present.contains(mid) && !introMids.contains(mid) {
                 messages.append(["mid": mid, "cid": entry.cid, "role": "user", "text": "", "created_at": Int(Date().timeIntervalSince1970), "deleted": true])
-                pending.append((session.id, mid))
+                pending.append((session.id, mid, true))
             }
             for record in intro {
                 guard let mid = record["mid"] as? String, !entry.knownMids.contains(mid) else { continue }
                 messages.append(record)
-                pending.append((session.id, mid))
+                pending.append((session.id, mid, false))
             }
             for message in local.sorted(by: { $0.createdAt < $1.createdAt }) {
                 let mid = message.id.lowercased()
                 // What came down from another device is theirs to push, not ours.
                 guard !entry.knownMids.contains(mid), store.remoteMids[mid] == nil, let record = Self.record(message, cid: entry.cid) else { continue }
                 messages.append(record)
-                pending.append((session.id, mid))
+                pending.append((session.id, mid, false))
+            }
+            if !sendsMetadata, entry.requiresConversationUpload(title: session.title ?? "", updatedAt: updated,
+                hasMessageChanges: messages.count > previousMessageCount) {
+                conversations.append(conversation)
             }
         }
 
         guard !conversations.isEmpty || !messages.isEmpty else { return }
 
-        // Conversations first, then the texts, 200 a POST.
-        var first = true
-        var offset = 0
+        // 会话和消息分别分批；只有全部批次完成后，才确认本次会话的更新时间。
+        // 否则第二批失败时，第一批写入的时间会让下次上传误以为整段历史已经同步。
+        var rejectedSessions = Set<String>()
+        var conversationOffset = 0
+        var messageOffset = 0
         repeat {
-            let slice = Array(messages[offset..<min(offset + Self.pushLimit, messages.count)])
+            try requireCurrent(lease)
+            let sendingConversations = conversationOffset < conversations.count
+            let messageStart = messageOffset
+            let messageEnd = sendingConversations ? messageOffset : min(messageOffset + Self.pushLimit, messages.count)
+            let conversationStart = conversationOffset
+            let conversationEnd = min(conversationOffset + Self.pushLimit, conversations.count)
             let body: [String: Any] = [
                 "device": NanoMuseHub.shared.deviceId,
-                "conversations": first ? conversations : [],
-                "messages": slice,
+                "conversations": Array(conversations[conversationStart..<conversationEnd]),
+                "messages": Array(messages[messageStart..<messageEnd]),
             ]
-            let reply = try await NanoMuseCloud.call("POST", "/v1/sync/changes", body: body, token: token)
-            let rejected = reply["rejected"] as? [[String: Any]] ?? []
-            let rejectedMids = Set(rejected.compactMap { $0["mid"] as? String })
-            for (session, mid) in pending[offset..<min(offset + Self.pushLimit, pending.count)] where !rejectedMids.contains(mid) {
-                store.entries[session]?.knownMids.insert(mid)
+            let reply = try await NanoMuseCloud.call("POST", "/v1/sync/changes", body: body,
+                token: lease.intent.identity.credential)
+            try requireCurrent(lease)
+            let receipt = try NivoRelayPushReceipt.decode(JSONSerialization.data(withJSONObject: reply))
+            let rejectedMids = Set(receipt.rejected.compactMap(\.mid))
+            let rejectedCids = Set(receipt.rejected.compactMap(\.cid))
+            for session in sessions where store.entries[session.id].map({ rejectedCids.contains($0.cid) }) == true {
+                rejectedSessions.insert(session.id)
             }
-            if first {
-                for session in sessions {
-                    guard store.entries[session.id] != nil else { continue }
-                    store.entries[session.id]?.pushedTitle = session.title ?? ""
-                    store.entries[session.id]?.pushedUpdatedAt = Int(session.updatedAt.timeIntervalSince1970)
+            for (session, mid, deleted) in pending[messageStart..<messageEnd] {
+                if rejectedMids.contains(mid) { rejectedSessions.insert(session); continue }
+                guard !rejectedSessions.contains(session) else { continue }
+                if deleted {
+                    store.entries[session]?.knownMids.remove(mid)
+                    store.remoteMids.removeValue(forKey: mid)
+                } else {
+                    store.entries[session]?.knownMids.insert(mid)
                 }
-                if let mainId, let entry = store.entries[mainId], entry.kind == "main", store.mainCid == nil { store.mainCid = entry.cid }
             }
-            save()
-            // Another device's main chat was there first: ours joins it.
-            if let clash = rejected.first(where: { ($0["reason"] as? String) == "main_exists" }),
-               let cidMain = clash["cid_main"] as? String,
-               let rejectedCid = clash["cid"] as? String {
-                adoptMain(cidMain, rejectedCid: rejectedCid)
+            try save()
+            if let clash = receipt.rejected.first(where: { $0.reason == "main_exists" }),
+               let shared = clash.cidMain, let rejected = clash.cid {
+                try adoptMain(shared, rejectedCid: rejected)
                 return
             }
-            first = false
-            offset += Self.pushLimit
-        } while offset < messages.count
+            conversationOffset = conversationEnd
+            messageOffset = messageEnd
+        } while messageOffset < messages.count || conversationOffset < conversations.count
+        for session in sessions where !rejectedSessions.contains(session.id) {
+            guard store.entries[session.id] != nil else { continue }
+            store.entries[session.id]?.pushedTitle = session.title ?? ""
+            store.entries[session.id]?.pushedUpdatedAt = Int(session.updatedAt.timeIntervalSince1970)
+        }
+        if let mainId, let entry = store.entries[mainId], entry.kind == "main", store.mainCid == nil {
+            store.mainCid = entry.cid
+        }
+        try save()
     }
 
     /// The relay keeps one main conversation; the session we pushed as `rejectedCid` re-posts under it.
-    private func adoptMain(_ cidMain: String, rejectedCid: String) {
+    private func adoptMain(_ cidMain: String, rejectedCid: String) throws {
         store.mainCid = cidMain
-        guard let sessionId = store.entries.first(where: { $0.value.cid == rejectedCid })?.key else { save(); return }
+        guard let sessionId = store.entries.first(where: { $0.value.cid == rejectedCid })?.key else { try save(); return }
         if store.entries.contains(where: { $0.value.cid == cidMain }) {
             // Another local session already is the shared main; this one stays a side chat.
             store.entries[sessionId]?.kind = "side"
@@ -739,7 +827,7 @@ final class NanoMuseSync: ObservableObject {
             store.entries[sessionId]?.knownMids = []
             store.entries[sessionId]?.pushedTitle = nil
         }
-        save()
+        try save()
         revision += 1
         pushAgain = true
     }
@@ -806,42 +894,44 @@ final class NanoMuseSync: ObservableObject {
 
     /// What the other devices wrote since our cursor, applied in `seq` order.
     func pull() {
-        guard active, let token = NanoMuseCloud.apiKey else { return }
-        if pulling { pullAgain = true; return }
-        pulling = true
-        syncing = true
+        guard active else { return }
+        if lifecycle.isBusy || controlIntents > 0 { pullAgain = true; return }
+        let lease: Lease
+        do {
+            guard let started = try beginOperation() else { return }
+            lease = started
+        } catch { note(error); return }
         Task { @MainActor [self] in
-            defer {
-                pulling = false
-                syncing = pushing
-                if pullAgain { pullAgain = false; pull() }
-            }
-            load()
+            defer { endOperation(lease) }
+            let full = fullPullWanted || store.cursor == 0
             do {
+                try requireCurrent(lease)
                 var more = true
                 var touched = false
                 // C9: a table's first pull and the switch-on pull start at 0 and ask for the last
                 // `tail` texts per conversation; the switch-on pull leaves the cursor where it is
                 // (only ever raised) so nothing is pulled twice later.
-                let full = fullPullWanted || store.cursor == 0
-                fullPullWanted = false
                 var since = full ? 0 : store.cursor
                 while more {
+                    try requireCurrent(lease)
                     let path = Self.pullPath(since: since, sideChats: sideChats, tail: full ? Self.tail : nil)
-                    let reply = try await NanoMuseCloud.call("GET", path, body: nil, token: token)
-                    let changed = await apply(changes: reply)
+                    let reply = try await NanoMuseCloud.call("GET", path, body: nil, token: lease.intent.identity.credential)
+                    try requireCurrent(lease)
+                    let page = try NivoRelaySyncPage.decode(JSONSerialization.data(withJSONObject: reply), since: since)
+                    let changed = try await apply(changes: page, lease: lease)
+                    try requireCurrent(lease)
                     touched = touched || changed
-                    let cursor = (reply["cursor"] as? Int) ?? Int((reply["cursor"] as? Double) ?? 0)
+                    let cursor = page.cursor
                     if cursor > store.cursor { store.cursor = cursor }
-                    save()
-                    more = (reply["more"] as? Bool) ?? false
-                    if cursor <= since { more = false }
+                    try save()
+                    more = page.more
                     since = cursor
                 }
                 if !store.pulled {
                     store.pulled = true
-                    save()
+                    try save()
                 }
+                if full { fullPullWanted = false }
                 lastError = nil
                 if touched {
                     revision += 1
@@ -851,94 +941,35 @@ final class NanoMuseSync: ObservableObject {
                 // Our own texts the relay does not have yet (first pull after sign-in, a new main cid).
                 schedulePush()
             } catch {
-                note(error)
+                note(error, for: lease)
             }
         }
     }
 
     /// One page. Returns true when something changed locally.
-    private func apply(changes reply: [String: Any]) async -> Bool {
+    private func apply(changes reply: NivoRelaySyncPage, lease: Lease) async throws -> Bool {
         var changed = false
         let me = NanoMuseHub.shared.deviceId
-        // C10: the account's main joins the shell's main chat only when that chat is this
-        // account's business — never another account's conversation still pinned to the tab
-        let mainId = ownMainSessionId()
-        let sideChats = sideChats
-
-        for record in reply["conversations"] as? [[String: Any]] ?? [] {
-            guard let cid = record["cid"] as? String else { continue }
-            let deleted = (record["deleted"] as? Bool) ?? false
-            let kind = (record["kind"] as? String) ?? "side"
-            let title = (record["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-            let device = record["device"] as? String
-            let deviceName = record["device_name"] as? String
-            let local = store.entries.first(where: { $0.value.cid == cid })
-            // C9: with the switch off a side conversation this phone does not know is not its business.
-            if !Self.takes(kind: kind, sideChats: sideChats), local == nil { continue }
-
-            if deleted {
-                if let local {
-                    store.entries.removeValue(forKey: local.key)
-                    await ChatStore.shared.deleteSession(local.key)
-                    changed = true
-                }
-                if store.mainCid == cid { store.mainCid = nil }
-                continue
-            }
-
-            if kind == "main" {
-                store.mainCid = cid
-                if let local {
-                    let sessionId = local.key
-                    if let title, title != local.value.pushedTitle, await ChatStore.shared.getSession(sessionId)?.title != title {
-                        await ChatStore.shared.updateSessionTitle(sessionId, title: title, category: nil)
-                        store.entries[sessionId]?.pushedTitle = title
-                        changed = true
-                    }
-                } else if let mainId, store.entries[mainId]?.kind != "side" {
-                    // Our main chat joins the account's: its texts go up under the shared cid.
-                    let own = store.entries[mainId]
-                    store.entries[mainId] = Entry(cid: cid, kind: "main", fromDevice: own?.fromDevice, fromDeviceName: own?.fromDeviceName, pushedTitle: title, pushedUpdatedAt: nil, knownMids: [])
-                    if let title, await ChatStore.shared.getSession(mainId)?.title == nil {
-                        await ChatStore.shared.updateSessionTitle(mainId, title: title, category: nil)
-                    }
-                    changed = true
-                } else {
-                    // No main chat here yet (a draft): the account's main becomes a session the shell adopts.
-                    let session = await ChatStore.shared.createSession(modelId: Self.defaultModelId(), title: title, source: "nanomuse-sync")
-                    store.entries[session.id] = Entry(cid: cid, kind: "main", fromDevice: device, fromDeviceName: deviceName, pushedTitle: title, pushedUpdatedAt: nil, knownMids: [])
-                    NotificationCenter.default.post(name: .nanoMuseMainChatAdopt, object: session.id)
-                    changed = true
-                }
-                continue
-            }
-
-            if let local {
-                let sessionId = local.key
-                if let title, title != local.value.pushedTitle, await ChatStore.shared.getSession(sessionId)?.title != title {
-                    await ChatStore.shared.updateSessionTitle(sessionId, title: title, category: nil)
-                    store.entries[sessionId]?.pushedTitle = title
-                    changed = true
-                }
-            } else {
-                let session = await ChatStore.shared.createSession(modelId: Self.defaultModelId(), title: title, source: "nanomuse-sync")
-                store.entries[session.id] = Entry(cid: cid, kind: "side", fromDevice: device, fromDeviceName: deviceName, pushedTitle: title, pushedUpdatedAt: Int(session.updatedAt.timeIntervalSince1970), knownMids: [])
-                changed = true
-            }
+        for record in reply.conversations {
+            if try await applyConversation(record, lease: lease) { changed = true }
         }
 
         // Texts, grouped by conversation so each session's ids are read once.
         var presentBySession: [String: Set<String>] = [:]
-        for record in reply["messages"] as? [[String: Any]] ?? [] {
-            guard let mid = (record["mid"] as? String)?.lowercased(), let cid = record["cid"] as? String,
-                  let entry = store.entries.first(where: { $0.value.cid == cid }) else { continue }
+        for record in reply.messages {
+            try requireCurrent(lease)
+            let mid = record.mid
+            let cid = record.cid
+            guard let entry = store.entries.first(where: { $0.value.cid == cid }) else { continue }
             let sessionId = entry.key
             // C9: a side chat's texts stay where they were written while the switch is off.
             guard Self.takes(kind: entry.value.kind, sideChats: sideChats) else { continue }
-            let deleted = (record["deleted"] as? Bool) ?? false
-            if deleted {
-                await ChatStore.shared.deleteLocalMessage(messageId: mid)
-                await ChatStore.shared.deleteLocalMessage(messageId: mid.uppercased())
+            if record.deleted {
+                // nanoMuse: 消息删除同样持有占位，两种UUID大小写清理属于同一次操作。
+                let editToken = try NivoChatAccountAccess.beginConversationEdit([sessionId])
+                defer { NivoScheduledRunScopes.shared.endConversationEdit(editToken) }
+                try await ChatStore.shared.nmDeleteRelayMessage(messageID: mid, sessionID: sessionId)
+                try requireCurrent(lease)
                 store.entries[sessionId]?.knownMids.remove(mid)
                 store.remoteMids.removeValue(forKey: mid)
                 store.deferred.removeAll { $0.mid == mid }
@@ -946,48 +977,140 @@ final class NanoMuseSync: ObservableObject {
                 continue
             }
             // Our own texts are here already (or were deleted here, which the push says): the echo.
-            if (record["device"] as? String) == me { store.entries[sessionId]?.knownMids.insert(mid); continue }
+            if record.device == me { store.entries[sessionId]?.knownMids.insert(mid); continue }
             if store.entries[sessionId]?.knownMids.contains(mid) == true || store.deferred.contains(where: { $0.mid == mid }) { continue }
             if presentBySession[sessionId] == nil {
-                presentBySession[sessionId] = Set(await ChatStore.shared.loadMessages(sessionId: sessionId).map { $0.id.lowercased() })
+                presentBySession[sessionId] = Set(try await ChatStore.shared.nmRelayMessages(sessionID: sessionId).map { $0.id.lowercased() })
+                try requireCurrent(lease)
             }
             if presentBySession[sessionId]?.contains(mid) == true { store.entries[sessionId]?.knownMids.insert(mid); continue }
-            guard let roleName = record["role"] as? String, MessageRole(rawValue: roleName) != nil else { continue }
-            var text = (record["text"] as? String) ?? ""
-            if let attachments = record["attachments"] as? [[String: Any]], !attachments.isEmpty {
-                let names = attachments.compactMap { $0["name"] as? String }.filter { !$0.isEmpty }
+            let roleName = record.role
+            var text = record.text
+            if let attachments = record.attachments, !attachments.isEmpty {
+                let names = attachments.map(\.name).filter { !$0.isEmpty }
                 if !names.isEmpty {
                     let line = String(format: AppLocalized("Files on the other device: %@"), names.joined(separator: ", "))
                     text = text.isEmpty ? line : text + "\n\n" + line
                 }
             }
             guard !text.isEmpty else { store.entries[sessionId]?.knownMids.insert(mid); continue }
-            let created = (record["created_at"] as? Int) ?? Int((record["created_at"] as? Double) ?? Date().timeIntervalSince1970)
-            let pending = Pending(mid: mid, cid: cid, role: roleName, text: text, createdAt: created, deviceName: (record["device_name"] as? String) ?? "")
-            if await insert(pending, into: sessionId) {
+            let pending = Pending(mid: mid, cid: cid, role: roleName, text: text,
+                createdAt: record.createdAt, deviceName: record.deviceName ?? "")
+            if try await insert(pending, into: sessionId, lease: lease) {
                 presentBySession[sessionId]?.insert(mid)
                 changed = true
             }
         }
-        if !store.deferred.isEmpty, await writeDeferred() { changed = true }
+        if !store.deferred.isEmpty, try await writeDeferred(lease: lease) { changed = true }
         return changed
+    }
+
+    /// 会话映射先落盘，创建或标题更新失败时保持原游标，下一次继续使用预留ID。
+    private func applyConversation(_ record: NivoRelaySyncPage.Conversation, lease: Lease) async throws -> Bool {
+        try requireCurrent(lease)
+        let local = store.entries.first { $0.value.cid == record.cid }
+        guard Self.takes(kind: record.kind, sideChats: sideChats) else { return false }
+        if record.deleted { return try await removeConversation(record, localID: local?.key, lease: lease) }
+        guard !store.pendingDeletes.contains(record.cid) else { return false }
+        let sessionID = try reserveConversation(record, localID: local?.key)
+        guard let entry = store.entries[sessionID] else { throw NivoLifeError.corruptStore }
+        if !store.pendingCreations.contains(sessionID), entry.pushedTitle == record.title {
+            let existing = try await ChatStore.shared.nmRemoteChatSession(recordType: "SessionV2", id: sessionID)
+            try requireCurrent(lease)
+            if existing == sessionID {
+                // 元数据没有变化时不占用正在回答的聊天，正文可进入持久延后队列。
+                announceMainIfNeeded(record, sessionID: sessionID)
+                return false
+            }
+        }
+        let edit = try NivoChatAccountAccess.beginConversationEdit([sessionID])
+        defer { NivoScheduledRunScopes.shared.endConversationEdit(edit) }
+        let request = NivoRelayChatSQL.Session(id: sessionID, title: record.title.flatMap { $0.isEmpty ? nil : $0 },
+            modelID: Self.defaultModelId(), createdAt: Double(record.createdAt), updatedAt: Double(record.updatedAt),
+            memoryEnabled: (UserDefaults.standard.object(forKey: "memory.global.enabled") as? Bool) ?? true,
+            mayCreate: store.pendingCreations.contains(sessionID), updatesTitle: entry.pushedTitle != record.title,
+            onlyIfUntitled: entry.kind == "main" && entry.fromDevice == nil && entry.pushedUpdatedAt == nil)
+        let result = try await ChatStore.shared.nmEnsureRelayConversation(request)
+        try requireCurrent(lease)
+        if result == .missing {
+            store.entries.removeValue(forKey: sessionID)
+            store.pendingCreations.remove(sessionID)
+            store.pendingDeletes.append(record.cid)
+            try save()
+            return false
+        }
+        // 认领失败保留预留记录；重放继续绑定原账户，而不是读取迟到回调时的身份。
+        if NanoMuseAccountData.shared.owner(of: sessionID) != lease.intent.identity.account {
+            try NanoMuseAccountData.shared.claim(sessionID, owner: lease.intent.identity.account)
+        }
+        store.entries[sessionID]?.pushedTitle = record.title
+        if store.pendingCreations.remove(sessionID) != nil { try save() }
+        announceMainIfNeeded(record, sessionID: sessionID)
+        return result == .inserted || result == .updated
+    }
+
+    private func announceMainIfNeeded(_ record: NivoRelaySyncPage.Conversation, sessionID: String) {
+        if record.kind == "main", ownMainSessionId() == nil {
+            NotificationCenter.default.post(name: .nanoMuseMainChatAdopt, object: sessionID)
+        }
+    }
+
+    private func reserveConversation(_ record: NivoRelaySyncPage.Conversation, localID: String?) throws -> String {
+        if record.kind == "main" { store.mainCid = record.cid }
+        if let localID { return localID }
+        let main = record.kind == "main" ? ownMainSessionId() : nil
+        let adoptsMain = main.map { store.entries[$0]?.kind != "side" } ?? false
+        let identifier = (adoptsMain ? main : nil) ?? UUID().uuidString
+        let own = store.entries[identifier]
+        store.entries[identifier] = Entry(cid: record.cid, kind: record.kind,
+            fromDevice: adoptsMain ? own?.fromDevice : record.device,
+            fromDeviceName: adoptsMain ? own?.fromDeviceName : record.deviceName)
+        if !adoptsMain { store.pendingCreations.insert(identifier) }
+        try save()
+        return identifier
+    }
+
+    private func removeConversation(_ record: NivoRelaySyncPage.Conversation, localID: String?, lease: Lease) async throws -> Bool {
+        let preservesSession = localID != nil && localID == ownMainSessionId()
+        if let localID {
+            let edit = try NivoChatAccountAccess.beginConversationEdit([localID])
+            defer { NivoScheduledRunScopes.shared.endConversationEdit(edit) }
+            try await ChatStore.shared.nmApplyRelayConversationDeletion(sessionID: localID, conversationID: record.cid,
+                preservesSession: preservesSession, deletedAt: Double(record.updatedAt))
+            try requireCurrent(lease)
+        }
+        store.applyConversationDeletion(cid: record.cid, localID: localID,
+            replacementCID: preservesSession ? UUID().uuidString.lowercased() : nil)
+        try save()
+        return localID != nil
     }
 
     /// One pulled text into its chat, by time (C8: a late row goes where it happened, not at the
     /// end). While that chat runs a turn here the store refuses — the row waits in `deferred` and
     /// `turnFinished` / the next pull write it. Returns true when the row is in the database.
-    private func insert(_ pending: Pending, into sessionId: String) async -> Bool {
-        if SessionActivityTracker.isActiveThreadSafe(sessionId) {
+    private func insert(_ pending: Pending, into sessionId: String, lease: Lease) async throws -> Bool {
+        try requireCurrent(lease)
+        // nanoMuse: 脚本和截断不一定显示聊天忙碌状态，插入也要占位至数据库提交。
+        let editToken: UUID
+        do { editToken = try NivoChatAccountAccess.beginConversationEdit([sessionId]) }
+        catch NivoChatAccessError.busy {
+            if !store.deferred.contains(where: { $0.mid == pending.mid }) { store.deferred.append(pending) }
+            return false
+        } catch NivoLifeError.operationConflict {
             if !store.deferred.contains(where: { $0.mid == pending.mid }) { store.deferred.append(pending) }
             return false
         }
-        guard let data = try? JSONEncoder().encode([ContentPart.text(pending.text)]), let partsJSON = String(data: data, encoding: .utf8) else { return false }
-        await ChatStore.shared.mergeRemoteMessage(
+        defer { NivoScheduledRunScopes.shared.endConversationEdit(editToken) }
+        let data = try JSONEncoder().encode([ContentPart.text(pending.text)])
+        let partsJSON = String(decoding: data, as: UTF8.self)
+        try await ChatStore.shared.mergeRemoteMessage(
             id: pending.mid, sessionId: sessionId, role: pending.role, partsJson: partsJSON,
             createdAt: Date(timeIntervalSince1970: TimeInterval(pending.createdAt)), tokenUsageJson: nil, sortOrder: 0,
             reasoningContent: nil, streamInterruptCount: 0
         )
-        await ChatStore.shared.nmTouchSession(sessionId)
+        try requireCurrent(lease)
+        try await ChatStore.shared.nmTouchRelaySession(sessionId)
+        try requireCurrent(lease)
         store.entries[sessionId]?.knownMids.insert(pending.mid)
         store.remoteMids[pending.mid] = pending.deviceName
         store.deferred.removeAll { $0.mid == pending.mid }
@@ -995,27 +1118,39 @@ final class NanoMuseSync: ObservableObject {
     }
 
     /// The texts that waited for a running chat, tried again. True when any went in.
-    private func writeDeferred() async -> Bool {
+    private func writeDeferred(lease: Lease) async throws -> Bool {
         var wrote = false
         for pending in store.deferred {
+            try requireCurrent(lease)
             guard let sessionId = store.entries.first(where: { $0.value.cid == pending.cid })?.key else {
                 store.deferred.removeAll { $0.mid == pending.mid }
                 continue
             }
-            if await insert(pending, into: sessionId) { wrote = true }
+            if try await insert(pending, into: sessionId, lease: lease) { wrote = true }
         }
         return wrote
     }
 
     /// After a turn: the waiting texts go in and the open chat is told.
     private func flushDeferred() async {
-        load()
-        let wrote = await writeDeferred()
-        save()
-        guard wrote else { return }
-        revision += 1
-        NotificationCenter.default.post(name: .cloudSyncDidFetchChanges, object: nil)
-        NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
+        guard active else { return }
+        if lifecycle.isBusy || controlIntents > 0 { pullAgain = true; return }
+        var request: Lease?
+        do {
+            guard let lease = try beginOperation() else { return }
+            request = lease
+            defer { endOperation(lease) }
+            let wrote = try await writeDeferred(lease: lease)
+            try requireCurrent(lease)
+            try save()
+            guard wrote else { return }
+            revision += 1
+            NotificationCenter.default.post(name: .cloudSyncDidFetchChanges, object: nil)
+            NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
+        } catch {
+            // 失败行仍在延后队列中，下次拉取或回合结束后继续重试。
+            note(error, for: request)
+        }
     }
 
     // MARK: - Sessions
@@ -1079,14 +1214,18 @@ final class NanoMuseSync: ObservableObject {
 
     // MARK: - Errors
 
-    private func note(_ error: Error) {
+    private func note(_ error: Error, for lease: Lease? = nil) {
+        if error is CancellationError { return }
+        if let lease, !lifecycle.accepts(lease.intent, identity: currentIdentity) { return }
         if let cloud = error as? NanoMuseCloudError {
             if cloud.status == 401 {
+                invalidateRequests()
                 haltedAccount = accountKey
                 lastError = AppLocalized("Sign in to sync")
                 return
             }
             if cloud.status == 409 || cloud.code == "sync_off" {
+                invalidateRequests()
                 enabled = false
                 serverEnabled = false
                 lastError = nil
@@ -1099,49 +1238,47 @@ final class NanoMuseSync: ObservableObject {
 
     // MARK: - Persistence
 
-    private static var supportDirectory: URL {
-        (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
-            ?? FileManager.default.temporaryDirectory
+    /// 不把不可访问的支持目录降级到临时目录，避免生成第二份空的同步状态。
+    private static func syncFiles() throws -> NivoRelaySyncFile {
+        let directory = try FileManager.default.url(for: .applicationSupportDirectory,
+            in: .userDomainMask, appropriateFor: nil, create: true)
+        return NivoRelaySyncFile(url: directory.appendingPathComponent("nanomuse-sync-accounts.json"),
+            legacyURL: directory.appendingPathComponent("nanomuse-sync.json"))
     }
 
-    /// The one table of 0.1.36–0.1.38 (read once, to become the first entry of `tablesURL`).
-    private static var fileURL: URL { supportDirectory.appendingPathComponent("nanomuse-sync.json") }
-    /// C10: every account's table.
-    private static var tablesURL: URL { supportDirectory.appendingPathComponent("nanomuse-sync-accounts.json") }
-
+    /// 只读界面保留错误，网络及账户操作使用可抛错入口阻止空表继续上传。
     private func load() {
-        let account = accountKey
+        do { try loadChecked() } catch { note(error) }
+    }
+
+    private func loadChecked(activateAccount: Bool = true) throws {
         if !loaded {
-            if let data = try? Data(contentsOf: Self.tablesURL) {
-                tables = (try? JSONDecoder().decode(Tables.self, from: data)) ?? Tables()
-            } else if FileManager.default.fileExists(atPath: Self.tablesURL.path) {
-                // There but unreadable (the phone is locked, the app woke in the background):
-                // keep the file and read again on the next call; `save` stays off until then,
-                // so an empty table is never written over every account's history.
-                return
-            } else if let data = try? Data(contentsOf: Self.fileURL), let saved = try? JSONDecoder().decode(Store.self, from: data), !saved.account.isEmpty {
-                // the 0.1.38 table, filed under the key it carried (the hint); `activate` re-keys
-                // it to the account's id the first time that account is seen signed in
-                tables = Tables(stores: [saved.account: saved], current: saved.account)
-            } else {
-                tables = Tables()
-            }
-            loaded = true
+            try checkpoint.load(from: Self.syncFiles())
             store = tables.stores[tables.current] ?? Store(account: tables.current)
         }
-        // Signed out: the tables wait for an account; what is on the phone is the person's to see.
-        guard !account.isEmpty else { return }
+        let account = accountKey
+        guard activateAccount, !account.isEmpty else { return }
         if tables.current != account {
-            activate(account)
+            guard !lifecycle.isBusy else { throw NivoLifeError.accountChanged }
+            try activate(account)
         }
         if haltedAccount != nil, haltedAccount != account { haltedAccount = nil }
     }
 
-    private func save() {
-        guard loaded else { return }
-        if !store.account.isEmpty { tables.stores[store.account] = store }
-        if tables.current.isEmpty { tables.current = store.account }
-        guard let data = try? JSONEncoder().encode(tables) else { return }
-        try? data.write(to: Self.tablesURL, options: .atomic)
+    /// 内存候选与磁盘共同发布；失败恢复最后确认的表，游标和延后队列均可重试。
+    private func save() throws {
+        guard loaded, !store.account.isEmpty else { throw NivoLifeError.corruptStore }
+        var candidate = tables
+        if store.account == accountKey, let main = Self.localMainSessionId(), store.entries[main] != nil {
+            store.mainSession = main
+        }
+        candidate.stores[store.account] = store
+        candidate.current = store.account
+        do {
+            try checkpoint.commit(candidate, to: Self.syncFiles())
+        } catch {
+            store = tables.stores[store.account] ?? Store(account: store.account)
+            throw error
+        }
     }
 }

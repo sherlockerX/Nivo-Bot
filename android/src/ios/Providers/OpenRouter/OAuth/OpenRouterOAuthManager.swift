@@ -43,6 +43,10 @@ final class OpenRouterOAuthManager: NSObject, ObservableObject {
     }
 
     func login(instanceId: String) async throws {
+        // nanoMuse: 重复点击不能假报成功，也不能让旧defer关闭另一次浏览器登录。
+        guard !isAuthenticating else { throw CancellationError() }
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId, replacing: true)
+        defer { NivoOAuthAccess.finish(nmOperation) }
         logger.info("=== OpenRouter OAuth login started (instance: \(instanceId)) ===")
         callbackServer?.stop()
         callbackServer = nil
@@ -61,6 +65,8 @@ final class OpenRouterOAuthManager: NSObject, ObservableObject {
         // 1. Start local HTTP server
         let server = OAuthCallbackServer(port: callbackPort, callbackPath: "/callback")
         self.callbackServer = server
+        // nanoMuse: 放弃页面或切换账户时结束本次回调等待。
+        try NivoOAuthAccess.registerCancellation(nmOperation) { server.stop() }
         try server.start()
         logger.info("Callback server started on port \(self.callbackPort)")
 
@@ -80,24 +86,32 @@ final class OpenRouterOAuthManager: NSObject, ObservableObject {
 
         // 4. Wait for callback (5 min timeout)
         logger.info("Waiting for callback...")
-        let result = try await server.waitForCallback(timeout: 300)
+        // nanoMuse: 取消页面任务时释放回调等待，延后取消只作用于原登录。
+        let result = try await withTaskCancellationHandler {
+            try await server.waitForCallback(timeout: 300)
+        } onCancel: {
+            Task { @MainActor in NivoOAuthAccess.invalidate(nmOperation) }
+        }
+        try NivoOAuthAccess.validate(nmOperation)
         logger.info("Callback received — code length: \(result.code.count)")
 
         // 5. Exchange code for permanent API key
         logger.info("Exchanging code for API key...")
         let apiKey = try await exchangeCode(result.code, verifier: verifier)
-        #if DEBUG
-        logger.info("API key received — prefix: \(apiKey.prefix(16))...")
-        #else
+        // nanoMuse: 调试日志同样不记录密钥前缀。
         logger.info("API key received")
-        #endif
 
         // 6. Store as permanent API key (not OAuth token — it's a permanent key)
-        ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: instanceId)
+        // nanoMuse: 系统写入失败不报告授权完成。
+        try NivoOAuthAccess.validate(nmOperation)
+        guard ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: instanceId) else { throw CocoaError(.fileWriteUnknown) }
+        try NivoOAuthAccess.validate(nmOperation)
         logger.info("=== OpenRouter OAuth login complete (instance: \(instanceId)) ===")
     }
 
     func logout(instanceId: String) {
+        // nanoMuse: 先撤销异步写入，网络晚到不能把已退出的凭证重新保存。
+        NivoOAuthAccess.invalidate(instanceID: instanceId)
         logger.info("Logout — clearing API key (instance: \(instanceId))")
         ProviderKeychainHelper.deleteAPIKey(instanceId: instanceId)
     }
@@ -142,12 +156,14 @@ final class OpenRouterOAuthManager: NSObject, ObservableObject {
 
         logger.info("Response status: \(statusCode)")
         #if DEBUG
-        logger.info("Response body: \(responseBody.prefix(500))")
+        // nanoMuse: 认证响应可能含秘密，只保留HTTP状态。
+        logger.info("OAuth HTTP status: \(statusCode)")
         #endif
 
         guard (200..<300).contains(statusCode) else {
             #if DEBUG
-            logger.error("Key exchange FAILED — status \(statusCode): \(responseBody)")
+            // nanoMuse: 认证响应可能含秘密，只保留HTTP状态。
+            logger.info("OAuth HTTP status: \(statusCode)")
             #else
             logger.error("Key exchange FAILED — status \(statusCode)")
             #endif

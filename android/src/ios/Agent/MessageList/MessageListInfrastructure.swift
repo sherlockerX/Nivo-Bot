@@ -1031,6 +1031,25 @@ final class NoAnimationCollectionView: UICollectionView {
 final class MessageListViewController: UIViewController {
     var collectionView: UICollectionView!
     var messageListLayout: MessageListLayout!
+    // nanoMuse: 来源跳转只在真实可见及布局就绪后尝试，不用固定延时猜测导航完成。
+    var nmSourceNavigationReady: (() -> Void)?
+    private(set) var nmIsVisible = false
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        nmIsVisible = true
+        nmSourceNavigationReady?()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        nmIsVisible = false
+        super.viewWillDisappear(animated)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if nmIsVisible { nmSourceNavigationReady?() }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()

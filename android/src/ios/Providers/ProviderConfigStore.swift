@@ -146,7 +146,20 @@ struct ProviderConfig: Codable, Equatable {
 final class ProviderConfigStore: ObservableObject {
     static let shared = ProviderConfigStore()
 
-    @Published private(set) var config: ProviderConfig
+    // nanoMuse: 本机删除、同步删除或认证方式改变都撤销旧OAuth回调。
+    @Published private(set) var config: ProviderConfig {
+        didSet {
+            guard oldValue.instances != config.instances else { return }
+            let current = Dictionary(config.instances.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            for previous in oldValue.instances {
+                guard let value = current[previous.id], value.providerType == previous.providerType,
+                      value.credentialType == previous.credentialType else {
+                    NivoOAuthAccess.invalidate(instanceID: previous.id)
+                    continue
+                }
+            }
+        }
+    }
 
     /// Bumped whenever an OAuth token or string is saved/deleted in the Keychain,
     /// so views observing the store re-evaluate auth state. Also an L1 cache key
@@ -176,6 +189,10 @@ final class ProviderConfigStore: ObservableObject {
     /// Held as Optional so init can short-circuit if DB open fails (rare,
     /// but we'd rather degrade to JSON-only than crash).
     private(set) var db: ProviderConfigDB?
+    // nanoMuse: 恢复必须等待首次数据库载入和已经排队的镜像，不能漏掉尚未打开的V3数据库。
+    private var nmDidFinishDatabaseLoad = false
+    private var nmDatabaseLoadWaiters: [CheckedContinuation<Void, Never>] = []
+    private var nmUsesDefaultDatabase = true
 
     /// Snapshot of the config the last time `save()` ran, used to diff
     /// against the current `config` for per-record v3 markDirty emission.
@@ -249,6 +266,13 @@ final class ProviderConfigStore: ObservableObject {
     /// verbatim from init's completion closure so degraded-load recovery can
     /// re-run the same adoption after protected data becomes available.
     private func adoptDB(_ db: ProviderConfigDB?) async {
+                // nanoMuse: 包括JSON降级路径在内，所有退出分支都释放等待首次载入的恢复操作。
+                defer {
+                    nmDidFinishDatabaseLoad = true
+                    let waiters = nmDatabaseLoadWaiters
+                    nmDatabaseLoadWaiters.removeAll()
+                    for waiter in waiters { waiter.resume() }
+                }
                 self.db = db
                 guard let db else { return }
                 // [T-thinking-rules-phase2] Prime the synchronous thinking-rule cache the
@@ -256,11 +280,6 @@ final class ProviderConfigStore: ObservableObject {
                 // first point where the DB is known-open; before this the cache is empty,
                 // which resolves to built-in behaviour rather than anything wrong.
                 await self.reloadThinkingRuleCache()
-                // [T-provider-entry-composite-key] Load the persisted
-                // legacyUuid→compositeKey map (normalization runs AFTER the
-                // authoritative config is loaded below, so it operates on the
-                // real config, not the JSON seed).
-                await self.loadLegacyUuidMap()
                 // V3 authoritative-load: replace the JSON-seeded config with
                 // the DB dump when V3 is enabled. dumpProviderConfig() never
                 // truncates group memberEntryIds.
@@ -276,7 +295,20 @@ final class ProviderConfigStore: ObservableObject {
                 // whenever V3 is on AND the DB is non-empty (or migration ran),
                 // and stamp the flag so the rest of the store stays consistent.
                 let migratedFlag = UserDefaults.standard.bool(forKey: "cloudSync.providerV3.migrationCompleted")
-                let dbNonEmpty = !(await db.isEmpty())
+                let dbNonEmpty: Bool
+                let fresh: ProviderConfig
+                // nanoMuse: 读取失败保持旧缓存并限制写入，不能从空或半份数据库快照继续迁移。
+                do {
+                    dbNonEmpty = !(try await db.nmIsEmpty())
+                    fresh = try Self.nmPreservingDeletionMetadata(try await db.nmDumpProviderConfig(), from: fileURL)
+                    // nanoMuse: 标识映射与配置同为必需读取，失败时不能继续覆盖旧映射。
+                    self.legacyUuidToCompositeKey = try await db.nmLegacyUuidMap()
+                } catch {
+                    loadDegradation = .undecodable
+                    if degradedRecoveryObservers.isEmpty { registerDegradedRecovery() }
+                    logger.error("[Nivo] provider database read failed; prior configuration retained: \(error.localizedDescription)")
+                    return
+                }
                 guard ProviderV3Bootstrap.isEnabled, (migratedFlag || dbNonEmpty) else {
                     logger.info("[GroupLoad] init: staying on V2 JSON config (v3Enabled=\(ProviderV3Bootstrap.isEnabled) migrated=\(migratedFlag) dbNonEmpty=\(dbNonEmpty))")
                     return
@@ -285,17 +317,18 @@ final class ProviderConfigStore: ObservableObject {
                     UserDefaults.standard.set(true, forKey: "cloudSync.providerV3.migrationCompleted")
                     logger.info("[GroupLoad] init: V3 DB is authoritative via inbound sync (no local JSON migration) — stamping migrationCompleted")
                 }
-                let fresh = await db.dumpProviderConfig()
+                loadDegradation = .none
+                // nanoMuse: 未完成恢复时只读取持久快照，归一化、去重与模板修复不得提前写盘。
+                if NivoProviderDeletionHost.hasPendingRecovery || BackupRestoreJournal.hasPendingRecovery {
+                    self.config = fresh
+                    self.lastSavedSnapshot = fresh
+                    self.configRevision &+= 1
+                    return
+                }
                 let jsonGroupMembers = self.config.modelGroups.reduce(0) { $0 + $1.memberEntryIds.count }
                 let dbGroupMembers = fresh.modelGroups.reduce(0) { $0 + $1.memberEntryIds.count }
-                // [T-icloud-provider-sync-consistency] Heal any cross-device
-                // duplicate entries already on disk at load time (e.g. a DB
-                // that accumulated dup rows before this fix shipped). The fold
-                // is deterministic so it converges with peers; pruned rows are
-                // deleted + tombstoned so they don't resurrect.
+                // nanoMuse: 启动时折叠历史重复项，保留全部别名，不能把自动去重传播成用户删除。
                 let (deduped, prunedAtLoad) = Self.dedupeEntriesByModel(fresh)
-                self.config = deduped
-                self.lastSavedSnapshot = deduped
                 // [T-provider-entry-composite-key] Build the legacyUuid map from
                 // the local entries (each entry's random uuid → its composite
                 // key), then normalize any group/binding/agent-loop reference
@@ -304,18 +337,26 @@ final class ProviderConfigStore: ObservableObject {
                 // the entry id became a composite key. Detailed logging so the
                 // migration/normalization is auditable in the field.
                 var localPairs: [String: String] = [:]
-                for e in deduped.modelEntries where e.uuid != e.compositeKey {
+                for e in fresh.modelEntries where e.uuid != e.compositeKey {
                     localPairs[e.uuid] = e.compositeKey
                 }
                 let danglingBefore = deduped.modelGroups.reduce(0) { acc, g in
                     acc + g.memberEntryIds.filter { ref in !deduped.modelEntries.contains { $0.id == ref || $0.uuid == ref } }.count
                 }
                 logger.info("[CompositeKeyMigrate] init: entries=\(deduped.modelEntries.count) localUuid→ckPairs=\(localPairs.count) danglingGroupRefs(before)=\(danglingBefore) lmapSize(persisted)=\(self.legacyUuidToCompositeKey.count)")
-                for (u, ck) in localPairs where self.legacyUuidToCompositeKey[u] != ck {
-                    self.legacyUuidToCompositeKey[u] = ck
+                // nanoMuse: 只改内存会在重启后丢失旧绑定，映射须独立持久化后再发布引用。
+                do {
+                    self.legacyUuidToCompositeKey = try await db.nmLearnLegacyUuids(localPairs)
+                } catch {
+                    loadDegradation = .undecodable
+                    if degradedRecoveryObservers.isEmpty { registerDegradedRecovery() }
+                    logger.error("[Nivo] provider ID mapping retained after persistence failure: \(error.localizedDescription)")
+                    return
                 }
+                self.config = deduped
+                self.lastSavedSnapshot = deduped
                 if self.normalizeReferences() {
-                    self.lastSavedSnapshot = self.config
+                    // nanoMuse: 保留归一化之前的基线，让增量保存真正提交引用变更。
                     self.save()
                     let danglingAfter = self.config.modelGroups.reduce(0) { acc, g in
                         acc + g.memberEntryIds.filter { ref in !self.config.modelEntries.contains { $0.id == ref || $0.uuid == ref } }.count
@@ -328,15 +369,8 @@ final class ProviderConfigStore: ObservableObject {
                 self.ensureVoiceTemplateModels()
                 self.objectWillChange.send()
                 if !prunedAtLoad.isEmpty {
-                    let snapshot = deduped
-                    let toDelete = prunedAtLoad
-                    Task.detached {
-                        await db.bulkReplace(from: snapshot)
-                        for eid in toDelete { await db.deleteEntryRow(id: eid) }
-                    }
-                    for eid in prunedAtLoad {
-                        Task { await ChatStore.shared.markDirty(recordType: "ProviderModelEntryV3", recordId: eid, operation: "delete") }
-                    }
+                    // nanoMuse: 保留归一化和语音模板后的最终快照；别名删除会误删远端规范模型，不能发删除墓碑。
+                    nmEnqueueConfiguration(config, prior: lastSavedSnapshot, markDirty: false)
                 }
     }
 
@@ -446,11 +480,16 @@ final class ProviderConfigStore: ObservableObject {
     }
 
     /// Test-only initializer.
-    init(fileURL: URL) {
+    init(fileURL: URL, database: ProviderConfigDB? = nil) {
         self.fileURL = fileURL
         self.config = Self.load(from: fileURL)
         self.lastSavedSnapshot = self.config
+        // nanoMuse: 集成测试可注入独立数据库，默认不打开正式配置。
+        self.db = database
         // Tests don't open the DB by default.
+        // nanoMuse: 独立测试仓库没有异步开库任务，也不能检查用户的正式数据库路径。
+        self.nmDidFinishDatabaseLoad = true
+        self.nmUsesDefaultDatabase = false
     }
 
     /// Async DB open + one-shot migration from provider-config.json.
@@ -466,7 +505,8 @@ final class ProviderConfigStore: ObservableObject {
                 // bulk-replace would re-populate it).
                 let migratedKey = "cloudSync.providerV3.migrationCompleted"
                 let alreadyMigrated = UserDefaults.standard.bool(forKey: migratedKey)
-                if await db.isEmpty(), !alreadyMigrated,
+                // nanoMuse: 只有严格查询确认为空库时才导入旧JSON。
+                if try await db.nmIsEmpty(), !alreadyMigrated,
                    FileManager.default.fileExists(atPath: jsonURL.path) {
                     let ok = await db.migrateFromLegacyJSON(at: jsonURL)
                     if ok {
@@ -584,6 +624,11 @@ final class ProviderConfigStore: ObservableObject {
     }
 
     private func save() {
+        // nanoMuse: 恢复期间旧页面不能写回全量配置，导入使用专用的可等待入口。
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !BackupRestoreJournal.hasPendingRecovery else {
+            if let lastSavedSnapshot { config = lastSavedSnapshot }
+            return
+        }
         // [T-ios-reboot-config-loss] HARD STOP while the on-disk config could
         // not be read (pre-first-unlock launch after a device reboot, or a
         // corrupt file pending DB restore). Persisting now would overwrite
@@ -598,43 +643,104 @@ final class ProviderConfigStore: ObservableObject {
         // resolveCurrentEntry re-resolves. [T-new-session-hang-credential-cache]
         configRevision &+= 1
 
-        // 1. Downgrade-safety mirror: keep provider-config.json fully
-        //    current so a user reverting to a v2 build sees a complete
-        //    snapshot. v2 builds ignore unknown SQLite files; the JSON
-        //    remains the cross-version source.
-        do {
-            let data = try JSONEncoder().encode(config)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            logger.error("Failed to save provider config: \(error)")
-        }
+        // nanoMuse: JSON与数据库进入同一队列，异步入站镜像不能晚于此处覆盖新配置。
+        mirrorSavedConfiguration()
+    }
 
-        // 2. v3 SQLite mirror — bulk-replace the whole DB from the
-        //    current ProviderConfig. At single-instance-per-row sizes
-        //    (< 1MB total) full-replace per mutate is < 1ms inside a
-        //    single transaction; not a hot path.
+    // nanoMuse: 串行写入数据库镜像，旧配置任务不能晚于新账户配置覆盖数据库。
+    private let nmWrites = NivoProviderWriteQueue()
+    // nanoMuse: 数据库失败时保留最早未提交基线，下次保存包含此前尚未落盘的编辑。
+    private var nmFailedDatabaseBaseline: ProviderConfig?
+    private var nmConfigurationRefreshTask: Task<Void, Never>?
+    private var nmRestoreToken: UUID?
+    private(set) var nmRestoreGeneration: UInt64 = 0
+    // nanoMuse: OAuth在网络前后共用此门禁，损坏或恢复中的配置不能被迟到授权写入。
+    var nmCanUseProviderCredentials: Bool { nmRestoreToken == nil && !NivoProviderDeletionHost.hasPendingRecovery && loadDegradation == .none }
+    private var nmActiveThinkingRuleWrites = 0
+    private var nmIsBranchWriteActive = false
+
+    private var nmHasScopedConfigurationWrite: Bool {
+        nmIsBranchWriteActive || nmActiveThinkingRuleWrites > 0
+    }
+
+    /// 将当前配置交给现有数据库镜像和同步队列，不重复写JSON文件。
+    private func mirrorSavedConfiguration() {
+        // nanoMuse: 普通编辑只提交基线之后的变化，远端尚未进入页面的记录必须保留。
         let snapshot = config
         let prior = lastSavedSnapshot
         lastSavedSnapshot = snapshot
-        if let db {
-            Task.detached {
-                await db.bulkReplace(from: snapshot)
-                await Self.emitV3MarkDirty(prior: prior, current: snapshot)
-            }
-        }
-
-        // 3. v2 compatibility: keep marking the legacy whole-file dirty
-        //    so old peer devices that haven't upgraded to v3 still
-        //    receive a current snapshot via the legacy
-        //    ProviderConfigV2 record. New peer devices ignore inbound
-        //    V2 records once their v3 flag is on (S7).
-        Task { await ChatStore.shared.markDirty(recordType: "ProviderConfig", recordId: "provider-config") }
+        nmEnqueueConfiguration(snapshot, prior: prior, markDirty: true)
     }
 
-    /// Diff `prior` vs `current` and emit per-record V3 markDirty calls
-    /// for what changed. Insertions and updates both go as op="upsert";
-    /// removals go as op="delete" so CloudKit propagates a real
-    /// deletion tombstone (the v3 fix for "deleted provider resurrects").
+    // nanoMuse: 所有完整快照统一写盘，失败保留在队列中，由账户提交和备份入口读取。
+    /// 编码成功后才修改数据库；两份存储均成功后才登记同步脏记录。
+    @discardableResult
+    private func nmEnqueueConfiguration(_ snapshot: ProviderConfig, prior: ProviderConfig?,
+                                        markDirty: Bool, preserveLocalOnlyStateIfEmpty: Bool = false,
+                                        replacingDatabase: Bool = false) -> Task<Void, Error> {
+        let database = db
+        let destination = fileURL
+        // nanoMuse: 独立配置仓库不向应用共享同步账本登记测试数据。
+        let shouldMarkDirty = markDirty && nmUsesDefaultDatabase
+        let task = nmWrites.enqueue { isRetryAfterFailure in
+            let baseline = await MainActor.run { self.nmFailedDatabaseBaseline ?? prior ?? .empty }
+            let persisted: ProviderConfig
+            do {
+                _ = try JSONEncoder().encode(snapshot)
+                if let database, replacingDatabase {
+                    try await database.nmBulkReplace(from: snapshot, preserveLocalOnlyStateIfEmpty: preserveLocalOnlyStateIfEmpty)
+                    persisted = snapshot
+                } else if let database {
+                    persisted = try await database.nmApplyConfigurationChanges(from: baseline, to: snapshot,
+                        preserveLocalOnlyStateIfEmpty: preserveLocalOnlyStateIfEmpty)
+                } else { persisted = snapshot }
+            } catch {
+                await MainActor.run { self.nmFailedDatabaseBaseline = baseline }
+                throw error
+            }
+            // 数据库已提交而JSON失败时，下一次差异从已提交意图继续；不能再次删除远端新内容。
+            await MainActor.run { self.nmFailedDatabaseBaseline = nil }
+            try JSONEncoder().encode(persisted).write(to: destination, options: .atomic)
+            if shouldMarkDirty {
+                // 旧快照失败时，其差异尚未登记；重试必须把当前完整集合重新登记。
+                if database != nil { await Self.emitV3MarkDirty(prior: isRetryAfterFailure ? nil : prior, current: snapshot) }
+                await ChatStore.shared.markDirty(recordType: "ProviderConfig", recordId: "provider-config")
+            }
+            if !replacingDatabase, persisted != snapshot {
+                await self.nmScheduleConfigurationRefresh()
+            }
+        }
+        Task {
+            if case .failure(let error) = await task.result {
+                logger.error("[Nivo] provider persistence failed: \(error.localizedDescription)")
+            }
+        }
+        return task
+    }
+
+    /// 合并保存后的缓存刷新；任务等待写盘结束，不在持久化闭包内反向等待自身。
+    private func nmScheduleConfigurationRefresh() {
+        nmConfigurationRefreshTask?.cancel()
+        nmConfigurationRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: 250_000_000)
+                    guard let self else { return }
+                    try await self.nmRefreshFromDatabase()
+                    return
+                } catch is CancellationError { return }
+                catch NivoPersonalBackupError.busy { continue }
+                catch NivoPersonalBackupError.snapshotChanged { continue }
+                catch {
+                    logger.error("[Nivo] configuration saved but cache refresh needs retry: \(error.localizedDescription)")
+                    return
+                }
+            }
+        }
+    }
+
+    // nanoMuse: 目录缺项不表示用户删除，显式删除由各自持久事务登记。
+    /// 比较配置并登记新增与更新，不能从快照差异推导远端删除。
     private static func emitV3MarkDirty(
         prior: ProviderConfig?,
         current: ProviderConfig
@@ -747,6 +853,13 @@ final class ProviderConfigStore: ObservableObject {
     /// deletions. The JSON branch remains for pre-migration / kill-switched
     /// devices.
     func reloadFromDisk() async {
+        // nanoMuse: 旧调用方保留非抛错接口，恢复事务使用严格入口。
+        do { try await nmReloadFromDisk() }
+        catch { logger.error("[Nivo] provider reload retained prior state: \(error.localizedDescription)") }
+    }
+
+    /// 完整读取成功后才替换缓存，回滚和导入调用方必须等待并处理读取失败。
+    func nmReloadFromDisk() async throws {
         // [T-icloud-fresh-restore-provider-groups] Mirror the init gate: the V3
         // DB is authoritative when V3 is on AND (migration ran OR the DB is
         // non-empty). On a fresh iCloud-restore device the migrationCompleted
@@ -759,22 +872,50 @@ final class ProviderConfigStore: ObservableObject {
             if migratedFlag {
                 dbAuthoritative = true
             } else {
-                dbAuthoritative = !(await db.isEmpty())
+                dbAuthoritative = !(try await db.nmIsEmpty())
             }
         }
         if let db, dbAuthoritative {
             let priorMembers = config.modelGroups.reduce(0) { $0 + $1.memberEntryIds.count }
-            let fresh = await db.dumpProviderConfig()
+            let fresh = try await db.nmDumpProviderConfig()
+            let mapping = try await db.nmLegacyUuidMap()
             let freshMembers = fresh.modelGroups.reduce(0) { $0 + $1.memberEntryIds.count }
-            config = fresh
-            lastSavedSnapshot = fresh
+            // nanoMuse: 回滚也恢复JSON中的旧协议墓碑，并在候选上解析旧ID，不能让绑定只在下次同步后恢复。
+            var snapshot = Self.dedupeEntriesByModel(fresh).0
+            _ = Self.nmNormalizeReferences(&snapshot, using: mapping)
+            snapshot = try Self.nmPreservingDeletionMetadata(snapshot, from: fileURL)
+            config = snapshot
+            lastSavedSnapshot = snapshot
+            legacyUuidToCompositeKey = mapping
+            loadDegradation = .none
+            // nanoMuse: 恢复后的模型解析缓存必须随新持久状态失效。
+            configRevision &+= 1
             logger.info("[GroupLoad] reloadFromDisk: V3 DB dump — groups=\(fresh.modelGroups.count) groupMembers(\(priorMembers)→\(freshMembers))")
             objectWillChange.send()
             return
         }
         logger.info("[GroupLoad] reloadFromDisk: V2 JSON path (no DB / v3 disabled / not migrated)")
-        config = Self.load(from: fileURL)
+        // nanoMuse: 降级JSON损坏时也拒绝发布空配置。
+        let loaded = Self.loadGuarded(from: fileURL)
+        guard loaded.degradation == .none else { throw NivoPersonalBackupError.invalidPackage }
+        config = loaded.config
+        loadDegradation = .none
+        // nanoMuse: JSON降级路径也更新镜像基线，避免后续保存仍以导入前配置作差异比较。
+        lastSavedSnapshot = config
+        configRevision &+= 1
         objectWillChange.send()
+    }
+
+    // nanoMuse: V3数据库不保存旧协议墓碑，启动和恢复必须从JSON保留这部分删除历史。
+    /// 镜像无法读取时拒绝以空历史发布，防止随后同步重新引入已删除的提供商。
+    private static func nmPreservingDeletionMetadata(_ original: ProviderConfig, from fileURL: URL) throws -> ProviderConfig {
+        let mirror = loadGuarded(from: fileURL)
+        guard mirror.degradation == .none else { throw NivoPersonalBackupError.invalidPackage }
+        var snapshot = original
+        snapshot.deletedInstances = mirror.config.deletedInstances
+        snapshot.deletedModelEntries = mirror.config.deletedModelEntries
+        snapshot.deletedModelGroups = mirror.config.deletedModelGroups
+        return snapshot
     }
 
     // MARK: - Tombstones
@@ -797,6 +938,8 @@ final class ProviderConfigStore: ObservableObject {
     var instances: [ProviderInstance] { config.instances }
 
     func addInstance(_ instance: ProviderInstance) {
+        // nanoMuse: 迁移或恢复占位期间不能新建实例并启动脱离事务的刷新。
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !BackupRestoreJournal.hasPendingRecovery, loadDegradation == .none else { return }
         config.instances.append(instance)
         if instance.credentialType == .oauth {
             // OAuth instances: pre-populate with static built-in list, enriched with models.dev data.
@@ -965,69 +1108,13 @@ final class ProviderConfigStore: ObservableObject {
         save()
     }
 
-    func removeInstance(_ instanceId: String) {
-        // Collect entry UUIDs to remove from groups before deleting entries
-        let removedEntryIds = Set(config.modelEntries.filter { $0.providerInstanceId == instanceId }.map(\.id))
-        // Capture groups that go empty as a side effect of this removal so we
-        // can tombstone them too — otherwise the other device's snapshot of
-        // those groups would resurrect them post-merge with no members.
-        let removedGroupIds = Set(config.modelGroups.filter { g in
-            // group will be empty after removing the entries we're about to drop
-            !g.memberEntryIds.isEmpty &&
-            g.memberEntryIds.allSatisfy { removedEntryIds.contains($0) }
-        }.map(\.id))
-        config.instances.removeAll { $0.id == instanceId }
-        // Remove associated model entries
-        config.modelEntries.removeAll { $0.providerInstanceId == instanceId }
-        // Remove from groups — stamp member-removal tombstones so the removal
-        // survives the inbound union-merge on peers.
-        let nowTs = Date()
-        for i in config.modelGroups.indices {
-            let hit = config.modelGroups[i].memberEntryIds.filter { removedEntryIds.contains($0) }
-            guard !hit.isEmpty else { continue }
-            config.modelGroups[i].memberEntryIds.removeAll { removedEntryIds.contains($0) }
-            for e in hit {
-                config.modelGroups[i].removedMembers[e] = nowTs
-                config.modelGroups[i].addedMembers[e] = nil
-            }
-        }
-        // [T-icloud-provider-sync-consistency] Remove ONLY the groups that
-        // became empty as a direct result of THIS instance removal (computed
-        // above as removedGroupIds). The old code removed EVERY empty group —
-        // which also deleted a user's intentionally-empty group (newly created,
-        // or temporarily cleared) and propagated that deletion via tombstone.
-        config.modelGroups.removeAll { removedGroupIds.contains($0.id) }
-        // Remove from agent loop list
-        config.agentLoopModelEntryIds.removeAll { removedEntryIds.contains($0) }
-        // Stamp tombstones so iCloud sync can propagate the delete instead
-        // of resurrecting these ids from the peer's snapshot.
-        Self.recordTombstone(in: &config.deletedInstances, ids: [instanceId])
-        Self.recordTombstone(in: &config.deletedModelEntries, ids: Array(removedEntryIds))
-        if !removedGroupIds.isEmpty {
-            Self.recordTombstone(in: &config.deletedModelGroups, ids: Array(removedGroupIds))
-        }
-        // Clean up credentials from Keychain
-        ProviderKeychainHelper.deleteAPIKey(instanceId: instanceId)
-        ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId)
-        ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "oauth-email")
-        ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "oauth-gcp-project")
-        ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "manual-oauth-token")
-        save()
-        // [T-icloud-provider-sync-consistency] Explicit V3 delete tombstones —
-        // emitV3MarkDirty no longer diff-infers deletions, so the instance, its
-        // cascaded entries, and any groups emptied by the removal must each
-        // emit their own delete record here.
-        let entryIds = removedEntryIds
-        let groupIds = removedGroupIds
-        Task {
-            await ChatStore.shared.markDirty(recordType: "ProviderInstanceV3", recordId: instanceId, operation: "delete")
-            for eid in entryIds {
-                await ChatStore.shared.markDirty(recordType: "ProviderModelEntryV3", recordId: eid, operation: "delete")
-            }
-            for gid in groupIds {
-                await ChatStore.shared.markDirty(recordType: "ProviderModelGroupV3", recordId: gid, operation: "delete")
-            }
-        }
+    // nanoMuse: 删除确认配置、同步队列和凭证清理后才返回成功。
+    /// 页面必须传入原账户范围，不能将旧表单的删除意图应用到新账户。
+    func removeInstance(_ instanceId: String, sourceScope: NivoOAuthScope) async throws {
+        guard nmUsesDefaultDatabase else { throw NivoPersonalBackupError.invalidPackage }
+        // 中继提供商承载账户身份，必须经过账户退出事务，调试入口也不能单独删除它。
+        guard instanceId != NanoMuseCloud.transitionInstanceID else { throw NivoPersonalBackupError.busy }
+        try await NivoProviderDeletionHost.shared.remove(instanceID: instanceId, sourceScope: sourceScope)
     }
 
     func instance(for id: String) -> ProviderInstance? {
@@ -1164,16 +1251,27 @@ final class ProviderConfigStore: ObservableObject {
     /// - Auto-renames on label conflict (appends " (2)", " (3)", etc.)
     /// - Decodes base64-encoded API key and saves to Keychain
     /// - Also supports plain-text API key for backward compatibility
+    // nanoMuse: 等待凭证、JSON、SQLite与恢复日志确认，失败向页面和RPC传播。
     @discardableResult
-    func importInstanceJSON(_ json: String) -> String? {
+    func importInstanceJSON(_ json: String, sourceScope: NivoOAuthScope? = nil) async throws -> String {
+        guard nmUsesDefaultDatabase else { throw NivoPersonalBackupError.busy }
+        return try await NivoProviderJSONImport.run(json, sourceScope: sourceScope ?? NivoOAuthAccess.captureScope())
+    }
+
+    /// 只解析候选配置和凭证，任何字段或模型失败时尚未产生存储副作用。
+    func nmPrepareInstanceImport(_ json: String) throws -> NivoPreparedProviderImport {
+        guard json.utf8.count <= 16 * 1_024 * 1_024 else { throw NivoOAuthPersistenceError.invalidValue }
         guard let data = json.data(using: .utf8),
               let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let providerTypeRaw = dict["providerType"] as? String,
               let providerType = ProviderType(rawValue: providerTypeRaw),
               let label = dict["label"] as? String else {
-            return nil
+            throw NivoOAuthPersistenceError.invalidValue
         }
 
+        if let raw = dict["credentialType"], (raw as? String).flatMap(ProviderCredential.init(rawValue:)) == nil {
+            throw NivoOAuthPersistenceError.invalidValue
+        }
         let credentialType: ProviderCredential
         if let raw = dict["credentialType"] as? String, let ct = ProviderCredential(rawValue: raw) {
             credentialType = ct
@@ -1181,6 +1279,9 @@ final class ProviderConfigStore: ObservableObject {
             credentialType = .apiKey
         }
 
+        guard !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NivoOAuthPersistenceError.invalidValue
+        }
         // Resolve label conflict
         let existingLabels = Set(config.instances.map(\.label))
         var resolvedLabel = label
@@ -1204,88 +1305,16 @@ final class ProviderConfigStore: ObservableObject {
             customUserAgent: customUserAgent
         )
 
-        // Save credentials to Keychain BEFORE addInstance(), so that
-        // addInstance() can detect hasManualToken and skip built-in model population.
-
-        // Decode API key (base64 or plain text for backward compat)
-        if let keyValue = dict["apiKey"] as? String, !keyValue.isEmpty {
-            let apiKey: String
-            if let decoded = Data(base64Encoded: keyValue), let str = String(data: decoded, encoding: .utf8) {
-                apiKey = str
-            } else {
-                apiKey = keyValue // plain text fallback
-            }
-            ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: instance.id)
-        }
-
-        // Decode manual OAuth token (base64 or plain text for backward compat)
-        if let tokenValue = dict["manualOAuthToken"] as? String, !tokenValue.isEmpty {
-            let token: String
-            if let decoded = Data(base64Encoded: tokenValue), let str = String(data: decoded, encoding: .utf8) {
-                token = str
-            } else {
-                token = tokenValue
-            }
-            ProviderKeychainHelper.saveOAuthString(token, instanceId: instance.id, account: "manual-oauth-token")
-        }
-
-        // [T-ios-provider-export-oauth-token] Restore the structured OAuth-login
-        // credential. Decode base64 → JSON → the provider-specific Codable token,
-        // then saveOAuthToken back to the keychain so the imported instance is
-        // authenticated. saveOAuthToken already calls notifyAuthChanged()
-        // (bumps authRevision), so the auth UI refreshes without extra work.
-        if let oauthB64 = dict["oauthToken"] as? String, !oauthB64.isEmpty,
-           let blob = Data(base64Encoded: oauthB64) {
-            switch providerType {
-            case .anthropic:
-                if let t = (try? JSONDecoder().decode(ClaudeTokenStorage.self, from: blob))
-                    ?? Self.decodeClaudeTokenFromRawOAuth(blob) {
-                    ProviderKeychainHelper.saveOAuthToken(t, instanceId: instance.id)
-                }
-            case .openAI:
-                if let t = (try? JSONDecoder().decode(CodexTokenStorage.self, from: blob))
-                    ?? Self.decodeCodexTokenFromRawOAuth(blob) {
-                    ProviderKeychainHelper.saveOAuthToken(t, instanceId: instance.id)
-                }
-            case .gemini:
-                if let t = (try? JSONDecoder().decode(GeminiTokenStorage.self, from: blob))
-                    ?? Self.decodeGeminiTokenFromRawOAuth(blob) {
-                    ProviderKeychainHelper.saveOAuthToken(t, instanceId: instance.id)
-                }
-            case .xAI:
-                if let t = (try? JSONDecoder().decode(XAITokenStorage.self, from: blob))
-                    ?? Self.decodeXAITokenFromRawOAuth(blob) {
-                    ProviderKeychainHelper.saveOAuthToken(t, instanceId: instance.id)
-                }
-            case .kimiCode:
-                if let t = try? JSONDecoder().decode(KimiTokenStorage.self, from: blob) {
-                    ProviderKeychainHelper.saveOAuthToken(t, instanceId: instance.id)
-                }
-            default:
-                break
-            }
-        }
-        // Gemini account email + GCP project (base64-encoded OAuth strings).
-        if providerType == .gemini {
-            if let b64 = dict["oauthEmail"] as? String, let d = Data(base64Encoded: b64),
-               let email = String(data: d, encoding: .utf8) {
-                ProviderKeychainHelper.saveOAuthString(email, instanceId: instance.id, account: "oauth-email")
-            }
-            if let b64 = dict["oauthGcpProject"] as? String, let d = Data(base64Encoded: b64),
-               let project = String(data: d, encoding: .utf8) {
-                ProviderKeychainHelper.saveOAuthString(project, instanceId: instance.id, account: "oauth-gcp-project")
-            }
-        }
-
-        // Append instance directly (skip addInstance to avoid built-in model
-        // population and async refreshModels — we already have models from the JSON).
-        config.instances.append(instance)
-        save()
-
-        // Import models
+        // nanoMuse: 全部模型先解析到单份候选配置，坏成员不能被静默跳过。
+        if let models = dict["models"], !(models is [[String: Any]]) { throw NivoOAuthPersistenceError.invalidValue }
+        var candidate = config
+        candidate.instances.append(instance)
+        var importedModelIDs = Set<String>()
         if let models = dict["models"] as? [[String: Any]] {
             for m in models {
-                guard let modelId = m["modelId"] as? String else { continue }
+                guard let modelId = m["modelId"] as? String, !modelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw NivoOAuthPersistenceError.invalidValue
+                }
                 let displayName = m["displayName"] as? String ?? modelDisplayName(from: modelId)
                 let isCustom = m["isCustom"] as? Bool ?? false
                 let isHidden = m["isHidden"] as? Bool ?? false
@@ -1338,23 +1367,81 @@ final class ProviderConfigStore: ObservableObject {
                     model: model,
                     overrides: overrides,
                     isCustom: isCustom,
-                    isHidden: isHidden
+                    isHidden: isHidden,
+                    userModifiedAt: Date()
                 )
-                addEntry(entry)
+                // nanoMuse: 保留原addEntry的首条去重规则，单次保存不能引入重复复合ID。
+                if importedModelIDs.insert(modelId).inserted { candidate.modelEntries.append(entry) }
             }
         }
 
-        let importedModelCount = config.modelEntries.filter { $0.providerInstanceId == instance.id }.count
-        logger.info("Imported provider '\(resolvedLabel)' (\(providerType.rawValue)) with \(importedModelCount) models")
-        // If the imported JSON had no `models` array (older exports / a
-        // bare-bones template), the new instance would be left with an
-        // empty model list — exactly the "empty list" symptom the user
-        // reported. Kick off the same refreshModels path addInstance()
-        // uses so the new provider ends up with a populated picker.
-        if importedModelCount == 0 {
-            Task { await refreshModels(for: instance) }
+        let credentials = try nmImportedInstanceCredentials(dict, instance: instance)
+        return NivoPreparedProviderImport(instance: instance, configuration: candidate, credentials: credentials)
+    }
+
+    /// 全部凭证先解码，实际写入由已有备份收据负责插入与回滚。
+    private func nmImportedInstanceCredentials(_ dict: [String: Any], instance: ProviderInstance) throws -> [NivoCredentialRestore.Item] {
+        var items: [NivoCredentialRestore.Item] = []
+        let token = try nmImportedOAuthToken(dict["oauthToken"], provider: instance.providerType)
+        var strings: [(NivoCredentialRestoreReceipt.Kind, String)] = []
+        for (field, account) in [("manualOAuthToken", NivoCredentialRestoreReceipt.Kind.providerManualToken), ("oauthEmail", .providerEmail),
+                                 ("oauthGcpProject", .providerProject), ("oauthBaseURL", .providerBaseURL)] {
+            guard let object = dict[field] else { continue }
+            guard let encoded = object as? String else { throw NivoOAuthPersistenceError.invalidValue }
+            if encoded.isEmpty { continue }
+            let value = Data(base64Encoded: encoded).flatMap { String(data: $0, encoding: .utf8) }
+            guard let decoded = value ?? (field == "manualOAuthToken" ? encoded : nil), !decoded.isEmpty else {
+                throw NivoOAuthPersistenceError.invalidValue
+            }
+            strings.append((account, decoded))
         }
-        return resolvedLabel
+        if let object = dict["apiKey"] {
+            guard let encoded = object as? String else { throw NivoOAuthPersistenceError.invalidValue }
+            if !encoded.isEmpty {
+                let key = Data(base64Encoded: encoded).flatMap { String(data: $0, encoding: .utf8) } ?? encoded
+                items.append(.init(target: .init(kind: .providerAPIKey, owner: instance.id), data: Data(key.utf8)))
+            }
+        }
+        if let token { items.append(.init(target: .init(kind: .providerOAuthToken, owner: instance.id), data: token)) }
+        for (account, value) in strings {
+            items.append(.init(target: .init(kind: account, owner: instance.id), data: Data(value.utf8)))
+        }
+        return items
+    }
+
+    /// 兼容安卓原始OAuth响应，拒绝字段存在却无法解析的输入。
+    private func nmImportedOAuthToken(_ object: Any?, provider: ProviderType) throws -> Data? {
+        guard let object else { return nil }
+        guard let encoded = object as? String else { throw NivoOAuthPersistenceError.invalidValue }
+        if encoded.isEmpty { return nil }
+        guard let blob = Data(base64Encoded: encoded) else { throw NivoOAuthPersistenceError.invalidValue }
+        switch provider {
+        case .anthropic:
+            return try nmEncodeImportedToken((try? JSONDecoder().decode(ClaudeTokenStorage.self, from: blob))
+                ?? Self.decodeClaudeTokenFromRawOAuth(blob))
+        case .openAI:
+            return try nmEncodeImportedToken((try? JSONDecoder().decode(CodexTokenStorage.self, from: blob))
+                ?? Self.decodeCodexTokenFromRawOAuth(blob))
+        case .gemini:
+            return try nmEncodeImportedToken((try? JSONDecoder().decode(GeminiTokenStorage.self, from: blob))
+                ?? Self.decodeGeminiTokenFromRawOAuth(blob))
+        case .xAI:
+            return try nmEncodeImportedToken((try? JSONDecoder().decode(XAITokenStorage.self, from: blob))
+                ?? Self.decodeXAITokenFromRawOAuth(blob))
+        case .kimiCode:
+            return try nmEncodeImportedToken(try? JSONDecoder().decode(KimiTokenStorage.self, from: blob))
+        case .antigravity:
+            return try nmEncodeImportedToken(try? JSONDecoder().decode(AntigravityTokenStorage.self, from: blob))
+        default: throw NivoOAuthPersistenceError.invalidValue
+        }
+    }
+
+    /// 空访问令牌不能作为登录凭证导入，编码失败向调用方传播。
+    private func nmEncodeImportedToken<Token: Codable & RefreshableOAuthToken>(_ token: Token?) throws -> Data {
+        guard let token, !token.accessToken.isEmpty else { throw NivoOAuthPersistenceError.invalidValue }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(token)
     }
 
     // MARK: - Model Entries
@@ -1499,7 +1586,8 @@ final class ProviderConfigStore: ObservableObject {
         // same-field conflicts by last-write-wins. This is the single funnel for
         // override edits from ProviderInstanceDetailView.
         var stamped = entry
-        stamped.userModifiedAt = Date()
+        // nanoMuse: 用户修改时间在内存中也立即前进，快速连续编辑无需等待缓存刷新。
+        stamped.userModifiedAt = NivoProviderEditClock.next(after: [config.modelEntries[idx].userModifiedAt].compactMap { $0 })
         config.modelEntries[idx] = stamped
         save()
     }
@@ -1510,9 +1598,8 @@ final class ProviderConfigStore: ObservableObject {
         // group so the removal survives the inbound union-merge on peers.
         let now = Date()
         for i in config.modelGroups.indices where config.modelGroups[i].memberEntryIds.contains(entryId) {
-            config.modelGroups[i].memberEntryIds.removeAll { $0 == entryId }
-            config.modelGroups[i].removedMembers[entryId] = now
-            config.modelGroups[i].addedMembers[entryId] = nil
+            // nanoMuse: 移除模型时同步推进其成员历史，避免回拨后在分组中重新出现。
+            nmRemoveGroupMembers([entryId], at: i, now: now)
         }
         // Remove from agent loop list
         config.agentLoopModelEntryIds.removeAll { $0 == entryId }
@@ -1533,171 +1620,26 @@ final class ProviderConfigStore: ObservableObject {
     /// overrides are preserved and the entry is converted to non-custom (so the user's
     /// selected model keeps working after refresh).
     func replaceEntries(for instanceId: String, models rawModels: [LLMModel], caller: String = #function) {
-        // [T-icloud-provider-sync-consistency] Deduplicate the incoming model
-        // list by id BEFORE building entries. Some provider /v1/models
-        // endpoints (notably the OpenAI-compatible OAuth path) can return the
-        // same model id multiple times; without this guard each duplicate
-        // became its own entry row (one model showing up 2-3× in the picker).
-        // Keep first occurrence, preserve order.
-        var seenModelIds = Set<String>()
-        let models = rawModels.filter { seenModelIds.insert($0.id).inserted }
-        if models.count != rawModels.count {
-            logger.warning("[ModelList] replaceEntries caller=\(caller) instance=\(instanceId.prefix(8)) — provider returned \(rawModels.count - models.count) duplicate model id(s); deduped to \(models.count)")
-        }
-        let existing = config.modelEntries.filter { $0.providerInstanceId == instanceId }
-        // Capture UUIDs that existed before the refresh. Any that are absent afterward
-        // must be pruned from groups / agent-loop list so stale references don't linger.
-        let existingEntryIds = Set(existing.map(\.id))
-        let beforeIds = existing.map { $0.baseModel.id }.sorted()
-        let afterIds = models.map { $0.id }.sorted()
-        let beforeSet = Set(beforeIds)
-        let afterSet = Set(afterIds)
-        let added = afterSet.subtracting(beforeSet).sorted()
-        let removed = beforeSet.subtracting(afterSet).sorted()
-        let kept = beforeSet.intersection(afterSet).count
-        let instanceLabel = config.instances.first(where: { $0.id == instanceId })?.label ?? "?"
-        logger.info("[ModelList] replaceEntries caller=\(caller) instance=\(instanceLabel)(\(instanceId.prefix(8))) before=\(beforeIds.count) after=\(afterIds.count) kept=\(kept) added=\(added.count)[\(added.prefix(10).joined(separator: ","))] removed=\(removed.count)[\(removed.prefix(10).joined(separator: ","))]")
-
-        // Build a single lookup: baseModel.id → existing entry (prefer non-custom if both exist).
-        // Read baseModel.id here so lookup keys align with API-reported ids, not overridden names.
-        var existingByModelId: [String: ModelEntry] = [:]
-        for entry in existing {
-            if let prev = existingByModelId[entry.baseModel.id] {
-                // Prefer non-custom so its UUID is reused over a custom duplicate
-                if entry.isCustom && !prev.isCustom { continue }
-            }
-            existingByModelId[entry.baseModel.id] = entry
-        }
-
-        config.modelEntries.removeAll { $0.providerInstanceId == instanceId }
-
-        let refreshedModelIds = Set(models.map(\.id))
-        // Template-sourced voice models have authoritative modalityOverride that
-        // must never be overwritten by API-inferred modality (which typically lacks
-        // audio bits). Build a lookup: model.id → template's modalityOverride.
-        let templateModalityById: [String: ModelModality] = {
-            guard let tpl = VoiceProviderTemplate.template(forBaseURL: config.instances.first(where: { $0.id == instanceId })?.effectiveCustomBaseURL) else { return [:] }
-            var dict: [String: ModelModality] = [:]
-            for m in tpl.mockModels {
-                if let mod = m.modalityOverride, mod.contains(.audioInput) || mod.contains(.audioOutput) {
-                    dict[m.id] = mod
-                }
-            }
-            return dict
-        }()
-        let newEntries = models.map { model -> ModelEntry in
-            let prior = existingByModelId[model.id]
-            var resolved = model.withInferredModality()
-            if let templateModality = templateModalityById[model.id] {
-                resolved = resolved.withModalityOverride(templateModality)
-            }
-            return ModelEntry(
-                uuid: prior?.uuid ?? UUID().uuidString,  // [composite-key] keep random uuid, not id(=compositeKey)
-                providerInstanceId: instanceId,
-                model: resolved,
-                overrides: prior?.overrides ?? ModelOverrides(),
-                isCustom: false,
-                isHidden: prior?.isHidden ?? false,
-                userModifiedAt: prior?.userModifiedAt
-            )
-        }
-        config.modelEntries.append(contentsOf: newEntries)
-
-        // Keep custom entries whose model ID was NOT covered by the refreshed list — enrich them too
-        let remainingCustom = existing.filter { $0.isCustom && !refreshedModelIds.contains($0.baseModel.id) }
-        let enrichedCustom = remainingCustom.map { entry in
-            ModelEntry(
-                uuid: entry.uuid,
-                providerInstanceId: entry.providerInstanceId,
-                model: entry.baseModel.withInferredModality(),
-                overrides: entry.overrides,
-                isCustom: true,
-                isHidden: entry.isHidden,
-                userModifiedAt: entry.userModifiedAt
-            )
-        }
-        config.modelEntries.append(contentsOf: enrichedCustom)
-        if !enrichedCustom.isEmpty {
-            logger.info("[ModelList] replaceEntries caller=\(caller) instance=\(instanceLabel)(\(instanceId.prefix(8))) preserved \(enrichedCustom.count) custom entries: [\(enrichedCustom.map { $0.baseModel.id }.prefix(10).joined(separator: ","))]")
-        }
-
-        // [T-mimo-shadow-voice] Preserve AUDIO-modality template seed entries that
-        // the real /models list didn't return. Vendors like MiMo ride their ASR/TTS
-        // on /v1/chat/completions and never expose those models via /v1/models, so
-        // the voice seed entries (from VoiceProviderTemplate.mockModels) aren't in
-        // `refreshedModelIds` — without this they'd be wiped on every refresh (the
-        // dual-purpose DashScope bug), breaking the Voice Services shadow view. Keep
-        // any non-custom (custom already handled above) existing entry that is (a)
-        // absent from the refreshed list, (b) audio-modality, and (c) a member of
-        // this instance's voice template mockModels — so we only protect genuine
-        // template seeds, not stray audio entries.
-        if let tpl = VoiceProviderTemplate.template(forBaseURL: config.instances.first(where: { $0.id == instanceId })?.effectiveCustomBaseURL) {
-            let templateVoiceIds = Set(tpl.mockModels
-                .filter { ($0.modalityOverride ?? []).contains(.audioInput) || ($0.modalityOverride ?? []).contains(.audioOutput) }
-                .map { $0.id })
-            let preservedVoice = existing.filter { e in
-                !e.isCustom
-                && !refreshedModelIds.contains(e.baseModel.id)
-                && templateVoiceIds.contains(e.baseModel.id)
-            }
-            if !preservedVoice.isEmpty {
-                config.modelEntries.append(contentsOf: preservedVoice)
-                logger.info("[ModelList] replaceEntries caller=\(caller) instance=\(instanceLabel)(\(instanceId.prefix(8))) preserved \(preservedVoice.count) voice-template seed entries: [\(preservedVoice.map { $0.baseModel.id }.prefix(10).joined(separator: ","))]")
-            }
-        }
-
-        // Prune dangling references: any entry UUID that was for this instance before the
-        // refresh but is no longer present (because the provider dropped the model from its
-        // list and it wasn't a custom entry) is a candidate for removal from groups and the
-        // agent-loop list.
-        //
-        // SAFETY GUARD against API degradation (e.g. provider returns a temporarily shrunk
-        // list during an outage): if the new list is less than half the size of the old one
-        // AND the old list had at least 4 models, we skip the group/agent-loop prune. The
-        // now-stale entries are still removed from `modelEntries` (API is authoritative for
-        // what the provider exposes), so the router won't try to use them; but group and
-        // agent-loop references are left dangling so the UI can surface them as
-        // `staleMemberRow` and the user can decide. If the next refresh confirms the drop,
-        // the references remain visible until the user clears them or the model returns.
-        //
-        // Why this is safe with iCloud sync:
-        //   - `replaceEntries` is a local-only side effect of a device's own refresh; iCloud
-        //     merge never calls into it. So the skip decision is per-device and the guard
-        //     can't create cross-device reverberation.
-        //   - `memberEntryIds` IS synced. When device A prunes on a healthy refresh, device B
-        //     will also prune on its next healthy refresh (both APIs agree) — they converge
-        //     without needing to coordinate. When device A skips-prune on a degraded refresh,
-        //     it uploads unchanged memberEntryIds; device B also uploads unchanged on its own
-        //     skip — no flip-flop. The merge's union-of-members semantics means a member
-        //     removal only fully propagates when both devices have done a healthy refresh and
-        //     pruned the same UUIDs in their own local state, which is exactly the convergent
-        //     outcome we want.
-        //   - We never "un-prune" a reference we already removed: skip happens before removal,
-        //     not after. So a genuine local removal, once uploaded, is final.
-        let survivingEntryIds = Set(config.modelEntries.map(\.id))
-        let prunedEntryIds = existingEntryIds.subtracting(survivingEntryIds)
-        let suspiciousShrink = existing.count >= 4 && models.count * 2 < existing.count
-        if !prunedEntryIds.isEmpty {
-            if suspiciousShrink {
-                logger.warning("[ModelList] replaceEntries caller=\(caller) instance=\(instanceLabel)(\(instanceId.prefix(8))) SUSPICIOUS SHRINK before=\(existing.count) after=\(models.count) — stale entries removed from modelEntries but group/agent-loop references PRESERVED as stale (user will see them as unavailable)")
-            } else {
-                var affectedGroups: [String] = []
-                for i in config.modelGroups.indices {
-                    let before = config.modelGroups[i].memberEntryIds.count
-                    config.modelGroups[i].memberEntryIds.removeAll { prunedEntryIds.contains($0) }
-                    if config.modelGroups[i].memberEntryIds.count != before {
-                        affectedGroups.append(config.modelGroups[i].name)
-                    }
-                }
-                config.agentLoopModelEntryIds.removeAll { prunedEntryIds.contains($0) }
-                logger.info("[ModelList] replaceEntries caller=\(caller) instance=\(instanceLabel)(\(instanceId.prefix(8))) pruned \(prunedEntryIds.count) stale entries from groups=[\(affectedGroups.joined(separator: ","))]")
-            }
-        }
-
+        // nanoMuse: 普通刷新与保存事务复用完整候选，只有合法当前代次才发布和排队。
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery,
+              !BackupRestoreJournal.hasPendingRecovery else { return }
+        config = NivoProviderModelRefresh.replacing(in: config, instanceID: instanceId, models: rawModels)
         save()
     }
 
     // MARK: - Model Groups
+
+    // nanoMuse: 所有本机移除共用因果时间规则，保存前即可支持下一次快速编辑。
+    /// 移除指定成员并记录可同步的历史，其他成员及其事件保持原值。
+    private func nmRemoveGroupMembers(_ identifiers: Set<String>, at index: Int, now: Date = Date()) {
+        let removed = config.modelGroups[index].memberEntryIds.filter { identifiers.contains($0) }
+        for member in removed {
+            let observed = [config.modelGroups[index].addedMembers[member], config.modelGroups[index].removedMembers[member]].compactMap { $0 }
+            config.modelGroups[index].removedMembers[member] = NivoProviderEditClock.next(after: observed, now: now)
+            config.modelGroups[index].addedMembers[member] = nil
+        }
+        config.modelGroups[index].memberEntryIds.removeAll { identifiers.contains($0) }
+    }
 
     var modelGroups: [ModelGroup] { config.modelGroups }
 
@@ -1726,11 +1668,13 @@ final class ProviderConfigStore: ObservableObject {
         for (k, v) in group.addedMembers { added[k] = v }
         for (k, v) in group.removedMembers { removed[k] = v }
         for m in newSet where !priorSet.contains(m) {   // newly added
-            added[m] = now
+            // nanoMuse: 页面立即保留递增事件时间，连续移除/重加不能被回拨的墙上时钟抵消。
+            added[m] = NivoProviderEditClock.next(after: [added[m], removed[m]].compactMap { $0 }, now: now)
             removed[m] = nil
         }
         for m in priorSet where !newSet.contains(m) {   // newly removed
-            removed[m] = now
+            // nanoMuse: 只推进已观察到的历史，未见远端重加仍按原并发协议比较。
+            removed[m] = NivoProviderEditClock.next(after: [added[m], removed[m]].compactMap { $0 }, now: now)
             added[m] = nil
         }
         // Prune maps to relevant ids (present → added only; absent → removed only).
@@ -1954,6 +1898,304 @@ final class ProviderConfigStore: ObservableObject {
         save()
     }
 
+    // nanoMuse: 分支配置必须先持久化，再创建可见会话；失败不改变内存中的模型选择。
+    /// 同时保存或清除一个新分支的模型绑定和推理设置，磁盘错误交给调用方处理。
+    func nmSetBranchConfiguration(sessionID: String, binding: SessionModelBinding?,
+                                   inference: SessionInferenceConfig?) async throws {
+        guard !nmIsBranchWriteActive, nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery,
+              !BackupRestoreJournal.hasPendingRecovery else { throw NivoPersonalBackupError.busy }
+        // 同一时间只允许一份分支候选状态等待落盘，恢复不能截取尚未发布的中间状态。
+        nmIsBranchWriteActive = true
+        defer { nmIsBranchWriteActive = false }
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: true)
+        guard loadDegradation == .none, nmRestoreToken == nil else { throw CocoaError(.fileReadUnknown) }
+        guard UUID(uuidString: sessionID) != nil, binding == nil || binding?.sessionId == sessionID else {
+            throw NivoLifeError.invalidField("branch_configuration")
+        }
+        let prior = config
+        let revision = configRevision
+        var candidate = prior
+        candidate.sessionBindings[sessionID] = binding
+        candidate.sessionInferenceConfigs[sessionID] = inference
+        let write = nmEnqueueConfiguration(candidate, prior: prior, markDirty: true)
+        do { try await write.value }
+        catch {
+            // 有更新时回写当前内存快照，不能用旧prior撤销用户刚做的编辑。
+            let recovery = configRevision == revision ? prior : config
+            _ = try? await nmEnqueueConfiguration(recovery, prior: candidate, markDirty: true).value
+            throw error
+        }
+        guard configRevision == revision else {
+            // 落盘完成与MainActor恢复执行之间可能有新编辑，退出前恢复最新配置。
+            try await nmEnqueueConfiguration(config, prior: candidate, markDirty: true).value
+            throw NivoPersonalBackupError.snapshotChanged
+        }
+        configRevision &+= 1
+        config = candidate
+        lastSavedSnapshot = candidate
+    }
+
+    // nanoMuse: 身份切换不使用吞错的save作为成功证据，等待镜像并核对账户提供商。
+    /// JSON及数据库均保留目标提供商后才允许删除账户恢复日志。
+    func nmFlushAccountConfiguration(instanceID: String?, removedInstanceID: String?) async throws {
+        // nanoMuse: 退出先提交身份缓存，再在已经持有的账户租约内可靠删除旧提供商。
+        if let removedInstanceID {
+            try await NivoProviderDeletionHost.shared.recoverDuringAccountChange(removing: removedInstanceID)
+        }
+        // nanoMuse: 当前账户配置是明确的重试目标，排空旧失败后允许重新完整保存。
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: true)
+        guard loadDegradation == .none else { throw CocoaError(.fileReadUnknown) }
+        mirrorSavedConfiguration()
+        try await nmWrites.waitUntilIdle()
+        guard let db else { return }
+        let saved = try await db.nmDumpProviderConfig()
+        if let instanceID, !saved.instances.contains(where: { $0.id == instanceID }) {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        if let removedInstanceID, saved.instances.contains(where: { $0.id == removedInstanceID }) {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
+    /// 备份快照等待数据库初始化和先前写入；数据库文件存在但打开失败时拒绝只备份JSON。
+    func nmWaitForConfigurationWrites(ignoringWriteFailure: Bool = false, allowingMirrorFailure: Bool = false) async throws {
+        if !nmDidFinishDatabaseLoad {
+            await withCheckedContinuation { nmDatabaseLoadWaiters.append($0) }
+        }
+        if ignoringWriteFailure { _ = try? await nmWrites.waitUntilIdle() }
+        else { try await nmWrites.waitUntilIdle(allowingMirrorFailure: allowingMirrorFailure) }
+        if nmUsesDefaultDatabase, db == nil, FileManager.default.fileExists(atPath: ProviderConfigDB.defaultURL().path) {
+            throw NivoSQLiteSnapshotError.invalidDatabase
+        }
+    }
+
+    /// JSON与V3数据库都纳入回滚材料，数据库打开失败不能降级为成功快照。
+    func nmSnapshotDatabaseForRollback(to saved: URL) async throws -> URL? {
+        try await nmWaitForConfigurationWrites()
+        guard loadDegradation == .none else { throw CocoaError(.fileReadUnknown) }
+        guard let db else { return nil }
+        return try await db.nmSnapshotForRollback(to: saved)
+    }
+
+    /// 运行中恢复先排空镜像，再恢复原连接，调用方随后统一重载缓存。
+    func nmRestoreDatabase(from saved: URL, live: URL) async throws {
+        // nanoMuse: 写入失败本身正是回滚原因，等待操作结束后必须允许恢复原快照。
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: true)
+        if let db { try await db.nmRestoreSnapshot(from: saved, expectedURL: live) }
+        else { try NivoSQLiteSnapshot.restore(from: saved, to: live) }
+    }
+
+    // nanoMuse: 恢复前排空原有延后发布，之后禁止旧页面和模型列表请求写入这次事务。
+    /// 调用方先持有账户恢复租约，失败也必须调用nmEndRestore释放本机门禁。
+    func nmBeginRestore(_ identifier: UUID, retryingFailedWrites: Bool = false) async throws {
+        guard nmRestoreToken == nil, !nmHasScopedConfigurationWrite else { throw NivoPersonalBackupError.busy }
+        // nanoMuse: 迁移重试可以重新提交未完成意图，备份默认仍要求旧写入成功。
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: retryingFailedWrites)
+        // nanoMuse: 初载失败时先拒绝迁移，避免配置校验前写出孤立凭证。
+        guard loadDegradation == .none else { throw CocoaError(.fileReadUnknown) }
+        guard nmRestoreToken == nil, !nmHasScopedConfigurationWrite else { throw NivoPersonalBackupError.busy }
+        if let pending = pendingSyncApply {
+            pendingSyncApply = nil
+            syncApplyRetryTimer?.invalidate()
+            syncApplyRetryTimer = nil
+            applyMergedConfigFromSync(pending, allowDeferral: false)
+        }
+        nmRestoreToken = identifier
+        nmRestoreGeneration &+= 1
+        // nanoMuse: 恢复开始主动结束旧浏览器等待，并使全部旧登录和刷新结果失效。
+        NivoOAuthAccess.invalidateAll()
+        if retryingFailedWrites { _ = try? await nmWrites.waitUntilIdle() }
+        else { try await nmWrites.waitUntilIdle() }
+    }
+
+    /// 导入和回滚结束后失效全部旧网络请求，下一次刷新重新读取最终配置。
+    func nmEndRestore(_ identifier: UUID) {
+        guard nmRestoreToken == identifier else { return }
+        nmRestoreToken = nil
+        nmRestoreGeneration &+= 1
+    }
+
+    /// 只有数据库、JSON与缓存都恢复成功才清理队列中的旧错误。
+    func nmDidRollbackConfiguration() {
+        nmWrites.didRestoreSnapshot()
+        nmFailedDatabaseBaseline = nil
+        configRevision &+= 1
+    }
+
+    /// 用户明确恢复不经过滚动延后队列，也不启动脱离事务的模型列表请求。
+    func nmApplyRestoredConfiguration(_ newConfig: ProviderConfig) async throws {
+        guard nmRestoreToken != nil, loadDegradation == .none else { throw NivoPersonalBackupError.busy }
+        let (snapshot, _) = Self.dedupeEntriesByModel(newConfig)
+        let task = nmEnqueueConfiguration(snapshot, prior: config, markDirty: true,
+                                           preserveLocalOnlyStateIfEmpty: true, replacingDatabase: true)
+        try await task.value
+        config = snapshot
+        lastSavedSnapshot = snapshot
+        configRevision &+= 1
+    }
+
+    // nanoMuse: 旧配置迁移使用增量保存并等待实际写入，不复用立即返回的applyConfig。
+    /// 已完成迁移的启动也必须等待权威数据库载入，才可以刷新模型或创建默认组。
+    func nmWaitForMigrationBaseline(retryingFailedWrites: Bool) async throws {
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: retryingFailedWrites)
+        guard loadDegradation == .none else { throw CocoaError(.fileReadUnknown) }
+    }
+
+    /// 调用方持有提供商恢复租约；数据库和JSON确认后才发布新缓存。
+    func nmCommitLegacyMigration(_ newConfig: ProviderConfig, token: UUID) async throws {
+        guard nmRestoreToken == token, loadDegradation == .none,
+              !BackupRestoreJournal.hasPendingRecovery else { throw NivoPersonalBackupError.busy }
+        let prior = config
+        try await nmEnqueueConfiguration(newConfig, prior: prior, markDirty: true).value
+        guard nmRestoreToken == token else { throw NivoPersonalBackupError.snapshotChanged }
+        let persisted = try JSONDecoder().decode(ProviderConfig.self, from: Data(contentsOf: fileURL))
+        guard Set(newConfig.instances.map(\.id)).isSubset(of: Set(persisted.instances.map(\.id))) else {
+            throw NivoPersonalBackupError.snapshotChanged
+        }
+        config = persisted
+        lastSavedSnapshot = persisted
+        configRevision &+= 1
+    }
+
+    // nanoMuse: 分享导入持有备份回滚日志，单次提交整份候选配置后才发布缓存。
+    /// 失败由导入协调器恢复SQLite、JSON和本次新插入凭证。
+    func nmCommitImportedConfiguration(_ candidate: ProviderConfig, token: UUID) async throws {
+        guard nmRestoreToken == token, loadDegradation == .none else { throw NivoPersonalBackupError.busy }
+        // nanoMuse: 单提供商导入由宿主严格确认同步队列，不走吞错的普通markDirty入口。
+        try await nmEnqueueConfiguration(candidate, prior: config, markDirty: false).value
+        guard nmRestoreToken == token else { throw NivoPersonalBackupError.snapshotChanged }
+        let saved = try JSONDecoder().decode(ProviderConfig.self, from: Data(contentsOf: fileURL))
+        guard Set(candidate.instances.map(\.id)).isSubset(of: Set(saved.instances.map(\.id))),
+              Set(candidate.modelEntries.map(\.id)).isSubset(of: Set(saved.modelEntries.map(\.id))) else {
+            throw NivoPersonalBackupError.snapshotChanged
+        }
+        config = saved
+        lastSavedSnapshot = saved
+        configRevision &+= 1
+    }
+
+    // nanoMuse: 删除读取权威数据库，不能依赖页面尚未收到的模型和规则列表。
+    /// 由当前配置和数据库全部规则ID构造固定删除意图。
+    func nmPrepareProviderDeletion(instanceID: String, token: UUID) async throws -> NivoProviderDeletion.Plan? {
+        guard nmRestoreToken == token else { throw NivoPersonalBackupError.busy }
+        let snapshot = try await nmDeletionSnapshot()
+        if !snapshot.instances.contains(where: { $0.id == instanceID }),
+           snapshot.deletedInstances.contains(where: { $0.id == instanceID }) { return nil }
+        var plan = NivoProviderDeletionConfiguration.plan(instanceID: instanceID, config: snapshot, ruleIDs: [], now: Date())
+        let inventory = try await db?.nmProviderDeletionInventory(instanceID: instanceID, groupIDs: plan.groupIDs + plan.updatedGroupIDs)
+        guard nmRestoreToken == token else { throw NivoPersonalBackupError.snapshotChanged }
+        plan.ruleIDs = (inventory?.ruleIDs ?? []).sorted()
+        plan.deletedAt = max(plan.deletedAt, inventory?.lastModified ?? .distantPast)
+        return plan
+    }
+
+    /// SQLite和JSON都成功后才发布缓存，删除日志负责重放跨存储未完成的步骤。
+    func nmPersistProviderDeletion(_ plan: NivoProviderDeletion.Plan, token: UUID) async throws {
+        guard nmRestoreToken == token, loadDegradation == .none else { throw NivoPersonalBackupError.busy }
+        let before = try await nmDeletionSnapshot()
+        let candidate = NivoProviderDeletionConfiguration.applying(plan, to: before)
+        try await nmEnqueueConfiguration(candidate, prior: before, markDirty: false).value
+        try await db?.nmDeleteProviderRules(instanceID: plan.instanceID)
+        guard nmRestoreToken == token else { throw NivoPersonalBackupError.snapshotChanged }
+        let persisted = try JSONDecoder().decode(ProviderConfig.self, from: Data(contentsOf: fileURL))
+        guard !persisted.instances.contains(where: { $0.id == plan.instanceID }),
+              !persisted.modelEntries.contains(where: { $0.providerInstanceId == plan.instanceID }) else {
+            throw NivoPersonalBackupError.snapshotChanged
+        }
+        config = persisted
+        lastSavedSnapshot = persisted
+        configRevision &+= 1
+    }
+
+    /// 数据库已提交而镜像未写完时，重放保留原墓碑并再次生成完整JSON。
+    private func nmDeletionSnapshot() async throws -> ProviderConfig {
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: true)
+        guard loadDegradation == .none else { throw CocoaError(.fileReadUnknown) }
+        guard let db else { return config }
+        var snapshot = try await db.nmDumpProviderConfig()
+        snapshot.deletedInstances = config.deletedInstances
+        snapshot.deletedModelEntries = config.deletedModelEntries
+        snapshot.deletedModelGroups = config.deletedModelGroups
+        return snapshot
+    }
+
+    // nanoMuse: 普通整包同步也等待真实落盘，不能在滚动延后或排队期间确认接收成功。
+    /// 等待安全发布窗口后再次核对合并基线，期间的本地修改必须由调用方重新合并。
+    func nmCommitSynchronizedConfiguration(_ newConfig: ProviderConfig, expectedRevision: UInt) async throws {
+        while true {
+            // 明确收到的新同步快照可以重试暂时写盘失败，不被上一轮错误永久锁住。
+            try await nmWaitForConfigurationWrites(ignoringWriteFailure: true)
+            try Task.checkCancellation()
+            guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !BackupRestoreJournal.hasPendingRecovery,
+                  loadDegradation == .none else { throw NivoPersonalBackupError.busy }
+            guard configRevision == expectedRevision, pendingSyncApply == nil else {
+                throw NivoPersonalBackupError.snapshotChanged
+            }
+            if !shouldDeferSyncApply() { break }
+            try await Task.sleep(nanoseconds: 300_000_000)
+        }
+        // 版本检查到发布之间不交出MainActor，避免等待后的旧快照覆盖新编辑。
+        applyMergedConfigFromSync(newConfig, allowDeferral: false, forcePersistence: nmWrites.hasFailedWrite)
+        try await nmWaitForConfigurationWrites()
+    }
+
+    // nanoMuse: V3数据库已完成入站写入，刷新缓存不得再次全量替换权威数据库。
+    /// 等待本机写入和安全发布窗口，只发布完整数据库快照并更新JSON镜像。
+    func nmRefreshFromDatabase() async throws {
+        try await nmWaitForDatabaseRefreshWindow()
+        guard let database = db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        let revision = configRevision
+        let generation = nmRestoreGeneration
+        let fresh = try await database.nmDumpProviderConfig()
+        let mapping = try await database.nmLegacyUuidMap()
+        try Task.checkCancellation()
+        guard revision == configRevision, generation == nmRestoreGeneration,
+              nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !nmIsBranchWriteActive, pendingSyncApply == nil,
+              !BackupRestoreJournal.hasPendingRecovery, !shouldDeferSyncApply() else {
+            throw NivoPersonalBackupError.snapshotChanged
+        }
+        var snapshot = Self.dedupeEntriesByModel(fresh).0
+        // nanoMuse: 缓存只折叠显示；旧UUID删除会解析到规范ID，不能因此自动发送模型删除。
+        _ = Self.nmNormalizeReferences(&snapshot, using: mapping)
+        // 旧整包协议的墓碑保存在JSON，数据库缓存刷新不能丢掉它们。
+        snapshot.deletedInstances = config.deletedInstances
+        snapshot.deletedModelEntries = config.deletedModelEntries
+        snapshot.deletedModelGroups = config.deletedModelGroups
+        let instancesNeedingRefresh = nmInstancesNeedingRefresh(in: snapshot)
+        let mappingChanged = legacyUuidToCompositeKey != mapping
+        legacyUuidToCompositeKey = mapping
+        let needsMirror = snapshot != config || nmWrites.hasFailedWrite
+            || !FileManager.default.fileExists(atPath: fileURL.path)
+        if snapshot != config || mappingChanged {
+            config = snapshot
+            configRevision &+= 1
+            lastSavedSnapshot = snapshot
+        }
+        if needsMirror {
+            let destination = fileURL
+            let mirror = snapshot
+            let write = nmWrites.enqueueMirror {
+                try JSONEncoder().encode(mirror).write(to: destination, options: .atomic)
+            }
+            try await write.value
+        }
+        try Task.checkCancellation()
+        if nmUsesDefaultDatabase { try await nmReloadThinkingRuleCache() }
+        nmScheduleModelRefreshes(instancesNeedingRefresh)
+    }
+
+    private func nmWaitForDatabaseRefreshWindow() async throws {
+        while true {
+            try await nmWaitForConfigurationWrites(allowingMirrorFailure: true)
+            try Task.checkCancellation()
+            guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !nmIsBranchWriteActive,
+                  !BackupRestoreJournal.hasPendingRecovery, loadDegradation == .none,
+                  pendingSyncApply == nil else { throw NivoPersonalBackupError.busy }
+            if !shouldDeferSyncApply() { return }
+            try await Task.sleep(nanoseconds: 300_000_000)
+        }
+    }
+
     func removeInferenceConfig(for sessionId: String) {
         config.sessionInferenceConfigs.removeValue(forKey: sessionId)
         save()
@@ -2014,23 +2256,11 @@ final class ProviderConfigStore: ObservableObject {
         RunLoop.main.add(timer, forMode: .default)
     }
 
-    func applyMergedConfigFromSync(_ newConfig: ProviderConfig) {
-        // Compute the set of instances that ended up with zero model
-        // entries after the merge. The remote ProviderConfig snapshot
-        // can be missing model rows when the peer hadn't refreshed yet
-        // (or pushed before its own model fetch completed). Without a
-        // follow-up refresh the model picker would be empty for those
-        // instances on this device.
-        let priorInstanceIds = Set(config.instances.map(\.id))
-        let instancesNeedingRefresh: [ProviderInstance] = newConfig.instances.filter { inst in
-            // Only instances that are either brand-new on this device
-            // (never seen before) OR have no model entries after the
-            // merge are worth refreshing — an existing instance with a
-            // populated picker should be left alone.
-            let entriesAfter = newConfig.modelEntries.filter { $0.providerInstanceId == inst.id }
-            return entriesAfter.isEmpty && (!priorInstanceIds.contains(inst.id) ||
-                                            !config.modelEntries.contains { $0.providerInstanceId == inst.id })
-        }
+    // nanoMuse: 旧同步缓存不能穿过恢复边界；真实入站由同步宿主等租约结束后重新合并。
+    func applyMergedConfigFromSync(_ newConfig: ProviderConfig, allowDeferral: Bool = true, forcePersistence: Bool = false) {
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery else { return }
+        // nanoMuse: 整包和逐行同步共用补全规则，避免V3缓存改造遗漏空列表提供商。
+        let instancesNeedingRefresh = nmInstancesNeedingRefresh(in: newConfig)
 
         // [T-icloud-provider-sync-consistency] Collapse cross-device duplicate
         // entries. Each device assigns a RANDOM uuid to a freshly-refreshed
@@ -2061,7 +2291,7 @@ final class ProviderConfigStore: ObservableObject {
         // refresh, skip the publish + disk + DB write entirely — the poll was
         // genuinely a no-op. Any real change (diff, prune, empty-picker
         // instance) still falls through to the full apply below.
-        if deduped == config, prunedEntryIds.isEmpty, instancesNeedingRefresh.isEmpty {
+        if !forcePersistence, deduped == config, prunedEntryIds.isEmpty, instancesNeedingRefresh.isEmpty {
             return
         }
 
@@ -2081,80 +2311,53 @@ final class ProviderConfigStore: ObservableObject {
         // invisible to the user and keeps the giant graph update out of the
         // fragile frames. Latest snapshot wins while deferred; DB/disk
         // mirrors move with the apply, so state stays consistent.
-        if shouldDeferSyncApply() {
+        if allowDeferral && shouldDeferSyncApply() {
             pendingSyncApply = newConfig
             armSyncApplyRetry()
             return
         }
 
         config = deduped
+        configRevision &+= 1
         // [T-icloud-fresh-restore-provider-groups] Summary of what this device
         // holds after an inbound merge — the single most useful triage line for
         // "fresh restore is missing providers/groups": shows instance / entry /
         // group counts plus total group members actually present.
         let groupMembers = deduped.modelGroups.reduce(0) { $0 + $1.memberEntryIds.count }
         logger.info("[v3sync] applyMergedConfigFromSync: instances=\(deduped.instances.count) entries=\(deduped.modelEntries.count) groups=\(deduped.modelGroups.count) groupMembers=\(groupMembers) prunedDup=\(prunedEntryIds.count)")
-        // [T-icloud-provider-sync-apply-offmain] Persist to disk WITHOUT going
-        // through `save()` (which would markDirty) — and do the encode + atomic
-        // write OFF the main thread. Encoding the full provider config (hundreds
-        // of model entries) + a synchronous file write was a measurable chunk of
-        // the per-apply main-thread cost behind the scroll stalls. The in-memory
-        // `config` (@Published) is already assigned above, so the disk mirror is
-        // a fire-and-forget snapshot write with no ordering dependency; a later
-        // apply simply overwrites it atomically. The SQLite mirror below is
-        // likewise already off-main.
-        let snapshotForDisk = config
-        let diskURL = fileURL
-        Task.detached(priority: .utility) {
-            do {
-                let data = try JSONEncoder().encode(snapshotForDisk)
-                try data.write(to: diskURL, options: .atomic)
-            } catch {
-                AppLogger(category: "ProviderConfigStore").error("Failed to persist merged provider config: \(error)")
-            }
-        }
-        // Mirror the merged config into SQLite too — but suppress v3
-        // markDirty emission since this update originated INBOUND from
-        // sync (re-emitting it would round-trip the same payload back
-        // to cloud, exactly the v2 ping-pong we're trying to escape).
-        // The lastSavedSnapshot is also updated so the next mutate's
-        // diff is correctly anchored against the freshly-merged state.
+        // nanoMuse: 入站JSON与SQLite同序完成，保留本机agent-loop选择，不重复回传全量配置。
+        nmEnqueueConfiguration(config, prior: lastSavedSnapshot, markDirty: false,
+                               preserveLocalOnlyStateIfEmpty: true)
         lastSavedSnapshot = config
-        if let db {
-            let snapshot = config
-            let toDelete = prunedEntryIds
-            Task.detached {
-                // [T-icloud-agentloop-wipe] INBOUND path — turn on the
-                // local-only preserve guard. agentLoopModelEntryIds is
-                // per-device state that a peer's config knows nothing about, so
-                // an inbound snapshot legitimately carries `[]` for it; without
-                // this the replace below would erase the user's agent-loop
-                // selection on every merge (OpenMinis#98 defect 2). The
-                // user-initiated save() path deliberately does NOT set this —
-                // there, an empty list really does mean "clear it".
-                await db.bulkReplace(from: snapshot, preserveLocalOnlyStateIfEmpty: true)
-                // Physically remove the pruned duplicate entry rows so they
-                // don't reappear from the DB, and tombstone them so the
-                // deletion propagates instead of resurrecting from a peer.
-                for eid in toDelete { await db.deleteEntryRow(id: eid) }
-            }
-        }
         if !prunedEntryIds.isEmpty {
             logger.info("[ModelList] applyMergedConfigFromSync: collapsed \(prunedEntryIds.count) cross-device duplicate entry/entries; rewrote group refs to representatives")
-            // Tombstone the pruned uuids so the fold propagates to peers.
-            for eid in prunedEntryIds {
-                Task { await ChatStore.shared.markDirty(recordType: "ProviderModelEntryV3", recordId: eid, operation: "delete") }
-            }
+            // nanoMuse: 清理重复显示不等于用户删除模型，旧ID删除可映射到保留条目，禁止自动发删除墓碑。
         }
 
-        // Fire-and-forget model refreshes for instances left empty.
-        // refreshModels handles errors internally and writes back via
-        // replaceEntries — which will markDirty for the next sync round
-        // (idempotent if the picker is genuinely empty).
-        if !instancesNeedingRefresh.isEmpty {
-            logger.info("[ModelList] applyMergedConfigFromSync: \(instancesNeedingRefresh.count) instance(s) have empty model lists, scheduling refresh")
-            for inst in instancesNeedingRefresh {
-                Task { await refreshModels(for: inst) }
+        // nanoMuse: 连续云端回放不能为同一提供商并发启动多个模型列表请求。
+        nmScheduleModelRefreshes(instancesNeedingRefresh)
+    }
+
+    // nanoMuse: 按提供商集合计算缺少模型的实例，避免每个实例再次遍历所有模型。
+    private func nmInstancesNeedingRefresh(in snapshot: ProviderConfig) -> [ProviderInstance] {
+        let priorInstances = Set(config.instances.map(\.id))
+        let priorModels = Set(config.modelEntries.map(\.providerInstanceId))
+        let incomingModels = Set(snapshot.modelEntries.map(\.providerInstanceId))
+        return snapshot.instances.filter {
+            !incomingModels.contains($0.id) && (!priorInstances.contains($0.id) || !priorModels.contains($0.id))
+        }
+    }
+
+    private var nmPendingModelRefreshes: Set<String> = []
+
+    // nanoMuse: 独立测试仓库不会发出真实网络请求，正式仓库沿用已有模型发现行为。
+    private func nmScheduleModelRefreshes(_ instances: [ProviderInstance]) {
+        guard nmUsesDefaultDatabase else { return }
+        for instance in instances where nmPendingModelRefreshes.insert(instance.id).inserted {
+            Task { [weak self] in
+                guard let self else { return }
+                defer { self.nmPendingModelRefreshes.remove(instance.id) }
+                await self.refreshModels(for: instance)
             }
         }
     }
@@ -2168,13 +2371,15 @@ final class ProviderConfigStore: ObservableObject {
     ///   representative = among entries with the same composite key, prefer
     ///   isCustom==false; tie-break by lexicographically smallest uuid.
     ///
-    /// Returns the deduped config and the list of pruned (non-representative)
-    /// entry uuids so the caller can delete + tombstone them.
+    // nanoMuse: 返回重复别名用于诊断；别名与规范模型代表同一身份，不可自动发远端删除。
     static func dedupeEntriesByModel(_ input: ProviderConfig) -> (config: ProviderConfig, prunedEntryIds: [String]) {
         var config = input
         // Group entries by composite key.
         var byKey: [String: [ModelEntry]] = [:]
+        // nanoMuse: 保留第一次出现的模型顺序，随机字典遍历会让相同同步快照反复触发UI更新。
+        var orderedKeys: [String] = []
         for e in config.modelEntries {
+            if byKey[e.compositeKey] == nil { orderedKeys.append(e.compositeKey) }
             byKey[e.compositeKey, default: []].append(e)
         }
         guard byKey.values.contains(where: { $0.count > 1 }) else {
@@ -2185,7 +2390,8 @@ final class ProviderConfigStore: ObservableObject {
         var uuidRewrite: [String: String] = [:]  // prunedUuid → representativeUuid
         var pruned: [String] = []
         var survivors: [ModelEntry] = []
-        for (_, entries) in byKey {
+        for key in orderedKeys {
+            guard let entries = byKey[key] else { continue }
             if entries.count == 1 { survivors.append(entries[0]); continue }
             var rep = entries.sorted { a, b in
                 if a.isCustom != b.isCustom { return !a.isCustom }  // non-custom first
@@ -2249,8 +2455,12 @@ final class ProviderConfigStore: ObservableObject {
     /// record (and thus its legacyUuid mapping) shows up.
     @discardableResult
     func normalizeReferences() -> Bool {
-        guard !legacyUuidToCompositeKey.isEmpty else { return false }
-        let map = legacyUuidToCompositeKey
+        Self.nmNormalizeReferences(&config, using: legacyUuidToCompositeKey)
+    }
+
+    // nanoMuse: 缓存候选在发布前完成引用归一化，不为每个引用反复发布或写盘。
+    private static func nmNormalizeReferences(_ config: inout ProviderConfig, using map: [String: String]) -> Bool {
+        guard !map.isEmpty else { return false }
         var changed = false
 
         func remap(_ ref: String) -> String { map[ref] ?? ref }
@@ -2317,26 +2527,14 @@ final class ProviderConfigStore: ObservableObject {
         return changed
     }
 
-    /// Merge new legacyUuid→compositeKey entries into the map and persist.
-    /// Triggers normalizeReferences when anything new was learned.
-    func learnLegacyUuids(_ pairs: [String: String]) {
-        var learnedNew = false
-        var learnedKeys: [String] = []
-        for (uuid, ck) in pairs where legacyUuidToCompositeKey[uuid] != ck {
-            legacyUuidToCompositeKey[uuid] = ck
-            learnedNew = true
-            learnedKeys.append("\(uuid.prefix(8))→\(ck)")
-        }
-        guard learnedNew else {
-            logger.info("[CompositeKeyMigrate] learnLegacyUuids: \(pairs.count) inbound pair(s), none new (lmap=\(self.legacyUuidToCompositeKey.count))")
-            return
-        }
-        logger.info("[CompositeKeyMigrate] learnLegacyUuids: learned \(learnedKeys.count) new mapping(s) [\(learnedKeys.prefix(6).joined(separator: ","))] lmap=\(self.legacyUuidToCompositeKey.count)")
-        persistLegacyUuidMap()
-        if normalizeReferences() {
-            save()
-            logger.info("[CompositeKeyMigrate] learnLegacyUuids: normalizeReferences rewrote references after learning + saved")
-        }
+    // nanoMuse: 映射写入失败由接收屏障保留；此时页面缓存可能落后，禁止从缓存调用save。
+    /// 只学习和持久化标识映射，引用归一化由下一次完整数据库刷新处理。
+    func learnLegacyUuids(_ pairs: [String: String]) async throws {
+        guard nmRestoreToken == nil, let database = db else { throw NivoPersonalBackupError.busy }
+        let generation = nmRestoreGeneration
+        let mapping = try await database.nmLearnLegacyUuids(pairs)
+        guard generation == nmRestoreGeneration, nmRestoreToken == nil else { throw NivoPersonalBackupError.snapshotChanged }
+        legacyUuidToCompositeKey = mapping
     }
 
     /// [T-provider-entry-id-canonicalize] Resolve a (possibly legacy random-uuid)
@@ -2348,22 +2546,6 @@ final class ProviderConfigStore: ObservableObject {
     func canonicalEntryId(forLegacy id: String) -> String? {
         if id.contains("/") { return nil }
         return legacyUuidToCompositeKey[id]
-    }
-
-    private func persistLegacyUuidMap() {
-        guard let db else { return }
-        let snapshot = legacyUuidToCompositeKey
-        let json = (try? JSONEncoder().encode(snapshot)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        Task.detached { await db.setLegacyUuidMapKV(json) }
-    }
-
-    func loadLegacyUuidMap() async {
-        guard let db else { return }
-        if let s = await db.localKV("legacyUuidMap"),
-           let data = s.data(using: .utf8),
-           let map = try? JSONDecoder().decode([String: String].self, from: data) {
-            self.legacyUuidToCompositeKey = map
-        }
     }
 
     // MARK: - Shadow Voice Providers [T-mimo-shadow-voice]
@@ -2485,6 +2667,9 @@ final class ProviderConfigStore: ObservableObject {
     /// Appends new models without removing user-added custom entries.
     /// Errors are logged but not thrown (fire-and-forget friendly).
     func refreshModels(for instance: ProviderInstance) async {
+        // nanoMuse: 恢复之前发出的网络请求不能在回滚后再覆盖模型列表。
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery else { return }
+        let restoreGeneration = nmRestoreGeneration
         // [T-mimo-shadow-voice] No longer skipped for "voice-only" providers.
         // Refresh ALWAYS runs the real /models fetch so a mixed vendor (e.g.
         // MiMo: text chat + voice on one host) gets its text models; audio-modality
@@ -2493,6 +2678,8 @@ final class ProviderConfigStore: ObservableObject {
         do {
             logger.info("[ModelList] refreshModels (MANUAL): instance=\(instance.label) starting fetch")
             let result = try await Self.fetchModelsWithFallback(instance, forceRefresh: true)
+            guard nmRestoreToken == nil, nmRestoreGeneration == restoreGeneration,
+                  config.instances.contains(where: { $0.id == instance.id }) else { return }
             replaceEntries(for: instance.id, models: result.models, caller: "refreshModels(manual)")
             logger.info("[ModelList] refreshModels (MANUAL): instance=\(instance.label) source=\(result.source) count=\(result.models.count)")
             for w in result.warnings { logger.warning("⚠️ \(w)") }
@@ -2503,6 +2690,9 @@ final class ProviderConfigStore: ObservableObject {
 
     /// Auto-refresh: fetch models for a single instance, skipping if user has custom models.
     private func autoRefreshModels(for instance: ProviderInstance) async {
+        // nanoMuse: 自动刷新和手动刷新使用同一恢复代次。
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery else { return }
+        let restoreGeneration = nmRestoreGeneration
         // [T-mimo-shadow-voice] No longer skipped for "voice-only" providers —
         // audio-modality template seed entries survive replaceEntries.
         let hasCustomModels = config.modelEntries.contains { $0.providerInstanceId == instance.id && $0.isCustom }
@@ -2513,6 +2703,8 @@ final class ProviderConfigStore: ObservableObject {
         do {
             logger.info("[ModelList] autoRefreshModels (DAILY): instance=\(instance.label) starting fetch")
             let result = try await Self.fetchModelsWithFallback(instance, forceRefresh: true)
+            guard nmRestoreToken == nil, nmRestoreGeneration == restoreGeneration,
+                  config.instances.contains(where: { $0.id == instance.id }) else { return }
             replaceEntries(for: instance.id, models: result.models, caller: "autoRefreshModels(daily)")
             logger.info("[ModelList] autoRefreshModels (DAILY): instance=\(instance.label) source=\(result.source) count=\(result.models.count)")
         } catch {
@@ -2594,10 +2786,16 @@ final class ProviderConfigStore: ObservableObject {
     /// For existing users who have providers but no model groups, silently create a "Default Models"
     /// group using the past week's most-used model (or the first visible entry as fallback).
     func createDefaultGroupIfNeeded() async {
+        // nanoMuse: 多窗口启动和恢复不能使用等待前的空分组判断创建重复默认组。
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery,
+              loadDegradation == .none, !BackupRestoreJournal.hasPendingRecovery else { return }
         guard !config.instances.isEmpty, config.modelGroups.isEmpty else { return }
-
+        let restoreGeneration = nmRestoreGeneration
         let cutoff = Date().addingTimeInterval(-7 * 24 * 3600)
         let topModelId = await ChatStore.shared.fetchMostUsedModelId(since: cutoff)
+        guard nmRestoreToken == nil, nmRestoreGeneration == restoreGeneration, config.modelGroups.isEmpty,
+              loadDegradation == .none, !NivoProviderDeletionHost.hasPendingRecovery,
+              !BackupRestoreJournal.hasPendingRecovery else { return }
 
         let entry: ModelEntry?
         if let modelId = topModelId {
@@ -2620,7 +2818,9 @@ final class ProviderConfigStore: ObservableObject {
     }
 
     /// Fetch the model list from a provider's API for the given instance.
-    static func fetchModelsForInstance(_ instance: ProviderInstance, forceRefresh: Bool = false) async throws -> [LLMModel] {
+    // nanoMuse: 新密钥探测只在内存传递，无需暂时覆盖正式Keychain；空字符串支持无密钥本机端点。
+    static func fetchModelsForInstance(_ instance: ProviderInstance, forceRefresh: Bool = false,
+                                       apiKeyOverride: String? = nil) async throws -> [LLMModel] {
         let customBase = instance.effectiveCustomBaseURL
         let appendV1 = instance.appendV1Suffix
         // Custom UA only for custom-base OpenAI/Anthropic-compat instances (proxy/relay);
@@ -2628,7 +2828,8 @@ final class ProviderConfigStore: ObservableObject {
         let ua = instance.supportsCustomUserAgent ? instance.effectiveCustomUserAgent : nil
         switch (instance.providerType, instance.credentialType) {
         case (.anthropic, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)
+                ?? (instance.allowsEmptyAPIKey ? "" : nil) else {
                 throw ModelRefreshError.noCredential
             }
             return try await AnthropicModelsAPI.fetchModels(apiKey: key, baseURL: customBase, appendV1Suffix: appendV1, forceRefresh: forceRefresh, userAgent: ua)
@@ -2640,7 +2841,7 @@ final class ProviderConfigStore: ObservableObject {
             let token = try await ClaudeOAuthManager.shared.validAccessToken(instanceId: instance.id)
             return try await AnthropicModelsAPI.fetchModels(oauthToken: token, baseURL: customBase, appendV1Suffix: appendV1, forceRefresh: forceRefresh)
         case (.gemini, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
                 throw ModelRefreshError.noCredential
             }
             return try await GeminiModelsAPI.fetchModels(apiKey: key, customBaseURL: customBase, forceRefresh: forceRefresh)
@@ -2652,7 +2853,8 @@ final class ProviderConfigStore: ObservableObject {
             let projectID = GeminiOAuthManager.shared.gcpProjectID(instanceId: instance.id)
             return try await GeminiModelsAPI.fetchModels(oauthToken: token, gcpProjectID: projectID ?? "", customBaseURL: customBase)
         case (.openAI, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)
+                ?? (instance.allowsEmptyAPIKey ? "" : nil) else {
                 throw ModelRefreshError.noCredential
             }
             return try await OpenAIModelsAPI.fetchModels(apiKey: key, baseURL: customBase, appendV1Suffix: appendV1, forceRefresh: forceRefresh, userAgent: ua)
@@ -2672,7 +2874,7 @@ final class ProviderConfigStore: ObservableObject {
             let projectID = AntigravityOAuthManager.shared.projectID(instanceId: instance.id) ?? ""
             return try await AntigravityModelsAPI.fetchModels(oauthToken: token, projectID: projectID, forceRefresh: forceRefresh)
         case (.openRouter, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
                 throw ModelRefreshError.noCredential
             }
             return try await OpenRouterModelsAPI.fetchModels(apiKey: key, forceRefresh: forceRefresh)
@@ -2686,7 +2888,8 @@ final class ProviderConfigStore: ObservableObject {
             }
             return try await OpenRouterModelsAPI.fetchModels(apiKey: key, forceRefresh: forceRefresh)
         case (.openAIResponses, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)
+                ?? (instance.allowsEmptyAPIKey ? "" : nil) else {
                 throw ModelRefreshError.noCredential
             }
             return try await OpenAIModelsAPI.fetchModels(apiKey: key, baseURL: customBase, appendV1Suffix: appendV1, forceRefresh: forceRefresh, userAgent: ua)
@@ -2694,7 +2897,7 @@ final class ProviderConfigStore: ObservableObject {
             // Responses API provider type only supports API key auth
             return ModelsDevAPI.enrichModels(ProviderType.openAIResponses.builtInModels)
         case (.xAI, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
                 throw ModelRefreshError.noCredential
             }
             let xaiBase = customBase ?? "https://api.x.ai/v1"
@@ -2715,7 +2918,7 @@ final class ProviderConfigStore: ObservableObject {
             let xaiAppendV1 = customBase == nil ? false : appendV1
             return try await OpenAIModelsAPI.fetchModels(apiKey: token, baseURL: xaiBase, appendV1Suffix: xaiAppendV1, forceRefresh: forceRefresh, userAgent: xaiUA)
         case (.kimiCode, .apiKey):
-            guard let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
+            guard let key = apiKeyOverride ?? ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) else {
                 throw ModelRefreshError.noCredential
             }
             let kimiBase = customBase ?? "https://api.kimi.com/coding"
@@ -2825,13 +3028,15 @@ final class ProviderConfigStore: ObservableObject {
 
     /// Fetch models from the provider API, falling back to models.dev when the API
     /// returns an empty list or fails (e.g. custom base URL without /v1/models support).
-    static func fetchModelsWithFallback(_ instance: ProviderInstance, forceRefresh: Bool = false) async throws -> ModelFetchResult {
+    // nanoMuse: 新密钥探测在内存传入，并可要求拒绝授权错误后再采用离线目录。
+    static func fetchModelsWithFallback(_ instance: ProviderInstance, forceRefresh: Bool = false,
+                                        apiKeyOverride: String? = nil, rejectUnauthorized: Bool = false) async throws -> ModelFetchResult {
         var warnings: [String] = []
         let isThirdParty = isThirdPartyOpenAICompat(instance)
 
         // Step 1: Try /v1/models API
         do {
-            let models = try await fetchModelsForInstance(instance, forceRefresh: forceRefresh)
+            let models = try await fetchModelsForInstance(instance, forceRefresh: forceRefresh, apiKeyOverride: apiKeyOverride)
             if !models.isEmpty {
                 return ModelFetchResult(models: models, source: "api", warnings: [])
             }
@@ -2841,6 +3046,8 @@ final class ProviderConfigStore: ObservableObject {
         } catch let error as ModelRefreshError {
             throw error  // No credential — don't attempt fallback
         } catch {
+            // nanoMuse: 保存新密钥时不能把401/403当作模型目录接口缺失。
+            if rejectUnauthorized, let refusal = NanoMuseVendorSetup.refusal(error) { throw refusal }
             let msg = "API fetch failed: \(error.localizedDescription)"
             warnings.append(msg)
             logger.info("\(msg) for \(instance.label)")
@@ -2914,14 +3121,42 @@ final class ProviderConfigStore: ObservableObject {
 
     // MARK: - Thinking rules (Phase 2 §2)
 
+    // nanoMuse: 思考规则直接写数据库，也必须与恢复快照互斥。
+    /// 在首次异步交接前占位，结束写盘、缓存刷新及同步登记后由调用方释放。
+    private func nmBeginThinkingRuleWrite() -> ProviderConfigDB? {
+        guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !BackupRestoreJournal.hasPendingRecovery,
+              loadDegradation == .none, let db else { return nil }
+        nmActiveThinkingRuleWrites += 1
+        return db
+    }
+
     /// Reload every instance's user-authored thinking rules into the synchronous cache
     /// the resolver reads. Call after any mutation, and once at DB adoption.
     func reloadThinkingRuleCache() async {
-        guard let db else { return }
-        var map: [String: [ThinkingRule]] = [:]
-        for inst in config.instances {
-            let rules = await db.loadThinkingRules(instanceId: inst.id)
-            if !rules.isEmpty { map[inst.id] = rules }
+        // nanoMuse: 常规编辑保留旧入口，读取失败不清空已有缓存。
+        do { try await nmReloadThinkingRuleCache() }
+        catch { logger.error("[Nivo] thinking-rule cache retained: \(error.localizedDescription)") }
+    }
+
+    // nanoMuse: 多个规则读取交错时，较早开始的读取不得覆盖后一次读取结果。
+    private var nmThinkingRuleCacheGeneration: UInt64 = 0
+
+    /// 完整读取规则后才发布缓存；恢复流程必须处理失败再决定是否解除屏障。
+    func nmReloadThinkingRuleCache() async throws {
+        guard let db else {
+            if nmUsesDefaultDatabase { throw NivoSQLiteSnapshotError.invalidDatabase }
+            return
+        }
+        // nanoMuse: 读取期间配置或恢复发生变化时不能用旧规则覆盖新缓存。
+        let revision = configRevision
+        let generation = nmRestoreGeneration
+        nmThinkingRuleCacheGeneration &+= 1
+        let cacheGeneration = nmThinkingRuleCacheGeneration
+        let map = try await db.nmThinkingRuleCacheSnapshot()
+        try Task.checkCancellation()
+        guard revision == configRevision, generation == nmRestoreGeneration,
+              cacheGeneration == nmThinkingRuleCacheGeneration else {
+            throw NivoPersonalBackupError.snapshotChanged
         }
         ThinkingRuleCache.shared.replaceAll(map)
         logger.info("[ThinkingRules] cache primed: \(map.count) instance(s) with custom rules")
@@ -2939,7 +3174,9 @@ final class ProviderConfigStore: ObservableObject {
     /// peer devices, exactly as instances / entries / groups do.
     @discardableResult
     func saveThinkingRule(_ rule: ThinkingRule, instanceId: String, sortOrder: Int) async -> Bool {
-        guard let db else { return false }
+        // nanoMuse: 恢复期间拒绝旧编辑页写入，已开始的操作保持占位到实际完成。
+        guard let db = nmBeginThinkingRuleWrite() else { return false }
+        defer { nmActiveThinkingRuleWrites -= 1 }
         let ok = await db.upsertThinkingRule(rule, instanceId: instanceId, sortOrder: sortOrder)
         await reloadThinkingRuleCache()
         if ok {
@@ -2964,11 +3201,16 @@ final class ProviderConfigStore: ObservableObject {
     /// still existed, so a peer's copy is removed even if ours was already gone.
     @discardableResult
     func deleteThinkingRule(id: String, instanceId: String) async -> Bool {
-        guard let db else { return false }
+        // nanoMuse: 删除同样受恢复门禁约束，失败不得穿过快照边界。
+        guard let db = nmBeginThinkingRuleWrite() else { return false }
+        defer { nmActiveThinkingRuleWrites -= 1 }
         let ok = await db.deleteThinkingRule(id: id)
         await reloadThinkingRuleCache()
-        await ChatStore.shared.markDirty(recordType: "ProviderThinkingRuleV3",
-                                         recordId: id, operation: "delete")
+        // nanoMuse: 本机删除失败不能向其他设备发布删除；目标已经不存在仍由数据库返回成功。
+        if ok {
+            await ChatStore.shared.markDirty(recordType: "ProviderThinkingRuleV3",
+                                             recordId: id, operation: "delete")
+        }
         return ok
     }
 
@@ -2977,7 +3219,9 @@ final class ProviderConfigStore: ObservableObject {
     /// record cannot express "the list moved".
     @discardableResult
     func reorderThinkingRules(instanceId: String, orderedIds: [String]) async -> Bool {
-        guard let db else { return false }
+        // nanoMuse: 排序也是数据库写入，不能在回滚安装期间重排旧列表。
+        guard let db = nmBeginThinkingRuleWrite() else { return false }
+        defer { nmActiveThinkingRuleWrites -= 1 }
         let ok = await db.reorderThinkingRules(instanceId: instanceId, orderedIds: orderedIds)
         await reloadThinkingRuleCache()
         if ok {
@@ -3024,6 +3268,10 @@ enum ProviderKeychainHelper {
     /// Timestamp of the last local save for this instance's API key, or
     /// `.distantPast` if never stamped (legacy entries written before this field existed).
     static func apiKeySavedAt(instanceId: String) -> Date {
+        // nanoMuse: 优先读取与值原子提交的版本，崩溃不会留下新密钥和旧时间。
+        if let date = try? NivoCredentialSyncKeychain.savedProviderDate(instanceID: instanceId) { return date }
+        // nanoMuse: 恢复是本机写入，使用带回滚标记的Keychain创建时间，避免旧云端密钥立即覆盖它。
+        if let restoredAt = NivoCredentialRestore.restoredAPIKeyDate(instanceID: instanceId) { return restoredAt }
         let ud = UserDefaults.standard
         if let ts = ud.object(forKey: apiKeySavedAtUDKey(instanceId: instanceId)) as? Date {
             return ts
@@ -3038,29 +3286,17 @@ enum ProviderKeychainHelper {
         UserDefaults.standard.set(date, forKey: apiKeySavedAtUDKey(instanceId: instanceId))
     }
 
-    static func saveAPIKey(_ key: String, instanceId: String, caller: String = #function) {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        // Delete both legacy (non-sync) and synchronizable entries
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-        var syncDelete = deleteQuery
-        syncDelete[kSecAttrSynchronizable as String] = true
-        SecItemDelete(syncDelete as CFDictionary)
-        // Save with iCloud Keychain sync enabled
-        var addQuery = deleteQuery
-        addQuery[kSecValueData as String] = Data(key.utf8)
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        addQuery[kSecAttrSynchronizable as String] = true
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        // Stamp the local save time for iCloud LWW conflict resolution.
-        stampAPIKeySavedAt(Date(), instanceId: instanceId)
-        AppLogger(category: "Keychain").info("write apiKey instanceId=\(instanceId.prefix(8)) keyLen=\(key.count) addStatus=\(addStatus) caller=\(caller)")
-        // Refresh credential-derived UI (provider list "configured" dot, etc).
-        notifyAuthChanged(instanceId: instanceId)
+    // nanoMuse: 本机编辑和云端合并共用原位写入，不再删除旧值后尝试新增。
+    /// 失败保留已有值与版本；调用者可根据返回值决定是否显示保存成功。
+    @discardableResult
+    static func saveAPIKey(_ key: String, instanceId: String, caller: String = #function) -> Bool {
+        do {
+            try NivoCredentialSyncKeychain.saveLocalProvider(key, instanceID: instanceId)
+            return true
+        } catch {
+            AppLogger(category: "Keychain").error("[Nivo] API key persistence was not confirmed")
+            return false
+        }
     }
 
     static func loadAPIKey(instanceId: String, caller: String = #function) -> String? {
@@ -3129,6 +3365,12 @@ enum ProviderKeychainHelper {
         Task { @MainActor in ProviderConfigStore.shared.authRevision &+= 1 }
     }
 
+    // nanoMuse: 中继的本机专用Keychain写入也要让凭证缓存失效。
+    /// 不重新写同步Keychain条目，只刷新已有凭证与模型解析缓存。
+    static func nmDeviceKeyChanged(instanceId: String) {
+        notifyAuthChanged(instanceId: instanceId)
+    }
+
     /// [T-ios-backup-credential-restore] Raw-bytes accessors for the structured
     /// OAuth blob.
     ///
@@ -3137,103 +3379,44 @@ enum ProviderKeychainHelper {
     /// (which would also silently drop any provider type added later). These
     /// read/write the exact same Keychain item as the typed
     /// `saveOAuthToken`/`loadOAuthToken` pair.
-    static func saveRawOAuthToken(_ data: Data, instanceId: String) {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        let acct = "oauth-token"
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: acct,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-        var syncDelete = deleteQuery
-        syncDelete[kSecAttrSynchronizable as String] = true
-        SecItemDelete(syncDelete as CFDictionary)
-        var addQuery = deleteQuery
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        addQuery[kSecAttrSynchronizable as String] = true
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        if status != errSecSuccess {
-            AppLogger(category: "Keychain").warning("write rawOAuthToken instanceId=\(instanceId.prefix(8)) status=\(status)")
-        }
-    }
-
-    static func loadRawOAuthToken(instanceId: String) -> Data? {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: "oauth-token",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        query[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
-        return result as? Data
-    }
-
-    static func saveOAuthToken<T: Codable>(_ token: T, instanceId: String, caller: String = #function) {
-        guard let data = try? JSONEncoder().encode(token) else {
-            AppLogger(category: "Keychain").warning("write oauthToken instanceId=\(instanceId.prefix(8)) ENCODE FAILED caller=\(caller)")
-            return
-        }
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        let acct = "oauth-token"
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: acct,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-        var syncDelete = deleteQuery
-        syncDelete[kSecAttrSynchronizable as String] = true
-        SecItemDelete(syncDelete as CFDictionary)
-        var addQuery = deleteQuery
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        addQuery[kSecAttrSynchronizable as String] = true
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        AppLogger(category: "Keychain").info("write oauthToken instanceId=\(instanceId.prefix(8)) blobLen=\(data.count) addStatus=\(addStatus) caller=\(caller)")
+    // nanoMuse: OAuth写入失败必须向登录、迁移和导入传播，不能先删旧值。
+    /// 原始令牌与类型化令牌使用相同的严格持久化入口。
+    static func saveRawOAuthToken(_ data: Data, instanceId: String) throws {
+        try NivoProviderOAuthKeychain.save(data, instanceID: instanceId, account: "oauth-token")
         notifyAuthChanged(instanceId: instanceId)
     }
 
+    // nanoMuse: 可选读取供展示使用；数据迁移与登录校验使用Strict入口区分系统故障。
+    static func loadRawOAuthToken(instanceId: String) -> Data? {
+        try? loadRawOAuthTokenStrict(instanceId: instanceId)
+    }
+
+    /// 读取失败与记录不存在分离，迁移不能据此覆盖已登录实例。
+    static func loadRawOAuthTokenStrict(instanceId: String) throws -> Data? {
+        try NivoProviderOAuthKeychain.read(instanceID: instanceId, account: "oauth-token")
+    }
+
+    // nanoMuse: 编码和持久化都成功后才刷新认证缓存。
+    /// 结构化令牌按稳定键序编码，便于迁移重复确认。
+    static func saveOAuthToken<T: Codable>(_ token: T, instanceId: String, caller: String = #function) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data: Data
+        do { data = try encoder.encode(token) }
+        catch { throw NivoOAuthPersistenceError.invalidValue }
+        try saveRawOAuthToken(data, instanceId: instanceId)
+    }
+
+    // nanoMuse: 展示兼容旧的可选结果，运行路径使用Strict方法保留读取错误。
     static func loadOAuthToken<T: Codable>(instanceId: String, as type: T.Type, caller: String = #function) -> T? {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        let acct = "oauth-token"
-        // Try synchronizable first
-        let syncQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: acct,
-            kSecAttrSynchronizable as String: true,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        let syncStatus = SecItemCopyMatching(syncQuery as CFDictionary, &result)
-        if syncStatus == errSecSuccess, let data = result as? Data {
-            let decoded = try? JSONDecoder().decode(type, from: data)
-            AppLogger(category: "Keychain").info("read oauthToken instanceId=\(instanceId.prefix(8)) src=sync hit=true decoded=\(decoded != nil) caller=\(caller)")
-            return decoded
-        }
-        // Fallback to legacy
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: acct,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        let legacyStatus = SecItemCopyMatching(query as CFDictionary, &result)
-        guard legacyStatus == errSecSuccess, let data = result as? Data else {
-            AppLogger(category: "Keychain").info("read oauthToken instanceId=\(instanceId.prefix(8)) hit=false syncStatus=\(syncStatus) legacyStatus=\(legacyStatus) caller=\(caller)")
-            return nil
-        }
-        let decoded = try? JSONDecoder().decode(type, from: data)
-        AppLogger(category: "Keychain").info("read oauthToken instanceId=\(instanceId.prefix(8)) src=legacy hit=true decoded=\(decoded != nil) syncStatus=\(syncStatus) caller=\(caller)")
-        return decoded
+        try? loadOAuthTokenStrict(instanceId: instanceId, as: type)
+    }
+
+    /// 损坏或受限的已有凭证不能被当成尚未登录。
+    static func loadOAuthTokenStrict<T: Codable>(instanceId: String, as type: T.Type) throws -> T? {
+        guard let data = try loadRawOAuthTokenStrict(instanceId: instanceId) else { return nil }
+        do { return try JSONDecoder().decode(type, from: data) }
+        catch { throw NivoOAuthPersistenceError.invalidValue }
     }
 
     static func deleteOAuthToken(instanceId: String, caller: String = #function) {
@@ -3254,60 +3437,23 @@ enum ProviderKeychainHelper {
 
     // MARK: - OAuth Strings (per-instance, e.g. email, project ID)
 
-    static func saveOAuthString(_ value: String, instanceId: String, account: String, caller: String = #function) {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-        var syncDelete = deleteQuery
-        syncDelete[kSecAttrSynchronizable as String] = true
-        SecItemDelete(syncDelete as CFDictionary)
-        var addQuery = deleteQuery
-        addQuery[kSecValueData as String] = Data(value.utf8)
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        addQuery[kSecAttrSynchronizable as String] = true
-        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-        AppLogger(category: "Keychain").info("write oauthString instanceId=\(instanceId.prefix(8)) acct=\(account) valLen=\(value.count) addStatus=\(addStatus) caller=\(caller)")
+    // nanoMuse: 手动令牌和OAuth附属资料同样原位写入并确认。
+    /// 调用者仅在保存成功后关闭输入页或报告登录成功。
+    static func saveOAuthString(_ value: String, instanceId: String, account: String, caller: String = #function) throws {
+        try NivoProviderOAuthKeychain.save(Data(value.utf8), instanceID: instanceId, account: account)
         notifyAuthChanged(instanceId: instanceId)
     }
 
+    // nanoMuse: 旧可选接口仅用于显示，迁移使用严格读取。
     static func loadOAuthString(instanceId: String, account: String, caller: String = #function) -> String? {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        // Try synchronizable first
-        let syncQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: true,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        let syncStatus = SecItemCopyMatching(syncQuery as CFDictionary, &result)
-        if syncStatus == errSecSuccess, let data = result as? Data {
-            let s = String(data: data, encoding: .utf8)
-            AppLogger(category: "Keychain").info("read oauthString instanceId=\(instanceId.prefix(8)) acct=\(account) src=sync hit=\(s != nil) valLen=\(s?.count ?? 0) caller=\(caller)")
-            return s
-        }
-        // Fallback to legacy
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        let legacyStatus = SecItemCopyMatching(query as CFDictionary, &result)
-        guard legacyStatus == errSecSuccess, let data = result as? Data else {
-            AppLogger(category: "Keychain").info("read oauthString instanceId=\(instanceId.prefix(8)) acct=\(account) hit=false syncStatus=\(syncStatus) legacyStatus=\(legacyStatus) caller=\(caller)")
-            return nil
-        }
-        let s = String(data: data, encoding: .utf8)
-        AppLogger(category: "Keychain").info("read oauthString instanceId=\(instanceId.prefix(8)) acct=\(account) src=legacy hit=\(s != nil) valLen=\(s?.count ?? 0) syncStatus=\(syncStatus) caller=\(caller)")
-        return s
+        try? loadOAuthStringStrict(instanceId: instanceId, account: account)
+    }
+
+    /// 只有确实缺少条目时才返回nil，非法字符串保持原件并抛错。
+    static func loadOAuthStringStrict(instanceId: String, account: String) throws -> String? {
+        guard let data = try NivoProviderOAuthKeychain.read(instanceID: instanceId, account: account) else { return nil }
+        guard let value = String(data: data, encoding: .utf8) else { throw NivoOAuthPersistenceError.invalidValue }
+        return value
     }
 
     static func deleteOAuthString(instanceId: String, account: String, caller: String = #function) {

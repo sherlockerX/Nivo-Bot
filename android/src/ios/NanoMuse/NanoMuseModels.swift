@@ -242,62 +242,33 @@ enum NanoMuseOwnKeyPreset: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Add the provider with a pasted key, fetch its models, make the chat default the group's first.
+    /// 旧预设入口复用厂商目录的完整保存流程，避免维护第二套新增及默认分组逻辑。
     @MainActor
     @discardableResult
-    func install(apiKey: String) async -> ProviderInstance? {
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return nil }
-        let store = ProviderConfigStore.shared
-        let inst: ProviderInstance
-        if let existing = existingInstance {
-            inst = existing
-        } else {
-            inst = ProviderInstance(label: label, providerType: providerType, credentialType: .apiKey, customBaseURL: baseURL, appendV1Suffix: true)
-            ProviderKeychainHelper.saveAPIKey(key, instanceId: inst.id)
-            store.addInstance(inst)
+    func install(apiKey: String, sourceScope: NivoOAuthScope) async throws -> ProviderInstance? {
+        guard let vendor = NanoMuseCatalogue.bundled.first(where: { $0.id == id }) else {
+            throw NivoPersonalBackupError.invalidPackage
         }
-        ProviderKeychainHelper.saveAPIKey(key, instanceId: inst.id)
-        await store.refreshModels(for: inst)
-        adoptDefaults(inst)
-        return inst
+        var finalScope = sourceScope
+        let instance = try await NanoMuseVendorSetup.install(vendor, apiKey: apiKey,
+            mainland: NanoMuseRegion.isMainland, chinese: NanoMuseCatalogue.chinese, sourceScope: sourceScope,
+            onRestoreFinished: { finalScope = $0 })
+        try NivoOAuthAccess.validateScope(finalScope)
+        if self == .bailian, let instance {
+            NanoMuseImageGen.save(instanceId: instance.id, model: NanoMuseImageGen.suggestedModel(for: instance))
+        }
+        return instance
     }
 
-    /// OpenRouter's sign-in without a paste: the OAuth flow leaves a key in the keychain.
+    /// OpenRouter授权同样先成功登录，再等待新实例保存，失败不提前创建列表条目。
     @MainActor
-    func signInOpenRouter() async throws -> ProviderInstance? {
-        guard self == .openrouter else { return nil }
-        let store = ProviderConfigStore.shared
-        let inst = existingInstance ?? {
-            let fresh = ProviderInstance(label: label, providerType: .openRouter, credentialType: .oauth)
-            store.addInstance(fresh)
-            return fresh
-        }()
-        try await OpenRouterOAuthManager.shared.login(instanceId: inst.id)
-        await store.refreshModels(for: inst)
-        adoptDefaults(inst)
-        return inst
+    func signInOpenRouter(instanceID: String, sourceScope: NivoOAuthScope) async throws -> ProviderInstance? {
+        guard self == .openrouter, let vendor = NanoMuseCatalogue.bundled.first(where: { $0.id == id }) else { return nil }
+        return try await NanoMuseVendorSetup.signIn(vendor, auth: NanoMuseCatalogue.authOpenRouter,
+            instanceID: instanceID, mainland: NanoMuseRegion.isMainland, chinese: NanoMuseCatalogue.chinese,
+            sourceScope: sourceScope)
     }
 
-    /// A group named after the preset with the chat default first (only if none of ours exists);
-    /// the default group is set when the person had none; Bailian also becomes the face's image route.
-    @MainActor
-    private func adoptDefaults(_ inst: ProviderInstance) {
-        let store = ProviderConfigStore.shared
-        let entries = store.entries(for: inst.id).filter { !$0.isHidden }
-        let chat = entries.first { $0.model.id == chatModel }
-            ?? entries.first { $0.model.id.lowercased().contains("deepseek") && NanoMuseVision.deepSeekSees($0.model.id.lowercased()) == true }
-            ?? entries.first { !NanoMuseImageGen.drawsNatively($0.model.id) && $0.model.capabilities.supportedModalities.contains(.textOutput) }
-        if let chat, !store.modelGroups.contains(where: { $0.memberEntryIds.contains(chat.id) }) {
-            let group = ModelGroup(name: label, memberEntryIds: [chat.id])
-            store.addGroup(group)
-            if store.defaultPrimaryGroupId == nil { store.defaultPrimaryGroupId = group.id }
-        }
-        // Bailian draws too: the face's pictures come from this key from now on.
-        if self == .bailian {
-            NanoMuseImageGen.save(instanceId: inst.id, model: NanoMuseImageGen.suggestedModel(for: inst))
-        }
-    }
 }
 
 // MARK: - "Use your own key" sheet

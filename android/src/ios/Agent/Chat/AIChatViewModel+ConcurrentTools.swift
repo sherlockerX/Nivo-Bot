@@ -277,6 +277,20 @@ extension AIChatViewModel {
             return "{}"
         }()
 
+        // nanoMuse: 工具授权必须绑定到当前已保存的用户回合，而不是模型历史中任意一条文本。
+        // 工具调用位于助手消息之后，因此从当前助手消息之前反向寻找最近一条非队列用户消息。
+        let currentUserMessage: ChatMessage? = {
+            guard msgIdx > 0, msgIdx <= messages.count else { return nil }
+            return messages[..<msgIdx].reversed().first {
+                $0.role == .user && !$0.isQueued && !$0.isCompactedHistory
+            }
+        }()
+        // nanoMuse: 只有个人数据工具需要这次读库，其他工具不增加磁盘往返。
+        let personalTools = [NivoLifeToolBridge.todoQuery, NivoLifeToolBridge.todoCommand,
+                             NivoLifeToolBridge.focusQuery, NivoLifeToolBridge.focusCommand,
+                             NivoCoachToolBridge.query, NivoCoachToolBridge.command, NivoMosaicToolBridge.name]
+        let savedUserTurn = personalTools.contains(tu.name) ? await nmSavedUserTurn(currentUserMessage) : nil
+
         do {
         switch tu.name {
         case "shell_execute":
@@ -294,7 +308,8 @@ extension AIChatViewModel {
 
             // Offload permission check.
             ctLogger.info("[OffloadPerm] shell command: \(command)")
-            if let offloadCmd = OffloadPermissionManager.extractOffloadCommand(from: command) {
+            // nanoMuse: 定时命令在原生分发点审批；可信report不再次请求管理任务的权限。
+            if let offloadCmd = OffloadPermissionManager.extractOffloadCommand(from: command), offloadCmd != "minis-scheduled" {
                 ctLogger.info("[OffloadPerm] matched offload: \(offloadCmd), level: \(OffloadPermissionManager.shared.permissionLevel(for: offloadCmd).rawValue)")
                 let permResult = await OffloadPermissionManager.shared.checkPermission(
                     for: offloadCmd, sessionId: self.sessionId, fullCommand: command
@@ -798,6 +813,46 @@ extension AIChatViewModel {
             }
             toolOutput = memResult.output
             toolSuccess = memResult.success
+
+        case NivoLifeToolBridge.todoQuery, NivoLifeToolBridge.todoCommand,
+             NivoLifeToolBridge.focusQuery, NivoLifeToolBridge.focusCommand:
+            // nanoMuse: 个人数据工具完全走本地账户仓库，不能退化为 shell 或模型文本。
+            let lifeResult = await NivoLifeToolBridge.execute(
+                name: tu.name,
+                args: toolArgs,
+                model: NivoLifeModel.shared,
+                sessionID: sessionId,
+                currentUser: savedUserTurn
+            )
+            toolOutput = lifeResult.output
+            toolSuccess = lifeResult.success
+            if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
+                messages[msgIdx].blocks[blockIdx].content = lifeResult.output
+            }
+
+        case NivoMosaicToolBridge.name:
+            // nanoMuse: 碎片只读接口复用已落盘的用户回合身份与账户代次。
+            let mosaicResult = await NivoMosaicToolBridge.execute(args: toolArgs, currentUser: savedUserTurn, sessionID: sessionId)
+            toolOutput = mosaicResult.output
+            toolSuccess = mosaicResult.success
+            if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
+                messages[msgIdx].blocks[blockIdx].content = mosaicResult.output
+            }
+
+        case NivoCoachToolBridge.query, NivoCoachToolBridge.command:
+            // nanoMuse: Coach v2 使用独立的schema 3账户快照，普通文件工具不能替代它。
+            let coachResult = await NivoCoachToolBridge.execute(
+                name: tu.name,
+                args: toolArgs,
+                model: NivoLifeModel.shared,
+                sessionID: sessionId,
+                currentUser: savedUserTurn
+            )
+            toolOutput = coachResult.output
+            toolSuccess = coachResult.success
+            if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
+                messages[msgIdx].blocks[blockIdx].content = coachResult.output
+            }
 
         default:
             toolOutput = "Error: Unknown tool '\(tu.name)'"

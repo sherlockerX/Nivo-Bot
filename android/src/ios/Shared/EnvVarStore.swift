@@ -4,32 +4,7 @@ import os.log
 
 private let logger = AppLogger(category: "EnvVarStore")
 
-// MARK: - EnvVarEntry
-
-struct EnvVarEntry: Identifiable, Codable {
-    let id: String
-    var key: String
-    var createdAt: Date
-    /// Optional human-readable description of what this variable is for. Empty
-    /// string when omitted. Stored in the JSON metadata file; not secret.
-    var note: String
-
-    init(id: String = UUID().uuidString, key: String, createdAt: Date = Date(), note: String = "") {
-        self.id = id
-        self.key = key
-        self.createdAt = createdAt
-        self.note = note
-    }
-
-    // Custom decoder so older entries without a `note` field still load.
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try c.decode(String.self, forKey: .id)
-        self.key = try c.decode(String.self, forKey: .key)
-        self.createdAt = try c.decode(Date.self, forKey: .createdAt)
-        self.note = (try? c.decode(String.self, forKey: .note)) ?? ""
-    }
-}
+// nanoMuse: 元数据值模型迁至NivoEnvVarState，便携测试直接验证应用使用的版本及文件规则。
 
 // MARK: - EnvVarStore
 
@@ -38,17 +13,33 @@ final class EnvVarStore: ObservableObject {
     static let shared = EnvVarStore()
 
     @Published private(set) var entries: [EnvVarEntry] = []
+    // nanoMuse: 读取失败持续显示，不能让损坏档案看起来只是没有变量。
+    @Published private(set) var loadError: String?
 
-    private let fileURL: URL
+    // nanoMuse: 后台脚本读取同一个注入路径，并与文件恢复共用进程锁。
+    nonisolated private let fileURL: URL
+    private var recoveryTask: Task<Void, Error>?
+    nonisolated private var transaction: NivoEnvVarTransaction { NivoEnvVarTransaction(fileURL: fileURL) }
     nonisolated private static let keychainService = "io.github.nanomuse.app.envvar"
 
-    init() {
-        let libraryURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let baseURL = libraryURL.appendingPathComponent("MinisChat", isDirectory: true)
-        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
-        self.fileURL = baseURL.appendingPathComponent("env-vars.json")
-        self.entries = Self.loadEntries(from: fileURL)
-        scheduleLegacyRecordCleanupIfNeeded()
+    // nanoMuse: 恢复日志明确捕获元数据位置，凭证仍只保存在Keychain。
+    nonisolated static var configFileURLForBackup: URL {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MinisChat/env-vars.json")
+    }
+
+    // nanoMuse: 可注入独立元数据文件供Apple测试使用；读取失败保留错误，不伪装空档案。
+    init(fileURL: URL = EnvVarStore.configFileURLForBackup, schedulesCleanup: Bool = true) {
+        self.fileURL = fileURL
+        do {
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try transaction.requireSettled()
+            self.entries = try NivoEnvVarState.read(fileURL)
+        } catch {
+            loadError = AppLocalized("Saved data could not be opened. The original file was preserved.")
+            logger.error("Environment metadata could not be loaded")
+        }
+        if schedulesCleanup { scheduleLegacyRecordCleanupIfNeeded() }
     }
 
     // MARK: - Legacy whole-file record cleanup
@@ -72,13 +63,16 @@ final class EnvVarStore: ObservableObject {
     ///   3. Persist `legacyCleanupKey = true` so subsequent launches
     ///      skip this work.
     private func scheduleLegacyRecordCleanupIfNeeded() {
-        guard !UserDefaults.standard.bool(forKey: Self.legacyCleanupKey) else { return }
+        // nanoMuse: 损坏本机档案不能触发旧云端元数据清理。
+        guard loadError == nil, !UserDefaults.standard.bool(forKey: Self.legacyCleanupKey) else { return }
+        let generation = NanoMuseAccountData.shared.generation
         // Defer past actor init to avoid touching ChatStore before its
         // SyncCore wiring has completed (ChatStore actor is also being
         // brought up around the same time on app launch).
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 5_000_000_000) // 5s
-            guard let self else { return }
+            guard let self, !Task.isCancelled, self.loadError == nil,
+                  NanoMuseAccountData.shared.generation == generation, !Self.hasPendingRecovery else { return }
             await MainActor.run {
                 self.markAllEntriesDirty()
                 Task { await ChatStore.shared.markDirty(
@@ -94,35 +88,62 @@ final class EnvVarStore: ObservableObject {
 
     // MARK: - Persistence (key list)
 
-    private static func loadEntries(from url: URL) -> [EnvVarEntry] {
-        guard let data = try? Data(contentsOf: url),
-              let entries = try? JSONDecoder().decode([EnvVarEntry].self, from: data) else {
-            return []
-        }
-        return entries
-    }
-
-    /// Reload entries from disk (e.g. after iCloud sync merges new data).
+    // nanoMuse: 同步/恢复重新加载失败时保留当前列表，下一次写入仍严格读取文件。
     func reloadFromDisk() {
-        entries = Self.loadEntries(from: fileURL)
+        do {
+            // nanoMuse: 页面重开、前台恢复均重放未结束的文件/凭证操作。
+            try nmRecoverFiles()
+        } catch {
+            loadError = AppLocalized("Saved data could not be opened. The original file was preserved.")
+            logger.error("Environment metadata could not be reloaded")
+        }
     }
 
-    private func saveEntries() {
-        do {
-            let data = try JSONEncoder().encode(entries)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            logger.error("Failed to save env var entries: \(error)")
+    // nanoMuse: 恢复元数据不重复写凭证，避免清除刚插入条目的回滚所有权。
+    /// 所有字段先验证，文件成功写入后才发布和计数，已有变量保持本机内容。
+    func nmImportMetadata(_ incoming: [EnvVarEntry]) throws -> (imported: Int, skipped: Int) {
+        // nanoMuse: 备份使用自己的回滚日志，不在其中嵌套环境变量恢复事务。
+        try transaction.requireSettled()
+        try NivoEnvVarState.validate(incoming)
+        var candidate = try NivoEnvVarState.read(fileURL)
+        var keys = Set(candidate.map(\.key))
+        var identifiers = Set(candidate.map(\.id))
+        var added: [EnvVarEntry] = []
+        for entry in incoming {
+            guard Self.isValidKey(entry.key), !entry.id.isEmpty, entry.createdAt.timeIntervalSince1970.isFinite else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            guard keys.insert(entry.key).inserted else { continue }
+            let identifier = identifiers.insert(entry.id).inserted ? entry.id : UUID().uuidString
+            added.append(EnvVarEntry(id: identifier, key: entry.key, createdAt: entry.createdAt,
+                note: entry.note, updatedAt: entry.updatedAt))
         }
-        // v2 sync uses per-variable EnvVarItem records. Per-key markDirty
-        // is issued by the call sites that actually mutate a specific
-        // entry (add / update / delete / updateNote). Bulk re-emit when
-        // we don't know which key changed (e.g. file rewritten via
-        // SyncDirtyScanner) is handled by markAllEntriesDirty.
-        //
-        // Legacy EnvVar (whole-file) markDirty is no longer issued —
-        // SyncedEnvVars builder returns nil, so any leftover dirty rows
-        // get drained as no-ops.
+        candidate.append(contentsOf: added)
+        try commit(candidate)
+        for entry in added { markEntryDirty(entryId: entry.id) }
+        return (added.count, incoming.count - added.count)
+    }
+
+    // nanoMuse: 候选文件提交后才发布列表，失败向同步屏障或表单传播。
+    private func commit(_ candidate: [EnvVarEntry]) throws {
+        try NivoEnvVarState.save(candidate, to: fileURL)
+        entries = candidate
+        loadError = nil
+    }
+
+    /// 本机表单使用返回值保留未保存输入，错误文本不包含秘密正文。
+    private func performLocal(_ body: () throws -> Void) -> Bool {
+        do {
+            try nmRecoverFiles()
+            try transaction.requireSettled()
+            try NivoCloudCredentialAccess.perform(expectedGeneration: NanoMuseAccountData.shared.generation, body)
+            return true
+        } catch {
+            if (try? transaction.pending()) != nil { loadError = AppLocalized("Could not save") }
+            logger.error("Environment update was not confirmed")
+            ShareFeedbackToast.show(NivoLifeModel.message(error))
+            return false
+        }
     }
 
     /// Mark a single variable's per-key sync record as dirty. Caller
@@ -147,63 +168,16 @@ final class EnvVarStore: ObservableObject {
 
     // MARK: - Keychain (values)
 
-    /// Persist a value under `key` in the synchronizable Keychain.
-    ///
-    /// Previously this did delete-then-add unconditionally. That had a
-    /// data-loss window: if the two SecItemDelete calls didn't fully remove
-    /// the prior synchronizable item (iCloud Keychain replication lag), the
-    /// following SecItemAdd returned errSecDuplicateItem — the old value was
-    /// already deleted and the new value never landed, so the variable read
-    /// back EMPTY. That is the intermittent "saved a value but it comes back
-    /// blank" the user hit (e.g. WEBDAV_USER).
-    ///
-    /// Now: update-in-place first; only add when the item genuinely doesn't
-    /// exist; and on a duplicate race, fall back to update. The prior value is
-    /// never deleted before the new one is committed, so a failed write leaves
-    /// the old value intact instead of blanking it. Returns whether the value
-    /// is now persisted.
+    // nanoMuse: 本机与入站凭证共用原位写入，用户保存推进原子版本。
     @discardableResult
     nonisolated private static func saveValue(_ value: String, forKey key: String) -> Bool {
-        let syncMatch: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key,
-            kSecAttrSynchronizable as String: true,
-        ]
-        let attrs: [String: Any] = [
-            kSecValueData as String: Data(value.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-        ]
-
-        // Remove any legacy NON-synchronizable item for this key so reads
-        // (which prefer the sync item) don't shadow it — but do this only
-        // after we know the sync write will be attempted, and never let its
-        // result blank the value.
-        func dropLegacyNonSyncItem() {
-            var legacy = syncMatch
-            legacy[kSecAttrSynchronizable as String] = false
-            SecItemDelete(legacy as CFDictionary)
-        }
-
-        var status = SecItemUpdate(syncMatch as CFDictionary, attrs as CFDictionary)
-        if status == errSecItemNotFound {
-            var addQuery = syncMatch
-            addQuery.merge(attrs) { _, new in new }
-            status = SecItemAdd(addQuery as CFDictionary, nil)
-            // Lost a race: the item appeared between our update and add
-            // (replication or a concurrent write). Update it instead of
-            // failing — this is the exact case that used to blank the value.
-            if status == errSecDuplicateItem {
-                status = SecItemUpdate(syncMatch as CFDictionary, attrs as CFDictionary)
+        do {
+            try NivoCredentialSyncKeychain.withEnvironmentLock {
+                try NivoEnvVarTransaction(fileURL: configFileURLForBackup).requireSettled()
+                _ = try NivoCredentialSyncKeychain.saveEnvironment(value, key: key, version: Date(), isLocal: true)
             }
-        }
-
-        if status == errSecSuccess {
-            dropLegacyNonSyncItem()
             return true
-        }
-        logger.error("Keychain save failed for \(key): OSStatus \(status) — prior value left intact")
-        return false
+        } catch { return false }
     }
 
     nonisolated private static func loadValue(forKey key: String) -> String? {
@@ -230,18 +204,6 @@ final class EnvVarStore: ObservableObject {
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data else { return nil }
         return String(data: data, encoding: .utf8)
-    }
-
-    nonisolated private static func deleteValue(forKey key: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key,
-        ]
-        SecItemDelete(query as CFDictionary)
-        var syncQuery = query
-        syncQuery[kSecAttrSynchronizable as String] = true
-        SecItemDelete(syncQuery as CFDictionary)
     }
 
     /// Non-isolated read for use from CloudSyncEngine (background thread).
@@ -276,185 +238,250 @@ final class EnvVarStore: ObservableObject {
 
     // MARK: - Public API
 
-    func add(key: String, value: String, note: String = "") {
-        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !trimmedKey.isEmpty, Self.isValidKey(trimmedKey) else { return }
-
-        // Don't allow duplicate keys
-        guard !entries.contains(where: { $0.key == trimmedKey }) else {
-            logger.warning("Duplicate env var key: \(trimmedKey)")
-            return
+    // nanoMuse: 所有本机修改读取真实元数据，写入成功后才推进版本及脏记录。
+    @discardableResult
+    func add(key: String, value: String, note: String = "") -> Bool {
+        performLocal {
+            var candidate = try NivoEnvVarState.read(fileURL)
+            let name = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard !candidate.contains(where: { $0.key == name }) else { throw NivoEnvVarState.Failure.duplicateKey }
+            var entry = EnvVarEntry(key: name, note: note, updatedAt: Date())
+            try NivoEnvVarState.validate([entry])
+            entry.updatedAt = try nextCredentialVersion(key: name, proposed: entry.version)
+            candidate.append(entry)
+            try commitTransaction(candidate, writeKey: name, value: Self.sanitizeValue(value), notifySync: true)
         }
-
-        let cleanValue = Self.sanitizeValue(value)
-        // Commit the value to the Keychain FIRST. If it fails, don't insert a
-        // list entry — otherwise the variable shows up with a blank value.
-        guard Self.saveValue(cleanValue, forKey: trimmedKey) else {
-            logger.error("Add env var aborted — Keychain write failed for \(trimmedKey)")
-            return
-        }
-        let entry = EnvVarEntry(key: trimmedKey, note: note)
-        entries.append(entry)
-        saveEntries()
-        markEntryDirty(entryId: entry.id, operation: "upsert")
-        logger.info("Added env var: \(trimmedKey)")
     }
 
-    /// Update an entry. Pass `note: nil` to leave the existing note untouched
-    /// (used by the deep-link overwrite path which only updates the value).
-    func update(id: String, key: String, value: String, note: String? = nil) {
-        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
-
-        let oldKey = entries[idx].key
-        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !trimmedKey.isEmpty, Self.isValidKey(trimmedKey) else { return }
-
-        // If key changed, delete old keychain entry and check for duplicates
-        if oldKey != trimmedKey {
-            guard !entries.contains(where: { $0.key == trimmedKey && $0.id != id }) else {
-                logger.warning("Cannot rename to duplicate key: \(trimmedKey)")
-                return
-            }
-            Self.deleteValue(forKey: oldKey)
+    /// 改名先保存目标值及元数据，原凭证仅在新映射落盘后清理。
+    @discardableResult
+    func update(id: String, key: String, value: String, note: String? = nil) -> Bool {
+        performLocal {
+            var candidate = try NivoEnvVarState.read(fileURL)
+            guard let index = candidate.firstIndex(where: { $0.id == id }) else { throw NivoEnvVarState.Failure.invalidRecord }
+            let previous = candidate[index]
+            let name = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            guard !candidate.contains(where: { $0.key == name && $0.id != id }) else { throw NivoEnvVarState.Failure.duplicateKey }
+            candidate[index].key = name
+            if let note { candidate[index].note = note }
+            candidate[index].updatedAt = try NivoEnvVarState.nextVersion(after: previous.version, now: Date())
+            try NivoEnvVarState.validate(candidate)
+            candidate[index].updatedAt = try nextCredentialVersion(key: name, proposed: candidate[index].version)
+            try commitTransaction(candidate, writeKey: name, value: Self.sanitizeValue(value), notifySync: true)
         }
-
-        let cleanValue = Self.sanitizeValue(value)
-        // Commit the new value FIRST; only mutate the entry (and persist the
-        // key rename) once the Keychain write succeeds, so a failed write
-        // never leaves the list pointing at a blanked value. On key rename the
-        // old value was already migrated/removed above; if the new write
-        // fails, re-log so the caller can retry.
-        guard Self.saveValue(cleanValue, forKey: trimmedKey) else {
-            logger.error("Update env var aborted — Keychain write failed for \(trimmedKey)")
-            return
-        }
-        entries[idx].key = trimmedKey
-        if let note { entries[idx].note = note }
-        saveEntries()
-        markEntryDirty(entryId: entries[idx].id, operation: "upsert")
-        logger.info("Updated env var: \(trimmedKey)")
     }
 
-    /// Update only the human-readable note without touching the
-    /// Keychain-stored value. Used by minis-config so the agent can
-    /// annotate variables without ever seeing or overwriting the
-    /// secret.
-    func updateNote(id: String, note: String) {
-        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
-        entries[idx].note = note
-        saveEntries()
-        markEntryDirty(entryId: id, operation: "upsert")
+    /// 仅修改备注不读取或写入秘密，但使用同一真实修改时间。
+    @discardableResult
+    func updateNote(id: String, note: String) -> Bool {
+        performLocal {
+            var candidate = try NivoEnvVarState.read(fileURL)
+            guard let index = candidate.firstIndex(where: { $0.id == id }) else { throw NivoEnvVarState.Failure.invalidRecord }
+            candidate[index].note = note
+            candidate[index].updatedAt = try NivoEnvVarState.nextVersion(after: candidate[index].version, now: Date())
+            try commitTransaction(candidate, notifySync: true)
+        }
     }
 
-    func delete(id: String) {
-        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
-        let key = entries[idx].key
-        entries.remove(at: idx)
-        Self.deleteValue(forKey: key)
-        saveEntries()
-        // Mark the entry's per-key record for cloud deletion. Peers will
-        // hard-delete it via applyEnvVarItemDeletion. The recordId is the
-        // entry UUID, not the key — same as upsert path.
-        markEntryDirty(entryId: id, operation: "delete")
-        logger.info("Deleted env var: \(key)")
+    /// 元数据提交后移除不再被任何变量引用的凭证；失败不先清空用户列表。
+    @discardableResult
+    func delete(id: String) -> Bool {
+        performLocal {
+            let current = try NivoEnvVarState.read(fileURL)
+            guard current.contains(where: { $0.id == id }) else { return }
+            let candidate = current.filter { $0.id != id }
+            try commitTransaction(candidate, notifySync: true)
+        }
     }
 
     func value(forKey key: String) -> String? {
-        Self.loadValue(forKey: key)
+        // nanoMuse: 未结束的事务不让表单读到新值与旧名称的组合。
+        try? NivoCredentialSyncKeychain.withEnvironmentLock {
+            try transaction.requireSettled()
+            return try NivoCredentialSyncKeychain.environmentValue(key: key)
+        }
     }
 
     func entry(id: String) -> EnvVarEntry? {
         entries.first(where: { $0.id == id })
     }
 
-    // MARK: - Sync inbound (per-variable)
-
-    /// Apply an inbound EnvVarItem. Lookup by id; if a local entry with
-    /// the same id exists, LWW-by-updatedAt decides the winner. If no
-    /// local entry exists by id but another one with the same key
-    /// exists (created independently on two devices before they ever
-    /// synced), keep both — they have distinct UUIDs and the user can
-    /// reconcile manually.
-    ///
-    /// `value` is empty when the sender sent an empty/missing valueB64
-    /// (e.g. legacy build that didn't fill it). In that case we leave
-    /// the local Keychain value untouched rather than wiping it.
-    func applyRemoteItem(
-        id: String, key: String, value: String, note: String,
-        createdAt: Date, updatedAt: Date
-    ) {
-        if let idx = entries.firstIndex(where: { $0.id == id }) {
-            // Local entry exists — LWW by updatedAt. We don't track a
-            // per-entry updatedAt locally yet (the JSON file only has
-            // createdAt), so we accept any inbound update if the field
-            // values actually differ. This gives us last-writer-wins
-            // semantics relative to the inbound stream — both sides'
-            // mutations go through markEntryDirty and produce records
-            // with monotonic updatedAt = Date(), so the cloud serializes
-            // them and the receiver applies the latest one it sees.
-            let existing = entries[idx]
-            let keyChanged = existing.key != key
-            entries[idx].key = key
-            entries[idx].note = note
-            // Don't overwrite createdAt — keep the earliest timestamp
-            // we've ever seen for this id.
-            if existing.createdAt > createdAt { entries[idx].createdAt = createdAt }
-            if !value.isEmpty {
-                if keyChanged {
-                    Self.deleteValue(forKey: existing.key)
-                }
-                Self.saveValue(value, forKey: key)
-            } else if keyChanged {
-                // Key renamed but no value supplied — migrate the existing
-                // value under the new key so we don't strand it.
-                if let oldVal = Self.loadValue(forKey: existing.key) {
-                    Self.saveValue(oldVal, forKey: key)
-                    Self.deleteValue(forKey: existing.key)
-                }
-            }
-            saveEntries()
-            logger.info("[EnvVarStore] applyRemoteItem UPDATE id=\(id.prefix(8)) key=\(key)")
-        } else {
-            // New entry from a peer.
-            let entry = EnvVarEntry(id: id, key: key, createdAt: createdAt, note: note)
-            entries.append(entry)
-            if !value.isEmpty {
-                Self.saveValue(value, forKey: key)
-            }
-            saveEntries()
-            logger.info("[EnvVarStore] applyRemoteItem INSERT id=\(id.prefix(8)) key=\(key)")
-        }
-        _ = updatedAt  // reserved for a future per-entry updatedAt column
+    // nanoMuse: 同步不能把启动时读取失败的空界面缓存当成记录已删除。
+    func nmEntryForSync(id: String) throws -> EnvVarEntry? {
+        try transaction.requireSettled()
+        return try NivoEnvVarState.read(fileURL).first { $0.id == id }
     }
 
-    /// Hard-delete a per-variable entry locally without re-queueing the
-    /// delete back into the sync layer. Mirrors the SessionV2 inbound
-    /// delete pattern. Caller is the sync hydrator; the cloud already
-    /// holds the tombstone.
-    func applyRemoteDeletion(id: String) {
-        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
-        let key = entries[idx].key
-        entries.remove(at: idx)
-        Self.deleteValue(forKey: key)
-        saveEntries()
-        logger.info("[EnvVarStore] applyRemoteDeletion id=\(id.prefix(8)) key=\(key)")
+    /// 旧整包仅补缺少的记录，已有记录只有明确更高版本才更新。
+    func nmMergeLegacyMetadata(_ remote: [EnvVarEntry], secretsJSON: String? = nil) throws {
+        try NivoEnvVarState.validate(remote)
+        let payload = secretsJSON.flatMap { $0.isEmpty ? nil : $0 } ?? "[]"
+        let secrets = try NivoCredentialSync.environments(payload)
+        guard Set(secrets.map(\.owner)).isSubset(of: Set(remote.map(\.key))) else {
+            throw NivoEnvVarState.Failure.invalidRecord
+        }
+        let values = Dictionary(uniqueKeysWithValues: secrets.map { ($0.owner, String(decoding: $0.value, as: UTF8.self)) })
+        for entry in remote {
+            try nmMergeLegacyEntry(entry, value: values[entry.key])
+        }
+    }
+
+    /// 旧协议只补真正缺失的值，先存在的凭证及较新本机元数据均保留。
+    private func nmMergeLegacyEntry(_ entry: EnvVarEntry, value: String?) throws {
+        try nmRecoverFiles()
+        try transaction.requireSettled()
+        let current = try NivoEnvVarState.read(fileURL)
+        let local = current.first { $0.id == entry.id }
+        let existingValue = try NivoCredentialSyncKeychain.environmentValue(key: entry.key)
+        let missingValue = existingValue == nil ? value : nil
+        if let local, entry.updatedAt == nil || entry.version <= local.version {
+            guard local.key == entry.key, let missingValue else { return }
+            try commitTransaction(current, writeKey: entry.key, value: missingValue, notifySync: false)
+        } else {
+            try applyRemoteItem(id: entry.id, key: entry.key, value: existingValue ?? value, note: entry.note,
+                createdAt: entry.createdAt, updatedAt: entry.version)
+        }
+    }
+
+    // MARK: - Sync inbound (per-variable)
+
+    // nanoMuse: 单变量值、元数据、版本均需真实保存，错误返回接收屏障供重放。
+    /// 旧版未提供值时保留现有凭证；改名迁移成功后才清理旧名称。
+    func applyRemoteItem(id: String, key: String, value: String?, note: String,
+                         createdAt: Date, updatedAt: Date) throws {
+        // nanoMuse: 相同入站记录重放前先完成上一次部分写入。
+        try nmRecoverFiles()
+        try transaction.requireSettled()
+        let current = try NivoEnvVarState.read(fileURL)
+        let incoming = EnvVarEntry(id: id, key: key, createdAt: createdAt, note: note, updatedAt: updatedAt)
+        guard let candidate = try NivoEnvVarState.merging(incoming, into: current) else { return }
+        let previous = current.first { $0.id == id }
+        var incomingValue = value
+        if incomingValue == nil, let previous, previous.key != key {
+            incomingValue = try NivoCredentialSyncKeychain.environmentValue(key: previous.key)
+        }
+        try commitTransaction(candidate, writeKey: incomingValue == nil ? nil : key, value: incomingValue, notifySync: false)
+    }
+
+    /// 远端删除不回发删除请求；元数据写盘失败不能被报告为完成。
+    func applyRemoteDeletion(id: String) throws {
+        // nanoMuse: 即使元数据里已没有此条目，仍先重试旧凭证清理。
+        try nmRecoverFiles()
+        try transaction.requireSettled()
+        let current = try NivoEnvVarState.read(fileURL)
+        guard current.contains(where: { $0.id == id }) else { return }
+        let candidate = current.filter { $0.id != id }
+        try commitTransaction(candidate, notifySync: false)
     }
 
     /// Returns all env vars as a dictionary for injection into shell execution.
-    nonisolated func allAsDict() -> [String: String] {
-        var dict: [String: String] = [:]
-        // Read entries from the JSON file directly (avoid MainActor requirement)
-        let libraryURL = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let fileURL = libraryURL.appendingPathComponent("MinisChat/env-vars.json")
-        guard let data = try? Data(contentsOf: fileURL),
-              let entries = try? JSONDecoder().decode([EnvVarEntry].self, from: data) else {
-            return dict
+    // nanoMuse: 脚本不能把恢复或锁屏错误当作空配置继续执行。
+    nonisolated func allAsDict() throws -> [String: String] {
+        try NivoCredentialSyncKeychain.withEnvironmentLock {
+            try transaction.requireSettled()
+            var values: [String: String] = [:]
+            for entry in try NivoEnvVarState.read(fileURL) {
+                if let value = try NivoCredentialSyncKeychain.environmentValue(key: entry.key) {
+                    values[entry.key] = value
+                }
+            }
+            return values
         }
-        for entry in entries {
-            if let val = Self.loadValue(forKey: entry.key) {
-                dict[entry.key] = val
+    }
+
+    // nanoMuse: 跨存储事务、恢复和同步队列确认共用此入口；日志完成前不开始下一笔编辑。
+    /// 当前设备的配置是全局设置，不随nanoMuse账户目录移动。
+    nonisolated static var hasPendingRecovery: Bool {
+        do { return try NivoEnvVarTransaction(fileURL: configFileURLForBackup).pending() != nil }
+        catch { return true }
+    }
+
+    /// 启动时在备份回滚之后调用，确认本地同步队列落盘后才解除全局恢复门禁。
+    func nmRecoverPending() async throws {
+        if let recoveryTask { try await recoveryTask.value; return }
+        try nmRecoverFiles()
+        if let recoveryTask { try await recoveryTask.value }
+        try transaction.requireSettled()
+    }
+
+    /// 同步重试可触发上一笔恢复；队列尚未确认时仍暂停当前请求。
+    func nmRetryRecoveryIfNeeded() throws {
+        if try transaction.pending() != nil {
+            guard !NivoPersonalBackupAccess.isBusy else { throw NivoPersonalBackupError.busy }
+            try nmRecoverFiles()
+            try transaction.requireSettled()
+        }
+    }
+
+    /// 备份的元数据快照必须来自文件，不使用可能已经过期的界面缓存。
+    func nmMetadataSnapshot() throws -> [EnvVarEntry] {
+        try transaction.requireSettled()
+        return try NivoEnvVarState.read(fileURL)
+    }
+
+    /// 旧整包协议同样从一个受锁保护的文件及Keychain快照构建，不把读取错误序列化为空值。
+    func nmLegacySyncSnapshot() throws -> (metadata: String, secrets: String) {
+        try NivoCredentialSyncKeychain.withEnvironmentLock {
+            try transaction.requireSettled()
+            let entries = try NivoEnvVarState.read(fileURL)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            let metadata = String(decoding: try encoder.encode(entries), as: UTF8.self)
+            var secrets: [[String: String]] = []
+            for entry in entries {
+                if let value = try NivoCredentialSyncKeychain.environmentValue(key: entry.key), !value.isEmpty {
+                    secrets.append(["key": entry.key, "value": Data(value.utf8).base64EncodedString()])
+                }
+            }
+            return (metadata, String(decoding: try encoder.encode(secrets), as: UTF8.self))
+        }
+    }
+
+    private func nextCredentialVersion(key: String, proposed: Date) throws -> Date {
+        let current = try NivoCredentialSyncKeychain.environmentSnapshot(key: key)?.version ?? .distantPast
+        return try NivoEnvVarState.nextVersion(after: current, now: proposed)
+    }
+
+    private func commitTransaction(_ candidate: [EnvVarEntry], writeKey: String? = nil,
+                                   value: String? = nil, notifySync: Bool) throws {
+        let receipt = try NivoCredentialSyncKeychain.withEnvironmentLock {
+            try transaction.run(after: candidate, writeKey: writeKey, notifySync: notifySync,
+                prepare: { try NivoEnvVarKeychainTransaction.prepare($0, value: value) },
+                using: NivoEnvVarKeychainTransaction.credentials)
+        }
+        entries = candidate
+        loadError = nil
+        if let receipt { scheduleRecoveryAcknowledgement(receipt) }
+    }
+
+    private func nmRecoverFiles() throws {
+        // 整包回滚可以重载自己的元数据快照，但不能在回滚期间重放另一笔凭证事务。
+        let receipt: NivoEnvVarTransaction.Journal? = try NivoCredentialSyncKeychain.withEnvironmentLock {
+            guard try transaction.pending() != nil else { return nil }
+            guard !BackupRestoreJournal.hasPendingRecovery, !NivoPersonalBackupAccess.isBusy else {
+                throw NivoPersonalBackupError.busy
+            }
+            return try transaction.recover(using: NivoEnvVarKeychainTransaction.credentials)
+        }
+        entries = try NivoEnvVarState.read(fileURL)
+        loadError = nil
+        if let receipt { scheduleRecoveryAcknowledgement(receipt) }
+    }
+
+    private func scheduleRecoveryAcknowledgement(_ receipt: NivoEnvVarTransaction.Journal) {
+        guard recoveryTask == nil else { return }
+        recoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.recoveryTask = nil }
+            do {
+                try await ChatStore.shared.nmRecordEnvironmentChanges(receipt, zoneName: DeviceIdentity.zoneName)
+                try self.transaction.finish(identifier: receipt.identifier)
+                self.entries = try NivoEnvVarState.read(self.fileURL)
+                self.loadError = nil
+            } catch {
+                self.loadError = AppLocalized("Could not save")
+                throw error
             }
         }
-        return dict
     }
 }

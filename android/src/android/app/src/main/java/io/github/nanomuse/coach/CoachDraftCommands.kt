@@ -76,7 +76,8 @@ internal object CoachDraftCommands {
 
     /** 明确同意才允许聊天激活，负面和继续修改的语句不构成同意。 */
     internal fun confirms(text: String): Boolean {
-        if (Regex("不要|取消|不创建|不加入|不确认|先别|暂不|修改|改一下|don't|do not|cancel", RegexOption.IGNORE_CASE).containsMatchIn(text)) return false
+        // 与iOS的NivoCoachPolicy同一份否定表：拒绝、犹豫、提问和继续修改都不算同意。
+        if (Regex("不要|取消|不创建|不加入|不确认|先别|暂不|不同意|不开始|不可以|不行|不能|别创建|别加入|还没|修改|改一下|再改|是否|能否|[?？]|don't|do not|can't|cannot|not yet|cancel|revise|change|not confirm|not ready|no[, .!]", RegexOption.IGNORE_CASE).containsMatchIn(text)) return false
         return Regex("确认|就按|按这|加入|创建|可以开始|同意|confirm|create|activate|go ahead", RegexOption.IGNORE_CASE).containsMatchIn(text)
     }
 

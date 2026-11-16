@@ -29,6 +29,7 @@ Anything else is a hand edit marked `// nanoMuse:` in the file.
     python scripts/rebrand.py            # apply, then report what is still upstream's
     python scripts/rebrand.py --check    # report only, write nothing
     python scripts/rebrand.py --android-brand-only  # 仅更新Android品牌与版本
+    python scripts/rebrand.py --ios-brand-only      # 仅更新iOS可见品牌，不更改版本或数据标识
 """
 
 from __future__ import annotations
@@ -71,7 +72,7 @@ def edit(path: Path, subs: list[tuple[str, str]], count: int = 0) -> None:
     for pattern, repl in subs:
         new = re.sub(pattern, repl, new, count=count, flags=re.M)
     if new != text:
-        path.write_text(new, encoding="utf-8")
+        path.write_text(new, encoding="utf-8", newline="\n")
         changed.append(str(path.relative_to(ROOT)))
 
 
@@ -166,11 +167,19 @@ def links() -> None:
     )
     community = MAIN / "java" / "io" / "github" / "nanomuse" / "community" / "UpdateCheck.kt"
     if community.is_file():
-        edit(community, [
-            (r'const val DOWNLOAD_URL = "[^"]+"', f'const val DOWNLOAD_URL = "{REPO_URL}/releases"'),
-            (r'const val GITHUB_LATEST_URL = "[^"]+"',
-             f'const val GITHUB_LATEST_URL = "https://api.github.com/repos/{REPO}/releases/latest"'),
-        ])
+        edit(
+            community,
+            [
+                (
+                    r'const val DOWNLOAD_URL = "[^"]+"',
+                    f'const val DOWNLOAD_URL = "{REPO_URL}/releases"',
+                ),
+                (
+                    r'const val GITHUB_LATEST_URL = "[^"]+"',
+                    f'const val GITHUB_LATEST_URL = "https://api.github.com/repos/{REPO}/releases/latest"',
+                ),
+            ],
+        )
     edit(
         JAVA / "ui" / "settings" / "AboutScreen.kt",
         [
@@ -551,6 +560,7 @@ def ios() -> None:
     ios_links()
     ios_soul_defaults()
     ios_colours()
+    ios_brand_only()
 
 
 def ios_check() -> int:
@@ -620,6 +630,10 @@ def main(argv: list[str] | None = None) -> int:
         android_brand_only()
         print(f"{len(set(changed))} Android brand files changed")
         return 0
+    if args == ["--ios-brand-only"]:
+        ios_brand_only()
+        print(f"{len(set(changed))} iOS brand files changed")
+        return 0
     if args not in ([], ["--check"]):
         print(f"usage: {sys.argv[0]} [--check]  (unknown: {' '.join(args)})", file=sys.stderr)
         return 2
@@ -667,6 +681,89 @@ def android_brand_only() -> None:
     for path in targets:
         if path.is_file():
             edit(path, [(r"(?<!/)Nicholasx(?!/)", ANDROID_NAME)])
+
+
+def ios_brand_only() -> None:
+    """迁移本分支可见品牌和入口，保留上游署名、云服务名称、版本及协议标识。"""
+    if not IOS.is_dir():
+        return
+    edit(
+        IOS / "Minis.xcodeproj/project.pbxproj",
+        [
+            (
+                r'INFOPLIST_KEY_CFBundleDisplayName = "?(?:Minis|nanoMuse|Nicholasx|Nivo Bot)"?;',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Nivo Bot";',
+            ),
+            (
+                r'INFOPLIST_KEY_CFBundleDisplayName = "Share to (?:Minis|nanoMuse|Nicholasx|Nivo Bot)";',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Share to Nivo Bot";',
+            ),
+            (
+                r'INFOPLIST_KEY_CFBundleDisplayName = "(?:Minis|nanoMuse|Nicholasx|Nivo Bot) Files";',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Nivo Bot Files";',
+            ),
+        ],
+    )
+    about = IOS / "Views/Settings/AboutView.swift"
+    replacement = (
+        "import SwiftUI\n\n"
+        "// nanoMuse: 本分支的关于页集中在NanoMuse目录，保留所有旧导航入口。\n"
+        "/// 展示Nivo产品说明、安装版本、公开链接与上游致谢。\n"
+        "struct AboutView: View {\n"
+        "    var body: some View { NivoAboutView() }\n"
+        "}\n"
+    )
+    if about.read_text(encoding="utf-8") != replacement:
+        about.write_text(replacement, encoding="utf-8", newline="\n")
+        changed.append(str(about.relative_to(ROOT)))
+    settings = IOS / "NanoMuse/NanoMuseSettings.swift"
+    edit(
+        settings,
+        [
+            (r'AppLocalized\("About nanoMuse"\)', 'AppLocalized("About Nivo Bot")'),
+            (r'URL\(string: "https://nanomuse\.cn/privacy/"\)!', "NivoProduct.privacy"),
+            (r'"https://nanomuse\.cn/own-key"', "NivoProduct.modelGuide.absoluteString"),
+            (
+                r'"https://github\.com/nano-muse/nanoMuse/issues/new"',
+                'NivoProduct.repository.appendingPathComponent("issues/new").absoluteString',
+            ),
+            (
+                r'URL\(string: "https://github\.com/nano-muse/nanoMuse/issues"\)!',
+                'NivoProduct.repository.appendingPathComponent("issues")',
+            ),
+        ],
+    )
+    for path in (
+        IOS / "Info.plist",
+        IOS / "ShareExtension/Info.plist",
+        IOS / "FileProvider/Info.plist",
+    ):
+        edit(
+            path,
+            [(r"(<string>)(?:nanoMuse|Nicholasx)( Backup| Files)?(</string>)", r"\1Nivo Bot\2\3")],
+        )
+    soul = IOS / "Agent/Session/SoulStore.swift"
+    if soul.is_file():
+        edit(soul, [(r'"nanoMuse"', '"Nivo Bot"')])
+    # 只更新已知产品文案的译文，保留翻译键、上游署名和nanoMuse Cloud服务名。
+    catalogue = IOS / "Localizable.xcstrings"
+    if catalogue.is_file():
+        raw = catalogue.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        for key in (
+            "Welcome to nanoMuse",
+            "Hi, I'm nanoMuse, the assistant that lives on your phone. Let me take a few things off your plate.",
+            "Everything else works without it. It lives under iOS Settings → nanoMuse whenever you want it.",
+        ):
+            entry = data.get("strings", {}).get(key, {})
+            for localization in entry.get("localizations", {}).values():
+                unit = localization.get("stringUnit", {})
+                if "value" in unit:
+                    unit["value"] = unit["value"].replace("nanoMuse", ANDROID_NAME)
+        serialized = xcstrings_dumps(data, raw)
+        if json.loads(raw) != data:
+            catalogue.write_text(serialized, encoding="utf-8", newline="\n")
+            changed.append(str(catalogue.relative_to(ROOT)))
 
 
 if __name__ == "__main__":

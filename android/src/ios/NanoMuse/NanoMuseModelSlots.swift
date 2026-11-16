@@ -321,11 +321,7 @@ enum NanoMuseModelSlots {
     /// Whether a model of a provider of one's own can hold a conversation: it writes text and
     /// is not one of the picture or video models the same key lists.
     static func chats(_ entry: ModelEntry) -> Bool {
-        let modalities = entry.model.modalityOverride ?? entry.model.capabilities.supportedModalities
-        if !modalities.contains(.textOutput) && (modalities.contains(.imageOutput) || modalities.contains(.videoOutput)) { return false }
-        if NanoMuseImageGen.drawsNatively(entry.model.id) || NanoMuseVideoGen.looksLikeVideoModel(entry.model.id) { return false }
-        let id = entry.model.id.lowercased()
-        return !["embed", "whisper", "tts", "rerank", "moderation"].contains { id.contains($0) }
+        entry.model.nmSupportsConversation
     }
 
     /// Whether a chat model also sees pictures (the provider said so, or its name says so).

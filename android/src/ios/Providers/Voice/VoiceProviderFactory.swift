@@ -44,7 +44,8 @@ enum VoiceProviderFactory {
                                          baseURL: custom ?? "https://api.groq.com/openai",
                                          apiKey: apiKey)
             }
-            if normalizedBase.contains("dashscope") {
+            // nanoMuse:百炼同时支持公共DashScope域名和工作区maas域名。
+            if NanoMuseBailianVoice.isModelStudio(custom ?? "") {
                 return AlibabaVoiceProvider(providerId: instance.id,
                                             baseURL: custom ?? "https://dashscope.aliyuncs.com/compatible-mode",
                                             apiKey: apiKey)

@@ -100,6 +100,8 @@ final class MCPOAuthController: NSObject, ObservableObject {
         let attrs: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+            // nanoMuse: 后续授权/刷新取代备份凭证后，旧回滚记录不能再删除此项。
+            kSecAttrComment as String: "",
         ]
         var status = SecItemUpdate(match as CFDictionary, attrs as CFDictionary)
         if status == errSecItemNotFound {

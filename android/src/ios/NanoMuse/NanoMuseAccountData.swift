@@ -19,11 +19,12 @@
 //
 
 import CryptoKit
+import Combine
 import Foundation
 import Security
 
 @MainActor
-final class NanoMuseAccountData {
+final class NanoMuseAccountData: ObservableObject {
     static let shared = NanoMuseAccountData()
 
     /// The owner of what was made with nobody signed in.
@@ -56,7 +57,13 @@ final class NanoMuseAccountData {
 
     private var owners: [String: String] = [:]
     private var loaded = false
-    private var started = false
+    private var startupTask: Task<Void, Never>?
+    /// 同一账户退出后再进入也有不同代次，后台任务不能凭账户名称复活。
+    private(set) var generation: UInt64 = 0
+    @Published private(set) var isChangingAccount = true
+    @Published private(set) var isReady = false
+    @Published private(set) var recoveryError: String?
+    private var isRecovering = false
 
     private init() {}
 
@@ -80,13 +87,46 @@ final class NanoMuseAccountData {
 
     /// Once, from the app root: the reinstall sweep, the relay key kept on this device, and every
     /// session given an owner.
-    func start() {
-        guard !started else { return }
-        started = true
-        Task { @MainActor [self] in
+    func start() async {
+        if let startupTask { await startupTask.value; return }
+        let task = Task { await recoverAtLaunch() }
+        startupTask = task
+        await task.value
+    }
+
+    /// 启动恢复先于同步、页面和仓库载入；失败时保留日志并给出重试入口。
+    func recoverAtLaunch() async {
+        guard !isRecovering else { return }
+        isRecovering = true
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { isRecovering = false; NivoPersonalBackupAccess.endAccountChange() }
+        isChangingAccount = true
+        recoveryError = nil
+        do {
+            try await recoverPendingSwitch()
+            // nanoMuse: 应用和快捷指令都先恢复备份，再加载账户仓库和任务；失败保持恢复入口。
+            let restoresProviders = BackupRestoreJournal.interrupted()?.categories.contains(BackupCategory.providers.rawValue) == true
+            if restoresProviders { try await ProviderConfigStore.shared.nmWaitForConfigurationWrites(ignoringWriteFailure: true) }
+            BackupRestoreJournal.reconcileAtLaunch()
+            guard !BackupRestoreJournal.hasPendingRecovery else { throw NivoLifeError.corruptStore }
+            // nanoMuse: 在线恢复数据库后同步重载缓存，清除导致回滚的旧镜像错误。
+            if restoresProviders {
+                try await ProviderConfigStore.shared.nmReloadFromDisk()
+                try await ProviderConfigStore.shared.nmReloadThinkingRuleCache()
+                await ProviderConfigStore.shared.nmDidRollbackConfiguration()
+            }
+            try await NivoProviderDeletionHost.shared.recoverDuringAccountChange()
+            // nanoMuse: 已持有账户锁时先结束提供商删除屏障，再重放环境变量，避免两份日志互相阻塞。
+            try await EnvVarStore.shared.nmRecoverPending()
             await sweepIfFreshInstall()
-            Self.keepRelayKeyOnThisDevice()
-            await reconcile()
+            try Self.keepRelayKeyOnThisDevice()
+            try await reconcileForSwitch(as: current)
+            isReady = true
+            isChangingAccount = false
+            await reloadAfterSwitch()
+            await NivoAvatarWardrobe.shared.reload()
+        } catch {
+            recoveryError = error.localizedDescription
         }
     }
 
@@ -111,6 +151,28 @@ final class NanoMuseAccountData {
         save()
     }
 
+    /// 为跨异步创建的对话显式认领账户，落盘失败不更新内存，不覆盖其他账户的归属。
+    func claim(_ sessionId: String, owner: String) throws {
+        guard !sessionId.isEmpty else { throw NivoLifeError.invalidField("conversation_id") }
+        let url = Self.fileURL
+        var candidate: [String: String] = [:]
+        if FileManager.default.fileExists(atPath: url.path) {
+            candidate = try JSONDecoder().decode(Owners.self, from: Data(contentsOf: url)).owners
+        }
+        if let existing = candidate[sessionId] {
+            guard existing == owner else { throw NivoLifeError.accountChanged }
+            owners = candidate
+            loaded = true
+            return
+        }
+        candidate[sessionId] = owner
+        let data = try JSONEncoder().encode(Owners(owners: candidate))
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url, options: .atomic)
+        owners = candidate
+        loaded = true
+    }
+
     /// The sessions owned by `account`.
     func sessions(of account: String) -> [String] {
         load()
@@ -122,86 +184,175 @@ final class NanoMuseAccountData {
     @discardableResult
     func reconcile(as account: String? = nil) async -> Bool {
         load()
-        let current = account ?? self.current
-        let sessions = await ChatStore.shared.listSessions()
-        var changed = false
-        let live = Set(sessions.map(\.id))
-        for session in sessions where owners[session.id] == nil {
-            owners[session.id] = NanoMuseSync.shared.owner(of: session.id) ?? current
-            changed = true
+        let previous = owners
+        do {
+            try await reconcileForSwitch(as: account ?? self.current)
+            let changed = previous != owners
+            if changed { NotificationCenter.default.post(name: .sessionDidUpdate, object: nil) }
+            return changed
+        } catch {
+            recoveryError = NivoLifeModel.message(error)
+            return false
         }
-        for id in owners.keys.filter({ !live.contains($0) }) {
-            owners.removeValue(forKey: id)
-            changed = true
-        }
-        if changed {
-            save()
-            NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
-        }
-        return changed
     }
 
     // MARK: - Leaving and entering
 
-    /// The account filed under `account` leaves this phone — a sign-out, a switch, *Delete
-    /// account*, or a key the relay refused. With `keep` its chats stay in the store (hidden by
-    /// their owner rows until it is back) and its files and keys are put aside; without, every
-    /// one of them is deleted, its sync table included (so a later sign-in never reads the
-    /// gap as deletions and tombstones the account's chats on its other devices).
-    func leave(account: String, keep: Bool) async {
-        await reconcile(as: account)
-        if !keep { await deleteChats(of: account) }
-        let fm = FileManager.default
-        let stash = Self.stash(for: account)
-        if keep {
-            try? fm.createDirectory(at: stash, withIntermediateDirectories: true)
-        } else {
-            try? fm.removeItem(at: stash)
+    /// 有活动对话或未恢复事务时拒绝切换，避免脚本还在写入被归档的共享目录。
+    func requireSwitchAccess() throws {
+        guard !isChangingAccount, isReady else { throw NivoLifeError.accountChanged }
+        // nanoMuse: 失败回滚仍引用当前路径，不能将半恢复资料移动进其他账户。
+        guard !BackupRestoreJournal.hasPendingRecovery, !NivoProviderDeletionHost.hasPendingRecovery else { throw NivoLifeError.corruptStore }
+        guard SessionActivityTracker.shared.resolvedActiveSessionIds.isEmpty, !NivoCoachArchiveWrites.isBusy,
+              !NanoMuseSync.shared.syncing, !NivoCloudInboundCheckpoint.shared.isBusy,
+              NanoMuseScheduler.shared.running.isEmpty,
+              !NanoMuseCallSession.isActive, !NivoScheduledRunScopes.shared.isBusy else {
+            throw NanoMuseCloud.CloudError(code: "account_busy",
+                message: AppLocalized("Wait for conversations and sync to finish before switching accounts."), status: 0)
         }
-        for (name, url) in Self.accountPaths where fm.fileExists(atPath: url.path) {
-            if keep {
-                Self.move(url, to: stash.appendingPathComponent(name))
-            } else {
-                try? fm.removeItem(at: url)
-            }
-        }
-        let defaults = UserDefaults.standard
-        let mine = defaults.dictionaryRepresentation().filter { key, _ in Self.isAccountPref(key) }
-        if keep, !mine.isEmpty, let data = try? PropertyListSerialization.data(fromPropertyList: mine, format: .binary, options: 0) {
-            try? data.write(to: stash.appendingPathComponent("defaults.plist"), options: .atomic)
-        }
-        for key in mine.keys { defaults.removeObject(forKey: key) }
-        NanoMuseScheduler.shared.reload() // the routines file moved: alarms and notifications follow
-        reloadStores()
     }
 
-    /// The account filed under `account` is the signed-in one from now on: what was put aside
-    /// for it comes back to the fixed paths (nothing, for a first sign-in), the stores re-read,
-    /// the lists and the Chat tab resolve again.
-    func enter(account: String) async {
-        let fm = FileManager.default
-        let stash = Self.stash(for: account)
-        if fm.fileExists(atPath: stash.path) {
-            for (name, url) in Self.accountPaths {
-                let src = stash.appendingPathComponent(name)
-                guard fm.fileExists(atPath: src.path) else { continue }
-                try? fm.removeItem(at: url)
-                Self.move(src, to: url)
-            }
-            let plist = stash.appendingPathComponent("defaults.plist")
-            if let data = try? Data(contentsOf: plist),
-               let saved = (try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)) as? [String: Any] {
-                for (key, value) in saved where Self.isAccountPref(key) { UserDefaults.standard.set(value, forKey: key) }
-            }
-            try? fm.removeItem(at: stash)
+    /// 文件与偏好安装后才写入身份，任何早期失败都恢复原账户；删除在提交后进行。
+    func switchAccount(to target: String, keepSource: Bool, identity: NivoAccountSwitchIdentity,
+                       commitIdentity: () throws -> Void) async throws {
+        try requireSwitchAccess()
+        let source = current
+        try identity.validate(owner: target)
+        // 同一账户重新登录也撤销旧授权，不能只依赖账户名称是否改变。
+        NivoOAuthAccess.invalidateAll()
+        guard source != target else {
+            try commitIdentity()
+            try await ProviderConfigStore.shared.nmFlushAccountConfiguration(instanceID: identity.instanceID,
+                removedInstanceID: identity.instanceID == nil ? identity.previousInstanceID : nil)
+            return
         }
-        await reconcile(as: account)
+        generation &+= 1
+        isChangingAccount = true
+        recoveryError = nil
+        NanoMuseHub.shared.stop()
+        NanoMuseHeadless.cancelForAccountChange()
+        await NanoMuseScheduler.shared.prepareAccountChange()
+        NanoMuseAvatarStudioModel.shared.invalidateForAccountChange()
+        NanoMuseAvatarFlow.shared.invalidateForAccountChange()
+        NanoMuseAvatarMotion.shared.cancel()
+        await NivoAvatarWardrobe.shared.prepareAccountChange()
+        let files = Self.transactionFiles
+        do {
+            try await NivoLifeModel.shared.prepareAccountSwitch()
+            try await reconcileForSwitch(as: source)
+            let preferences = try Self.currentPreferences()
+            let metadata = try JSONEncoder().encode(identity)
+            let restored = try await Task.detached {
+                _ = try files.prepare(source: source, target: target, keepSource: keepSource,
+                    sourceDefaults: preferences, targetIdentity: metadata)
+                try files.installTarget()
+                return try files.defaults(useTarget: true)
+            }.value
+            try Self.restorePreferences(restored)
+            try commitIdentity()
+            try await completeSwitch(files: files)
+        } catch {
+            do {
+                if try await rollbackUncommitted(files: files) {
+                    isChangingAccount = false
+                    await reloadAfterSwitch()
+                } else {
+                    recoveryError = error.localizedDescription
+                }
+            } catch {
+                recoveryError = error.localizedDescription
+            }
+            throw error
+        }
+        isChangingAccount = false
+        await reloadAfterSwitch()
+    }
+
+    /// 密钥已经改变时只向前恢复，不能把旧文件配给刚登录的新身份。
+    private func rollbackUncommitted(files: NivoAccountFileTransaction) async throws -> Bool {
+        guard let journal = try files.load() else { return true }
+        let saved = try JSONDecoder().decode(NivoAccountSwitchIdentity.self, from: journal.targetIdentity)
+        if try journal.hasCommittedIdentity || saved.isApplied() { return false }
+        let restored = try await Task.detached {
+            _ = try files.recoverFiles(useTarget: false)
+            return try files.defaults(useTarget: false)
+        }.value
+        try Self.restorePreferences(restored)
+        try await Task.detached { try files.finish() }.value
+        return true
+    }
+
+    private func completeSwitch(files: NivoAccountFileTransaction) async throws {
+        try await Task.detached { try files.markCommitted(); try files.settleArchive() }.value
+        guard let journal = try files.load() else { throw NivoLifeError.corruptStore }
+        let identity = try JSONDecoder().decode(NivoAccountSwitchIdentity.self, from: journal.targetIdentity)
+        try await ProviderConfigStore.shared.nmFlushAccountConfiguration(instanceID: identity.instanceID,
+            removedInstanceID: identity.instanceID == nil ? identity.previousInstanceID : nil)
+        if !journal.keepSource {
+            try await NivoLifeModel.shared.discardAccount(journal.sourceOwner)
+            try await deleteChats(of: journal.sourceOwner)
+        }
+        try await reconcileForSwitch(as: journal.targetOwner)
+        try await Task.detached { try files.finish() }.value
+    }
+
+    private func recoverPendingSwitch() async throws {
+        let files = Self.transactionFiles
+        guard let journal = try files.load() else { return }
+        let identity = try JSONDecoder().decode(NivoAccountSwitchIdentity.self, from: journal.targetIdentity)
+        try identity.validate(owner: journal.targetOwner)
+        if journal.isFinalizing {
+            if journal.hasCommittedIdentity {
+                try NanoMuseCloud.restoreTransitionIdentity(identity)
+                try await ProviderConfigStore.shared.nmFlushAccountConfiguration(instanceID: identity.instanceID,
+                    removedInstanceID: identity.instanceID == nil ? identity.previousInstanceID : nil)
+            }
+            try await Task.detached { try files.finish() }.value
+            return
+        }
+        let committed = try journal.hasCommittedIdentity || identity.isApplied()
+        let preferences = try await Task.detached {
+            _ = try files.recoverFiles(useTarget: committed)
+            return try files.defaults(useTarget: committed)
+        }.value
+        try Self.restorePreferences(preferences)
+        if committed {
+            try NanoMuseCloud.restoreTransitionIdentity(identity)
+            try await completeSwitch(files: files)
+        } else {
+            try await Task.detached { try files.finish() }.value
+        }
+    }
+
+    private func reloadAfterSwitch() async {
         NanoMuseScheduler.shared.reload()
         reloadStores()
-        NotificationCenter.default.post(name: .nanoMuseAccountSwitched, object: account)
+        await NivoLifeModel.shared.enter()
+        await NivoAvatarWardrobe.shared.reload()
+        NotificationCenter.default.post(name: .nanoMuseAccountSwitched, object: current)
         NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
-        // the feed's routine and conversation are this account's now; made again when missing
-        Task { @MainActor in await NanoMuseFeedFlow.ensureRoutine() }
+        NanoMuseSync.shared.accountChanged()
+        NanoMuseHub.shared.restart()
+        NanoMuseFeedFlow.retireLegacyRoutine()
+    }
+
+    private static var transactionFiles: NivoAccountFileTransaction {
+        NivoAccountFileTransaction(root: NanoMuseDirs.root, slots: accountPaths.map { .init(name: $0.0, live: $0.1) })
+    }
+
+    private static func currentPreferences() throws -> Data {
+        let mine = UserDefaults.standard.dictionaryRepresentation().filter { Self.isAccountPref($0.key) }
+        return try PropertyListSerialization.data(fromPropertyList: mine, format: .binary, options: 0)
+    }
+
+    private static func restorePreferences(_ data: Data) throws {
+        guard let saved = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
+            throw NivoLifeError.corruptStore
+        }
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where isAccountPref(key) { defaults.removeObject(forKey: key) }
+        for (key, value) in saved where isAccountPref(key) { defaults.set(value, forKey: key) }
+        guard defaults.synchronize() else { throw CocoaError(.fileWriteUnknown) }
     }
 
     /// Whether something was put aside for `account`.
@@ -254,8 +405,13 @@ final class NanoMuseAccountData {
     /// The relay's key is this phone's alone: saved without iCloud Keychain, unlocked after the
     /// first unlock, on this device only. `ProviderKeychainHelper.loadAPIKey` reads it as the
     /// legacy entry. Called after every sign-in and once at start (the 0.1.39 entry moves).
-    static func keepRelayKeyOnThisDevice() {
+    static func keepRelayKeyOnThisDevice() throws {
         guard let inst = NanoMuseCloud.instance else { return }
+        // 新本机条目优先，旧同步条目清理失败后不能在下次启动覆盖刚更新的密钥。
+        if try readRelayKey(instanceId: inst.id) != nil {
+            try removeSyncedRelayKey(instanceId: inst.id)
+            return
+        }
         let service = "io.github.nanomuse.app.provider.\(inst.id)"
         let syncQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -266,29 +422,63 @@ final class NanoMuseAccountData {
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
         var result: AnyObject?
-        guard SecItemCopyMatching(syncQuery as CFDictionary, &result) == errSecSuccess, let data = result as? Data,
-              let key = String(data: data, encoding: .utf8), !key.isEmpty else { return }
-        saveRelayKey(key, instanceId: inst.id)
+        let status = SecItemCopyMatching(syncQuery as CFDictionary, &result)
+        if status == errSecItemNotFound { return }
+        guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
+        guard let data = result as? Data, let key = String(data: data, encoding: .utf8), !key.isEmpty else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        try saveRelayKeyChecked(key, instanceId: inst.id)
     }
 
-    nonisolated static func saveRelayKey(_ key: String, instanceId: String) {
+    /// 先更新本机条目，成功后才清理旧同步条目，写入失败保留原密钥并中止切换。
+    nonisolated static func saveRelayKeyChecked(_ key: String, instanceId: String) throws {
         let service = "io.github.nanomuse.app.provider.\(instanceId)"
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: "api-key",
+            kSecAttrSynchronizable as String: false,
         ]
-        _ = SecItemDelete(base as CFDictionary)
-        var syncDelete = base
-        syncDelete[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
-        _ = SecItemDelete(syncDelete as CFDictionary)
-        var add = base
-        add[kSecValueData as String] = Data(key.utf8)
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        add[kSecAttrSynchronizable as String] = false
-        let status = SecItemAdd(add as CFDictionary, nil)
+        let attributes: [String: Any] = [kSecValueData as String: Data(key.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+        var status = SecItemUpdate(base as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            status = SecItemAdd(base.merging(attributes) { _, fresh in fresh } as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
+        try removeSyncedRelayKey(instanceId: instanceId)
         ProviderKeychainHelper.stampAPIKeySavedAt(Date(), instanceId: instanceId)
-        AppLogger(category: "NanoMuseAccountData").info("relay key saved on this device only, status=\(status)")
+    }
+
+    /// 上游读取器优先读取同步条目，清理必须成功才能保证请求使用新本机密钥。
+    nonisolated static func removeSyncedRelayKey(instanceId: String) throws {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "io.github.nanomuse.app.provider.\(instanceId)",
+            kSecAttrAccount as String: "api-key", kSecAttrSynchronizable as String: true]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+        ProviderKeychainHelper.nmDeviceKeyChanged(instanceId: instanceId)
+    }
+
+    /// 仅不存在返回nil，设备锁定和Keychain不可读属于恢复错误。
+    nonisolated static func readRelayKey(instanceId: String) throws -> String? {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "io.github.nanomuse.app.provider.\(instanceId)",
+            kSecAttrAccount as String: "api-key", kSecAttrSynchronizable as String: false,
+            kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+        guard let data = result as? Data, let value = String(data: data, encoding: .utf8), !value.isEmpty else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return value
     }
 
     // MARK: - Internals
@@ -302,6 +492,10 @@ final class NanoMuseAccountData {
             ("feed-preferences.md", NanoMuseDirs.root.appendingPathComponent("feed-preferences.md")),
             ("goals.json", NanoMuseDirs.root.appendingPathComponent("goals.json")),
             ("routines.json", NanoMuseDirs.root.appendingPathComponent("routines.json")),
+            ("routine-settings.json", NanoMuseDirs.root.appendingPathComponent("routine-settings.json")),
+            ("routine-settlements", NanoMuseDirs.root.appendingPathComponent("routine-settlements", isDirectory: true)),
+            ("routine-home", NivoScheduledHome.directory),
+            ("routine-script-approvals.json", NanoMuseDirs.root.appendingPathComponent("routine-script-approvals.json")),
             ("avatar", NanoMuseFaceStore.directory),
         ]
     }
@@ -310,32 +504,42 @@ final class NanoMuseAccountData {
         NanoMuseDirs.root.appendingPathComponent("accounts", isDirectory: true).appendingPathComponent(dirName(account), isDirectory: true)
     }
 
-    nonisolated private static func move(_ src: URL, to dst: URL) {
-        let fm = FileManager.default
-        try? fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? fm.removeItem(at: dst)
-        do {
-            try fm.moveItem(at: src, to: dst)
-        } catch {
-            // across containers (the app group and Application Support): copy, then delete
-            try? fm.copyItem(at: src, to: dst)
-            try? fm.removeItem(at: src)
-        }
-    }
-
-    private func deleteChats(of account: String) async {
-        let ids = sessions(of: account)
-        // the account's sync table first: a push later must never read these as deletions
-        NanoMuseSync.shared.dropTable(for: account)
-        for id in ids {
-            await ChatStore.shared.deleteSession(id)
-            owners.removeValue(forKey: id)
-        }
-        save()
+    private func deleteChats(of account: String) async throws {
+        var candidate = try readOwnersForSwitch()
+        let ids = candidate.filter { $0.value == account }.map(\.key)
+        // 账户退出已持有全局冻结，数据库失败时保留中继归属以便重试。
+        try await ChatStore.shared.nmDeleteSessions(Set(ids))
+        try NanoMuseSync.shared.dropTable(for: account)
+        let remaining = try await ChatStore.shared.nmAccountSessionIDs()
+        guard Set(ids).isDisjoint(with: remaining) else { throw CocoaError(.fileWriteUnknown) }
+        for id in ids { candidate.removeValue(forKey: id) }
+        try JSONEncoder().encode(Owners(owners: candidate)).write(to: Self.fileURL, options: .atomic)
+        owners = candidate
         if !ids.isEmpty {
             AppLogger(category: "NanoMuseAccountData").info("removed \(ids.count) chat(s) of the account that left")
             NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
         }
+    }
+
+    /// 迁移边界严格读取并提交归属，损坏文件或数据库不可读都保留原档案。
+    private func reconcileForSwitch(as account: String) async throws {
+        let capturedGeneration = generation
+        var candidate = try readOwnersForSwitch()
+        let live = try await ChatStore.shared.nmAccountSessionIDs()
+        guard generation == capturedGeneration else { throw NivoLifeError.accountChanged }
+        for identifier in live where candidate[identifier] == nil {
+            candidate[identifier] = try NanoMuseSync.shared.ownerChecked(of: identifier) ?? account
+        }
+        candidate = candidate.filter { live.contains($0.key) }
+        try FileManager.default.createDirectory(at: Self.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(Owners(owners: candidate)).write(to: Self.fileURL, options: .atomic)
+        owners = candidate
+        loaded = true
+    }
+
+    private func readOwnersForSwitch() throws -> [String: String] {
+        guard FileManager.default.fileExists(atPath: Self.fileURL.path) else { return [:] }
+        return try JSONDecoder().decode(Owners.self, from: Data(contentsOf: Self.fileURL)).owners
     }
 
     private func reloadStores() {
@@ -351,8 +555,8 @@ final class NanoMuseAccountData {
     // MARK: - Persistence
 
     private static var fileURL: URL {
-        let dir = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
-            ?? FileManager.default.temporaryDirectory
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
         return dir.appendingPathComponent("nanomuse-owners.json")
     }
 

@@ -122,6 +122,10 @@ final class OffloadPermissionManager: ObservableObject {
     static let shared = OffloadPermissionManager()
 
     static let allCommands: [OffloadCommandInfo] = [
+        // nanoMuse: 原生命令和mosaic_query共享该权限，照片内容不在接口范围内。
+        .init(name: "minis-jigsaw-cli", displayLabel: "Life fragments", description: "Saved notes, moods and habit history, without photo content", category: .privacy, showInSettings: true),
+        // nanoMuse: 创建、修改和执行定时任务均走原生命令权限。
+        .init(name: "minis-scheduled", displayLabel: "Scheduled tasks", description: "Read, create and run scheduled tasks", category: .privacy, showInSettings: true),
         // Privacy — user-configurable
         .init(name: "apple-healthkit", displayLabel: "HealthKit", description: "Steps, heart rate, sleep, and other health records", category: .privacy, showInSettings: true),
         .init(name: "apple-calendar", displayLabel: "Calendar", description: "Events, schedules, and calendar details", category: .privacy, showInSettings: true),

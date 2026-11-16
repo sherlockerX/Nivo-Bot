@@ -3356,6 +3356,10 @@ struct ContentView: View {
                 }
             }
         }
+        // nanoMuse: 关闭首页外壳后仍能从经典布局进入待办、专注、碎片和教练。
+        ToolbarItem(placement: .navigationBarLeading) {
+            if !isSelecting && !NanoMuseShellPrefs.shell { NivoClassicModuleMenu() }
+        }
         ToolbarItem(placement: .topBarTrailing) {
             if isSelecting {
                 Button(selectedIds.count == sessions.count ? "Deselect All" : "Select All") {
@@ -5142,60 +5146,46 @@ struct ContentView: View {
     // MARK: - Actions
 
     private func deleteSession(_ session: ChatSession) {
-        // "Currently displayed" must use the same matching as the sidebar
-        // highlight (isSessionHighlighted): a session created from a draft this
-        // run keeps selectedSessionId at the DRAFT id while the sidebar row
-        // carries the real id (newSessionRealId). Comparing only
-        // selectedSessionId == session.id missed that case, so deleting the
-        // conversation being viewed left the detail pane showing dead content
-        // (user report: iPad/macOS split view). Clearing the selection resets
-        // the detail pane to the empty state; onChange(selectedSessionId)
-        // clears the draft tracking ids.
-        if isSessionHighlighted(session.id) {
-            selectedSessionId = nil
-        }
-        ViewModelCache.shared.remove(sessionId: session.id)
-        BrowserUseOffloadBridge.releasePool(forSession: session.id)
-        withAnimation {
-            sessions.removeAll { $0.id == session.id }
-        }
-        Task {
-            await ChatStore.shared.deleteSession(session.id)
-            deleteSessionFiles(session.id)
+        // nanoMuse: 完整事务成功后才移除选中项和缓存，失败保留列表与附件。
+        guard let editToken = NivoChatAccountAccess.requestConversationEdit([session.id]) else { return }
+        Task { @MainActor in
+            defer { NivoScheduledRunScopes.shared.endConversationEdit(editToken) }
+            do {
+                try await ChatStore.shared.deleteSession(session.id)
+                if isSessionHighlighted(session.id) { selectedSessionId = nil }
+                ViewModelCache.shared.remove(sessionId: session.id)
+                BrowserUseOffloadBridge.releasePool(forSession: session.id)
+                NanoMuseSync.shared.conversationWillBeDeleted(session.id)
+                deleteSessionFiles(session.id)
+                withAnimation { sessions.removeAll { $0.id == session.id } }
+            } catch { ShareFeedbackToast.show(NivoLifeModel.message(error)) }
         }
     }
 
     private func deleteSelectedSessions() {
         let ids = selectedIds
-        // Same draft-id-aware matching as deleteSession: clear the selection
-        // when ANY deleted id is the one currently displayed (including a
-        // draft-created session whose selection id differs from its row id).
-        if ids.contains(where: { isSessionHighlighted($0) }) {
-            selectedSessionId = nil
-        }
-        for id in ids {
-            ViewModelCache.shared.remove(sessionId: id)
-            BrowserUseOffloadBridge.releasePool(forSession: id)
-        }
-        withAnimation {
-            sessions.removeAll { ids.contains($0.id) }
-        }
-        // Clear deleteInfo to signal onDismiss that deletion occurred;
-        // isSelecting and selectedIds are reset in sheet's onDismiss to avoid animation conflicts.
-        deleteInfo = nil
+        // nanoMuse: 所有选择在单次SQLite事务提交，失败不提前退出选择或清空页面。
+        guard let editToken = NivoChatAccountAccess.requestConversationEdit(ids) else { return }
         let folderToDrop = pendingDeleteFolderId
-        pendingDeleteFolderId = nil
-        Task {
-            for id in ids {
-                await ChatStore.shared.deleteSession(id)
-                deleteSessionFiles(id)
-            }
-            // Delete-all-in-folder: the folder is empty now; dissolving it
-            // just drops the row (and pushes the FolderV2 tombstone).
-            if let fid = folderToDrop {
-                _ = await ChatStore.shared.dissolveFolder(fid)
-                await MainActor.run { refreshSessionList() }
-            }
+        Task { @MainActor in
+            defer { NivoScheduledRunScopes.shared.endConversationEdit(editToken) }
+            do {
+                try await ChatStore.shared.nmDeleteSessions(ids)
+                if ids.contains(where: { isSessionHighlighted($0) }) { selectedSessionId = nil }
+                for id in ids {
+                    ViewModelCache.shared.remove(sessionId: id)
+                    BrowserUseOffloadBridge.releasePool(forSession: id)
+                    NanoMuseSync.shared.conversationWillBeDeleted(id)
+                    deleteSessionFiles(id)
+                }
+                withAnimation { sessions.removeAll { ids.contains($0.id) } }
+                deleteInfo = nil
+                pendingDeleteFolderId = nil
+                if let folderToDrop {
+                    _ = await ChatStore.shared.dissolveFolder(folderToDrop)
+                    refreshSessionList()
+                }
+            } catch { ShareFeedbackToast.show(NivoLifeModel.message(error)) }
         }
     }
 

@@ -46,7 +46,8 @@ final class KimiOAuthManager: ObservableObject {
 
     /// One in-flight refresh Task per instanceId — concurrent callers await the
     /// same refresh instead of each firing a token POST (dedup by instance).
-    private var inFlightRefresh: [String: Task<KimiTokenStorage, Error>] = [:]
+    // nanoMuse: 与其他提供商共用带代次和取消校验的生产单飞器。
+    private let nmRefreshFlights = OAuthRefreshSingleFlight<KimiTokenStorage>()
 
     // MARK: - Status accessors (never log token material)
 
@@ -61,8 +62,9 @@ final class KimiOAuthManager: ObservableObject {
     }
 
     func logout(instanceId: String) {
-        inFlightRefresh[instanceId]?.cancel()
-        inFlightRefresh[instanceId] = nil
+        // nanoMuse: 网络即使忽略Task取消，保存屏障仍会拒绝迟到凭证。
+        NivoOAuthAccess.invalidate(instanceID: instanceId)
+        nmRefreshFlights.invalidate(instanceId: instanceId)
         ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId)
     }
 
@@ -80,14 +82,20 @@ final class KimiOAuthManager: ObservableObject {
     /// credentials are persisted to the Keychain for `instanceId`.
     func login(
         instanceId: String,
-        present: @escaping (DeviceLoginPresentation) -> Void
+        // nanoMuse: 展示回调属于主线程，页面无需另开不受取消约束的任务。
+        present: @escaping @MainActor (DeviceLoginPresentation) -> Void
     ) async throws {
+        // nanoMuse: 设备码登录与浏览器登录使用相同的账户和恢复身份。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId, replacing: true)
+        defer { NivoOAuthAccess.finish(nmOperation) }
         logger.info("Kimi device login START (instance: \(instanceId), clientIDset=\(isLoginAvailable))")
         guard isLoginAvailable else {
             throw LLMError.invalidAPIKey(detail: "Kimi: OAuth client ID not configured — login unavailable")
         }
         let auth = try await requestDeviceAuthorization()
-        logger.info("Kimi device authorization OK — userCode=\(auth.userCode)")
+        // nanoMuse: 设备码不写调试日志，返回后先核对本次授权仍然有效。
+        try NivoOAuthAccess.validate(nmOperation)
+        logger.info("Kimi device authorization received")
         present(.init(userCode: auth.userCode, verificationURL: auth.openURL))
         let token = try await pollForToken(deviceCode: auth.deviceCode,
                                             interval: auth.interval,
@@ -100,7 +108,9 @@ final class KimiOAuthManager: ObservableObject {
             deviceId: deviceId,
             lastRefresh: Date()
         )
-        ProviderKeychainHelper.saveOAuthToken(storage, instanceId: instanceId)
+        // nanoMuse: 保存失败向调用方传播，不能报告登录或刷新成功。
+        try NivoOAuthAccess.validate(nmOperation)
+        try ProviderKeychainHelper.saveOAuthToken(storage, instanceId: instanceId)
         logger.info("Kimi device login complete (instance: \(instanceId))")
     }
 
@@ -168,7 +178,9 @@ final class KimiOAuthManager: ObservableObject {
     // MARK: - On-demand access token (with single-flight refresh)
 
     func validAccessToken(instanceId: String) async throws -> String {
-        guard let storage = ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: KimiTokenStorage.self) else {
+        // nanoMuse: 刷新完成后再验证返回值归属，不让旧调用带着新账户凭证继续执行。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId)
+        guard let storage = try ProviderKeychainHelper.loadOAuthTokenStrict(instanceId: instanceId, as: KimiTokenStorage.self) else {
             throw LLMError.invalidAPIKey(detail: "Kimi: no OAuth token found for instance \(instanceId)")
         }
         let needsRefresh = storage.refreshToken != nil
@@ -180,37 +192,45 @@ final class KimiOAuthManager: ObservableObject {
             return storage.accessToken
         }
         let refreshed = try await refreshSingleFlight(instanceId: instanceId, current: storage)
+        try NivoOAuthAccess.validate(nmOperation)
         return refreshed.accessToken
     }
 
     /// Dedup concurrent refreshes for the same instance to a single Task.
     private func refreshSingleFlight(instanceId: String, current: KimiTokenStorage) async throws -> KimiTokenStorage {
-        if let existing = inFlightRefresh[instanceId] {
-            return try await existing.value
-        }
-        let task = Task<KimiTokenStorage, Error> { [weak self] in
+        // nanoMuse: 新登录不复用仍在等待网络的旧刷新。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId)
+        let result = try await nmRefreshFlights.run(instanceId: instanceId, generation: nmOperation.generation) { [weak self] in
             guard let self else { throw LLMError.cancelled }
-            return try await self.performRefreshResolved(instanceId: instanceId, current: current)
+            return try await self.performRefreshResolved(instanceId: instanceId, current: current, operation: nmOperation)
         }
-        inFlightRefresh[instanceId] = task
-        defer { inFlightRefresh[instanceId] = nil }
-        return try await task.value
+        try NivoOAuthAccess.validate(nmOperation)
+        return result
     }
 
-    private func performRefreshResolved(instanceId: String, current: KimiTokenStorage) async throws -> KimiTokenStorage {
+    private func performRefreshResolved(instanceId: String, current: KimiTokenStorage,
+                                        operation: NivoOAuthOperation) async throws -> KimiTokenStorage {
         let staleRefresh = current.refreshToken ?? ""
         do {
             let refreshed = try await performRefresh(refreshToken: staleRefresh, deviceId: current.deviceId)
-            ProviderKeychainHelper.saveOAuthToken(refreshed, instanceId: instanceId)
+            // nanoMuse: 保存失败向调用方传播，不能报告登录或刷新成功。
+            try NivoOAuthAccess.validateCurrentCredential(current, operation: operation)
+            try ProviderKeychainHelper.saveOAuthToken(refreshed, instanceId: instanceId)
             return refreshed
         } catch {
+            // nanoMuse: 取消或退出后的错误不能触发旧凭证回退或删除新登录。
+            try NivoOAuthAccess.validate(operation)
+            if error is CancellationError { throw error }
+            // nanoMuse: 存储错误直接传播；读取受限时也不能把当前凭证当作丢失。
+            if error is NivoOAuthPersistenceError { throw error }
+            let currentCredential = try ProviderKeychainHelper.loadOAuthTokenStrict(instanceId: instanceId, as: KimiTokenStorage.self)
             // Route through the pure compare-before-delete coordinator.
             return try KimiOAuthRefreshCoordinator.resolveAfterRefreshFailure(
                 staleRefreshToken: staleRefresh,
                 existingStorage: current,
                 error: error,
                 isFatal: KimiOAuthRefreshCoordinator.isRefreshTokenInvalid,
-                loadCurrent: { ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: KimiTokenStorage.self) },
+                loadCurrent: { currentCredential },
                 deleteCredentials: { ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId) },
                 log: { [weak self] in self?.logger.info($0) }
             )

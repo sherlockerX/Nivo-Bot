@@ -17,6 +17,7 @@ final class NanoMuseChatSheets: ObservableObject {
     enum Kind {
         case steps(UUID)
         case anchors
+        case thinking
         case shareImage(question: String?, answer: String)
         case shareText(String)
     }
@@ -69,6 +70,17 @@ struct NanoMuseChatSheetContent: View {
             }
         case .anchors:
             NanoMuseAnchorsSheet(vm: vm)
+        case .thinking:
+            // The side chat's badge opens the same sheet from its title bar.
+            ThinkingLevelSheetView(
+                currentLevel: vm.currentThinkingLevel,
+                availableLevels: vm.availableThinkingLevels,
+                onSelect: { level in
+                    vm.setThinkingLevel(level)
+                    NanoMuseChatSheets.shared.request = nil
+                }
+            )
+            .presentationDetents([.medium])
         case .shareImage(let question, let answer):
             NanoMuseReplyShareSheet(question: question, answer: answer)
         case .shareText(let text):

@@ -49,7 +49,7 @@ def test_soul_default_round_trip_survives_rebranding(
     rebrand.product_name()
     rebrand.soul_defaults()
 
-    assert 'name = "nanoMuse"' in soul.read_text(encoding="utf-8")
+    assert f'name = "{rebrand.NAME}"' in soul.read_text(encoding="utf-8")
     assert 'DISPLAY_EMOJI = "🐾"' in soul.read_text(encoding="utf-8")
     if include_test:
         text = edge.read_text(encoding="utf-8")
@@ -62,3 +62,39 @@ def test_soul_default_round_trip_survives_rebranding(
     rebrand.product_name()
     rebrand.soul_defaults()
     assert {p: p.read_bytes() for p in tmp_path.rglob("*.kt")} == before
+
+
+def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
+    rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """本地品牌更新不能隐式发布新版本或改动用户目录及协议标识。"""
+    ios = tmp_path / "ios"
+    monkeypatch.setattr(rebrand, "ROOT", tmp_path)
+    monkeypatch.setattr(rebrand, "IOS", ios)
+    samples = {
+        "Minis.xcodeproj/project.pbxproj": (
+            "MARKETING_VERSION = 1.0.6;\nCURRENT_PROJECT_VERSION = 49;\n"
+            "INFOPLIST_KEY_CFBundleDisplayName = nanoMuse;\n"
+            'INFOPLIST_KEY_CFBundleDisplayName = "Share to nanoMuse";\n'
+            "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app;\n"
+        ),
+        "Views/Settings/AboutView.swift": 'Text("nanoMuse")\n',
+        "NanoMuse/NanoMuseSettings.swift": 'AppLocalized("About nanoMuse")\n',
+        "Info.plist": "<string>nanoMuse Backup</string>\n<string>io.github.nanomuse.app</string>\n",
+        "ShareExtension/Info.plist": "<string>io.github.nanomuse.app.share</string>\n",
+        "FileProvider/Info.plist": "<string>/var/minis</string>\n",
+    }
+    for name, value in samples.items():
+        path = ios / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value, encoding="utf-8")
+    rebrand.ios_brand_only()
+    project = (ios / "Minis.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
+    assert 'INFOPLIST_KEY_CFBundleDisplayName = "Nivo Bot";' in project
+    assert "MARKETING_VERSION = 1.0.6;" in project
+    assert "CURRENT_PROJECT_VERSION = 49;" in project
+    assert "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app;" in project
+    assert "<string>/var/minis</string>" in (ios / "FileProvider/Info.plist").read_text()
+    before = {path: path.read_bytes() for path in ios.rglob("*") if path.is_file()}
+    rebrand.ios_brand_only()
+    assert {path: path.read_bytes() for path in before} == before

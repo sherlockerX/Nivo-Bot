@@ -62,14 +62,26 @@ extension View {
     }
 }
 
-/// Deleting a chat from the drawer: upstream's delete, then the sync tombstone.
+/// 抽屉删除等待数据库完整提交，失败时调用方保留原列表。
 enum NanoMuseChatDelete {
+    /// 先取得全部会话占位，消息、摘要、文件同步请求共同提交。
     @MainActor
-    static func delete(_ sessionId: String) {
-        Task { @MainActor in
-            NanoMuseSync.shared.conversationWillBeDeleted(sessionId)
-            await ChatStore.shared.deleteSession(sessionId)
+    static func delete(_ sessionIDs: Set<String>) async -> Bool {
+        guard let token = NivoChatAccountAccess.requestConversationEdit(sessionIDs) else { return false }
+        defer { NivoScheduledRunScopes.shared.endConversationEdit(token) }
+        do {
+            try await ChatStore.shared.nmDeleteSessions(sessionIDs)
+            for sessionID in sessionIDs {
+                NanoMuseSync.shared.conversationWillBeDeleted(sessionID)
+                ViewModelCache.shared.remove(sessionId: sessionID)
+                BrowserTabPool.deletePersistedData(for: sessionID)
+                BrowserUseOffloadBridge.releasePool(forSession: sessionID)
+            }
             NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
+            return true
+        } catch {
+            ShareFeedbackToast.show(NivoLifeModel.message(error))
+            return false
         }
     }
 }

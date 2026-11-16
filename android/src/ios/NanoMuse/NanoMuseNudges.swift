@@ -243,6 +243,7 @@ final class NanoMuseNudges: ObservableObject {
 
     /// `GET /v1/nudges` when the copy is older than a day (or never fetched).
     func fetchIfStale() {
+        if NanoMuseOffline.isOn { return } // 个人构建不从中继拉取提示。
         let last = UserDefaults.standard.double(forKey: Keys.fetchedAt)
         guard Date().timeIntervalSince1970 - last > Self.ttl, !fetching else { return }
         fetching = true

@@ -70,6 +70,8 @@ enum DebugRPCProvider {
     }
 
     static func instancesCreate(params: [String: Any]) throws -> [String: Any] {
+        // nanoMuse: 调试创建也必须先通过账户与恢复门禁，再触碰系统凭证。
+        try NivoOAuthAccess.validateScope(NivoOAuthAccess.captureScope())
         let providerTypeRaw = try require(params["providerType"] as? String, "providerType")
         guard let providerType = ProviderType(rawValue: providerTypeRaw) else {
             throw DebugRPCErr(-32602, "Unknown providerType: \(providerTypeRaw)")
@@ -101,10 +103,12 @@ enum DebugRPCProvider {
 
         // Persist credential before adding instance — if Keychain write fails we abort.
         if credentialType == .apiKey, let key = apiKey {
-            ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id)
+            // nanoMuse: 调试接口同样传播凭证写入失败。
+            guard ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id) else { throw CocoaError(.fileWriteUnknown) }
         }
         if let token = oauthToken, !token.isEmpty {
-            ProviderKeychainHelper.saveOAuthString(token, instanceId: instance.id, account: "manual-oauth-token")
+            // nanoMuse: 调试接口同样传播OAuth凭证保存失败。
+            try ProviderKeychainHelper.saveOAuthString(token, instanceId: instance.id, account: "manual-oauth-token")
         }
 
         let store = ProviderConfigStore.shared
@@ -120,6 +124,8 @@ enum DebugRPCProvider {
     }
 
     static func instancesUpdate(params: [String: Any]) throws -> [String: Any] {
+        // nanoMuse: 未完成删除时不能从调试入口改写待清理凭证。
+        try NivoOAuthAccess.validateScope(NivoOAuthAccess.captureScope())
         let id = try require(params["instanceId"] as? String, "instanceId")
         let store = ProviderConfigStore.shared
         guard var instance = store.instance(for: id) else {
@@ -150,14 +156,16 @@ enum DebugRPCProvider {
             if key.isEmpty {
                 ProviderKeychainHelper.deleteAPIKey(instanceId: instance.id)
             } else {
-                ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id)
+                // nanoMuse: 不把系统凭证写入失败当成成功。
+                guard ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id) else { throw CocoaError(.fileWriteUnknown) }
             }
         }
         if let token = params["oauthToken"] as? String {
             if token.isEmpty {
                 ProviderKeychainHelper.deleteOAuthString(instanceId: instance.id, account: "manual-oauth-token")
             } else {
-                ProviderKeychainHelper.saveOAuthString(token, instanceId: instance.id, account: "manual-oauth-token")
+                // nanoMuse: 不以成功响应掩盖系统存储错误。
+                try ProviderKeychainHelper.saveOAuthString(token, instanceId: instance.id, account: "manual-oauth-token")
             }
         }
         // Reload after possible side-effect of updateInstance (it can clear imageEndpointResolved).
@@ -165,7 +173,7 @@ enum DebugRPCProvider {
         return ["instance": instanceDict(refreshed, store: store)]
     }
 
-    static func instancesDelete(params: [String: Any]) throws -> [String: Any] {
+    static func instancesDelete(params: [String: Any]) async throws -> [String: Any] {
         let id = try require(params["instanceId"] as? String, "instanceId")
         let confirm = (params["confirm"] as? Bool) ?? false
         guard confirm else { throw DebugRPCErr(-32602, "confirm=true required to delete an instance") }
@@ -181,9 +189,8 @@ enum DebugRPCProvider {
             case .group: return false
             }
         }.count
-        ProviderKeychainHelper.deleteAPIKey(instanceId: id)
-        ProviderKeychainHelper.deleteOAuthString(instanceId: id, account: "manual-oauth-token")
-        store.removeInstance(id)
+        // nanoMuse: 不再提前删凭证；与页面使用同一条可恢复删除链路。
+        try await store.removeInstance(id, sourceScope: NivoOAuthAccess.captureScope())
         return [
             "instanceId": id,
             "deletedModelEntries": entriesBefore,
@@ -599,7 +606,8 @@ enum DebugRPCProvider {
     /// versioned envelope `{version,config:{...}}` or the raw legacy config
     /// JSON for cross-platform compatibility — Android exports under the
     /// envelope, in-app share emits raw config; the importer is the same.
-    static func importInstance(params: [String: Any]) throws -> [String: Any] {
+    // nanoMuse: RPC也等待导入事务确认，错误不能包装成成功回执。
+    static func importInstance(params: [String: Any]) async throws -> [String: Any] {
         let raw = try require(params["configJson"] as? String, "configJson")
         guard let data = raw.data(using: .utf8),
               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -616,9 +624,7 @@ enum DebugRPCProvider {
             configString = raw
         }
         let store = ProviderConfigStore.shared
-        guard let resolvedLabel = store.importInstanceJSON(configString) else {
-            throw DebugRPCErr(-32000, "Import failed — invalid or unsupported configJson")
-        }
+        let resolvedLabel = try await store.importInstanceJSON(configString)
         // The repository auto-renames on label conflict; find by label match
         // after the import completes (the most recently added wins).
         guard let newInstance = store.instances.last(where: { $0.label == resolvedLabel }) else {
@@ -1408,7 +1414,10 @@ enum DebugRPCChat {
         let id = try require(params["sessionId"] as? String, "sessionId")
         let confirm = (params["confirm"] as? Bool) ?? false
         guard confirm else { throw DebugRPCErr(-32602, "confirm=true required") }
-        await ChatStore.shared.deleteSession(id)
+        // nanoMuse: 调试删除同样不能绕过正在运行的任务或个人备份。
+        let editToken = try NivoChatAccountAccess.beginConversationEdit([id])
+        defer { NivoScheduledRunScopes.shared.endConversationEdit(editToken) }
+        try await ChatStore.shared.deleteSession(id)
         ProviderConfigStore.shared.removeBinding(for: id)
         ProviderConfigStore.shared.removeInferenceConfig(for: id)
         return ["sessionId": id, "deleted": true]

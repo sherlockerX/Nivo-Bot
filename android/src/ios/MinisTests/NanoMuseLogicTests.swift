@@ -58,9 +58,11 @@ final class NanoMuseLogicTests: XCTestCase {
                 active: true,
                 showSteps: NanoMuseSteps.storedValue(in: relaunchedDefaults)
             ).map(\.kind),
-            blocks.map(\.kind),
-            "the currently running turn still shows its steps"
+            [.text],
+            "运行中的步骤也应收拢，摘要负责展示当前步骤"
         )
+        XCTAssertEqual(NanoMuseSteps.cellBlocks(blocks, active: true, showSteps: false).count, 2)
+        XCTAssertEqual(NanoMuseSteps.foldAnchor(blocks, active: true, showSteps: false), blocks.first?.id)
     }
 
     // MARK: - Fences
@@ -771,22 +773,18 @@ final class NanoMuseLogicTests: XCTestCase {
     }
 
     func testUpdateIndexReadsTheReleasesList() {
-        // The index as nanomuse.cn/dl/index.json is written: releases newest first, each with a tag.
+        // 本分支的网站同时列出多个平台，只能把明确的iOS安装入口作为更新。
         let index: [String: Any] = [
-            "repo": "nano-muse/nanoMuse",
-            "releases": [["tag": "v1.0.0", "name": "nanoMuse 1.0.0", "assets": [String]()], ["tag": "v0.1.41"]],
+            "schemaVersion": 2,
+            "platforms": [["id": "ios", "status": "available"]],
+            "releases": [["platform": "ios", "version": "2.1.0", "channel": "stable", "distribution": "testflight",
+                          "downloadUrl": "https://testflight.apple.com/join/fixture"]],
         ]
         let found = NanoMuseUpdateCheck.parseIndex(index)
-        XCTAssertEqual(found?.version, "v1.0.0", "the newest release's tag, as Android reads it")
-        XCTAssertEqual(found?.page, NanoMuseUpdateCheck.downloadPage, "a tap leads to the download page")
-        XCTAssertEqual(NanoMuseUpdateCheck.parseIndex(["releases": [["tag": ""], ["tag": "v0.9.0"]]])?.version, "v0.9.0", "an empty tag is skipped")
-        XCTAssertNil(NanoMuseUpdateCheck.parseIndex(["repo": "nano-muse/nanoMuse"]), "no releases, no answer")
-        XCTAssertNil(NanoMuseUpdateCheck.parseIndex(["releases": [[String: Any]]()]))
-        // The older shapes still read.
-        XCTAssertEqual(NanoMuseUpdateCheck.parseIndex(["ios": ["version": "1.2.0", "page": "https://example.invalid/r"]]), NanoMuseUpdateCheck.Found(version: "1.2.0", page: "https://example.invalid/r"))
-        XCTAssertEqual(NanoMuseUpdateCheck.parseIndex(["latest": "1.1.0"])?.page, NanoMuseUpdateCheck.downloadPage)
-        // GitHub's release object.
-        XCTAssertEqual(NanoMuseUpdateCheck.parseGitHubLatest(["tag_name": "v1.0.0", "html_url": "https://example.invalid/tag"]), NanoMuseUpdateCheck.Found(version: "v1.0.0", page: "https://example.invalid/tag"))
+        XCTAssertEqual(found?.version, "2.1.0")
+        XCTAssertEqual(found?.page, NanoMuseUpdateCheck.downloadPage)
+        XCTAssertNil(NanoMuseUpdateCheck.parseIndex(["latest": "9.0.0"]))
+        XCTAssertNil(NanoMuseUpdateCheck.parseGitHubLatest(["tag_name": "v9.0.0", "assets": []]))
         XCTAssertNil(NanoMuseUpdateCheck.parseGitHubLatest(["message": "Not Found"]))
     }
 }

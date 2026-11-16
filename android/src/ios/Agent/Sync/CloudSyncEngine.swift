@@ -223,6 +223,10 @@ final class PendingRecordChanges: @unchecked Sendable {
 @available(iOS 17.0, *)
 @MainActor
 final class CloudSyncEngine: ObservableObject {
+    // nanoMuse: 接收批次顺序执行，删除不会越过前一个仍在等待聊天空闲的写入。
+    private let nmInboundLock = NivoAccountTransitionLock()
+    // nanoMuse: 回执落库与引擎重建共用序列边界，旧批次不能清除新引擎的脏记录。
+    private let nmSendSettlementLock = NivoAccountTransitionLock()
     static let shared = CloudSyncEngine()
 
     private lazy var container = CKContainer(identifier: "iCloud.io.github.nanomuse.app")
@@ -310,6 +314,13 @@ final class CloudSyncEngine: ObservableObject {
     private let pendingChanges = PendingRecordChanges()
     /// Guard against concurrent sendChanges() calls — CKSyncEngine asserts if re-entered.
     private var isSending = false
+    /// nanoMuse: 周期强持有所属引擎，停用或重建不会丢失仍在等待HTTP回执的占位。
+    private struct SendCycle {
+        let engine: CKSyncEngine
+        let exportToken: UUID
+    }
+    private var nmSendCycles: [ObjectIdentifier: SendCycle] = [:]
+    private var nmPreparedScope: NivoOAuthScope?
 
     @Published var syncStatus: SyncStatus = .idle
     @Published var knownDevices: [SyncDevice] = []
@@ -320,7 +331,9 @@ final class CloudSyncEngine: ObservableObject {
             if isEnabled {
                 Task { await start() }
             } else {
-                syncEngine = nil
+                // nanoMuse: 停用引擎后不得留下仍可落盘的旧游标任务。
+                NivoCloudCheckpointWriter.shared.invalidate(stateURL)
+                nmRetireSyncEngine()
                 syncStatus = .disabled
                 SyncDirtyScanner.shared.stop()
                 stopForegroundSyncTimer()
@@ -467,30 +480,35 @@ final class CloudSyncEngine: ObservableObject {
         // Detect fresh install: if local DB has no sessions, allow importing
         // own-zone records from iCloud (normally skipped to avoid duplicates).
         let localSessions = await ChatStore.shared.listSessions()
-        isRestoringFromCloud = localSessions.isEmpty
-        if isRestoringFromCloud {
-            logger.info("[CloudSync] Fresh install detected — will import own-zone records from iCloud")
-            // Reset backfill key so remote→local merge runs after restore
-            UserDefaults.standard.removeObject(forKey: "cloudSync.backfillDone.v1")
-        }
+        let preparedEngine: CKSyncEngine? = await nmWithSendSettlement {
+            // nanoMuse: 两次启动或停用可在数据库读取期间交错，只允许当前有效启动创建引擎。
+            guard isEnabled, syncEngine == nil else { return nil }
+            isRestoringFromCloud = localSessions.isEmpty
+            if isRestoringFromCloud {
+                logger.info("[CloudSync] Fresh install detected — will import own-zone records from iCloud")
+                // nanoMuse: 回填标记随SQLite保存，恢复后的数据库自行决定是否需要补入旧参考副本。
+            }
 
-        let config: CKSyncEngine.Configuration
-        if let state = stateSerialization {
-            config = CKSyncEngine.Configuration(
-                database: container.privateCloudDatabase,
-                stateSerialization: state,
-                delegate: self
-            )
-        } else {
-            config = CKSyncEngine.Configuration(
-                database: container.privateCloudDatabase,
-                stateSerialization: nil,
-                delegate: self
-            )
-        }
+            let config: CKSyncEngine.Configuration
+            if let state = stateSerialization {
+                config = CKSyncEngine.Configuration(
+                    database: container.privateCloudDatabase,
+                    stateSerialization: state,
+                    delegate: self
+                )
+            } else {
+                config = CKSyncEngine.Configuration(
+                    database: container.privateCloudDatabase,
+                    stateSerialization: nil,
+                    delegate: self
+                )
+            }
 
-        let engine = CKSyncEngine(config)
-        self.syncEngine = engine
+            let engine = CKSyncEngine(config)
+            self.syncEngine = engine
+            return engine
+        }
+        guard let engine = preparedEngine, syncEngine === engine, isEnabled else { return }
 
         // Restore global etags (SyncDevice/Skill/ProviderConfig/EnvVar)
         // before any upload so the first post-launch save reuses the
@@ -504,13 +522,9 @@ final class CloudSyncEngine: ObservableObject {
         // Discover and subscribe to remote device zones
         await discoverDeviceZones()
 
-        // One-time backfill: merge remote_sessions/messages into local tables
-        // (handles data fetched before mergeRemoteSession was added)
-        let backfillKey = "cloudSync.backfillDone.v1"
-        if !UserDefaults.standard.bool(forKey: backfillKey) {
-            await ChatStore.shared.backfillRemoteToLocal()
-            UserDefaults.standard.set(true, forKey: backfillKey)
-        }
+        // nanoMuse: 失败保留数据库内未完成状态，后续前台同步会重试，不设置虚假的成功标记。
+        await nmRetryLegacyBackfill(engine: engine)
+        guard syncEngine === engine, isEnabled else { return }
 
         // Start periodic dirty scanner for skills
         SyncDirtyScanner.shared.start()
@@ -527,7 +541,10 @@ final class CloudSyncEngine: ObservableObject {
         foregroundSyncTimer = Timer.scheduledTimer(withTimeInterval: 180, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                guard self.syncEngine != nil else { return }
+                guard let engine = self.syncEngine else { return }
+                // nanoMuse: 忙碌或写盘失败的历史回填可在本次运行内恢复，无需只靠重启。
+                await self.nmRetryLegacyBackfill(engine: engine)
+                guard self.syncEngine === engine, self.isEnabled else { return }
                 let t0 = CFAbsoluteTimeGetCurrent()
                 logger.info("[CloudSync] Periodic foreground sync")
                 // Reset device record fail counter so periodic sync can retry
@@ -546,13 +563,84 @@ final class CloudSyncEngine: ObservableObject {
         }
     }
 
+    // nanoMuse: 本地回填错误保留日志及界面状态，不能把零行与失败混为一谈。
+    private func nmRetryLegacyBackfill(engine: CKSyncEngine) async {
+        do {
+            try await NivoCloudChatAccess.backfillLegacyReferences { self.isEnabled && self.syncEngine === engine }
+        } catch {
+            guard isEnabled, syncEngine === engine else { return }
+            syncStatus = .error(NivoLifeModel.message(error))
+            logger.error("[Nivo] reference backfill retained for retry: \(error.localizedDescription)")
+            SyncLogStore.shared.append(SyncLogEntry(timestamp: Date(), direction: .error,
+                recordType: "LegacyBackfill", recordName: "local", summary: "",
+                detail: error.localizedDescription, deviceName: nil))
+        }
+    }
+
     private func stopForegroundSyncTimer() {
         foregroundSyncTimer?.invalidate()
         foregroundSyncTimer = nil
     }
 
+    /// nanoMuse: 每个自动发送周期占位到didSendChanges，显式发送另保留快照准备期的占位。
+    private func nmBeginSendCycle(_ engine: CKSyncEngine) -> UUID? {
+        guard isEnabled, syncEngine === engine else { return nil }
+        let identifier = ObjectIdentifier(engine)
+        if let cycle = nmSendCycles[identifier] { return cycle.exportToken }
+        guard let exportToken = NivoCloudExportAccess.begin() else {
+            scheduleSend(delay: 2)
+            return nil
+        }
+        nmSendCycles[identifier] = SendCycle(engine: engine, exportToken: exportToken)
+        return exportToken
+    }
+
+    /// nanoMuse: 委托事件串行且等待此交接，旧引擎的结束事件不能释放新引擎的周期。
+    private func nmEndSendCycle(_ engine: CKSyncEngine, exportToken: UUID) {
+        let identifier = ObjectIdentifier(engine)
+        guard nmSendCycles[identifier]?.exportToken == exportToken else { return }
+        nmSendCycles.removeValue(forKey: identifier)
+        NivoCloudExportAccess.end(exportToken)
+    }
+
+    /// nanoMuse: 取消返回不代表HTTP结束；仅废弃入口，周期占位留给自身didSendChanges释放。
+    private func nmRetireSyncEngine() {
+        guard let engine = syncEngine else { return }
+        syncEngine = nil
+        _ = pendingChanges.takeAll()
+        nmPreparedScope = nil
+        // 不能在委托事件内等待同一引擎取消，避免阻塞它自己的回执与结束事件。
+        Task.detached { await engine.cancelOperations() }
+    }
+
+    /// nanoMuse: 只串行本地结算与重建准备，调用方不能在边界内等待引擎fetch或send事件。
+    private func nmWithSendSettlement<Result>(
+        _ operation: @MainActor () async throws -> Result
+    ) async rethrows -> Result {
+        await nmSendSettlementLock.acquire()
+        defer { nmSendSettlementLock.release() }
+        return try await operation()
+    }
+
+    /// nanoMuse: 缓存可能跨越一次恢复，只有同一账户与提供商代次的快照才允许复用。
+    private func nmResetPreparedChangesIfNeeded() -> Bool {
+        let scope = NivoOAuthAccess.captureScope()
+        guard nmPreparedScope != scope else { return false }
+        _ = pendingChanges.takeAll()
+        nmPreparedScope = scope
+        queueDeviceRecord()
+        return true
+    }
+
     /// Build CKRecords from dirty records. Must be called OUTSIDE delegate callbacks.
     func refreshPendingChanges() async {
+        // nanoMuse: 启动预热也读取真实配置，准备快照时不能与恢复事务交错。
+        guard let engine = syncEngine, let exportToken = NivoCloudExportAccess.begin() else {
+            scheduleSend(delay: 2)
+            return
+        }
+        defer { NivoCloudExportAccess.end(exportToken) }
+        _ = nmResetPreparedChangesIfNeeded()
         let refreshStart = CFAbsoluteTimeGetCurrent()
         let enabled = enabledRecordTypes
         let dirtyRecords = await ChatStore.shared.loadDirtyRecords()
@@ -603,7 +691,14 @@ final class CloudSyncEngine: ObservableObject {
                     deleteIDs.append(deleteRecordID)
                     logger.info("[CloudSync] Queued cloud deletion: \(deleteRecordName)")
                 } else {
-                    if let record = await self.buildCKRecord(type: dirty.recordType, id: dirty.recordId) {
+                    // nanoMuse: 读取凭证失败保留脏记录，不能当作本机内容已经删除。
+                    let built: CKRecord?
+                    do { built = try await self.buildCKRecord(type: dirty.recordType, id: dirty.recordId) }
+                    catch {
+                        logger.error("[CloudSync] Record snapshot failed; keeping pending upload")
+                        continue
+                    }
+                    if let record = built {
                         records.append(record)
                     } else {
                         // For Skills, nil may mean "not stable yet" — keep dirty for retry.
@@ -626,6 +721,8 @@ final class CloudSyncEngine: ObservableObject {
             return (records, deleteIDs)
         }.value
 
+        // nanoMuse: 停用或重建后的迟到准备结果不能进入新引擎的共享缓冲区。
+        guard isEnabled, syncEngine === engine else { return }
         pendingChanges.append(records: records, deleteIDs: deleteIDs)
 
         if !records.isEmpty || !deleteIDs.isEmpty {
@@ -660,26 +757,46 @@ final class CloudSyncEngine: ObservableObject {
             logger.debug("[CloudSync] triggerSend skipped — already sending")
             return
         }
+        // nanoMuse: 系统自动周期也算正在发送，显式调用不能重入它的sendChanges。
+        guard nmSendCycles[ObjectIdentifier(engine)] == nil else {
+            scheduleSend(delay: 2)
+            return
+        }
+        // nanoMuse: 显式旧版发送同样等待恢复租约，保留原脏记录供重试。
+        guard let exportToken = NivoCloudExportAccess.begin() else {
+            scheduleSend(delay: 2)
+            return
+        }
+        defer { NivoCloudExportAccess.end(exportToken) }
         isSending = true
+        defer { isSending = false }
         let s0 = CFAbsoluteTimeGetCurrent()
         await cleanStalePendingRecords()
         let s1 = CFAbsoluteTimeGetCurrent()
         await refreshPendingChanges()
         let s2 = CFAbsoluteTimeGetCurrent()
+        // nanoMuse: 准备期间可能停用或重建引擎，旧任务不得再发起一次新HTTP请求。
+        guard isEnabled, syncEngine === engine else { return }
+        // nanoMuse: 预热期间自动周期可能先启动，保留已准备缓存交由下一轮处理。
+        guard nmSendCycles[ObjectIdentifier(engine)] == nil else {
+            scheduleSend(delay: 2)
+            return
+        }
         syncStatus = .syncing
         do {
             try await Task.detached { [engine] in
                 try await engine.sendChanges()
             }.value
-            syncStatus = .idle
-            lastSyncDate = Date()
+            if syncEngine === engine {
+                syncStatus = .idle
+                lastSyncDate = Date()
+            }
         } catch {
             logger.error("[CloudSync] Send error: \(error)")
-            syncStatus = .error(error.localizedDescription)
+            if syncEngine === engine { syncStatus = .error(error.localizedDescription) }
         }
         let s3 = CFAbsoluteTimeGetCurrent()
         logger.info("[CloudSync] triggerSend: cleanStale=\(String(format: "%.0f", (s1-s0)*1000))ms refresh=\(String(format: "%.0f", (s2-s1)*1000))ms sendChanges=\(String(format: "%.0f", (s3-s2)*1000))ms")
-        isSending = false
     }
 
     /// Schedule a debounced send after a short delay (default 3s).
@@ -704,30 +821,34 @@ final class CloudSyncEngine: ObservableObject {
     func forceFullSync() async {
         let prior = await ChatStore.shared.countDirtyRecords()
         logger.info("[CloudSync] forceFullSync START priorDirty total=\(prior.total) byType=\(prior.byType)")
-        // Start tallying uploads by type — the .sentRecordZoneChanges delegate
-        // checks this and bumps counts so we can print a completion summary.
-        fullSyncUploadCounts = [:]
-        // 1. Tear down the sync engine
-        syncEngine = nil
+        await nmWithSendSettlement {
+            // Start tallying uploads by type — the .sentRecordZoneChanges delegate
+            // checks this and bumps counts so we can print a completion summary.
+            fullSyncUploadCounts = [:]
+            // 1. Tear down the sync engine
+            // nanoMuse: 重置前作废候选；旧引擎迟到的状态事件也由委托入口拒绝。
+            NivoCloudCheckpointWriter.shared.invalidate(stateURL)
+            nmRetireSyncEngine()
 
-        // 2. Clear CKSyncEngine persisted state (change tokens) so next fetch is full
-        stateSerialization = nil
-        try? FileManager.default.removeItem(at: stateURL)
+            // 2. Clear CKSyncEngine persisted state (change tokens) so next fetch is full
+            stateSerialization = nil
+            try? FileManager.default.removeItem(at: stateURL)
 
-        // 3. Clear server record cache (etags) to avoid stale conflict detection
-        serverRecordCache.removeAll()
-        loadedSessionCaches.removeAll()
-        dirtySessionCaches.removeAll()
-        sessionCacheLRU.removeAll()
-        globalEtagCacheDirty = false
-        try? FileManager.default.removeItem(at: sessionCacheDir)
-        try? FileManager.default.removeItem(at: globalEtagCacheURL)
-        try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
+            // 3. Clear server record cache (etags) to avoid stale conflict detection
+            serverRecordCache.removeAll()
+            loadedSessionCaches.removeAll()
+            dirtySessionCaches.removeAll()
+            sessionCacheLRU.removeAll()
+            globalEtagCacheDirty = false
+            try? FileManager.default.removeItem(at: sessionCacheDir)
+            try? FileManager.default.removeItem(at: globalEtagCacheURL)
+            try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
 
-        // 4. Clear remote reference tables (will be re-populated by the full fetch).
-        //    Preserve sync_dirty_records so pending local changes still get pushed.
-        await ChatStore.shared.clearRemoteReferenceTables()
-        knownDevices = []
+            // 4. Clear remote reference tables (will be re-populated by the full fetch).
+            //    Preserve sync_dirty_records so pending local changes still get pushed.
+            await ChatStore.shared.clearRemoteReferenceTables()
+            knownDevices = []
+        }
 
         // 5. Restart engine, full fetch (merges remote → local)
         await start()
@@ -835,57 +956,61 @@ final class CloudSyncEngine: ObservableObject {
         logger.warning("[CloudSync] Delete iCloud Data: STARTING destructive wipe")
         syncStatus = .syncing
 
-        // 1. Tear down the engine and any pending work so nothing races the wipe.
-        syncEngine = nil
-        stopForegroundSyncTimer()
-        SyncDirtyScanner.shared.stop()
-        pendingSendTask?.cancel()
-        pendingSendTask = nil
-
-        // 2. Enumerate every zone in this user's private database and delete them.
-        //    `allRecordZones()` only returns zones owned by the current iCloud user,
-        //    so this cannot touch another user's data. We delete *every* zone
-        //    (device-* and the shared "devices" zone) — deleting a zone removes
-        //    every record it contains in a single server operation.
-        let db = container.privateCloudDatabase
         var deletedZones = 0
         var failedZones: [String] = []
-        do {
-            let zones = try await Task.detached { try await db.allRecordZones() }.value
-            logger.warning("[CloudSync] Delete iCloud Data: found \(zones.count) zones to delete")
-            for zone in zones {
-                do {
-                    _ = try await Task.detached {
-                        try await db.deleteRecordZone(withID: zone.zoneID)
-                    }.value
-                    deletedZones += 1
-                    logger.warning("[CloudSync] Delete iCloud Data: deleted zone \(zone.zoneID.zoneName)")
-                } catch {
-                    failedZones.append(zone.zoneID.zoneName)
-                    logger.error("[CloudSync] Delete iCloud Data: failed to delete zone \(zone.zoneID.zoneName): \(error)")
-                }
-            }
-        } catch {
-            logger.error("[CloudSync] Delete iCloud Data: failed to list zones: \(error)")
-            syncStatus = .error("Failed to list iCloud zones")
-            throw error
-        }
+        try await nmWithSendSettlement {
+            // 1. Tear down the engine and any pending work so nothing races the wipe.
+            // nanoMuse: 等待中的游标不能在删除流程之后复活。
+            NivoCloudCheckpointWriter.shared.invalidate(stateURL)
+            nmRetireSyncEngine()
+            stopForegroundSyncTimer()
+            SyncDirtyScanner.shared.stop()
+            pendingSendTask?.cancel()
+            pendingSendTask = nil
 
-        // 3. Clear all local sync bookkeeping so the next start() begins from scratch.
-        //    Local sessions/messages/files are NOT touched — only sync state is cleared.
-        stateSerialization = nil
-        try? FileManager.default.removeItem(at: stateURL)
-        serverRecordCache.removeAll()
-        loadedSessionCaches.removeAll()
-        dirtySessionCaches.removeAll()
-        sessionCacheLRU.removeAll()
-        globalEtagCacheDirty = false
-        try? FileManager.default.removeItem(at: sessionCacheDir)
-        try? FileManager.default.removeItem(at: globalEtagCacheURL)
-        try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
-        await ChatStore.shared.clearAllRemoteTables() // also wipes sync_dirty_records
-        knownDevices = []
-        lastSyncDate = nil
+            // 2. Enumerate every zone in this user's private database and delete them.
+            //    `allRecordZones()` only returns zones owned by the current iCloud user,
+            //    so this cannot touch another user's data. We delete *every* zone
+            //    (device-* and the shared "devices" zone) — deleting a zone removes
+            //    every record it contains in a single server operation.
+            let db = container.privateCloudDatabase
+            do {
+                let zones = try await Task.detached { try await db.allRecordZones() }.value
+                logger.warning("[CloudSync] Delete iCloud Data: found \(zones.count) zones to delete")
+                for zone in zones {
+                    do {
+                        _ = try await Task.detached {
+                            try await db.deleteRecordZone(withID: zone.zoneID)
+                        }.value
+                        deletedZones += 1
+                        logger.warning("[CloudSync] Delete iCloud Data: deleted zone \(zone.zoneID.zoneName)")
+                    } catch {
+                        failedZones.append(zone.zoneID.zoneName)
+                        logger.error("[CloudSync] Delete iCloud Data: failed to delete zone \(zone.zoneID.zoneName): \(error)")
+                    }
+                }
+            } catch {
+                logger.error("[CloudSync] Delete iCloud Data: failed to list zones: \(error)")
+                syncStatus = .error("Failed to list iCloud zones")
+                throw error
+            }
+
+            // 3. Clear all local sync bookkeeping so the next start() begins from scratch.
+            //    Local sessions/messages/files are NOT touched — only sync state is cleared.
+            stateSerialization = nil
+            try? FileManager.default.removeItem(at: stateURL)
+            serverRecordCache.removeAll()
+            loadedSessionCaches.removeAll()
+            dirtySessionCaches.removeAll()
+            sessionCacheLRU.removeAll()
+            globalEtagCacheDirty = false
+            try? FileManager.default.removeItem(at: sessionCacheDir)
+            try? FileManager.default.removeItem(at: globalEtagCacheURL)
+            try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
+            await ChatStore.shared.clearAllRemoteTables() // also wipes sync_dirty_records
+            knownDevices = []
+            lastSyncDate = nil
+        }
 
         // 4. Re-mark all local content as dirty so the next send re-populates the
         //    fresh zone from this device's local state. Category toggles still apply.
@@ -925,19 +1050,23 @@ final class CloudSyncEngine: ObservableObject {
 
     /// Full state wipe for account switches — clears everything including dirty records.
     private func resetSyncState() async {
-        syncEngine = nil
-        stateSerialization = nil
-        try? FileManager.default.removeItem(at: stateURL)
-        serverRecordCache.removeAll()
-        loadedSessionCaches.removeAll()
-        dirtySessionCaches.removeAll()
-        sessionCacheLRU.removeAll()
-        try? FileManager.default.removeItem(at: sessionCacheDir)
-        try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
-        await ChatStore.shared.clearAllRemoteTables()
-        knownDevices = []
-        lastSyncDate = nil
-        syncStatus = .idle
+        await nmWithSendSettlement {
+            // nanoMuse: 先作废旧账户候选，再清理状态文件。
+            NivoCloudCheckpointWriter.shared.invalidate(stateURL)
+            nmRetireSyncEngine()
+            stateSerialization = nil
+            try? FileManager.default.removeItem(at: stateURL)
+            serverRecordCache.removeAll()
+            loadedSessionCaches.removeAll()
+            dirtySessionCaches.removeAll()
+            sessionCacheLRU.removeAll()
+            try? FileManager.default.removeItem(at: sessionCacheDir)
+            try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
+            await ChatStore.shared.clearAllRemoteTables()
+            knownDevices = []
+            lastSyncDate = nil
+            syncStatus = .idle
+        }
     }
 
     /// Remove any CKSyncEngine pending saves not backed by a dirty record.
@@ -1040,7 +1169,8 @@ final class CloudSyncEngine: ObservableObject {
 
     // MARK: - CKRecord ↔ Local DB Mapping
 
-    func buildCKRecord(type: String, id: String) async -> CKRecord? {
+    // nanoMuse: 严格快照错误必须返回发送队列，nil只用于确实不存在的记录。
+    func buildCKRecord(type: String, id: String) async throws -> CKRecord? {
         guard !type.isEmpty, !id.isEmpty else {
             logger.warning("[CloudSync] buildCKRecord called with empty type or id")
             return nil
@@ -1144,12 +1274,13 @@ final class CloudSyncEngine: ObservableObject {
             guard parts.count == 2 else { return nil }
             let sessionId = String(parts[0])
             let relativePath = String(parts[1])
-            let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-            let fileURL = library.appendingPathComponent("MinisChat/minis/\(sessionId)/\(relativePath)")
-            guard FileManager.default.fileExists(atPath: fileURL.path),
-                  FileManager.default.isReadableFile(atPath: fileURL.path) else { return nil }
-            let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
-            let fileSize = (attrs?[.size] as? Int) ?? 0
+            // nanoMuse: 发送前核对实际文件边界，并携带原文件时间用于接收端版本判断。
+            let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!.resolvingSymlinksInPath()
+            guard let fileURL = try? NivoCloudSessionFile.existingFile(root: library.appendingPathComponent("MinisChat/minis"),
+                      sessionID: sessionId, relativePath: relativePath),
+                  let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+                  let fileSize = attrs[.size] as? Int,
+                  let modifiedAt = attrs[.modificationDate] as? Date else { return nil }
             if fileSize > maxSyncFileSize {
                 logger.info("[CloudSync] Skipping session file (too large: \(fileSize)): \(relativePath)")
                 return nil
@@ -1159,6 +1290,7 @@ final class CloudSyncEngine: ObservableObject {
             record["asset"] = CKAsset(fileURL: fileURL)
             record["mimeType"] = Self.mimeType(for: fileURL.pathExtension)
             record["fileSize"] = fileSize
+            record["updatedAt"] = modifiedAt
 
         case "Skill":
             guard let skill = await MainActor.run(body: { SkillStore.shared.skills.first { $0.id == id } }) else {
@@ -1256,16 +1388,15 @@ final class CloudSyncEngine: ObservableObject {
             record["updatedAt"] = Date()
 
         case "EnvVar":
-            // Sync env var keys and base64-encoded values.
-            let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-            let envURL = library.appendingPathComponent("MinisChat/env-vars.json")
-            guard let data = try? Data(contentsOf: envURL) else { return nil }
-            let envJson = String(data: data, encoding: .utf8) ?? "[]"
+            // nanoMuse: 元数据和秘密在同一受保护快照读取，失败不再发送半份或空值。
+            let snapshot = try await MainActor.run { try EnvVarStore.shared.nmLegacySyncSnapshot() }
+            let envJson = snapshot.metadata
+            let data = Data(envJson.utf8)
             // Record hash so we can detect our own echo on receive
             Self.lastUploadedEnvVarHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
             record["envVarsJson"] = envJson
             // Also export env var values as base64 for immediate availability on new devices.
-            record["envSecretsJson"] = Self.exportEnvVarSecrets(envJson: envJson)
+            record["envSecretsJson"] = snapshot.secrets
             record["updatedAt"] = Date()
 
         default:
@@ -1277,7 +1408,8 @@ final class CloudSyncEngine: ObservableObject {
 
     // MARK: - Process Remote Records
 
-    func processRemoteRecord(_ record: CKRecord) async {
+    // nanoMuse: 旧iCloud入口也遵循账户冻结和会话占位。
+    func processRemoteRecord(_ record: CKRecord) async throws {
         let deviceId = record.recordID.zoneID.zoneName.replacingOccurrences(of: "device-", with: "")
 
         // Skip records from our own device zone (we already have the data locally),
@@ -1286,6 +1418,11 @@ final class CloudSyncEngine: ObservableObject {
         if deviceId == DeviceIdentity.deviceId && record.recordType != "SyncDevice" && !isRestoringFromCloud {
             return
         }
+
+        let sessionTypes: Set<String> = ["Session", "Message", "CompactMarker", "SessionFile"]
+        let sessionID = sessionTypes.contains(record.recordType) ? record["sessionId"] as? String : nil
+        let nmToken = try await NivoCloudChatAccess.acquire(sessionID: sessionID)
+        defer { if let nmToken { NivoScheduledRunScopes.shared.endConversationEdit(nmToken) } }
 
         switch record.recordType {
         case "SyncDevice":
@@ -1306,18 +1443,22 @@ final class CloudSyncEngine: ObservableObject {
             }
 
         case "Session":
+            // nanoMuse: 旧协议同样拒绝缺少标识或时间的记录，避免用当前时间覆盖本机。
+            guard let sessionID = record["sessionId"] as? String,
+                  let createdAt = record["createdAt"] as? Date,
+                  let updatedAt = record["updatedAt"] as? Date else { throw NivoCloudChatSQLError.invalidRecord }
             // Parse pinnedAt: nil = old device (field absent), 0 = explicitly unpinned, >0 = pinned
             let remotePinnedAt: Date? = {
                 guard let date = record["pinnedAt"] as? Date else { return nil }
                 return date.timeIntervalSince1970 > 0 ? date : nil
             }()
             var session = ChatSession(
-                id: record["sessionId"] as? String ?? "",
+                id: sessionID,
                 title: record["title"] as? String,
                 category: record["category"] as? String,
                 modelId: record["modelId"] as? String ?? "unknown",
-                createdAt: record["createdAt"] as? Date ?? Date(),
-                updatedAt: record["updatedAt"] as? Date ?? Date()
+                createdAt: createdAt,
+                updatedAt: updatedAt
             )
             session.pinnedAt = remotePinnedAt
             let memoryEnabled = (record["memoryEnabled"] as? Int ?? 1) == 1
@@ -1326,9 +1467,10 @@ final class CloudSyncEngine: ObservableObject {
             let remotePinnedAtRaw = record["pinnedAt"] as? Date
             logger.info("[iCloud] processRemoteRecord Session: id=\(session.id) title=\(session.title ?? "nil") deviceId=\(deviceId)")
             // Merge into local sessions (last-write-wins by updated_at)
-            await ChatStore.shared.mergeRemoteSession(session, fromDeviceId: deviceId, memoryEnabled: memoryEnabled, modelBinding: modelBinding, remotePinnedAtRaw: remotePinnedAtRaw)
+            // nanoMuse: 权威会话和参考副本的失败均传播给同步游标屏障。
+            try await ChatStore.shared.mergeRemoteSession(session, fromDeviceId: deviceId, memoryEnabled: memoryEnabled, modelBinding: modelBinding, remotePinnedAtRaw: remotePinnedAtRaw)
             // Also keep in remote_sessions for browsing/reference
-            await ChatStore.shared.upsertRemoteSession(session, deviceId: deviceId)
+            try await ChatStore.shared.upsertRemoteSession(session, deviceId: deviceId)
 
         case "CompactMarker":
             let marker = CompactMarker(
@@ -1344,21 +1486,21 @@ final class CloudSyncEngine: ObservableObject {
                 lastCompactedMessageId: record["lastCompactedMessageId"] as? String
             )
             logger.info("[iCloud] processRemoteRecord CompactMarker: id=\(marker.id) session=\(marker.sessionId)")
-            await ChatStore.shared.mergeRemoteCompactMarker(marker)
+            // nanoMuse: 摘要事务失败交给接收层重放。
+            try await ChatStore.shared.mergeRemoteCompactMarker(marker)
 
         case "Message":
-            let partsJson: String
-            if let asset = record["partsAsset"] as? CKAsset, let fileURL = asset.fileURL,
-               let data = try? Data(contentsOf: fileURL) {
-                partsJson = String(data: data, encoding: .utf8) ?? "[]"
-            } else {
-                partsJson = record["partsJson"] as? String ?? "[]"
-            }
+            // nanoMuse: 附件缺失或读取失败必须重试，不能用空数组覆盖完整回复。
+            let bodyAsset = record["partsAsset"] as? CKAsset
+            if let bodyAsset, bodyAsset.fileURL == nil { throw CocoaError(.fileReadCorruptFile) }
+            let partsJson = try NivoCloudMessageBody.read(inline: record["partsJson"] as? String,
+                assetURL: bodyAsset?.fileURL)
 
-            let messageId = record["messageId"] as? String ?? ""
-            let sessionId = record["sessionId"] as? String ?? ""
-            let role = record["role"] as? String ?? "user"
-            let createdAt = record["createdAt"] as? Date ?? Date()
+            // nanoMuse: 缺少必填字段不能使用当前时间或用户角色构造假消息。
+            guard let messageId = record["messageId"] as? String,
+                  let sessionId = record["sessionId"] as? String,
+                  let role = record["role"] as? String,
+                  let createdAt = record["createdAt"] as? Date else { throw NivoCloudChatSQLError.invalidRecord }
             let tokenUsageJson = record["tokenUsageJson"] as? String
             let sortOrder = record["sortOrder"] as? Int ?? 0
             let reasoningContent = record["reasoningContent"] as? String
@@ -1366,34 +1508,35 @@ final class CloudSyncEngine: ObservableObject {
             // updatedAt may be nil when sent from older app versions — fallback handled by mergeRemoteMessage
             let updatedAt = record["updatedAt"] as? Date
 
-            // Keep in remote_messages for reference
-            await ChatStore.shared.upsertRemoteMessage(
-                id: messageId, deviceId: deviceId, sessionId: sessionId,
-                role: role, partsJson: partsJson, createdAt: createdAt,
-                tokenUsageJson: tokenUsageJson, sortOrder: sortOrder,
-                reasoningContent: reasoningContent, streamInterruptCount: streamInterruptCount
-            )
             // Merge into local messages if the session exists locally (was merged via mergeRemoteSession)
-            await ChatStore.shared.mergeRemoteMessage(
+            // nanoMuse: 本机合并失败必须保留云端批次，不能提前确认游标。
+            try await ChatStore.shared.mergeRemoteMessage(
                 id: messageId, sessionId: sessionId, role: role, partsJson: partsJson,
                 createdAt: createdAt, tokenUsageJson: tokenUsageJson, sortOrder: sortOrder,
                 reasoningContent: reasoningContent, streamInterruptCount: streamInterruptCount,
                 updatedAt: updatedAt
             )
+            // nanoMuse: 只有正文验证和权威消息写入成功后才更新旧协议的参考副本。
+            try await ChatStore.shared.upsertRemoteMessage(
+                id: messageId, deviceId: deviceId, sessionId: sessionId,
+                role: role, partsJson: partsJson, createdAt: createdAt,
+                tokenUsageJson: tokenUsageJson, sortOrder: sortOrder,
+                reasoningContent: reasoningContent, streamInterruptCount: streamInterruptCount, updatedAt: updatedAt
+            )
 
         case "SessionFile":
-            let sessionId = record["sessionId"] as? String ?? ""
-            let relativePath = record["relativePath"] as? String ?? ""
-            if let asset = record["asset"] as? CKAsset, let srcURL = asset.fileURL {
-                let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-                let destURL = library.appendingPathComponent("MinisChat/minis/\(sessionId)/\(relativePath)")
-                let fm = FileManager.default
-                try? fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                // Overwrite if exists (last-write-wins)
-                if fm.fileExists(atPath: destURL.path) { try? fm.removeItem(at: destURL) }
-                try? fm.copyItem(at: srcURL, to: destURL)
-                logger.info("[iCloud] synced session file: \(sessionId)/\(relativePath)")
+            // nanoMuse: 旧协议附件同样不先删原件，缺失或写入失败保留接收批次。
+            guard let sessionId = record["sessionId"] as? String,
+                  let relativePath = record["relativePath"] as? String,
+                  let asset = record["asset"] as? CKAsset, let sourceURL = asset.fileURL,
+                  let remoteUpdatedAt = (record["updatedAt"] as? Date) ?? record.modificationDate else {
+                throw NivoCloudSessionFileError.invalidAsset
             }
+            if try await ChatStore.shared.nmRemoteSessionFileIsDeleted(sessionID: sessionId, updatedAt: remoteUpdatedAt) { return }
+            let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!.resolvingSymlinksInPath()
+            _ = try await NivoCloudSessionFile.receive(.init(sessionID: sessionId, relativePath: relativePath,
+                asset: sourceURL, expectedSize: record["fileSize"] as? Int, updatedAt: remoteUpdatedAt),
+                root: library.appendingPathComponent("MinisChat/minis", isDirectory: true))
 
         case "Skill":
             let skillId = record["skillId"] as? String ?? ""
@@ -1461,6 +1604,8 @@ final class CloudSyncEngine: ObservableObject {
             }
 
         case "ProviderConfig":
+            // nanoMuse: 配置合并跨await后不得把旧凭证写入恢复后的新代次。
+            let credentialGeneration = NanoMuseAccountData.shared.generation
             let configJson: String
             if let asset = record["configAsset"] as? CKAsset, let fileURL = asset.fileURL,
                let data = try? Data(contentsOf: fileURL) {
@@ -1470,36 +1615,32 @@ final class CloudSyncEngine: ObservableObject {
             }
             let updatedAt = record["updatedAt"] as? Date ?? Date()
 
-            // Import API keys from base64 if Keychain doesn't have them yet.
-            if let secretsJson = record["secretsJson"] as? String {
-                Self.importProviderSecrets(secretsJson: secretsJson)
-            }
-
             // Keep in remote table for reference
             await ChatStore.shared.upsertRemoteProviderConfig(
                 deviceId: deviceId, configJson: configJson, updatedAt: updatedAt
             )
 
-            // Merge: union instances/modelEntries/modelGroups by ID, prefer newer file for conflicts
-            await Self.mergeProviderConfig(remoteJson: configJson)
+            // nanoMuse: 配置落盘失败须传给接收屏障，不能先导入凭证再确认失败的配置。
+            let outcome = await Self.mergeProviderConfig(remoteJson: configJson)
+            if case .failedPersistence = outcome { throw CocoaError(.fileWriteUnknown) }
+            if let secretsJson = record["secretsJson"] as? String {
+                try Self.importProviderSecrets(secretsJson: secretsJson, expectedGeneration: credentialGeneration)
+            }
 
         case "EnvVar":
+            // nanoMuse: 凭证及元数据使用同一个来源代次，跨await不借用新账户身份。
+            let credentialGeneration = NanoMuseAccountData.shared.generation
             let envVarsJson = record["envVarsJson"] as? String ?? "[]"
             let updatedAt = record["updatedAt"] as? Date ?? Date()
 
-            // Import env var values from base64 if Keychain doesn't have them yet.
-            if let envSecretsJson = record["envSecretsJson"] as? String {
-                Self.importEnvVarSecrets(secretsJson: envSecretsJson)
-            }
+            // nanoMuse: 旧整包秘密随对应元数据进入可恢复事务，不先产生无名称引用的凭证。
+            try Self.mergeEnvVars(remoteJson: envVarsJson, expectedGeneration: credentialGeneration,
+                secretsJSON: record["envSecretsJson"] as? String)
 
             await ChatStore.shared.upsertRemoteEnvVars(
                 deviceId: deviceId, envVarsJson: envVarsJson, updatedAt: updatedAt
             )
 
-            // Merge: union env vars by ID, prefer newer file for conflicts
-            await MainActor.run {
-                Self.mergeEnvVars(remoteJson: envVarsJson)
-            }
 
         default:
             // V2 record types live in v2's shared zone and are handled by
@@ -1520,7 +1661,9 @@ final class CloudSyncEngine: ObservableObject {
     ///   When a whole session is deleted, its child Message deletes are ignored (the session
     ///   stays intact on other devices). When only individual messages are deleted (retry,
     ///   manual delete), the deletion propagates to keep message lists consistent.
-    func processRemoteDeletion(_ recordID: CKRecord.ID, recordType: CKRecord.RecordType, deletedSessionIds: Set<String> = []) async {
+    // nanoMuse: 删除失败向接收屏障传播，避免提前保存云端游标。
+    func processRemoteDeletion(_ recordID: CKRecord.ID, recordType: CKRecord.RecordType, deletedSessionIds: Set<String> = []) async throws {
+        _ = try await NivoCloudChatAccess.acquire(sessionID: nil)
         let deviceId = recordID.zoneID.zoneName.replacingOccurrences(of: "device-", with: "")
         let name = recordID.recordName
         // recordName format is "Type:id"
@@ -1528,27 +1671,13 @@ final class CloudSyncEngine: ObservableObject {
 
         switch recordType {
         case "Message":
-            // Always clean up the remote reference table.
-            await ChatStore.shared.deleteRemoteMessage(id: id, deviceId: deviceId)
-
-            // Determine if this is a message-level deletion (retry / manual) vs.
-            // a cascading deletion from a whole-session delete.
-            // recordName = "Message:sessionId:messageId"
-            let components = id.split(separator: ":", maxSplits: 1)
-            let sessionId = components.count > 1 ? String(components[0]) : ""
-            let messageId = components.count > 1 ? String(components[1]) : id
-
-            if !sessionId.isEmpty && deletedSessionIds.contains(sessionId) {
-                // Session itself is being deleted in this batch — don't touch local messages.
-                logger.info("[iCloud] Skipping Message deletion (session also deleted): '\(messageId)' session=\(sessionId) device=\(deviceId)")
-            } else {
-                // Individual message deletion — propagate to local DB to keep lists in sync.
-                await ChatStore.shared.deleteLocalMessage(messageId: messageId)
-                logger.info("[iCloud] Propagated remote Message deletion: '\(messageId)' session=\(sessionId) device=\(deviceId)")
-            }
+            // nanoMuse: 兼容当前纯消息ID与历史复合名称，参考与本机删除共用事务和来源占位。
+            try await NivoCloudChatAccess.deleteLegacyMessage(recordName: name, deviceID: deviceId,
+                preservingSessions: deletedSessionIds)
         case "Session":
             // Session deletions are never propagated — other devices keep their copy.
-            await ChatStore.shared.deleteRemoteSession(id: id, deviceId: deviceId)
+            // nanoMuse: 参考子记录不能在父记录删除失败时先行丢失。
+            try await NivoCloudChatAccess.deleteLegacySession(id: id, deviceID: deviceId)
             logger.info("[iCloud] Ignoring remote Session deletion: '\(id)' from device=\(deviceId)")
         case "Skill":
             await ChatStore.shared.deleteRemoteSkill(id: id, deviceId: deviceId)
@@ -1597,9 +1726,13 @@ final class CloudSyncEngine: ObservableObject {
     // MARK: - State Persistence
 
     private func saveState(_ stateSer: CKSyncEngine.State.Serialization) {
-        self.stateSerialization = stateSer
+        // nanoMuse: 保留旧游标直到后台接收任务全部写入成功，重启不会漏掉延期删除。
         if let data = try? JSONEncoder().encode(stateSer) {
-            try? data.write(to: stateURL)
+            NivoCloudCheckpointWriter.shared.schedule(data: data, to: stateURL) { [weak self] in
+                self?.stateSerialization = stateSer
+            } onFailure: { error in
+                logger.error("[CloudSync] checkpoint write failed; retaining previous cursor: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -1725,95 +1858,14 @@ final class CloudSyncEngine: ObservableObject {
     ///     write only if local is empty (current behavior for pre-LWW data).
     ///   - Remote `updatedAt` > local `savedAt` → remote is newer, overwrite.
     ///   - Otherwise → skip (local is newer or equal).
-    static func importProviderSecrets(secretsJson: String) {
-        guard let data = secretsJson.data(using: .utf8),
-              let secrets = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-        for entry in secrets {
-            guard let instanceId = entry["instanceId"] as? String,
-                  let b64Key = entry["apiKey"] as? String,
-                  let keyData = Data(base64Encoded: b64Key),
-                  let key = String(data: keyData, encoding: .utf8),
-                  !key.isEmpty else { continue }
-
-            let remoteUpdatedAt: Date? = {
-                if let n = entry["updatedAt"] as? Double { return Date(timeIntervalSince1970: n) }
-                if let s = entry["updatedAt"] as? String, let n = Double(s) { return Date(timeIntervalSince1970: n) }
-                return nil
-            }()
-            let localExisting = ProviderKeychainHelper.loadAPIKey(instanceId: instanceId)
-            let localSavedAt = ProviderKeychainHelper.apiKeySavedAt(instanceId: instanceId)
-
-            let shouldWrite: Bool
-            let reason: String
-            if localExisting == nil {
-                shouldWrite = true
-                reason = "local-empty"
-            } else if localExisting == key {
-                shouldWrite = false
-                reason = "identical"
-            } else if let remoteTs = remoteUpdatedAt {
-                if remoteTs > localSavedAt {
-                    shouldWrite = true
-                    reason = "remote-newer(\(remoteTs) > \(localSavedAt))"
-                } else {
-                    shouldWrite = false
-                    reason = "local-newer-or-equal(\(localSavedAt) >= \(remoteTs))"
-                }
-            } else {
-                // Legacy payload (no timestamp) — preserve the old "only-if-empty"
-                // behavior to avoid quietly stomping on keys the user has already set.
-                shouldWrite = false
-                reason = "legacy-payload-no-timestamp"
-            }
-
-            if shouldWrite {
-                ProviderKeychainHelper.saveAPIKey(key, instanceId: instanceId)
-                // saveAPIKey stamps local savedAt to Date() via UserDefaults. But since
-                // this write was a sync-in, the correct stamp is the REMOTE timestamp
-                // (so subsequent merges on this device compare against the winning value
-                // and we don't ping-pong).
-                if let remoteTs = remoteUpdatedAt {
-                    ProviderKeychainHelper.stampAPIKeySavedAt(remoteTs, instanceId: instanceId)
-                }
-                logger.info("[iCloud] Imported API key for instance \(instanceId.prefix(8)) — \(reason)")
-            } else {
-                logger.info("[iCloud] Skipped API key for instance \(instanceId.prefix(8)) — \(reason)")
-            }
+    // nanoMuse: 凭证错误传播给接收屏障，值和版本由Keychain共同提交。
+    static func importProviderSecrets(secretsJson: String, expectedGeneration: UInt64) throws {
+        try NivoCloudCredentialAccess.perform(expectedGeneration: expectedGeneration) {
+            try NivoCredentialSyncKeychain.importProviders(secretsJson)
         }
     }
 
-    /// Export env var values as base64 JSON: [{"key": "VAR_NAME", "value": "base64..."}]
-    static func exportEnvVarSecrets(envJson: String) -> String {
-        guard let data = envJson.data(using: .utf8),
-              let entries = try? JSONDecoder().decode([EnvVarEntry].self, from: data) else { return "[]" }
-        var secrets: [[String: String]] = []
-        for entry in entries {
-            if let value = EnvVarStore.loadValueSync(forKey: entry.key), !value.isEmpty {
-                let b64 = Data(value.utf8).base64EncodedString()
-                secrets.append(["key": entry.key, "value": b64])
-            }
-        }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: secrets),
-              let jsonStr = String(data: jsonData, encoding: .utf8) else { return "[]" }
-        return jsonStr
-    }
-
-    /// Import env var values from base64 JSON. Only writes if Keychain doesn't already have the value.
-    static func importEnvVarSecrets(secretsJson: String) {
-        guard let data = secretsJson.data(using: .utf8),
-              let secrets = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] else { return }
-        for entry in secrets {
-            guard let key = entry["key"],
-                  let b64Value = entry["value"],
-                  let valueData = Data(base64Encoded: b64Value),
-                  let value = String(data: valueData, encoding: .utf8),
-                  !value.isEmpty else { continue }
-            if EnvVarStore.loadValueSync(forKey: key) == nil {
-                EnvVarStore.saveValueSync(value, forKey: key)
-                logger.info("[iCloud] Imported env var value for \(key)")
-            }
-        }
-    }
+    // nanoMuse: 环境变量整包读写统一经过EnvVarStore恢复协议，移除分离的秘密导入/导出入口。
 
     /// Merge remote ProviderConfig into local.
     /// - Instances: union by id, conflicts → newer file wins
@@ -1836,6 +1888,8 @@ final class CloudSyncEngine: ObservableObject {
         case skippedDecodeFailure
         case skippedOwnEcho
         case skippedLocalDirty
+        // nanoMuse: 写盘或等待失败不得报告为已应用。
+        case failedPersistence
     }
 
     /// Merge a ProviderConfig into local state for a BACKUP RESTORE.
@@ -1860,17 +1914,25 @@ final class CloudSyncEngine: ObservableObject {
     /// have.
     @MainActor
     @discardableResult
-    static func mergeProviderConfigForRestore(_ remote: ProviderConfig) async
+    static func mergeProviderConfigForRestore(_ remote: ProviderConfig) async throws
         -> ProviderConfigMergeOutcome {
-        await mergeProviderConfigBody(remote: remote, isRestore: true)
+        // nanoMuse: 显式恢复等待严格写盘，错误由导入器使用数据库快照回滚。
+        try await mergeProviderConfigBody(remote: remote, isRestore: true)
     }
 
     @MainActor
     @discardableResult
     static func mergeProviderConfig(remoteJson: String) async -> ProviderConfigMergeOutcome {
+        // nanoMuse: 旧版整包同步也遵守恢复门禁，占位覆盖之后的异步读取和提交。
+        do { _ = try await NivoCloudChatAccess.acquire(sessionID: nil) }
+        catch { return .failedPersistence }
+        let checkpoint = NivoCloudInboundCheckpoint.shared.begin()
+        var didFinish = false
+        defer { NivoCloudInboundCheckpoint.shared.finish(checkpoint, succeeded: didFinish) }
         guard let remoteData = remoteJson.data(using: .utf8),
               let remote = try? JSONDecoder().decode(ProviderConfig.self, from: remoteData) else {
             logger.info("[iCloud] mergeProviderConfig: failed to decode remote JSON")
+            didFinish = true
             return .skippedDecodeFailure
         }
 
@@ -1879,6 +1941,7 @@ final class CloudSyncEngine: ObservableObject {
         let remoteHash = SHA256.hash(data: remoteData).map { String(format: "%02x", $0) }.joined()
         if remoteHash == Self.lastUploadedProviderConfigHash {
             logger.info("[iCloud] mergeProviderConfig: remote matches our last upload — skipping (own echo)")
+            didFinish = true
             return .skippedOwnEcho
         }
 
@@ -1901,10 +1964,18 @@ final class CloudSyncEngine: ObservableObject {
         let dirty = await ChatStore.shared.loadDirtyRecords(v2Only: true)
         if dirty.contains(where: { $0.recordType == "ProviderConfigV2" }) {
             logger.info("[iCloud] mergeProviderConfig: local has pending ProviderConfigV2 upload — skipping merge to avoid clobbering in-flight edit")
+            didFinish = true
             return .skippedLocalDirty
         }
 
-        return await mergeProviderConfigBody(remote: remote, isRestore: false)
+        do {
+            let outcome = try await mergeProviderConfigBody(remote: remote, isRestore: false)
+            didFinish = true
+            return outcome
+        } catch {
+            logger.error("[Nivo] provider merge persistence failed: \(error.localizedDescription)")
+            return .failedPersistence
+        }
     }
 
     /// The actual union-by-id merge, shared by inbound sync and backup restore.
@@ -1912,7 +1983,7 @@ final class CloudSyncEngine: ObservableObject {
     @MainActor
     @discardableResult
     private static func mergeProviderConfigBody(remote: ProviderConfig,
-                                                isRestore: Bool) async
+                                                isRestore: Bool) async throws
         -> ProviderConfigMergeOutcome {
         // Read the authoritative current state from the store's in-memory config,
         // NOT from disk. Reading from disk would lose any changes still in-flight
@@ -1921,6 +1992,9 @@ final class CloudSyncEngine: ObservableObject {
         // sessionInferenceConfigs, default pointers) if the disk was stale.
         let store = ProviderConfigStore.shared
         var local = store.config
+
+        // nanoMuse: 合并过程中若需要等待滚动结束，旧基线不能覆盖期间的新配置。
+        let mergeRevision = store.configRevision
 
         let localInstanceIds = Set(local.instances.map { $0.id })
         let localGroupIds = Set(local.modelGroups.map { $0.id })
@@ -2337,7 +2411,9 @@ final class CloudSyncEngine: ObservableObject {
         // Commit: push merged config into store (in-memory + disk) WITHOUT
         // triggering a markDirty upload. We control the re-upload decision
         // explicitly below via localHasUnique.
-        store.applyMergedConfigFromSync(local)
+        // nanoMuse: 手动恢复和普通同步都等待落库，普通同步保留滚动保护并校验合并基线。
+        if isRestore { try await store.nmApplyRestoredConfiguration(local) }
+        else { try await store.nmCommitSynchronizedConfiguration(local, expectedRevision: mergeRevision) }
         logger.info("[iCloud] mergeProviderConfig: merged \(instanceMap.count) instances, \(local.modelEntries.count) entries, \(local.modelGroups.count) groups")
 
         // A restore is user-initiated local authorship, not an inbound echo:
@@ -2387,67 +2463,13 @@ final class CloudSyncEngine: ObservableObject {
         return Array(byId.values)
     }
 
-    /// Merge remote env vars into local by unioning by ID.
-    /// For items with the same ID, the version from the newer file wins.
+    // nanoMuse: 旧整包与单变量共用严格元数据入口，旧快照不再覆盖已经记录的新版本。
     @MainActor
-    static func mergeEnvVars(remoteJson: String) {
-        guard let remoteData = remoteJson.data(using: .utf8),
-              let remoteVars = try? JSONDecoder().decode([EnvVarEntry].self, from: remoteData) else {
-            logger.info("[iCloud] mergeEnvVars: failed to decode remote JSON")
-            return
-        }
-
-        // Echo detection: skip if remote data matches our last upload
-        let remoteHash = SHA256.hash(data: remoteData).map { String(format: "%02x", $0) }.joined()
-        if remoteHash == Self.lastUploadedEnvVarHash {
-            logger.info("[iCloud] mergeEnvVars: remote matches our last upload — skipping (own echo)")
-            return
-        }
-
-        let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let localURL = library.appendingPathComponent("MinisChat/env-vars.json")
-        let localVars: [EnvVarEntry]
-        if let data = try? Data(contentsOf: localURL),
-           let decoded = try? JSONDecoder().decode([EnvVarEntry].self, from: data) {
-            localVars = decoded
-        } else {
-            localVars = []
-        }
-
-        let localIdSet = Set(localVars.map { $0.id })
-
-        // Merge by id — remote wins for same-id (propagates edits), keep local-only
-        var varMap = Dictionary(localVars.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        var addedNew = false
-        for rv in remoteVars {
-            if varMap[rv.id] == nil { addedNew = true }
-            varMap[rv.id] = rv  // remote wins for existing; adds new
-        }
-
-        // Also check if remote has keys we don't — means local has keys remote doesn't
-        let remoteIdSet = Set(remoteVars.map { $0.id })
-        let localHasUniqueKeys = !localIdSet.subtracting(remoteIdSet).isEmpty
-
-        let merged = Array(varMap.values).sorted(by: { $0.createdAt < $1.createdAt })
-        if let data = try? JSONEncoder().encode(merged) {
-            try? data.write(to: localURL, options: .atomic)
-            // Reload EnvVarStore
-            EnvVarStore.shared.reloadFromDisk()
-            logger.info("[iCloud] mergeEnvVars: merged \(merged.count) vars (addedNew=\(addedNew), localHasUnique=\(localHasUniqueKeys))")
-
-            // If local has keys that remote doesn't, re-upload our merged result
-            // so the other device can pick up our keys too (bidirectional merge).
-            // Throttle to at most once per 60s to prevent ping-pong between devices.
-            let now = Date()
-            if (localHasUniqueKeys || addedNew) && now.timeIntervalSince(Self.lastEnvVarReuploadDate) > 60 {
-                Self.lastEnvVarReuploadDate = now
-                Task {
-                    await ChatStore.shared.markDirty(recordType: "EnvVar", recordId: "env-vars")
-                }
-                logger.info("[iCloud] mergeEnvVars: marked dirty for re-upload (bidirectional sync, throttled)")
-            } else if localHasUniqueKeys || addedNew {
-                logger.info("[iCloud] mergeEnvVars: skipping re-upload (throttled, last=\(Self.lastEnvVarReuploadDate))")
-            }
+    static func mergeEnvVars(remoteJson: String, expectedGeneration: UInt64, secretsJSON: String? = nil) throws {
+        guard remoteJson.utf8.count <= 16_777_216 else { throw NivoEnvVarState.Failure.invalidRecord }
+        let remote = try JSONDecoder().decode([EnvVarEntry].self, from: Data(remoteJson.utf8))
+        try NivoCloudCredentialAccess.perform(expectedGeneration: expectedGeneration) {
+            try EnvVarStore.shared.nmMergeLegacyMetadata(remote, secretsJSON: secretsJSON)
         }
     }
 
@@ -2715,25 +2737,31 @@ final class CloudSyncEngine: ObservableObject {
 
 @available(iOS 17.0, *)
 extension CloudSyncEngine: CKSyncEngineDelegate {
-    nonisolated func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) {
-        // CKSyncEngine requires that delegate callbacks don't re-enter the engine.
-        // Use Task.detached to avoid actor isolation issues, and fire-and-forget for
-        // events that don't need to block the engine.
+    // nanoMuse: 保留协议的事件串行保证，接收完成后才允许下一次游标事件进入。
+    nonisolated func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
+        // nanoMuse: 事件处理只等待本地状态交接，不能在这里等待同一引擎的fetchChanges或sendChanges。
         switch event {
         case .stateUpdate(let stateUpdate):
-            Task { @MainActor [weak self] in
-                self?.saveState(stateUpdate.stateSerialization)
+            await MainActor.run { [weak self] in
+                // nanoMuse: 已停用或重建的引擎不能把旧账户状态写回当前文件。
+                guard let self, self.syncEngine === syncEngine else { return }
+                self.saveState(stateUpdate.stateSerialization)
             }
 
         case .accountChange(let accountChange):
-            Task { @MainActor [weak self] in
-                guard let self else { return }
+            await Task { @MainActor [weak self] in
+                // nanoMuse: 只接受当前引擎的身份事件。
+                guard let self, self.syncEngine === syncEngine else { return }
                 switch accountChange.changeType {
                 case .signIn:
                     logger.info("[CloudSync] Account signed in")
                     self.queueZonesAndDeviceRecord()
                 case .signOut:
                     logger.info("[CloudSync] Account signed out")
+                    // nanoMuse: 保留引擎以接收再次登录，同时作废旧账户待写游标。
+                    NivoCloudCheckpointWriter.shared.invalidate(self.stateURL)
+                    self.stateSerialization = nil
+                    try? FileManager.default.removeItem(at: self.stateURL)
                     self.syncStatus = .error("Not signed in to iCloud")
                 case .switchAccounts:
                     logger.info("[CloudSync] Account switched")
@@ -2742,7 +2770,7 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
                 @unknown default:
                     break
                 }
-            }
+            }.value
 
         case .fetchedDatabaseChanges(let dbChanges):
             for modification in dbChanges.modifications {
@@ -2753,8 +2781,18 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
             }
 
         case .fetchedRecordZoneChanges(let zoneChanges):
-            Task.detached { [weak self] in
+            // nanoMuse: 在异步交接前占位；落库和通知结束才解除游标屏障。
+            let checkpoint = NivoCloudInboundCheckpoint.shared.begin()
+            await Task { @MainActor [weak self] in
+                var succeeded = false
+                defer { NivoCloudInboundCheckpoint.shared.finish(checkpoint, succeeded: succeeded) }
                 guard let self else { return }
+                // nanoMuse: 重建引擎会重新拉取，旧批次不再修改当前数据库。
+                guard self.syncEngine === syncEngine else { succeeded = true; return }
+                await self.nmInboundLock.acquire()
+                defer { self.nmInboundLock.release() }
+                guard self.syncEngine === syncEngine else { succeeded = true; return }
+                succeeded = true
                 let ownDeviceId = await MainActor.run { DeviceIdentity.deviceId }
                 // Only count changes from OTHER devices (not our own zone echoed back).
                 let hasRemoteModifications = zoneChanges.modifications.contains { mod in
@@ -2790,7 +2828,12 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
                             deviceName: deviceName ?? deviceId
                         ))
                     }
-                    await self.processRemoteRecord(rec)
+                    // nanoMuse: 失败不确认游标，下一次启动重放。
+                    do { try await self.processRemoteRecord(rec) }
+                    catch {
+                        succeeded = false
+                        logger.error("[Nivo] legacy inbound retained for replay: \(error.localizedDescription)")
+                    }
                 }
                 // Collect session IDs that are being deleted in this batch so
                 // message-level deletions can distinguish "session deleted" (ignore)
@@ -2816,261 +2859,285 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
                             deviceName: deviceName ?? deviceId
                         ))
                     }
-                    await self.processRemoteDeletion(deletion.recordID, recordType: deletion.recordType, deletedSessionIds: deletedSessionIds)
+                    // nanoMuse: 延期删除和数据库错误不能当成同步完成。
+                    do {
+                        try await self.processRemoteDeletion(deletion.recordID, recordType: deletion.recordType,
+                            deletedSessionIds: deletedSessionIds)
+                    } catch {
+                        succeeded = false
+                        logger.error("[Nivo] legacy deletion retained for replay: \(error.localizedDescription)")
+                    }
                 }
                 await MainActor.run { [weak self] in self?.lastSyncDate = Date() }
-            }
+                // nanoMuse: 原didFetchChanges可能早于延期写入，完成后再刷新可见消息。
+                NotificationCenter.default.post(name: .cloudSyncDidFetchChanges, object: nil)
+            }.value
 
         case .sentRecordZoneChanges(let sentChanges):
             // Process results off the main thread to avoid blocking UI.
             // Only hop to MainActor for state mutations (cacheServerRecord, etc.).
-            Task { [weak self] in
-                guard let self else { return }
-                let batchStart = CFAbsoluteTimeGetCurrent()
-                let savedCount = sentChanges.savedRecords.count
-                let failedCount = sentChanges.failedRecordSaves.count
-                let deletedCount = sentChanges.deletedRecordIDs.count
-                // Count by type
-                var savedTypes: [String: Int] = [:]
-                for r in sentChanges.savedRecords { savedTypes[r.recordType, default: 0] += 1 }
-                let typeBreakdown = savedTypes.sorted { $0.value > $1.value }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
-                logger.info("[CloudSync] ⏱ sentRecordZoneChanges: saved=\(savedCount) failed=\(failedCount) deleted=\(deletedCount) [\(typeBreakdown)]")
-
-                // -- Collect all data off MainActor, batch state updates at the end --
-                var syncLogEntries: [SyncLogEntry] = []
-                var syncedSessionIds: [String] = []
-                var recordNamesToClean: [String] = []
-                var serverRecordsToCache: [CKRecord] = []
-                var savedRecordsToCache: [CKRecord] = []
-                var recordIDsToRemove: [CKRecord.ID] = []
-                var hasSyncDeviceConflict = false
-                var hasSyncDeviceSaved = false
-                // [T-icloud-notfound-retry-loop] Snapshot the MainActor-isolated
-                // once-guard for the off-MainActor classification gate; collect
-                // mutations into locals and apply them inside the MainActor block.
-                let clearedSnapshot = await MainActor.run { self.unknownItemEtagCleared }
-                var unknownItemMarkInserted: [String] = []   // recreate attempted now
-                var unknownItemMarkCleared: [String] = []     // saved -> reset budget
-
-                // Process successful saves
-                for saved in sentChanges.savedRecords {
-                    logger.debug("[CloudSync] Saved record: \(saved.recordID.recordName)")
-                    savedRecordsToCache.append(saved)
-                    recordNamesToClean.append(saved.recordID.recordName)
-                    // [T-icloud-notfound-retry-loop] A successful save (incl. a
-                    // post-NOT_FOUND recreate) refreshes the recovery budget, so
-                    // a future legitimate NOT_FOUND on this record is recoverable
-                    // again. Also bounds the set: healthy records don't linger.
-                    unknownItemMarkCleared.append(saved.recordID.recordName)
-                    if saved.recordType == "SyncDevice" { hasSyncDeviceSaved = true }
-                    if saved.recordType == "Session" {
-                        let parts = saved.recordID.recordName.split(separator: ":", maxSplits: 1)
-                        if parts.count > 1 { syncedSessionIds.append(String(parts[1])) }
-                    }
-                }
-
-                // Process failed saves
-                var conflictRetryIDs: [CKRecord.ID] = []
-                var transientRetryIDs: [CKRecord.ID] = []
-                // Records whose stale etag must be evicted from serverRecordCache
-                // after a NOT_FOUND, so the next rebuild re-creates them clean.
-                // [T-icloud-notfound-retry-loop]
-                var unknownItemEtagToClear: [CKRecord.ID] = []
-                for failed in sentChanges.failedRecordSaves {
-                    let recordName = failed.record.recordID.recordName
-                    logger.error("[CloudSync] Failed to save: \(recordName) — \(failed.error)")
-                    if failed.error.code == .serverRecordChanged {
-                        let localTag = failed.record.recordChangeTag ?? "(nil)"
-                        let serverTag = failed.error.serverRecord?.recordChangeTag ?? "(nil)"
-                        logger.info("[CloudSync] serverRecordChanged \(failed.record.recordType) \(recordName) localEtag=\(localTag) serverEtag=\(serverTag)")
-                        if let serverRecord = failed.error.serverRecord {
-                            serverRecordsToCache.append(serverRecord)
-                        }
-                        if failed.record.recordType == "SyncDevice" {
-                            hasSyncDeviceConflict = true
-                        } else {
-                            // Re-queue non-SyncDevice conflicts explicitly.
-                            // The engine clears failed records from its pending
-                            // state, so without this the record would only be
-                            // retried when something else re-marks it dirty —
-                            // which is what drove the repeating 3-minute
-                            // CONFLICT Skill/ProviderConfig loops seen in the
-                            // 2026-04-20 diagnostic.
-                            conflictRetryIDs.append(failed.record.recordID)
-                        }
-                    } else if Self.isTransientCKError(failed.error) {
-                        // Transient (network, throttling, server busy). Keep
-                        // the dirty mark in DB and re-queue with the engine so
-                        // the record is retried on the next send. Without
-                        // this, a single TLS / network blip on a batch
-                        // permanently strands those rows: clearDirtyRecord
-                        // would forget them locally while the cloud never
-                        // received them. See T-icloudsync-diag.
-                        logger.warning("[CloudSync] transient save error — re-queueing \(failed.record.recordType) \(recordName) (code=\(failed.error.code.rawValue))")
-                        transientRetryIDs.append(failed.record.recordID)
-                    } else if failed.error.code == .unknownItem,
-                              !clearedSnapshot.contains(recordName) {
-                        // NOT_FOUND ("recordChangeTag specified, but record not
-                        // found"): our cached etag points at a server record
-                        // that no longer exists (peer-deleted / zone wiped).
-                        // Clearing the dirty mark alone is NOT enough: SyncDevice
-                        // is re-queued on every heartbeat and ProviderConfig on
-                        // every config change, and queueDeviceRecord /
-                        // buildCKRecord both rebuild from `serverRecordCache`
-                        // (line ~966 / ~1012), so the STALE ETAG would be reused
-                        // and CloudKit would return NOT_FOUND again — the forever
-                        // retry loop seen in the 2026-06-04 diagnostic
-                        // (ProviderConfig + SyncDevice looping every few seconds
-                        // for ~47 min). [T-icloud-notfound-retry-loop]
-                        //
-                        // Drop the stale etag so the next rebuild produces a
-                        // clean, etag-less CKRecord that CloudKit accepts as a
-                        // fresh create. Do NOT clear the dirty mark — we WANT the
-                        // record re-sent (as a create) on the next pass. Gated by
-                        // unknownItemEtagCleared so if the etag-less recreate
-                        // ITSELF keeps failing NOT_FOUND we don't loop forever;
-                        // the second NOT_FOUND falls through to the permanent
-                        // branch (clears dirty + drops). The marker is cleared on
-                        // a successful save so a later legitimate NOT_FOUND is
-                        // recoverable again.
-                        logger.warning("[CloudSync] NOT_FOUND \(failed.record.recordType) \(recordName) — clearing stale etag so next send re-creates the record")
-                        unknownItemMarkInserted.append(recordName)
-                        unknownItemEtagToClear.append(failed.record.recordID)
-                        recordIDsToRemove.append(failed.record.recordID)
-                    } else {
-                        if failed.error.code == .unknownItem {
-                            // Recreate already attempted and still NOT_FOUND —
-                            // stop looping: clear dirty + drop from pending.
-                            logger.error("[CloudSync] NOT_FOUND \(failed.record.recordType) \(recordName) — recreate already attempted, permanent-failing")
-                        }
-                        // Permanent failure (badRequest, invalidArguments,
-                        // unknown record-type, etc.) — drop dirty mark and
-                        // remove from pending so we don't retry forever.
-                        recordNamesToClean.append(recordName)
-                        recordIDsToRemove.append(failed.record.recordID)
-                    }
-                }
-
-                // Process deletes
-                for (recordID, deleteError) in sentChanges.failedRecordDeletes {
-                    logger.warning("[CloudSync] Failed to delete: \(recordID.recordName) — \(deleteError)")
-                    recordNamesToClean.append(recordID.recordName)
-                }
-                for deletedID in sentChanges.deletedRecordIDs {
-                    recordNamesToClean.append(deletedID.recordName)
-                }
-
-                // Clear dirty records in DB (ChatStore is an actor, safe from any context)
-                for name in recordNamesToClean {
-                    await ChatStore.shared.clearDirtyRecord(recordName: name)
-                }
-                for sid in syncedSessionIds {
-                    await ChatStore.shared.markSessionSynced(id: sid)
-                }
-
-                // Batch all MainActor state updates into a single hop
-                await MainActor.run { [weak self] in
+            // nanoMuse: 结算结束后才接受账户变化事件，防止旧结果清除新账户的待发送行。
+            await nmWithSendSettlement {
+                await Task.detached { [weak self] in
                     guard let self else { return }
-                    // Cache saved records (etags)
-                    for record in savedRecordsToCache {
-                        self.cacheServerRecord(record)
-                    }
-                    if hasSyncDeviceSaved { self.deviceRecordFailCount = 0 }
-                    // Tally successful uploads into the full-sync bucket if
-                    // one is currently active (see `forceFullSync`).
-                    if self.fullSyncUploadCounts != nil {
-                        for record in savedRecordsToCache {
-                            self.fullSyncUploadCounts?[record.recordType, default: 0] += 1
+                    guard await MainActor.run(body: { self.syncEngine === syncEngine }) else { return }
+                    let batchStart = CFAbsoluteTimeGetCurrent()
+                    let savedCount = sentChanges.savedRecords.count
+                    let failedCount = sentChanges.failedRecordSaves.count
+                    let deletedCount = sentChanges.deletedRecordIDs.count
+                    // Count by type
+                    var savedTypes: [String: Int] = [:]
+                    for r in sentChanges.savedRecords { savedTypes[r.recordType, default: 0] += 1 }
+                    let typeBreakdown = savedTypes.sorted { $0.value > $1.value }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+                    logger.info("[CloudSync] ⏱ sentRecordZoneChanges: saved=\(savedCount) failed=\(failedCount) deleted=\(deletedCount) [\(typeBreakdown)]")
+
+                    // -- Collect all data off MainActor, batch state updates at the end --
+                    var syncLogEntries: [SyncLogEntry] = []
+                    var syncedSessionIds: [String] = []
+                    var recordNamesToClean: [String] = []
+                    var serverRecordsToCache: [CKRecord] = []
+                    var savedRecordsToCache: [CKRecord] = []
+                    var recordIDsToRemove: [CKRecord.ID] = []
+                    var hasSyncDeviceConflict = false
+                    var hasSyncDeviceSaved = false
+                    // [T-icloud-notfound-retry-loop] Snapshot the MainActor-isolated
+                    // once-guard for the off-MainActor classification gate; collect
+                    // mutations into locals and apply them inside the MainActor block.
+                    let clearedSnapshot = await MainActor.run { self.unknownItemEtagCleared }
+                    var unknownItemMarkInserted: [String] = []   // recreate attempted now
+                    var unknownItemMarkCleared: [String] = []     // saved -> reset budget
+
+                    // Process successful saves
+                    for saved in sentChanges.savedRecords {
+                        logger.debug("[CloudSync] Saved record: \(saved.recordID.recordName)")
+                        savedRecordsToCache.append(saved)
+                        recordNamesToClean.append(saved.recordID.recordName)
+                        // [T-icloud-notfound-retry-loop] A successful save (incl. a
+                        // post-NOT_FOUND recreate) refreshes the recovery budget, so
+                        // a future legitimate NOT_FOUND on this record is recoverable
+                        // again. Also bounds the set: healthy records don't linger.
+                        unknownItemMarkCleared.append(saved.recordID.recordName)
+                        if saved.recordType == "SyncDevice" { hasSyncDeviceSaved = true }
+                        if saved.recordType == "Session" {
+                            let parts = saved.recordID.recordName.split(separator: ":", maxSplits: 1)
+                            if parts.count > 1 { syncedSessionIds.append(String(parts[1])) }
                         }
                     }
-                    // Cache conflict server records (etags for retry)
-                    for record in serverRecordsToCache {
-                        self.cacheServerRecord(record)
-                    }
-                    // Evict stale etags for NOT_FOUND records so the next send
-                    // rebuilds them as fresh creates (breaks the retry loop).
-                    // Flag the matching cache tier dirty (per-session vs global)
-                    // so the cleared etag survives an app restart — mirroring
-                    // cacheServerRecord's tiering. [T-icloud-notfound-retry-loop]
-                    if !unknownItemEtagToClear.isEmpty {
-                        for rid in unknownItemEtagToClear {
-                            let cached = self.serverRecordCache[rid]
-                            self.serverRecordCache.removeValue(forKey: rid)
-                            if let rtype = cached?.recordType,
-                               Self.sessionRecordTypes.contains(rtype),
-                               let sessionId = Self.extractSessionId(from: rid.recordName, type: rtype) {
-                                self.dirtySessionCaches.insert(sessionId)
+
+                    // Process failed saves
+                    var conflictRetryIDs: [CKRecord.ID] = []
+                    var transientRetryIDs: [CKRecord.ID] = []
+                    // nanoMuse: 删除的暂时失败保留本地意图，并按删除类型重新排队。
+                    var transientDeleteRetryIDs: [CKRecord.ID] = []
+                    // Records whose stale etag must be evicted from serverRecordCache
+                    // after a NOT_FOUND, so the next rebuild re-creates them clean.
+                    // [T-icloud-notfound-retry-loop]
+                    var unknownItemEtagToClear: [CKRecord.ID] = []
+                    for failed in sentChanges.failedRecordSaves {
+                        let recordName = failed.record.recordID.recordName
+                        logger.error("[CloudSync] Failed to save: \(recordName) — \(failed.error)")
+                        if failed.error.code == .serverRecordChanged {
+                            let localTag = failed.record.recordChangeTag ?? "(nil)"
+                            let serverTag = failed.error.serverRecord?.recordChangeTag ?? "(nil)"
+                            logger.info("[CloudSync] serverRecordChanged \(failed.record.recordType) \(recordName) localEtag=\(localTag) serverEtag=\(serverTag)")
+                            if let serverRecord = failed.error.serverRecord {
+                                serverRecordsToCache.append(serverRecord)
+                            }
+                            if failed.record.recordType == "SyncDevice" {
+                                hasSyncDeviceConflict = true
                             } else {
-                                self.globalEtagCacheDirty = true
+                                // Re-queue non-SyncDevice conflicts explicitly.
+                                // The engine clears failed records from its pending
+                                // state, so without this the record would only be
+                                // retried when something else re-marks it dirty —
+                                // which is what drove the repeating 3-minute
+                                // CONFLICT Skill/ProviderConfig loops seen in the
+                                // 2026-04-20 diagnostic.
+                                conflictRetryIDs.append(failed.record.recordID)
+                            }
+                        } else if Self.isTransientCKError(failed.error) {
+                            // Transient (network, throttling, server busy). Keep
+                            // the dirty mark in DB and re-queue with the engine so
+                            // the record is retried on the next send. Without
+                            // this, a single TLS / network blip on a batch
+                            // permanently strands those rows: clearDirtyRecord
+                            // would forget them locally while the cloud never
+                            // received them. See T-icloudsync-diag.
+                            logger.warning("[CloudSync] transient save error — re-queueing \(failed.record.recordType) \(recordName) (code=\(failed.error.code.rawValue))")
+                            transientRetryIDs.append(failed.record.recordID)
+                        } else if failed.error.code == .unknownItem,
+                                  !clearedSnapshot.contains(recordName) {
+                            // NOT_FOUND ("recordChangeTag specified, but record not
+                            // found"): our cached etag points at a server record
+                            // that no longer exists (peer-deleted / zone wiped).
+                            // Clearing the dirty mark alone is NOT enough: SyncDevice
+                            // is re-queued on every heartbeat and ProviderConfig on
+                            // every config change, and queueDeviceRecord /
+                            // buildCKRecord both rebuild from `serverRecordCache`
+                            // (line ~966 / ~1012), so the STALE ETAG would be reused
+                            // and CloudKit would return NOT_FOUND again — the forever
+                            // retry loop seen in the 2026-06-04 diagnostic
+                            // (ProviderConfig + SyncDevice looping every few seconds
+                            // for ~47 min). [T-icloud-notfound-retry-loop]
+                            //
+                            // Drop the stale etag so the next rebuild produces a
+                            // clean, etag-less CKRecord that CloudKit accepts as a
+                            // fresh create. Do NOT clear the dirty mark — we WANT the
+                            // record re-sent (as a create) on the next pass. Gated by
+                            // unknownItemEtagCleared so if the etag-less recreate
+                            // ITSELF keeps failing NOT_FOUND we don't loop forever;
+                            // the second NOT_FOUND falls through to the permanent
+                            // branch (clears dirty + drops). The marker is cleared on
+                            // a successful save so a later legitimate NOT_FOUND is
+                            // recoverable again.
+                            logger.warning("[CloudSync] NOT_FOUND \(failed.record.recordType) \(recordName) — clearing stale etag so next send re-creates the record")
+                            unknownItemMarkInserted.append(recordName)
+                            unknownItemEtagToClear.append(failed.record.recordID)
+                            recordIDsToRemove.append(failed.record.recordID)
+                        } else {
+                            if failed.error.code == .unknownItem {
+                                // Recreate already attempted and still NOT_FOUND —
+                                // stop looping: clear dirty + drop from pending.
+                                logger.error("[CloudSync] NOT_FOUND \(failed.record.recordType) \(recordName) — recreate already attempted, permanent-failing")
+                            }
+                            // Permanent failure (badRequest, invalidArguments,
+                            // unknown record-type, etc.) — drop dirty mark and
+                            // remove from pending so we don't retry forever.
+                            recordNamesToClean.append(recordName)
+                            recordIDsToRemove.append(failed.record.recordID)
+                        }
+                    }
+
+                    // Process deletes
+                    for (recordID, deleteError) in sentChanges.failedRecordDeletes {
+                        logger.warning("[CloudSync] Failed to delete: \(recordID.recordName) — \(deleteError)")
+                        if Self.isTransientCKError(deleteError) {
+                            transientDeleteRetryIDs.append(recordID)
+                        } else if deleteError.code == .unknownItem {
+                            // nanoMuse: 远端记录已不存在等价于删除完成，其余未定义错误仍保留脏行。
+                            recordNamesToClean.append(recordID.recordName)
+                        }
+                    }
+                    for deletedID in sentChanges.deletedRecordIDs {
+                        recordNamesToClean.append(deletedID.recordName)
+                    }
+
+                    // Clear dirty records in DB (ChatStore is an actor, safe from any context)
+                    for name in recordNamesToClean {
+                        await ChatStore.shared.clearDirtyRecord(recordName: name)
+                    }
+                    for sid in syncedSessionIds {
+                        await ChatStore.shared.markSessionSynced(id: sid)
+                    }
+
+                    // Batch all MainActor state updates into a single hop
+                    await MainActor.run { [weak self] in
+                        // nanoMuse: 停用仍可撤销入口；迟到回执不能更新新引擎、etag或重试队列。
+                        guard let self, self.syncEngine === syncEngine else { return }
+                        // Cache saved records (etags)
+                        for record in savedRecordsToCache {
+                            self.cacheServerRecord(record)
+                        }
+                        if hasSyncDeviceSaved { self.deviceRecordFailCount = 0 }
+                        // Tally successful uploads into the full-sync bucket if
+                        // one is currently active (see `forceFullSync`).
+                        if self.fullSyncUploadCounts != nil {
+                            for record in savedRecordsToCache {
+                                self.fullSyncUploadCounts?[record.recordType, default: 0] += 1
                             }
                         }
-                        logger.info("[CloudSync] cleared \(unknownItemEtagToClear.count) stale etag(s) after NOT_FOUND; records will re-create on next send")
+                        // Cache conflict server records (etags for retry)
+                        for record in serverRecordsToCache {
+                            self.cacheServerRecord(record)
+                        }
+                        // Evict stale etags for NOT_FOUND records so the next send
+                        // rebuilds them as fresh creates (breaks the retry loop).
+                        // Flag the matching cache tier dirty (per-session vs global)
+                        // so the cleared etag survives an app restart — mirroring
+                        // cacheServerRecord's tiering. [T-icloud-notfound-retry-loop]
+                        if !unknownItemEtagToClear.isEmpty {
+                            for rid in unknownItemEtagToClear {
+                                let cached = self.serverRecordCache[rid]
+                                self.serverRecordCache.removeValue(forKey: rid)
+                                if let rtype = cached?.recordType,
+                                   Self.sessionRecordTypes.contains(rtype),
+                                   let sessionId = Self.extractSessionId(from: rid.recordName, type: rtype) {
+                                    self.dirtySessionCaches.insert(sessionId)
+                                } else {
+                                    self.globalEtagCacheDirty = true
+                                }
+                            }
+                            logger.info("[CloudSync] cleared \(unknownItemEtagToClear.count) stale etag(s) after NOT_FOUND; records will re-create on next send")
+                        }
+                        // Apply the once-guard mutations collected off-MainActor.
+                        // [T-icloud-notfound-retry-loop]
+                        for name in unknownItemMarkInserted { self.unknownItemEtagCleared.insert(name) }
+                        for name in unknownItemMarkCleared { self.unknownItemEtagCleared.remove(name) }
+                        if hasSyncDeviceConflict {
+                            self.deviceRecordFailCount += 1
+                            if self.deviceRecordFailCount < 3 { self.queueDeviceRecord() }
+                        }
+                        // Re-queue conflicted records so the engine retries the
+                        // save now that `serverRecordCache` holds the fresh etag.
+                        if !conflictRetryIDs.isEmpty {
+                            syncEngine.state.add(pendingRecordZoneChanges: conflictRetryIDs.map { .saveRecord($0) })
+                            logger.info("[CloudSync] re-queued \(conflictRetryIDs.count) records for immediate retry after serverRecordChanged")
+                        }
+                        // Re-queue transient-error records (network, throttling,
+                        // server busy) so they actually get retried instead of
+                        // having their dirty marks cleared. The dirty rows in DB
+                        // are NOT cleared for these — clearDirtyRecord was only
+                        // called for permanent-failure recordNames above.
+                        if !transientRetryIDs.isEmpty {
+                            syncEngine.state.add(pendingRecordZoneChanges: transientRetryIDs.map { .saveRecord($0) })
+                            logger.info("[CloudSync] re-queued \(transientRetryIDs.count) records after transient save error")
+                        }
+                        if !transientDeleteRetryIDs.isEmpty {
+                            syncEngine.state.add(pendingRecordZoneChanges: transientDeleteRetryIDs.map { .deleteRecord($0) })
+                        }
+                        // Remove non-recoverable failures from pending queue
+                        if !recordIDsToRemove.isEmpty {
+                            syncEngine.state.remove(pendingRecordZoneChanges: recordIDsToRemove.map { .saveRecord($0) })
+                        }
+                        // Write SyncLog entries (batched)
+                        let now = Date()
+                        for saved in sentChanges.savedRecords {
+                            SyncLogStore.shared.append(SyncLogEntry(
+                                timestamp: now, direction: .sent,
+                                recordType: saved.recordType,
+                                recordName: saved.recordID.recordName,
+                                summary: Self.summaryForRecord(saved),
+                                detail: saved.recordID.zoneID.zoneName,
+                                deviceName: nil
+                            ))
+                        }
+                        for failed in sentChanges.failedRecordSaves {
+                            let dir: SyncLogEntry.Direction = failed.error.code == .serverRecordChanged ? .conflict : .error
+                            SyncLogStore.shared.append(SyncLogEntry(
+                                timestamp: now, direction: dir,
+                                recordType: failed.record.recordType,
+                                recordName: failed.record.recordID.recordName,
+                                summary: Self.summaryForRecord(failed.record),
+                                detail: failed.error.code == .serverRecordChanged
+                                    ? "Server record changed, will retry with updated etag"
+                                    : failed.error.localizedDescription,
+                                deviceName: nil
+                            ))
+                        }
+                        // Persist per-session etag caches
+                        self.flushDirtySessionCaches()
+                        // Persist global etag cache (Skill/EnvVar/ProviderConfig/SyncDevice)
+                        self.flushGlobalEtagCacheIfNeeded()
                     }
-                    // Apply the once-guard mutations collected off-MainActor.
-                    // [T-icloud-notfound-retry-loop]
-                    for name in unknownItemMarkInserted { self.unknownItemEtagCleared.insert(name) }
-                    for name in unknownItemMarkCleared { self.unknownItemEtagCleared.remove(name) }
-                    if hasSyncDeviceConflict {
-                        self.deviceRecordFailCount += 1
-                        if self.deviceRecordFailCount < 3 { self.queueDeviceRecord() }
-                    }
-                    // Re-queue conflicted records so the engine retries the
-                    // save now that `serverRecordCache` holds the fresh etag.
-                    if !conflictRetryIDs.isEmpty {
-                        self.syncEngine?.state.add(pendingRecordZoneChanges: conflictRetryIDs.map { .saveRecord($0) })
-                        logger.info("[CloudSync] re-queued \(conflictRetryIDs.count) records for immediate retry after serverRecordChanged")
-                    }
-                    // Re-queue transient-error records (network, throttling,
-                    // server busy) so they actually get retried instead of
-                    // having their dirty marks cleared. The dirty rows in DB
-                    // are NOT cleared for these — clearDirtyRecord was only
-                    // called for permanent-failure recordNames above.
-                    if !transientRetryIDs.isEmpty {
-                        self.syncEngine?.state.add(pendingRecordZoneChanges: transientRetryIDs.map { .saveRecord($0) })
-                        logger.info("[CloudSync] re-queued \(transientRetryIDs.count) records after transient save error")
-                    }
-                    // Remove non-recoverable failures from pending queue
-                    if !recordIDsToRemove.isEmpty {
-                        self.syncEngine?.state.remove(pendingRecordZoneChanges: recordIDsToRemove.map { .saveRecord($0) })
-                    }
-                    // Write SyncLog entries (batched)
-                    let now = Date()
-                    for saved in sentChanges.savedRecords {
-                        SyncLogStore.shared.append(SyncLogEntry(
-                            timestamp: now, direction: .sent,
-                            recordType: saved.recordType,
-                            recordName: saved.recordID.recordName,
-                            summary: Self.summaryForRecord(saved),
-                            detail: saved.recordID.zoneID.zoneName,
-                            deviceName: nil
-                        ))
-                    }
-                    for failed in sentChanges.failedRecordSaves {
-                        let dir: SyncLogEntry.Direction = failed.error.code == .serverRecordChanged ? .conflict : .error
-                        SyncLogStore.shared.append(SyncLogEntry(
-                            timestamp: now, direction: dir,
-                            recordType: failed.record.recordType,
-                            recordName: failed.record.recordID.recordName,
-                            summary: Self.summaryForRecord(failed.record),
-                            detail: failed.error.code == .serverRecordChanged
-                                ? "Server record changed, will retry with updated etag"
-                                : failed.error.localizedDescription,
-                            deviceName: nil
-                        ))
-                    }
-                    // Persist per-session etag caches
-                    self.flushDirtySessionCaches()
-                    // Persist global etag cache (Skill/EnvVar/ProviderConfig/SyncDevice)
-                    self.flushGlobalEtagCacheIfNeeded()
-                }
 
-                let batchMs = (CFAbsoluteTimeGetCurrent() - batchStart) * 1000
-                if batchMs > 500 {
-                    await MainActor.run { [weak self] in
-                        guard let self else { return }
-                        logger.warning("[CloudSync] ⏱ sentRecordZoneChanges total: \(String(format: "%.0f", batchMs))ms (saved=\(savedCount) cacheSize=\(self.serverRecordCache.count)) ⚠️ SLOW")
+                    let batchMs = (CFAbsoluteTimeGetCurrent() - batchStart) * 1000
+                    if batchMs > 500 {
+                        await MainActor.run { [weak self] in
+                            guard let self else { return }
+                            logger.warning("[CloudSync] ⏱ sentRecordZoneChanges total: \(String(format: "%.0f", batchMs))ms (saved=\(savedCount) cacheSize=\(self.serverRecordCache.count)) ⚠️ SLOW")
+                        }
                     }
-                }
+                }.value
             }
 
         case .willFetchChanges:
@@ -3100,8 +3167,10 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
             // Don't call refreshPendingChanges here — this is a delegate callback
             // where async work may not complete before nextRecordZoneChangeBatch runs.
             // refreshPendingChanges is called in triggerSend() BEFORE engine.sendChanges().
-            Task { @MainActor [weak self] in
-                self?.syncStatus = .syncing
+            // nanoMuse: 自动发送和显式发送都先取得周期占位，必须等待交接后才允许下一事件。
+            await MainActor.run { [weak self] in
+                guard let self, self.nmBeginSendCycle(syncEngine) != nil else { return }
+                self.syncStatus = .syncing
             }
 
         case .didSendChanges:
@@ -3110,8 +3179,13 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
             // Manual triggerSend() caused double refreshPendingChanges (once from
             // willSendChanges callback, once from the retry), building duplicate
             // CKRecords that hit "record to insert already exists" errors.
-            Task { @MainActor [weak self] in
-                self?.syncStatus = .idle
+            // nanoMuse: sentRecordZoneChanges已等待本地结算；只在此结束所属引擎的周期。
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if let cycle = self.nmSendCycles[ObjectIdentifier(syncEngine)] {
+                    self.nmEndSendCycle(syncEngine, exportToken: cycle.exportToken)
+                }
+                if self.syncEngine === syncEngine { self.syncStatus = .idle }
             }
 
         case .willFetchRecordZoneChanges, .didFetchRecordZoneChanges:
@@ -3126,29 +3200,31 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
         _ context: CKSyncEngine.SendChangesContext,
         syncEngine: CKSyncEngine
     ) async -> CKSyncEngine.RecordZoneChangeBatch? {
-        // No await — reads from thread-safe PendingRecordChanges, no re-entry possible.
-        let (allRecords, allDeleteIDs) = pendingChanges.takeAll()
+        // nanoMuse: 校验归属、取得周期占位和取走缓存在同一次主执行器交接完成，不能留给停用插入。
+        return await MainActor.run {
+            guard self.nmBeginSendCycle(syncEngine) != nil else { return nil }
+            if self.nmResetPreparedChangesIfNeeded() {
+                self.scheduleSend(delay: 0)
+                return nil
+            }
+            let (allRecords, allDeleteIDs) = self.pendingChanges.takeAll()
+            guard !allRecords.isEmpty || !allDeleteIDs.isEmpty else { return nil }
 
-        guard !allRecords.isEmpty || !allDeleteIDs.isEmpty else { return nil }
-
-        // CloudKit enforces a 400-item batch limit. Prioritize deletes (small),
-        // then records. Overflow goes back into pendingChanges for next cycle.
-        let maxBatchSize = 400
-        let deleteIDs = Array(allDeleteIDs.prefix(maxBatchSize))
-        let remaining = maxBatchSize - deleteIDs.count
-        let records = Array(allRecords.prefix(remaining))
-
-        // Put overflow back for next batch
-        let overflowRecords = Array(allRecords.dropFirst(remaining))
-        let overflowDeletes = Array(allDeleteIDs.dropFirst(maxBatchSize))
-        if !overflowRecords.isEmpty || !overflowDeletes.isEmpty {
-            pendingChanges.append(records: overflowRecords, deleteIDs: overflowDeletes)
+            // CloudKit单批最多400项，先发送删除，剩余项保留到同一或后续周期。
+            let maxBatchSize = 400
+            let deleteIDs = Array(allDeleteIDs.prefix(maxBatchSize))
+            let remaining = maxBatchSize - deleteIDs.count
+            let records = Array(allRecords.prefix(remaining))
+            let overflowRecords = Array(allRecords.dropFirst(remaining))
+            let overflowDeletes = Array(allDeleteIDs.dropFirst(maxBatchSize))
+            if !overflowRecords.isEmpty || !overflowDeletes.isEmpty {
+                self.pendingChanges.append(records: overflowRecords, deleteIDs: overflowDeletes)
+            }
+            return CKSyncEngine.RecordZoneChangeBatch(
+                recordsToSave: records,
+                recordIDsToDelete: deleteIDs,
+                atomicByZone: false
+            )
         }
-
-        return CKSyncEngine.RecordZoneChangeBatch(
-            recordsToSave: records,
-            recordIDsToDelete: deleteIDs,
-            atomicByZone: false
-        )
     }
 }

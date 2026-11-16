@@ -385,6 +385,8 @@ struct BackupHistoryDetailView: View {
         case .mcpServers: return AppLocalized("MCP Servers")
         case .voiceCorrections: return AppLocalized("Voice Corrections")
         case .environmentVariables: return AppLocalized("Environment Variables")
+        // nanoMuse: 历史备份显示新增个人数据分类。
+        case .personalData: return AppLocalized("Personal data")
         }
     }
 }

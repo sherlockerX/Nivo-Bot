@@ -420,50 +420,34 @@ extension AIChatViewModel {
     ///
     /// Safe to call while idle. Refuses to run mid-stream so we don't yank
     /// context out from under an active agent loop.
+    // nanoMuse: 撤销摘要持有会话编辑占位，落库失败不修改缓存或发送远端删除。
     @MainActor
     func revertCompact() async {
-        guard let sessionId else { return }
-        guard !isProcessing else {
-            logger.info("[Compact] revert refused: session is processing")
-            appendSystemInfo("Cannot revert compact while a response is in progress.", icon: "arrow.uturn.backward")
-            return
-        }
-        guard let marker = cachedLatestMarker else {
-            logger.info("[Compact] revert: no marker to revert")
-            appendSystemInfo("Nothing to revert — no compact marker on this session.", icon: "arrow.uturn.backward")
-            return
-        }
-
-        logger.info("[Compact] ━━━ REVERT ━━━ session=\(sessionId.prefix(8)) markerId=\(marker.id.prefix(8)) v=\(marker.version) lcmId=\(marker.lastCompactedMessageId?.prefix(8) ?? "nil")")
-
-        let deleted = await ChatStore.shared.deleteCompactMarker(id: marker.id)
-        guard deleted else {
-            logger.error("[Compact] revert: deleteCompactMarker returned false (marker.id=\(marker.id.prefix(8)))")
-            appendSystemInfo("Revert failed: marker not found in DB.", icon: "arrow.uturn.backward")
-            return
-        }
-
-        // Refresh cached marker to the next-most-recent one (or nil).
-        let next = await ChatStore.shared.latestCompactMarker(sessionId: sessionId)
-        self.cachedLatestMarker = next
-
-        // Rebuild UI message list from DB to reflect the new (or absent)
-        // marker. loadSession() re-runs Phase 2.5 restore against the
-        // remaining markers, which will either:
-        //   - find the previous marker and place the divider at its anchor, or
-        //   - find no marker and ungray everything (no divider rendered).
-        //
-        // We deliberately DON'T inject a "Reverted ..." systemInfo row here.
-        // The divider itself already conveys the post-revert state (either
-        // the previous marker re-emerges as "N messages compacted", or all
-        // dividers disappear when the last marker is gone). A separate
-        // notice next to the divider is visually redundant — same anchor,
-        // two stacked rows saying overlapping things.
-        await loadSession()
-        if let next {
-            logger.info("[Compact] revert DONE: now showing previous marker id=\(next.id.prefix(8)) v=\(next.version)")
-        } else {
-            logger.info("[Compact] revert DONE: no remaining markers, full history active")
+        guard let capturedSession = sessionId, let marker = cachedLatestMarker,
+              !isProcessing, !isCompacting, !isTruncatingForRetry, !isLoadingSession,
+              remoteDeviceId == nil else { return }
+        let generation = NanoMuseAccountData.shared.generation
+        do {
+            let edit = try NivoChatAccountAccess.beginConversationEdit([capturedSession])
+            isTruncatingForRetry = true
+            defer {
+                isTruncatingForRetry = false
+                NivoScheduledRunScopes.shared.endConversationEdit(edit)
+            }
+            try Task.checkCancellation()
+            try await ChatStore.shared.deleteCompactMarker(id: marker.id, sessionID: capturedSession)
+            guard sessionId == capturedSession, NanoMuseAccountData.shared.generation == generation else {
+                throw NivoLifeError.accountChanged
+            }
+            // loadSession会重新读取剩余摘要；占位继续覆盖加载，禁止另一请求先使用旧缓存。
+            isTruncatingForRetry = false
+            await loadSession()
+        } catch is CancellationError {
+            // 提交前取消保持原界面；已提交的结果仍由正常加载恢复。
+        } catch {
+            if sessionId == capturedSession, NanoMuseAccountData.shared.generation == generation {
+                errorMessage = NivoLifeModel.message(error)
+            }
         }
     }
 

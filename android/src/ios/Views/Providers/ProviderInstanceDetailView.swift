@@ -21,10 +21,23 @@ struct ProviderInstanceDetailView: View {
     @State private var showExportShare = false
     @State private var showAddCustomModel = false
     @State private var oauthRefreshTrigger = false
+    // nanoMuse: 页面退出取消自己的登录，不影响其他实例或后续登录。
+    @State private var nmOAuthTask: Task<Void, Never>?
+    @State private var nmOAuthAttempt = UUID()
+    @State private var nmFormScope: NivoOAuthScope?
+    // nanoMuse: 删除完成前保留页面，错误由当前页面及设置页恢复入口共同承接。
+    @State private var nmIsDeleting = false
+    @State private var nmDeleteError: String?
+    // nanoMuse: 凭证删除失败保留原范围，重试不得改成删除整个提供商。
+    @State private var nmCredentialAccounts: [String]?
+    @State private var nmIsUpdatingKeyInput = false
+    @State private var nmDidPreserveCredentials = false
     @State private var editingCustomBaseURL = ""
     @State private var editingCustomUserAgent = ""
     @State private var showManualTokenInput = false
     @State private var manualTokenInputText = ""
+    // nanoMuse: 保存失败保留原输入，在同一表单内显示错误。
+    @State private var nmManualTokenError: String?
     @State private var editingModelEntry: ModelEntry?
     @State private var pendingDeleteModelEntry: ModelEntry?
     @State private var showKeyRevealed = false
@@ -39,12 +52,23 @@ struct ProviderInstanceDetailView: View {
             if let instance = instance {
                 instanceContent(instance)
             } else {
-                Text("Instance not found")
-                    .foregroundStyle(.secondary)
+                VStack {
+                    Text("Instance not found").foregroundStyle(.secondary)
+                    // nanoMuse: 配置已删但凭证清理失败时，详情也能继续恢复。
+                    NivoProviderDeletionNotice()
+                }
             }
         }
         .navigationTitle(instance?.label ?? "Provider")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if nmFormScope == nil { nmFormScope = NivoOAuthAccess.captureScope() }
+        }
+        .onDisappear {
+            nmOAuthAttempt = UUID()
+            nmOAuthTask?.cancel()
+            nmOAuthTask = nil
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -78,7 +102,7 @@ struct ProviderInstanceDetailView: View {
         }
         .sheet(isPresented: $showKimiLogin) {
             if let instance = instance {
-                KimiDeviceLoginSheet(instanceId: instance.id) { _ in
+                KimiDeviceLoginSheet(instanceId: instance.id, sourceScope: nmFormScope) { _ in
                     oauthRefreshTrigger.toggle()
                 }
             }
@@ -91,6 +115,9 @@ struct ProviderInstanceDetailView: View {
                             .font(.system(.body, design: .monospaced))
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                        if let nmManualTokenError {
+                            Text(nmManualTokenError).font(.footnote).foregroundStyle(.red)
+                        }
                     } footer: {
                         Text("Paste the bearer token. Whitespace and newlines will be stripped automatically.")
                     }
@@ -102,12 +129,22 @@ struct ProviderInstanceDetailView: View {
                         Button("Cancel") {
                             showManualTokenInput = false
                             manualTokenInputText = ""
+                            nmManualTokenError = nil
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             let cleaned = manualTokenInputText.components(separatedBy: .whitespacesAndNewlines).joined()
-                            ProviderKeychainHelper.saveOAuthString(cleaned, instanceId: instanceId, account: "manual-oauth-token")
+                            // nanoMuse: 写入并读回确认后才关闭表单。
+                            do {
+                                guard let nmFormScope else { throw CancellationError() }
+                                try NivoOAuthAccess.validateScope(nmFormScope)
+                                let operation = try NivoOAuthAccess.begin(instanceID: instanceId, replacing: true)
+                                defer { NivoOAuthAccess.finish(operation) }
+                                try ProviderKeychainHelper.saveOAuthString(cleaned, instanceId: instanceId, account: "manual-oauth-token")
+                            }
+                            catch { nmManualTokenError = error.localizedDescription; return }
+                            nmManualTokenError = nil
                             manualTokenInputText = ""
                             showManualTokenInput = false
                             oauthRefreshTrigger.toggle()
@@ -120,8 +157,13 @@ struct ProviderInstanceDetailView: View {
         }
         .alert("Delete Provider", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
-                store.removeInstance(instanceId)
-                dismiss()
+                guard let scope = nmFormScope else { return }
+                nmIsDeleting = true
+                Task {
+                    defer { nmIsDeleting = false }
+                    do { try await store.removeInstance(instanceId, sourceScope: scope); dismiss() }
+                    catch { nmDeleteError = error.localizedDescription }
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -145,6 +187,15 @@ struct ProviderInstanceDetailView: View {
         } message: { entry in
             Text("Are you sure you want to delete \"\(entry.model.displayName)\"? This action cannot be undone.")
         }
+        .alert(AppLocalized("Error"), isPresented: Binding(get: { nmDeleteError != nil }, set: { if !$0 { nmDeleteError = nil } })) {
+            // nanoMuse: 失败后继续同一持久日志，页面不提前宣布退出或清空成功。
+            if let accounts = nmCredentialAccounts {
+                Button(AppLocalized("Retry")) { nmRemoveCredentials(accounts) }
+            }
+            Button("OK") { nmDeleteError = nil }
+        } message: { Text(nmDeleteError ?? "") }
+        .disabled(nmIsDeleting)
+        .overlay { if nmIsDeleting { ProgressView(AppLocalized("Saving…")) } }
     }
 
     @ViewBuilder
@@ -168,6 +219,15 @@ struct ProviderInstanceDetailView: View {
             // MARK: Credential
             Section {
                 credentialSection(instance)
+                // nanoMuse: 关闭错误弹窗后仍保留清理重试入口。
+                if let accounts = nmCredentialAccounts, !nmIsDeleting {
+                    Button(AppLocalized("Retry")) { nmRemoveCredentials(accounts) }
+                }
+                // nanoMuse: 保留提示不创建恢复屏障，也不提供对旧范围的自动重试。
+                if nmDidPreserveCredentials {
+                    Label(AppLocalized("nivo.providers.credentials.preserved"), systemImage: "info.circle")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             } header: {
                 Text("Credential")
             } footer: {
@@ -461,13 +521,23 @@ struct ProviderInstanceDetailView: View {
                 keyInputText = rawKey ?? ""
             }
             .onChange(of: keyInputText) { newValue in
+                // nanoMuse: 页面初始填充不重写凭证，恢复或切号后旧输入不再落盘。
+                guard !nmIsDeleting, !nmIsUpdatingKeyInput else { return }
+                guard let scope = nmFormScope else { return }
+                do { try NivoOAuthAccess.validateScope(scope) }
+                catch { ShareFeedbackToast.show(AppLocalized("Could not save")); return }
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed != (rawKey ?? "") else { return }
                 if trimmed.isEmpty {
                     AppLogger(category: "Provider").warning("apiKeyTextField onChange→DELETE instanceId=\(instance.id.prefix(8)) prevRawKeyHit=\(rawKey != nil) prevRawKeyLen=\(rawKey?.count ?? 0) newLen=\(newValue.count)")
-                    ProviderKeychainHelper.deleteAPIKey(instanceId: instance.id)
+                    // nanoMuse: 清空和显式移除使用同一个可等待删除事务。
+                    nmRemoveCredentials(["api-key"])
                 } else {
                     AppLogger(category: "Provider").info("apiKeyTextField onChange→SAVE instanceId=\(instance.id.prefix(8)) newLen=\(trimmed.count)")
-                    ProviderKeychainHelper.saveAPIKey(trimmed, instanceId: instance.id)
+                    // nanoMuse: 即时保存失败明确反馈，保留当前输入便于重试。
+                    if !ProviderKeychainHelper.saveAPIKey(trimmed, instanceId: instance.id) {
+                        ShareFeedbackToast.show(AppLocalized("Could not save"))
+                    }
                 }
             }
 
@@ -487,6 +557,10 @@ struct ProviderInstanceDetailView: View {
                     Label("Copy API Key", systemImage: "doc.on.doc")
                 }
             }
+        }
+        // nanoMuse: 显式移除按钮在失败后仍可重试，系统确认前不清空输入。
+        if rawKey != nil {
+            Button(AppLocalized("Remove"), role: .destructive) { nmRemoveCredentials(["api-key"]) }
         }
     }
 
@@ -522,8 +596,8 @@ struct ProviderInstanceDetailView: View {
                     }
                     .font(.caption.weight(.medium))
                     Button(AppLocalized("Sign Out"), role: .destructive) {
-                        oauthLogout(instance)
-                        oauthRefreshTrigger.toggle()
+                        // nanoMuse: 不再通过无回执的manager退出方法立即刷新显示。
+                        nmRemoveCredentials(nmOAuthCredentialAccounts(instance))
                     }
                     .font(.caption.weight(.medium))
                 } else {
@@ -532,15 +606,19 @@ struct ProviderInstanceDetailView: View {
                         if instance.providerType == .kimiCode {
                             showKimiLogin = true
                         } else {
-                            Task {
+                            let attempt = UUID()
+                            nmOAuthAttempt = attempt
+                            nmOAuthTask = Task {
+                                defer { if nmOAuthAttempt == attempt { nmOAuthTask = nil } }
                                 await oauthLogin(instance)
-                                await MainActor.run {
-                                    oauthRefreshTrigger.toggle()
-                                }
+                                guard !Task.isCancelled, nmOAuthAttempt == attempt,
+                                      store.instance(for: instance.id) != nil else { return }
+                                oauthRefreshTrigger.toggle()
                             }
                         }
                     }
                     .font(.caption.weight(.medium))
+                    .disabled(nmOAuthTask != nil)
                 }
             }
             .buttonStyle(.bordered)
@@ -722,8 +800,8 @@ struct ProviderInstanceDetailView: View {
                     .font(.caption.weight(.medium))
 
                     Button("Remove", role: .destructive) {
-                        ProviderKeychainHelper.deleteOAuthString(instanceId: instance.id, account: "manual-oauth-token")
-                        oauthRefreshTrigger.toggle()
+                        // nanoMuse: 手动令牌独立清理，保留OAuth及模型配置。
+                        nmRemoveCredentials(["manual-oauth-token"])
                     }
                     .font(.caption.weight(.medium))
                 }
@@ -1010,6 +1088,9 @@ struct ProviderInstanceDetailView: View {
 
     private func oauthLogin(_ instance: ProviderInstance) async {
         do {
+            // nanoMuse: 已打开的旧详情不能在恢复后的新身份上重新开始授权。
+            guard let nmFormScope else { throw CancellationError() }
+            try NivoOAuthAccess.validateScope(nmFormScope)
             switch instance.providerType {
             case .anthropic: try await ClaudeOAuthManager.shared.login(instanceId: instance.id)
             case .gemini: try await GeminiOAuthManager.shared.login(instanceId: instance.id)
@@ -1021,25 +1102,70 @@ struct ProviderInstanceDetailView: View {
             case .kimiCode: break // device-code flow runs in KimiDeviceLoginSheet
             case .unsupported: break
             }
+        } catch is CancellationError {
+            // nanoMuse: 页面退出和恢复导致的取消不回写已离开的错误界面。
         } catch {
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 fetchError = error.localizedDescription
             }
         }
     }
 
-    private func oauthLogout(_ instance: ProviderInstance) {
+    // nanoMuse: 登录所得凭证按提供商分组清理，不调用吞错的旧退出接口。
+    private func nmOAuthCredentialAccounts(_ instance: ProviderInstance) -> [String] {
         switch instance.providerType {
-        case .anthropic: ClaudeOAuthManager.shared.logout(instanceId: instance.id)
-        case .gemini: GeminiOAuthManager.shared.logout(instanceId: instance.id)
-        case .openAI: CodexOAuthManager.shared.logout(instanceId: instance.id)
-        case .antigravity: AntigravityOAuthManager.shared.logout(instanceId: instance.id)
-        case .openRouter: OpenRouterOAuthManager.shared.logout(instanceId: instance.id)
-        case .openAIResponses: break // API key only
-        case .xAI: XAIOAuthManager.shared.logout(instanceId: instance.id)
-        case .kimiCode: KimiOAuthManager.shared.logout(instanceId: instance.id)
-        case .unsupported: break
+        case .openRouter: return ["api-key"]
+        case .gemini: return ["oauth-token", "oauth-email", "oauth-gcp-project"]
+        case .antigravity: return ["oauth-token", "oauth-email", "oauth-gcp-project", "oauth-base-url"]
+        default: return ["oauth-token"]
         }
+    }
+
+    /// 发起页面等待清理和缓存重载；仅采用本次租约回传的新代次以保留重试能力。
+    private func nmRemoveCredentials(_ accounts: [String]) {
+        guard !nmIsDeleting, let scope = nmFormScope else { return }
+        if let pending = nmCredentialAccounts, Set(pending) != Set(accounts) {
+            nmDeleteError = NivoProviderDeletion.Failure.pendingRecovery.localizedDescription
+            return
+        }
+        nmCredentialAccounts = accounts
+        nmDeleteError = nil
+        nmDidPreserveCredentials = false
+        nmIsDeleting = true
+        nmOAuthAttempt = UUID()
+        nmOAuthTask?.cancel()
+        nmOAuthTask = nil
+        Task { @MainActor in
+            defer { nmIsDeleting = false }
+            do {
+                let outcome = try await NivoProviderDeletionHost.shared.clearCredentials(instanceID: instanceId,
+                    accounts: accounts, sourceScope: scope, onRestoreFinished: { nmFormScope = $0 })
+                nmCredentialAccounts = nil
+                nmDidPreserveCredentials = outcome.hasPreservedCredentials
+                oauthRefreshTrigger.toggle()
+                if accounts.contains("api-key") {
+                    try nmReloadKeyInput(preservingInput: outcome.hasPreservedCredentials)
+                }
+            } catch { nmDeleteError = error.localizedDescription }
+        }
+    }
+
+    /// 严格读回当前密钥，读取失败不清空输入，也不把已经终结的清理改回待重试。
+    private func nmReloadKeyInput(preservingInput: Bool) throws {
+        let data = try NivoCredentialSyncKeychain.providerValue(instanceID: instanceId)
+        let value: String
+        if let data {
+            guard let decoded = String(data: data, encoding: .utf8) else { throw NivoOAuthPersistenceError.invalidValue }
+            value = decoded
+        } else {
+            guard !preservingInput else { return }
+            value = ""
+        }
+        nmIsUpdatingKeyInput = true
+        keyInputText = value
+        // onChange在下一次视图更新消费赋值后才解除本机回填保护。
+        Task { @MainActor in await Task.yield(); nmIsUpdatingKeyInput = false }
     }
 
     private func oauthCopyToken(_ instance: ProviderInstance) async {

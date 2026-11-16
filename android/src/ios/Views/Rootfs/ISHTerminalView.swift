@@ -395,10 +395,15 @@ class ISHTerminalViewModel: ObservableObject {
 
         // Inject user-defined environment variables
         stepStart = CFAbsoluteTimeGetCurrent()
-        let customEnv = EnvVarStore.shared.allAsDict()
-        if !customEnv.isEmpty {
-            ISHKernel.shared.customEnvironment = customEnv
+        // nanoMuse: 配置恢复或读取失败时不带着旧进程变量启动终端。
+        let customEnv: [String: String]
+        do { customEnv = try EnvVarStore.shared.allAsDict() }
+        catch {
+            isShellStarted = false
+            emulator.feed(Data((AppLocalized("Saved data could not be opened. The original file was preserved.") + "\r\n").utf8))
+            return
         }
+        ISHKernel.shared.customEnvironment = customEnv
         logger.info("[StartShell] envVars: \(String(format: "%.1f", (CFAbsoluteTimeGetCurrent() - stepStart) * 1000))ms (\(customEnv.count) vars)")
 
         // Start shell

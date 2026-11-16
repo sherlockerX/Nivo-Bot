@@ -826,7 +826,11 @@ actor ChatStore {
                 PRIMARY KEY (record_type, record_id)
             )
         """)
-        exec("DELETE FROM deleted_record_tombstones WHERE deleted_at < \(Date().timeIntervalSince1970 - 30 * 24 * 60 * 60)")
+        // nanoMuse: 删除回执的保留规则单独验证，清理失败只保留更多历史，不吞掉事务错误。
+        if let db {
+            do { try NivoSyncReceiptRetention.prune(database: db, before: Date().addingTimeInterval(-30 * 24 * 60 * 60)) }
+            catch { logger.error("[Nivo] deletion history cleanup deferred: \(error.localizedDescription)") }
+        }
         // Session folders (home-list grouping). `id` is a locally generated
         // UUID — uniqueness needs no cross-device coordination, which is why
         // it beats keying on the name when devices create folders offline.
@@ -1089,7 +1093,122 @@ actor ChatStore {
         return session
     }
 
+    // nanoMuse: 专题会话和每日练习分组在同一个SQLite事务创建，磁盘失败不会返回假成功。
+    /// 按可信专题身份创建或复用会话，保留用户已修改的标题、模型和分组。
+    func nmEnsureCoachConversation(_ request: NivoCoachChatCreation) throws -> ChatSession {
+        try nmEnsureManagedConversation(request, source: NivoCoachConversationIdentity.source)
+    }
+
+    // nanoMuse: 定时任务复用相同SQLite事务，来源标志由宿主固定。
+    /// 专属任务对话与系统分组一同提交，重试保留用户已改的标题与分组。
+    func nmEnsureRoutineConversation(_ request: NivoManagedChatCreation) throws -> ChatSession {
+        try nmEnsureManagedConversation(request, source: NivoRoutineConversationRules.source)
+    }
+
+    private func nmEnsureManagedConversation(_ request: NivoManagedChatCreation, source: String) throws -> ChatSession {
+        guard UUID(uuidString: request.id) != nil, UUID(uuidString: request.folderID) != nil,
+              !request.modelID.isEmpty else { throw NivoCoachConversationError.identityConflict }
+        guard deletedSessionTombstone(request.id) == nil else { throw NivoCoachConversationError.deleted }
+        if let existing = getSession(request.id) {
+            guard existing.source == source else {
+                throw NivoCoachConversationError.identityConflict
+            }
+            return existing
+        }
+        guard sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else {
+            throw NivoCoachConversationError.storage
+        }
+        var isCommitted = false
+        defer { if !isCommitted { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
+        try nmEnsureCoachFolder(id: request.folderID, name: request.folderName, source: source)
+        try nmInsertCoachConversation(request, source: source)
+        try nmMarkDirtyStrict(recordType: "Folder", recordID: request.folderID)
+        guard let saved = getSession(request.id),
+              sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else {
+            throw NivoCoachConversationError.storage
+        }
+        isCommitted = true
+        invalidateSessionListCache()
+        nmScheduleStrictSync()
+        return saved
+    }
+
+    /// 系统分组只按稳定ID复用，同名手动分组保持原样。
+    private func nmEnsureCoachFolder(id: String, name: String, source: String) throws {
+        let folders = listFolders()
+        if let existing = folders.first(where: { $0.id == id }) {
+            guard existing.origin == source else {
+                throw NivoCoachConversationError.identityConflict
+            }
+            return
+        }
+        let names = Set(folders.map(\.name))
+        var uniqueName = name
+        var number = 2
+        while names.contains(uniqueName) { uniqueName = "\(name) (\(number))"; number += 1 }
+        let sql = "INSERT INTO folders (id, name, origin, sort_index, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?)"
+        let now = Date().timeIntervalSince1970
+        try nmExecuteWrite(sql, values: [.text(id), .text(uniqueName), .text(source),
+                                        .real(now), .real(now)])
+    }
+
+    /// 来源和模型绑定与会话同时落盘，崩溃重试仍能识别本应用创建的专题。
+    private func nmInsertCoachConversation(_ request: NivoManagedChatCreation, source: String) throws {
+        let sql = """
+            INSERT INTO sessions (id, title, model_id, created_at, updated_at, source,
+                                  memory_enabled, model_binding, folder_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+        let now = Date().timeIntervalSince1970
+        try nmExecuteWrite(sql, values: [.text(request.id), .text(request.title), .text(request.modelID),
+            .real(now), .real(now), .text(source),
+            .integer(request.memoryEnabled ? 1 : 0), .text(request.modelBinding), .text(request.folderID)])
+    }
+
     // MARK: - part_flags (message preview bitmask)
+
+    // nanoMuse: 中继预留稳定会话ID，失败向分页传播，不能返回未落盘的会话。
+    /// 保留本机模型与记忆配置，只在严格事务提交后更新缓存和同步状态。
+    func nmEnsureRelayConversation(_ request: NivoRelayChatSQL.Session) throws -> NivoRelayChatSQL.Result {
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        let result = try NivoRelayChatSQL.ensure(request, database: db) {
+            try self.nmMarkDirtyStrict(recordType: "Session", recordID: request.id)
+        }
+        if result == .inserted || result == .updated {
+            invalidateSessionListCache()
+            if result == .updated { nmScheduleStrictSync() }
+        }
+        return result
+    }
+
+    // nanoMuse: 上传缺失检测使用严格读取，损坏正文和数据库故障不能变成远端删除。
+    /// 只读取中继使用的正文、角色和时间，沿用分支复制的严格解码器。
+    func nmRelayMessages(sessionID: String, excludingKnown: Set<String> = []) throws -> [RawMessage] {
+        guard db != nil else { throw CocoaError(.fileReadUnknown) }
+        // nanoMuse: 无文本工具行可能需要重扫，但已确认的历史无需反复解码正文。
+        return try nmBranchRows(sessionID, excluding: excludingKnown)
+    }
+
+    // nanoMuse: 清空或裁剪可能没有改会话时间，删除检测不能只依赖updated_at。
+    /// 仅枚举稳定消息ID，未变更的长会话无需反复解码全部正文。
+    func nmRelayMessageIDs(sessionID: String) throws -> Set<String> {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        let identifiers = try NivoSQLiteWrite.readRows(db, sql: "SELECT id FROM messages WHERE session_id = ?",
+            values: [.text(sessionID)]) { statement in
+                guard let text = sqlite3_column_text(statement, 0) else { throw NivoLifeError.corruptStore }
+                return String(cString: text).lowercased()
+            }
+        return Set(identifiers)
+    }
+
+    // nanoMuse: 新入站消息的列表时间写入失败也需要重试，不能吞错后确认分页。
+    /// 更新时间不倒退；不存在的会话向调用方报错。
+    func nmTouchRelaySession(_ sessionID: String) throws {
+        try nmExecuteWrite("UPDATE sessions SET updated_at = MAX(updated_at, ?) WHERE id = ?",
+            values: [.real(Date().timeIntervalSince1970), .text(sessionID)])
+        guard sqlite3_changes(db) == 1 else { throw NivoLifeError.operationConflict }
+        invalidateSessionListCache()
+    }
 
     /// [T-ios-listsessions-part-flags] Bit positions in `messages.part_flags`.
     /// Only text/toolUse are tracked — those are the only types listSessions'
@@ -2347,80 +2466,25 @@ actor ChatStore {
         return out
     }
 
-    /// Apply an inbound FolderV2 upsert: LWW by updatedAt against the local
-    /// row; missing locally → insert. Local-only — never marks dirty (the
-    /// cloud already holds this state; re-queueing would ping-pong).
-    func applyRemoteFolder(_ f: ChatFolder) {
-        var localUpdatedAt: Double?
-        var checkStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT updated_at FROM folders WHERE id = ?", -1, &checkStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(checkStmt, 1, (f.id as NSString).utf8String, -1, nil)
-            if sqlite3_step(checkStmt) == SQLITE_ROW {
-                localUpdatedAt = sqlite3_column_double(checkStmt, 0)
-            }
-        }
-        sqlite3_finalize(checkStmt)
-
-        if let localTs = localUpdatedAt, localTs >= f.updatedAt.timeIntervalSince1970 {
-            iCloudLogger.info("[iCloud] applyRemoteFolder SKIP (local newer/equal): id=\(f.id.prefix(8))")
-            return
-        }
+    // nanoMuse: 分组入站和解散使用严格事务，写入失败必须交给同步重试。
+    /// 合并远端分组；显式备份恢复可以恢复近期删除的分组。
+    func applyRemoteFolder(_ folder: ChatFolder, respectTombstones: Bool = true) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        let row = NivoCloudChatSQL.Folder(id: folder.id, name: folder.name, icon: folder.icon,
+            color: folder.color, origin: folder.origin, sortIndex: folder.sortIndex,
+            pinnedAt: folder.pinnedAt?.timeIntervalSince1970, description: folder.desc,
+            createdAt: folder.createdAt.timeIntervalSince1970, updatedAt: folder.updatedAt.timeIntervalSince1970)
+        guard try NivoCloudChatSQL.mergeFolder(row, database: db, respectTombstones: respectTombstones) else { return }
         invalidateSessionListCache()
-        let sql = """
-            INSERT INTO folders (id, name, icon, color, origin, sort_index, pinned_at, description, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                name = excluded.name, icon = excluded.icon, color = excluded.color,
-                origin = excluded.origin, sort_index = excluded.sort_index,
-                pinned_at = excluded.pinned_at,
-                description = excluded.description,
-                updated_at = excluded.updated_at
-            """
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (f.id as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 2, (f.name as NSString).utf8String, -1, nil)
-            bindOptionalText(stmt, index: 3, value: f.icon)
-            bindOptionalText(stmt, index: 4, value: f.color)
-            sqlite3_bind_text(stmt, 5, (f.origin as NSString).utf8String, -1, nil)
-            sqlite3_bind_int64(stmt, 6, Int64(f.sortIndex))
-            if let pinTs = f.pinnedAt {
-                sqlite3_bind_double(stmt, 7, pinTs.timeIntervalSince1970)
-            } else {
-                sqlite3_bind_null(stmt, 7)
-            }
-            bindOptionalText(stmt, index: 8, value: f.desc)
-            sqlite3_bind_double(stmt, 9, f.createdAt.timeIntervalSince1970)
-            sqlite3_bind_double(stmt, 10, f.updatedAt.timeIntervalSince1970)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
-        iCloudLogger.info("[iCloud] applyRemoteFolder APPLIED: id=\(f.id.prefix(8)) name=\(f.name)")
+        NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
     }
 
-    /// Apply an inbound FolderV2 tombstone: clear members' folder_id and drop
-    /// the folder row. **Never deletes a session** — folder deletion means
-    /// "members become ungrouped" on every device. Local-only (no markDirty):
-    /// the deleting peer already pushed both its tombstone and its members'
-    /// folder_id=NULL session updates; re-queueing here would delete-loop.
-    func applyRemoteFolderDeletion(id: String) {
+    /// 解散分组保留会话，成员关系、分组和防复活标记共同提交。
+    func applyRemoteFolderDeletion(id: String) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        try NivoCloudChatSQL.deleteFolder(id: id, at: Date().timeIntervalSince1970, database: db)
         invalidateSessionListCache()
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "UPDATE sessions SET folder_id = NULL WHERE folder_id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
-        stmt = nil
-        if sqlite3_prepare_v2(db, "DELETE FROM folders WHERE id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
-        // Match dissolveFolder's local behavior: leave a tombstone so a
-        // fetchRecentV2 race can't resurrect the folder record we just dropped.
-        recordDeletedRecordTombstone(type: "Folder", id: id)
-        iCloudLogger.info("[iCloud] applyRemoteFolderDeletion: id=\(id.prefix(8))")
+        NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
     }
 
     /// Fetch one folder (sync builder path).
@@ -2477,33 +2541,69 @@ actor ChatStore {
         sqlite3_finalize(stmt)
     }
 
-    func deleteSession(_ id: String) {
-        invalidateSessionListCache()
-        // Queue cloud deletions BEFORE removing local rows so the SELECTs
-        // below can still enumerate child ids. Peers receive op=delete
-        // for the session + each child and apply them as hard deletes
-        // (see TombstoneManager.applyRemoteSessionDeletion).
-        markSessionForCloudDeletion(id)
-
-        deleteSessionLocalRowsOnly(id)
-
-        // [T-icloud-deleted-session-resurrection] Record a recent-delete
-        // tombstone so an inbound merge (e.g. fetchRecentV2 pulling the still-
-        // present cloud record before our delete tombstone lands) refuses to
-        // re-insert this session / its messages / its files. Pruned by the
-        // 30-day TTL on launch (ids are UUIDs, so it never blocks a real
-        // future session).
-        recordDeletedSessionTombstone(id)
+    // nanoMuse: 子消息、摘要、同步删除队列和会话删除标记共同提交，成功后才清理附件。
+    /// 单条和批量删除共用严格事务，失败由界面或同步调用方保留原状态。
+    func deleteSession(_ id: String) throws {
+        try nmDeleteSessions([id])
     }
 
-    /// Hard-delete a session and its children locally without queuing any
-    /// cloud delete rows. Used by the inbound side: when a peer device
-    /// pushes a SessionV2 op=delete, we apply it locally and STOP — the
-    /// cloud already has the deletion, re-queueing it would just create a
-    /// noisy round-trip and risk a delete-loop with peers that haven't
-    /// yet drained the same tombstone.
-    func deleteSessionLocalOnly(_ id: String) {
-        deleteSessionLocalRowsOnly(id)
+    /// 批量删除先提交全部数据库记录，不能只删除选择集合中的前几条。
+    func nmDeleteSessions(_ identifiers: Set<String>) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        let files = try Dictionary(uniqueKeysWithValues: identifiers.sorted().map {
+            ($0, try nmSessionFileDeletionIDs($0))
+        })
+        try NivoChatMutationSQL.deleteSessions(files: files, database: db, at: Date().timeIntervalSince1970) {
+            try nmMarkDirtyStrict(recordType: $0, recordID: $1, operation: $2)
+        }
+        for identifier in identifiers {
+            nmChatMutationCommitted(sessionID: identifier)
+            nmCleanupRemoteDeletedSession(identifier)
+        }
+    }
+
+    /// 入站删除沿用相同事务但不产生新的远端请求，避免中继和iCloud来回回声。
+    func deleteSessionLocalOnly(_ id: String) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoChatMutationSQL.deleteSessions(files: [id: []], database: db,
+            at: Date().timeIntervalSince1970, markDirty: { _, _, _ in })
+        nmChatMutationCommitted(sessionID: id)
+        nmCleanupRemoteDeletedSession(id)
+    }
+
+    // nanoMuse: 主聊天收到中继删除时保留配置，删除回执与正文清理在同一事务内提交。
+    /// 旁聊仍删除整个会话；分页重放不会清除上次清空后写入的新消息。
+    func nmApplyRelayConversationDeletion(sessionID: String, conversationID: String,
+                                          preservesSession: Bool, deletedAt: Double) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoChatMutationSQL.applyRelayConversationDeletion(sessionID: sessionID, conversationID: conversationID,
+            preservesSession: preservesSession, database: db, deletedAt: deletedAt)
+        nmChatMutationCommitted(sessionID: sessionID)
+        if !preservesSession { nmCleanupRemoteDeletedSession(sessionID) }
+    }
+
+    /// 文件列举失败时保留整个会话，不能先删正文再漏发附件删除。
+    private func nmSessionFileDeletionIDs(_ sessionID: String) throws -> [String] {
+        guard !syncZoneName.isEmpty, UploadPolicy.allowsRecordType("SessionFile") else { return [] }
+        let root = minisBaseURL.appendingPathComponent(sessionID, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        var readError: Error?
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles], errorHandler: { _, error in readError = error; return false }) else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        var identifiers: [String] = []
+        for case let url as URL in enumerator {
+            if try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true {
+                let relative = String(url.path.dropFirst(root.path.count + 1))
+                identifiers.append(sessionID + ":" + relative)
+            }
+        }
+        if let readError { throw readError }
+        return identifiers
     }
 
     /// True if a session row exists locally. Lightweight existence check
@@ -2516,93 +2616,6 @@ actor ChatStore {
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
         return sqlite3_step(stmt) == SQLITE_ROW
-    }
-
-    private func deleteSessionLocalRowsOnly(_ id: String) {
-        // [T-ios-listsessions-cache] Invalidate here (the low-level row delete)
-        // so ALL callers are covered — deleteSession AND deleteSessionLocalOnly.
-        invalidateSessionListCache()
-        deleteMessages(sessionId: id)
-        deleteCompactMarkers(sessionId: id)
-        deleteSessionMedia(id)
-
-        let sql = "DELETE FROM sessions WHERE id = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
-        // Clean up per-session etag cache
-        if #available(iOS 17.0, *) {
-            Task { @MainActor in CloudSyncEngine.shared.removeSessionCache(id) }
-        }
-        // [T-ios-session-paused-badge] Drop any badge state for a deleted session
-        // so a stale "paused" badge can't linger in the persisted store.
-        Task { @MainActor in SessionBadgeStore.shared.clearAll(for: id) }
-        // [T-ios-delete-session-live-activity] All delete funnels (swipe /
-        // long-press / batch / RPC / inbound iCloud delete) converge here, so
-        // this is the single place that guarantees a deleted conversation never
-        // stays visible in the Dynamic Island / Lock Screen. Order matters:
-        // setInactive first so the tracker (and any snapshot rebuild) no longer
-        // contains the session, then let the Live Activity manager end or trim
-        // the on-screen activity.
-        Task { @MainActor in
-            SessionActivityTracker.shared.setInactive(id, source: "sessionDeleted")
-            AgentLiveActivityManager.shared.handleSessionDeleted(id)
-        }
-    }
-
-    /// Mark a session and all its child records (messages, compact markers) as
-    /// pending iCloud deletion. Called from deleteSession before the local rows
-    /// disappear so we can still enumerate the ids.
-    private func markSessionForCloudDeletion(_ sessionId: String) {
-        guard !syncZoneName.isEmpty else { return }
-        // Session itself
-        markDirty(recordType: "Session", recordId: sessionId, operation: "delete")
-        // Messages
-        let msgSql = "SELECT id FROM messages WHERE session_id = ?"
-        var msgStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, msgSql, -1, &msgStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(msgStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            while sqlite3_step(msgStmt) == SQLITE_ROW {
-                let msgId = String(cString: sqlite3_column_text(msgStmt, 0))
-                markDirty(recordType: "Message", recordId: msgId, operation: "delete")
-            }
-        }
-        sqlite3_finalize(msgStmt)
-        // Compact markers
-        let cmSql = "SELECT id FROM compact_markers WHERE session_id = ?"
-        var cmStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, cmSql, -1, &cmStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(cmStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            while sqlite3_step(cmStmt) == SQLITE_ROW {
-                let cmId = String(cString: sqlite3_column_text(cmStmt, 0))
-                markDirty(recordType: "CompactMarker", recordId: cmId, operation: "delete")
-            }
-        }
-        sqlite3_finalize(cmStmt)
-        // SessionFile records — walk the workspace and queue a delete for
-        // every file that lives on iCloud. MUST run before
-        // deleteSessionMedia removes the local files. recordIds are
-        // "<sessionId>:<rel>" matching appendMediaFile +
-        // scanAndMarkSessionFilesForResurrect.
-        let sessionDir = minisBaseURL.appendingPathComponent(sessionId, isDirectory: true)
-        var fileDeleteCount = 0
-        if let enumerator = FileManager.default.enumerator(
-            at: sessionDir,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            for case let url as URL in enumerator {
-                guard let isFile = (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile,
-                      isFile else { continue }
-                let rel = url.path.replacingOccurrences(of: sessionDir.path + "/", with: "")
-                markDirty(recordType: "SessionFile", recordId: "\(sessionId):\(rel)", operation: "delete")
-                fileDeleteCount += 1
-            }
-        }
-        iCloudLogger.info("[iCloud] deleteSession \(sessionId.prefix(8)) → cloud delete queued: \(fileDeleteCount) SessionFile records (in addition to Session/Message/CompactMarker tombstones)")
     }
 
     /// Public entry: queue a SessionFile cloud delete for one file under
@@ -3027,172 +3040,88 @@ actor ChatStore {
         return false
     }
 
-    func deleteMessages(sessionId: String) {
-        invalidateSessionListCache()
-        // Mark every message dirty for cloud deletion BEFORE the DELETE so other
-        // devices remove them on next sync. Without this, Clear Chat wipes
-        // locally but iCloud re-hydrates the rows on the next pull.
-        let selSql = "SELECT id FROM messages WHERE session_id = ?"
-        var selStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, selSql, -1, &selStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(selStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            while sqlite3_step(selStmt) == SQLITE_ROW {
-                let msgId = String(cString: sqlite3_column_text(selStmt, 0))
-                markDirty(recordType: "Message", recordId: msgId, operation: "delete")
+    // nanoMuse: 清空与截断只在完整提交后发布来源变化，失败不驱动页面清空。
+    /// 清空正文、旧参考及摘要，但保留会话模型和设置。
+    func deleteMessages(sessionId: String) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoChatMutationSQL.clear(sessionID: sessionId, database: db, at: Date().timeIntervalSince1970) {
+            try nmMarkDirtyStrict(recordType: $0, recordID: $1, operation: $2)
+        }
+        nmChatMutationCommitted(sessionID: sessionId)
+    }
+
+    /// 截断校验已加载消息的真实身份；工具块改写直接裁剪已存正文，保留签名及快照。
+    func nmTruncateChat(sessionID: String, expectedMessageIDs: [String], retainedMessageIDs: [String],
+                        trimmedToolUseID: String? = nil, replacementParts: [ContentPart]? = nil,
+                        replacesAttachments: Bool = false) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        let rewrite = try nmChatRewrite(sessionID: sessionID, retainedMessageID: retainedMessageIDs.last,
+            trimmedToolUseID: trimmedToolUseID, replacementParts: replacementParts, replacesAttachments: replacesAttachments)
+        try NivoChatMutationSQL.truncate(sessionID: sessionID, expectedIDs: expectedMessageIDs,
+            retainedIDs: retainedMessageIDs, rewrite: rewrite, database: db, at: Date().timeIntervalSince1970) {
+                try nmMarkDirtyStrict(recordType: $0, recordID: $1, operation: $2)
             }
-        }
-        sqlite3_finalize(selStmt)
-
-        let sql = "DELETE FROM messages WHERE session_id = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
+        nmChatMutationCommitted(sessionID: sessionID)
     }
 
-    /// [T-ios-rerun-from-tool-block-position] Rewrite a single message row's
-    /// parts in place. Used by retryFromToolBlock's sub-message cut: when the
-    /// re-run anchor is a tool_use that is NOT the first block of its assistant
-    /// turn, we keep the earlier blocks and must persist the trimmed parts back
-    /// to that exact row (deleteMessagesAfter only drops whole rows after the
-    /// boundary; it does not rewrite a kept row). Mirrors appendMessage's
-    /// parts_json encoding.
-    func updateMessageParts(messageId: String, parts: [ContentPart]) {
-        invalidateSessionListCache()
-        let partsJSON: String
-        do {
-            let data = try JSONEncoder().encode(parts)
-            partsJSON = String(data: data, encoding: .utf8) ?? "[]"
-        } catch {
-            logger.error("[updateMessageParts] encode failed id=\(messageId.prefix(8)): \(error)")
-            return
-        }
-        // [T-ios-listsessions-part-flags] keep the bitmask in lockstep with parts_json.
-        let partFlags = Self.partFlags(for: parts)
-        let sql = "UPDATE messages SET parts_json = ?, updated_at = ?, part_flags = ? WHERE id = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (partsJSON as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(stmt, 2, Date().timeIntervalSince1970)
-            sqlite3_bind_int64(stmt, 3, Int64(partFlags))
-            sqlite3_bind_text(stmt, 4, (messageId as NSString).utf8String, -1, nil)
-            let rc = sqlite3_step(stmt)
-            logger.info("[updateMessageParts] id=\(messageId.prefix(8)) parts=\(parts.count) stepRC=\(rc)")
-        }
-        sqlite3_finalize(stmt)
-        // Mark dirty so the rewritten row syncs to iCloud.
-        markDirty(recordType: "Message", recordId: messageId)
-    }
-
-    /// Delete all message rows AFTER the first `keepCount` rows (ordered by
-    /// sort_order). Callers pass `agentHistory.count` meaning "keep the first N
-    /// rows"; they do NOT pass a sort_order value.
-    ///
-    /// [T-19-chat-content-lost-34328] This used to treat `keepCount` directly as
-    /// the sort_order cutoff (`DELETE WHERE sort_order >= keepCount`). That is
-    /// only correct when sort_order is dense and 0-based (0..count-1). After a
-    /// prune drops the oldest rows, min(sort_order) > 0 and the live range
-    /// shifts right, so `keepCount` (a row COUNT) no longer equals
-    /// `max(sort_order)+1`. A real session hit this: keepCount=2048 while
-    /// maxSortOrder=2703 → the old `>= 2048` predicate nuked 656 still-live
-    /// recent messages (count 2048→1392) — silent user-data loss on resend/edit.
-    ///
-    /// Fix: resolve the ACTUAL boundary sort_order = the sort_order of the
-    /// keepCount-th row (ascending, 1-based), then delete strictly AFTER it.
-    /// This is correct regardless of whether sort_order is dense or shifted.
-    func deleteMessagesAfter(sessionId: String, keepCount: Int) {
-        invalidateSessionListCache()
-        // DIAG: snapshot state before delete
-        let beforeStats = sessionWriteStats(sessionId: sessionId)
-        logger.warning("[EditSync] [DeleteAfter] ENTER sid=\(sessionId.prefix(8)) keepCount=\(keepCount) — before: count=\(beforeStats.count) maxSortOrder=\(beforeStats.maxSortOrder)")
-
-        // keepCount <= 0 → keep nothing: delete every row. Use a boundary of
-        // Int64.min so `sort_order > boundary` matches all rows.
-        // Otherwise resolve the keepCount-th row's sort_order (OFFSET keepCount-1,
-        // ascending). If there are <= keepCount rows, the SELECT returns no row
-        // and we delete nothing.
-        var boundarySortOrder: Int64? = nil  // nil → no row to delete after; keep all
-        var deleteAll = false
-        if keepCount <= 0 {
-            deleteAll = true
-        } else {
-            // ORDER BY must match loadMessages / the repair canonical order
-            // (sort_order ASC, created_at ASC, id ASC). sort_order CAN have
-            // duplicates between repairs (remote-merge races; the prune path
-            // even documents itself as "immune to sort_order duplicates"), so a
-            // single-key sort could pick a different keepCount-th row than the
-            // one the caller counted in agentHistory. Tie-breaking on
-            // (created_at, id) keeps the boundary row identical to the caller's
-            // view. The DELETE below still filters on `sort_order >`, so if the
-            // boundary row shares its sort_order with later rows those rows are
-            // NOT deleted — i.e. duplicates make truncation conservative (keep
-            // more), never destructive.
-            let boundarySql = """
-                SELECT sort_order FROM messages
-                WHERE session_id = ?
-                ORDER BY sort_order ASC, created_at ASC, id ASC
-                LIMIT 1 OFFSET ?
-                """
-            var bStmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, boundarySql, -1, &bStmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(bStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-                sqlite3_bind_int64(bStmt, 2, Int64(keepCount - 1))
-                if sqlite3_step(bStmt) == SQLITE_ROW {
-                    boundarySortOrder = sqlite3_column_int64(bStmt, 0)
+    /// 已存正文必须可读，保留行不存在或工具锚点多义时不能删掉后续内容。
+    private func nmChatRewrite(sessionID: String, retainedMessageID: String?, trimmedToolUseID: String?,
+                               replacementParts: [ContentPart]?, replacesAttachments: Bool = false) throws -> NivoChatMutationSQL.Rewrite? {
+        guard trimmedToolUseID != nil || replacementParts != nil else { return nil }
+        guard let db, let retainedMessageID else { throw NivoChatMutationError.staleHistory }
+        let source = try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT parts_json FROM messages WHERE id = ? AND session_id = ?",
+            values: [.text(retainedMessageID), .text(sessionID)]) { statement in
+                guard let pointer = sqlite3_column_text(statement, 0) else { throw NivoChatMutationError.staleHistory }
+                return String(cString: pointer)
+            }
+        guard let source else { throw NivoChatMutationError.staleHistory }
+        var parts = try JSONDecoder().decode([ContentPart].self, from: Data(source.utf8))
+        if let trimmedToolUseID {
+            let indices = parts.indices.filter {
+                if case .toolUse(let tool) = parts[$0] { return tool.toolUseId == trimmedToolUseID }
+                return false
+            }
+            guard indices.count == 1, let index = indices.first else { throw NivoChatMutationError.staleHistory }
+            parts = Array(parts.prefix(index))
+        } else if let replacementParts {
+            if replacesAttachments {
+                parts.removeAll { part in
+                    if case .mediaRef = part { return true }
+                    if case .text(let text) = part { return NivoChatEditAttachments.isAttachmentText(text) }
+                    return false
                 }
-            }
-            sqlite3_finalize(bStmt)
-            // No keepCount-th row exists (session has <= keepCount rows): nothing
-            // is after the kept set, so there is nothing to delete.
-            if boundarySortOrder == nil {
-                logger.warning("[EditSync] [DeleteAfter] DONE sid=\(sessionId.prefix(8)) keepCount=\(keepCount) — session has \(beforeStats.count) rows (<= keepCount), nothing to delete")
-                return
-            }
+                parts += replacementParts
+            } else { parts = replacementParts }
         }
+        return .init(messageID: retainedMessageID, expectedJSON: source,
+            partsJSON: String(decoding: try JSONEncoder().encode(parts), as: UTF8.self), partFlags: Self.partFlags(for: parts))
+    }
 
-        // Mark deleted messages for iCloud sync removal before deleting locally.
-        let selectSql = deleteAll
-            ? "SELECT id FROM messages WHERE session_id = ?"
-            : "SELECT id FROM messages WHERE session_id = ? AND sort_order > ?"
-        var selectStmt: OpaquePointer?
-        var toDelete: [String] = []
-        if sqlite3_prepare_v2(db, selectSql, -1, &selectStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(selectStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            if let boundary = boundarySortOrder {
-                sqlite3_bind_int64(selectStmt, 2, boundary)
-            }
-            while sqlite3_step(selectStmt) == SQLITE_ROW {
-                let msgId = String(cString: sqlite3_column_text(selectStmt, 0))
-                toDelete.append(msgId)
-                markDirty(recordType: "Message", recordId: msgId, operation: "delete")
-                logger.warning("[EditSync] markDirty Message id=\(msgId.prefix(8)) op=delete — will push tombstone")
-            }
+    /// 公共改写入口也保持正文与同步队列原子提交，来源被删除时明确失败。
+    func updateMessageParts(messageId: String, parts: [ContentPart]) throws {
+        guard let db, let sessionID = try nmRemoteChatSession(recordType: "Message", id: messageId) else {
+            throw NivoChatMutationError.staleHistory
         }
-        sqlite3_finalize(selectStmt)
+        let identifiers = try NivoSQLiteWrite.readRows(db,
+            sql: "SELECT id FROM messages WHERE session_id = ? ORDER BY sort_order, created_at, id",
+            values: [.text(sessionID)]) { String(cString: sqlite3_column_text($0, 0)) }
+        let rewrite = try nmChatRewrite(sessionID: sessionID, retainedMessageID: messageId,
+            trimmedToolUseID: nil, replacementParts: parts)
+        try NivoChatMutationSQL.truncate(sessionID: sessionID, expectedIDs: identifiers,
+            retainedIDs: identifiers, rewrite: rewrite, database: db, at: Date().timeIntervalSince1970) {
+                try nmMarkDirtyStrict(recordType: $0, recordID: $1, operation: $2)
+            }
+        nmChatMutationCommitted(sessionID: sessionID)
+    }
 
-        let sql = deleteAll
-            ? "DELETE FROM messages WHERE session_id = ?"
-            : "DELETE FROM messages WHERE session_id = ? AND sort_order > ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            if let boundary = boundarySortOrder {
-                sqlite3_bind_int64(stmt, 2, boundary)
-            }
-            sqlite3_step(stmt)
-        }
-        let deletedRows = Int(sqlite3_changes(db))
-        sqlite3_finalize(stmt)
-
-        let afterStats = sessionWriteStats(sessionId: sessionId)
-        let boundaryDesc = deleteAll ? "ALL" : String(boundarySortOrder ?? -1)
-        logger.warning("[EditSync] [DeleteAfter] DONE sid=\(sessionId.prefix(8)) keepCount=\(keepCount) boundarySortOrder=\(boundaryDesc) deletedRows=\(deletedRows) toDeleteMarked=\(toDelete.count) — after: count=\(afterStats.count) maxSortOrder=\(afterStats.maxSortOrder)")
-        if deletedRows > 0 {
-            let idSample = toDelete.prefix(10).map { String($0.prefix(8)) }.joined(separator: ",")
-            logger.warning("[EditSync] [DeleteAfter] deleted msg ids (first 10): \(idSample) — these tombstones should appear in next SyncCore outbound batch.deletes")
-        }
+    /// 缓存和教练来源通知仅在持久化成功后发布。
+    private func nmChatMutationCommitted(sessionID: String) {
+        invalidateSessionListCache()
+        nmScheduleStrictSync()
+        NotificationCenter.default.post(name: .nivoCoachSourcesChanged, object: sessionID)
     }
 
     // MARK: - Media File Management
@@ -3342,48 +3271,19 @@ actor ChatStore {
         return marker
     }
 
-    /// Merge a remote compact marker into local DB.
-    /// Phase A: createdAt-based UPSERT — remote newer wins, otherwise keep local.
-    /// This lets newer builds propagate upgraded boundary fields to older remote markers.
-    func mergeRemoteCompactMarker(_ marker: CompactMarker) {
-        // [T-icloud-record-delete-resurrection] A marker we just deleted
-        // locally (revertCompact) coming back via fetchRecentV2 before the
-        // cloud delete lands must not be re-inserted. Markers are immutable,
-        // so createdAt is their only clock.
-        if isRecentlyDeletedRecord(type: "CompactMarker", id: marker.id, remoteUpdatedAt: marker.createdAt) {
-            iCloudLogger.info("[iCloud] mergeRemoteCompactMarker SKIP (recently deleted locally): id=\(marker.id.prefix(8))")
-            return
-        }
-        // Only merge if the session exists locally
-        let checkSql = "SELECT id FROM sessions WHERE id = ?"
-        var checkStmt: OpaquePointer?
-        var sessionExists = false
-        if sqlite3_prepare_v2(db, checkSql, -1, &checkStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(checkStmt, 1, (marker.sessionId as NSString).utf8String, -1, nil)
-            sessionExists = sqlite3_step(checkStmt) == SQLITE_ROW
-        }
-        sqlite3_finalize(checkStmt)
-        guard sessionExists else { return }
-
-        // If local already has this marker id, only overwrite when remote is strictly newer.
-        if let existing = getCompactMarker(id: marker.id) {
-            guard marker.createdAt > existing.createdAt else {
-                iCloudLogger.info("[iCloud] mergeRemoteCompactMarker SKIP (local newer or equal): id=\(marker.id.prefix(8))")
-                return
-            }
-            // DELETE existing row so the subsequent insertCompactMarker can re-insert
-            // with all columns (including legacy migrations) in one place.
-            let delSql = "DELETE FROM compact_markers WHERE id = ?"
-            var delStmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, delSql, -1, &delStmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(delStmt, 1, (marker.id as NSString).utf8String, -1, nil)
-                sqlite3_step(delStmt)
-            }
-            sqlite3_finalize(delStmt)
-            iCloudLogger.info("[iCloud] mergeRemoteCompactMarker UPDATE (remote newer): id=\(marker.id.prefix(8))")
-        }
-
-        insertCompactMarker(marker)
+    // nanoMuse: 入站摘要不先删原件，也不调用会再次排队同步的本机插入入口。
+    /// 保留旧摘要直到新正文和边界提交成功，失败由接收游标重放。
+    func mergeRemoteCompactMarker(_ marker: CompactMarker) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        guard !SessionActivityTracker.isActiveThreadSafe(marker.sessionId) else { throw NivoChatAccessError.busy }
+        let row = NivoCloudChatSQL.Marker(id: marker.id, sessionID: marker.sessionId, summary: marker.summary,
+            firstKeptSortOrder: marker.firstKeptSortOrder, compactedCount: marker.compactedCount,
+            createdAt: marker.createdAt.timeIntervalSince1970, uiBoundarySortOrder: marker.uiBoundarySortOrder,
+            boundaryMessageID: marker.boundaryMessageId, firstKeptMessageID: marker.firstKeptMessageId,
+            lastCompactedMessageID: marker.lastCompactedMessageId, version: marker.version)
+        guard try NivoCloudChatSQL.mergeMarker(row, database: db) else { return }
+        invalidateSessionListCache()
+        Task { @MainActor in ViewModelCache.shared.markStale(sessionId: marker.sessionId) }
     }
 
     /// Extra session fields for iCloud sync (memory_enabled, model_binding).
@@ -3762,13 +3662,16 @@ actor ChatStore {
         return marker
     }
 
-    /// Delete a single compact marker by id (for revert-compact). Marks dirty
-    /// for iCloud sync so the deletion propagates. Returns true if a row was
-    /// actually deleted.
-    @discardableResult
-    func deleteCompactMarker(id: String) -> Bool {
-        markDirty(recordType: "CompactMarker", recordId: id, operation: "delete")
-        return deleteLocalCompactMarker(id: id)
+    // nanoMuse: 仅撤销仍是最新的指定摘要，正文、删除证据和远端队列保持原子性。
+    /// 写入或来源校验失败时抛错，调用方必须保留已有摘要界面。
+    func deleteCompactMarker(id: String, sessionID: String) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoChatMutationSQL.revertMarker(id: id, sessionID: sessionID, database: db,
+            at: Date().timeIntervalSince1970) {
+                try nmMarkDirtyStrict(recordType: $0, recordID: $1, operation: $2)
+            }
+        nmChatMutationCommitted(sessionID: sessionID)
     }
 
     /// Local-only marker deletion — does NOT enqueue a cloud tombstone. Used
@@ -4880,6 +4783,7 @@ extension RawMessage {
         }
 
         let msg = ChatMessage(role: uiRole, content: textContent, blocks: blocks)
+        msg.nmSourceMessageIDs = [id] // nanoMuse: 原消息导航使用真实行ID，不把它误当界面UUID。
         // Deduplicate attachments by path
         var seenPaths = Set<String>()
         msg.attachments = userAttachments.filter { seenPaths.insert($0.path).inserted }
@@ -5540,45 +5444,35 @@ extension ChatStore {
         scanAndMarkSessionFiles(sessionId: sessionId)
     }
 
-    /// Backfill: merge all remote_sessions and remote_messages into local tables.
-    /// Called after code change that introduced mergeRemoteSession, to retroactively merge
-    /// data that was fetched before the merge logic existed.
-    func backfillRemoteToLocal() {
-        iCloudLogger.info("[iCloud] backfillRemoteToLocal: starting")
-        // 1. Merge remote sessions that don't exist locally
-        let sCount = execCount("""
-            INSERT OR IGNORE INTO sessions (id, title, category, model_id, created_at, updated_at, remote_origin_device_id)
-            SELECT rs.id, rs.title, rs.category, rs.model_id, rs.created_at, rs.updated_at, rs.device_id
-            FROM remote_sessions rs
-            WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = rs.id)
-        """)
-        iCloudLogger.info("[iCloud] backfillRemoteToLocal: inserted \(sCount) sessions")
-
-        // 2. Merge remote messages into local messages for sessions that exist locally
-        // [T-ios-listsessions-part-flags] compute the bitmask inline so remote-
-        // inserted rows carry correct flags (never left at DEFAULT 0).
-        let mCount = execCount("""
-            INSERT OR IGNORE INTO messages (id, session_id, role, parts_json, created_at, token_usage, sort_order, reasoning_content, stream_interrupt_count, updated_at, part_flags)
-            SELECT rm.id, rm.session_id, rm.role, rm.parts_json, rm.created_at, rm.token_usage, rm.sort_order, rm.reasoning_content, rm.stream_interrupt_count, rm.created_at, \(Self.partFlagsSQLExpr("rm.parts_json"))
-            FROM remote_messages rm
-            WHERE EXISTS (SELECT 1 FROM sessions s WHERE s.id = rm.session_id)
-              AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.id = rm.id)
-        """)
-        iCloudLogger.info("[iCloud] backfillRemoteToLocal: inserted \(mCount) messages")
-
-        iCloudLogger.info("[iCloud] backfillRemoteToLocal: done")
+    // nanoMuse: 旧回填的吞错计数和UserDefaults标记改为同库事务，损坏数据不提前确认完成。
+    /// 供同步宿主提前锁定目标聊天，旧成功标记不代表当前数据库已完成迁移。
+    func nmLegacyBackfillSessionIDs() throws -> Set<String> {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        return try NivoCloudLegacyBackfill.pendingSessionIDs(database: db)
     }
 
-    /// Execute SQL and return number of changes. Returns 0 on error.
-    private func execCount(_ sql: String) -> Int {
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_step(stmt)
-            sqlite3_finalize(stmt)
-            return Int(sqlite3_changes(db))
+    /// 全部数据和迁移标记共同提交；真实正文解码失败不导入空消息或伪造教练证据。
+    @discardableResult
+    func backfillRemoteToLocal(expectedSessionIDs: Set<String>) throws -> NivoCloudLegacyBackfill.Result {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        guard !expectedSessionIDs.contains(where: { SessionActivityTracker.isActiveThreadSafe($0) }) else {
+            throw NivoChatAccessError.busy
         }
-        sqlite3_finalize(stmt)
-        return 0
+        let result = try NivoCloudLegacyBackfill.run(database: db, expectedSessionIDs: expectedSessionIDs) { role, body, usage in
+            guard MessageRole(rawValue: role) != nil else { throw NivoCloudChatSQLError.invalidRecord }
+            let parts = try JSONDecoder().decode([ContentPart].self, from: Data(body.utf8))
+            if let usage { _ = try JSONDecoder().decode(StoredTokenUsage.self, from: Data(usage.utf8)) }
+            return Self.partFlags(for: parts)
+        }
+        guard result.sessions > 0 || result.messages > 0 else { return result }
+        invalidateSessionListCache()
+        NotificationCenter.default.post(name: .nivoCoachSourcesChanged, object: nil)
+        Task { @MainActor in
+            for identifier in expectedSessionIDs { ViewModelCache.shared.markStale(sessionId: identifier) }
+            NotificationCenter.default.post(name: .cloudSyncDidFetchChanges, object: nil)
+        }
+        iCloudLogger.info("[iCloud] reference backfill committed: sessions=\(result.sessions) messages=\(result.messages)")
+        return result
     }
 
     /// Mark a session as successfully synced to iCloud.
@@ -5799,120 +5693,113 @@ extension ChatStore {
         case failed(String)
     }
 
-    /// Reconcile a session against cloud truth.
-    ///
-    /// New (safe) flow:
-    ///   1. Pull from cloud first — does NOT touch local rows yet.
-    ///   2. If cloud returned 0 records → bail out, keep local intact,
-    ///      surface .cloudEmpty so the UI can warn the user that there
-    ///      is no remote copy to fall back to (avoids the "Force Pull
-    ///      silently wipes everything" footgun).
-    ///   3. If cloud returned ≥1 record → only NOW wipe local rows +
-    ///      clear dirty/pushed bookkeeping, then re-emit the cached cloud
-    ///      portables through the inbound path so they land in SQLite.
-    ///
-    /// This means the pull network round-trip happens with local
-    /// untouched, and the swap is committed atomically only after we
-    /// know cloud has something to give us.
+    // nanoMuse: 会话占位贯穿拉取和原子替换，禁止清空后异步排队假报成功。
+    /// 只有云端全部分页成功且可解码时才替换消息，失败保留本机原件。
     func forcePullSession(sessionId: String) async -> ForcePullOutcome {
+        let token: UUID
+        do { token = try await MainActor.run { try NivoChatAccountAccess.beginConversationEdit([sessionId]) } }
+        catch { return .failed(error.localizedDescription) }
+        let outcome: ForcePullOutcome
+        do {
+            guard try nmRemoteChatSession(recordType: "SessionV2", id: sessionId) == sessionId else {
+                throw NivoLifeError.operationConflict
+            }
+            if #available(iOS 17.0, *) {
+                let result = await SyncCore.shared.fetchSessionPortables(sessionId: sessionId)
+                if let error = result.1 { throw error }
+                try Task.checkCancellation()
+                if result.0.isEmpty { outcome = .cloudEmpty }
+                else {
+                    let snapshot = try NivoCloudSessionSnapshot(sessionID: sessionId, records: result.0)
+                    let replaced = try nmReplaceCloudSession(snapshot)
+                    outcome = .applied(pulledFromCloud: snapshot.recordCount, localDeleted: replaced)
+                }
+            } else {
+                outcome = .failed(AppLocalized("Force Pull requires iOS 17 or newer."))
+            }
+        } catch { outcome = .failed(error.localizedDescription) }
+        await MainActor.run { NivoScheduledRunScopes.shared.endConversationEdit(token) }
+        return outcome
+    }
+
+    // nanoMuse: 此同步actor方法内部不await，删除、插入和同步账目清理属于同一SQLite事务。
+    /// 故障注入测试直接进入生产事务；界面调用者须先持有会话编辑占位。
+    func nmReplaceCloudSession(_ snapshot: NivoCloudSessionSnapshot) throws -> Int {
+        guard sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        var isCommitted = false
+        defer { if !isCommitted { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
+        guard try nmRemoteChatSession(recordType: "SessionV2", id: snapshot.sessionID) == snapshot.sessionID else {
+            throw NivoLifeError.operationConflict
+        }
+        let localMessages = try nmBranchRows(snapshot.sessionID)
+        let localByID = Dictionary(uniqueKeysWithValues: localMessages.map { ($0.id, $0) })
+        for message in snapshot.messages {
+            try nmRequirePullOwnership(type: "MessageV2", id: message.value.id, sessionID: snapshot.sessionID)
+        }
+        for marker in snapshot.markers {
+            try nmRequirePullOwnership(type: "CompactMarkerV2", id: marker.id, sessionID: snapshot.sessionID)
+        }
+        // 同步账目在原行仍存在时按会话清理，事务失败会与消息一起回滚。
+        try nmClearPullBookkeeping(sessionID: snapshot.sessionID)
+        try nmExecuteWrite("DELETE FROM messages WHERE session_id = ?", values: [.text(snapshot.sessionID)])
+        var deleted = Int(sqlite3_changes(db))
+        try nmExecuteWrite("DELETE FROM compact_markers WHERE session_id = ?", values: [.text(snapshot.sessionID)])
+        deleted += Int(sqlite3_changes(db))
+        for (order, message) in snapshot.messages.enumerated() {
+            try nmInsertPulledMessage(message, order: order, local: localByID[message.value.id])
+        }
+        for marker in snapshot.markers { try nmInsertPulledMarker(marker, messages: snapshot.messages) }
+        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        isCommitted = true
         invalidateSessionListCache()
-        iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) START — pulling cloud first, local untouched")
+        NotificationCenter.default.post(name: .sessionDidUpdate, object: snapshot.sessionID)
+        return deleted
+    }
 
-        // 1. Cloud first (no local mutation yet). Returns the portables
-        //    so we can replay them after the swap. If the transport
-        //    can't be reached we treat it as a hard failure rather than
-        //    "empty cloud" so the caller can distinguish.
-        let pullResult: ([PortableRecord], Error?)
-        if #available(iOS 17.0, *) {
-            pullResult = await SyncCore.shared.fetchSessionPortables(sessionId: sessionId)
-        } else {
-            iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) iOS < 17 — pull unavailable")
-            return .failed(AppLocalized("Force Pull requires iOS 17 or newer."))
+    private func nmRequirePullOwnership(type: String, id: String, sessionID: String) throws {
+        if let owner = try nmRemoteChatSession(recordType: type, id: id), owner != sessionID {
+            throw NivoLifeError.operationConflict
         }
-        let portables = pullResult.0
-        if let err = pullResult.1 {
-            iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) transport err: \(err.localizedDescription) — keeping local intact")
-            return .failed(err.localizedDescription)
-        }
-        if portables.isEmpty {
-            iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) cloud returned 0 records — keeping local intact")
-            return .cloudEmpty
-        }
-        iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) cloud returned \(portables.count) records — committing swap")
+    }
 
-        // 2. Now safe to swap. Collect ids for bookkeeping cleanup.
-        var messageIds: [String] = []
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT id FROM messages WHERE session_id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                messageIds.append(String(cString: sqlite3_column_text(stmt, 0)))
-            }
+    private func nmClearPullBookkeeping(sessionID: String) throws {
+        for (type, table) in [("Message", "messages"), ("CompactMarker", "compact_markers")] {
+            try nmExecuteWrite("DELETE FROM sync_dirty_records WHERE record_type IN (?, ?) AND record_id IN (SELECT id FROM \(table) WHERE session_id = ?)",
+                values: [.text(type), .text(type + "V2"), .text(sessionID)])
+            try nmExecuteWrite("DELETE FROM sync_pushed_records WHERE record_name IN (SELECT ? || ':' || id FROM \(table) WHERE session_id = ?) OR record_name IN (SELECT ? || ':' || id FROM \(table) WHERE session_id = ?)",
+                values: [.text(type), .text(sessionID), .text(type + "V2"), .text(sessionID)])
         }
-        sqlite3_finalize(stmt)
-        var markerIds: [String] = []
-        var mStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT id FROM compact_markers WHERE session_id = ?", -1, &mStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(mStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            while sqlite3_step(mStmt) == SQLITE_ROW {
-                markerIds.append(String(cString: sqlite3_column_text(mStmt, 0)))
-            }
-        }
-        sqlite3_finalize(mStmt)
+    }
 
-        // 3. Hard-delete local rows (cloud truth will be replayed below).
-        var locallyDeleted = 0
-        var dStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "DELETE FROM messages WHERE session_id = ?", -1, &dStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(dStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            sqlite3_step(dStmt)
-            locallyDeleted += Int(sqlite3_changes(db))
-        }
-        sqlite3_finalize(dStmt)
-        var dmStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "DELETE FROM compact_markers WHERE session_id = ?", -1, &dmStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(dmStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            sqlite3_step(dmStmt)
-            locallyDeleted += Int(sqlite3_changes(db))
-        }
-        sqlite3_finalize(dmStmt)
+    private func nmInsertPulledMessage(_ row: NivoCloudSessionSnapshot.Message, order: Int, local: RawMessage?) throws {
+        let message = row.value
+        try nmExecuteWrite("""
+            INSERT INTO messages (id, session_id, role, parts_json, created_at, token_usage, sort_order,
+                reasoning_content, stream_interrupt_count, updated_at, part_flags, error_info,
+                model_id, model_display_name, provider_type, provider_instance_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, values: [.text(message.id), .text(message.sessionId), .text(message.role.rawValue), .text(row.partsJSON),
+                .real(message.createdAt.timeIntervalSince1970), .text(row.usageJSON), .integer(Int64(order)),
+                .text(message.reasoningContent), .integer(Int64(message.streamInterruptCount)), .real(row.updatedAt.timeIntervalSince1970),
+                .integer(Int64(Self.partFlags(for: message.parts))), .text(local?.errorInfo),
+                .text(message.modelId ?? local?.modelId), .text(message.modelDisplayName ?? local?.modelDisplayName),
+                .text(message.providerType ?? local?.providerType), .text(message.providerInstanceId ?? local?.providerInstanceId)])
+    }
 
-        // 4. Clear sync_dirty_records and sync_pushed_records so the
-        // replay treats incoming portables as fresh, and so we don't
-        // immediately re-push stale rows.
-        for id in messageIds {
-            clearDirtyRecord(recordName: "Message:\(id)")
-        }
-        for id in markerIds {
-            clearDirtyRecord(recordName: "CompactMarker:\(id)")
-        }
-        clearDirtyRecord(recordName: "Session:\(sessionId)")
-
-        var pushedClearStmt: OpaquePointer?
-        let clearPushedSQL = "DELETE FROM sync_pushed_records WHERE record_name = ?"
-        if sqlite3_prepare_v2(db, clearPushedSQL, -1, &pushedClearStmt, nil) == SQLITE_OK {
-            for id in messageIds {
-                sqlite3_bind_text(pushedClearStmt, 1, ("Message:\(id)" as NSString).utf8String, -1, nil)
-                sqlite3_step(pushedClearStmt)
-                sqlite3_reset(pushedClearStmt)
-            }
-            for id in markerIds {
-                sqlite3_bind_text(pushedClearStmt, 1, ("CompactMarker:\(id)" as NSString).utf8String, -1, nil)
-                sqlite3_step(pushedClearStmt)
-                sqlite3_reset(pushedClearStmt)
-            }
-            sqlite3_bind_text(pushedClearStmt, 1, ("Session:\(sessionId)" as NSString).utf8String, -1, nil)
-            sqlite3_step(pushedClearStmt)
-        }
-        sqlite3_finalize(pushedClearStmt)
-
-        iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) local cleared: messages=\(messageIds.count) markers=\(markerIds.count) deletedRows=\(locallyDeleted)")
-
-        // 5. Replay cloud portables through SyncCore (same path normal
-        // inbound traffic uses, so hydrators land them in SQLite).
-        await SyncCore.shared.applyPortables(portables, transportName: "ForcePull")
-        iCloudLogger.warning("[ForcePull] sid=\(sessionId.prefix(8)) DONE pulled=\(portables.count) localDeleted=\(locallyDeleted)")
-        return .applied(pulledFromCloud: portables.count, localDeleted: locallyDeleted)
+    private func nmInsertPulledMarker(_ marker: CompactMarker, messages: [NivoCloudSessionSnapshot.Message]) throws {
+        let firstID = marker.firstKeptMessageId ?? marker.boundaryMessageId
+        let first = messages.firstIndex { $0.value.id == firstID }
+            ?? messages.firstIndex { $0.value.sortOrder == marker.firstKeptSortOrder }
+            ?? marker.firstKeptSortOrder
+        let boundary = marker.uiBoundarySortOrder.flatMap { old in messages.firstIndex { $0.value.sortOrder == old } }
+        try nmExecuteWrite("""
+            INSERT INTO compact_markers (id, session_id, summary, first_kept_sort_order, compacted_count,
+                created_at, ui_boundary_sort_order, boundary_message_id, first_kept_message_id, last_compacted_message_id, version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, values: [.text(marker.id), .text(marker.sessionId), .text(marker.summary), .integer(Int64(first)),
+                .integer(Int64(marker.compactedCount)), .real(marker.createdAt.timeIntervalSince1970),
+                boundary.map { .integer(Int64($0)) } ?? .text(nil), .text(marker.boundaryMessageId),
+                .text(marker.firstKeptMessageId), .text(marker.lastCompactedMessageId), .integer(Int64(marker.version))])
     }
 
     /// Drop all priority=1 dirty rows (migration backlog). Used by Cancel
@@ -6088,244 +5975,78 @@ extension ChatStore {
 
     // MARK: - Remote Session CRUD
 
-    func upsertRemoteSession(_ session: ChatSession, deviceId: String) {
-        iCloudLogger.info("[iCloud] upsertRemoteSession: id=\(session.id) title=\(session.title ?? "nil") deviceId=\(deviceId) model=\(session.modelId)")
-        let sql = """
-            INSERT OR REPLACE INTO remote_sessions (id, device_id, title, category, model_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (session.id as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 2, (deviceId as NSString).utf8String, -1, nil)
-            bindOptionalText(stmt, index: 3, value: session.title)
-            bindOptionalText(stmt, index: 4, value: session.category)
-            sqlite3_bind_text(stmt, 5, (session.modelId as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(stmt, 6, session.createdAt.timeIntervalSince1970)
-            sqlite3_bind_double(stmt, 7, session.updatedAt.timeIntervalSince1970)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
+    // nanoMuse: 附件接收使用严格读取，不能因数据库失败复活已删除会话的文件。
+    /// 由持有会话占位的同步入口在文件安装前检查删除版本。
+    func nmRemoteSessionFileIsDeleted(sessionID: String, updatedAt: Date) throws -> Bool {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        return try NivoCloudSessionSQL.isSessionDeleted(id: sessionID,
+            updatedAt: updatedAt.timeIntervalSince1970, database: db)
     }
 
-    /// Merge a remote session into local sessions table (last-write-wins).
-    /// If local doesn't have this session → insert with remote_origin_device_id.
-    /// If local has it but remote updated_at is newer → update title/category/updated_at.
-    /// If local has it and is newer → skip.
-    /// Merge a remote session into local sessions table.
-    /// - `remotePinnedAtRaw`: The raw pinnedAt Date from CKRecord. nil = old device (field absent),
-    ///   epoch 0 = explicitly unpinned, positive = pinned timestamp.
-    /// - `remoteHasFolderField`: whether the inbound record carried the
-    ///   folderId key AT ALL. Old-build peers omit it entirely; for them the
-    ///   local folder assignment must be preserved, whereas a new-build peer
-    ///   sending an explicit nil means "ungrouped on that device" and, when
-    ///   remote is newer, that wins (folder_id rides the session's LWW).
-    func mergeRemoteSession(_ session: ChatSession, fromDeviceId: String, memoryEnabled: Bool = true, modelBinding: String? = nil, remotePinnedAtRaw: Date? = nil, remoteFolderId: String? = nil, remoteHasFolderField: Bool = false) {
+    // nanoMuse: 参考副本失败同样向接收层传播，不让后续重放读到虚假的已同步状态。
+    /// 只更新不旧于本机的旧协议参考记录，不使用会触发删除的REPLACE。
+    func upsertRemoteSession(_ session: ChatSession, deviceId: String) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        try NivoCloudSessionSQL.mergeReference(nmCloudSession(session, deviceID: deviceId), database: db)
+    }
+
+    // nanoMuse: 元数据与旧消息补入原子提交，缓存和通知只在实际提交后更新。
+    /// 合并远端会话，保留旧客户端没有提供的分组信息及既有置顶冲突规则。
+    func mergeRemoteSession(_ session: ChatSession, fromDeviceId: String, memoryEnabled: Bool = true,
+                            modelBinding: String? = nil, remotePinnedAtRaw: Date? = nil,
+                            remoteFolderId: String? = nil, remoteHasFolderField: Bool = false) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        guard !SessionActivityTracker.isActiveThreadSafe(session.id) else { throw NivoChatAccessError.busy }
+        let input = nmCloudSession(session, deviceID: fromDeviceId, memoryEnabled: memoryEnabled,
+            modelBinding: modelBinding, pin: remotePinnedAtRaw, folderID: remoteFolderId,
+            hasFolderField: remoteHasFolderField)
+        let pending = try nmRemoteBackfill(sessionID: session.id, database: db)
+        let result = try NivoCloudSessionSQL.merge(input, backfill: pending, database: db)
+        guard result != .unchanged else { return }
         invalidateSessionListCache()
-        // Check if local session exists and its updated_at + pinned_at
-        var localUpdatedAt: Double?
-        var localPinnedAt: Double?
-        var localFolderId: String?
-        let checkSql = "SELECT updated_at, pinned_at, folder_id FROM sessions WHERE id = ?"
-        var checkStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, checkSql, -1, &checkStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(checkStmt, 1, (session.id as NSString).utf8String, -1, nil)
-            if sqlite3_step(checkStmt) == SQLITE_ROW {
-                localUpdatedAt = sqlite3_column_double(checkStmt, 0)
-                if sqlite3_column_type(checkStmt, 1) != SQLITE_NULL {
-                    localPinnedAt = sqlite3_column_double(checkStmt, 1)
-                }
-                localFolderId = sqlite3_column_text(checkStmt, 2).map { String(cString: $0) }
-            }
-        }
-        sqlite3_finalize(checkStmt)
+        NotificationCenter.default.post(name: result == .inserted ? .sessionDidCreate : .sessionDidUpdate, object: session.id)
+        NotificationCenter.default.post(name: .nivoCoachSourcesChanged, object: session.id)
+        Task { @MainActor in ViewModelCache.shared.markStale(sessionId: session.id) }
+    }
 
-        let remoteUpdated = session.updatedAt.timeIntervalSince1970
+    private func nmCloudSession(_ session: ChatSession, deviceID: String, memoryEnabled: Bool = true,
+                                modelBinding: String? = nil, pin: Date? = nil, folderID: String? = nil,
+                                hasFolderField: Bool = false) -> NivoCloudSessionSQL.Session {
+        .init(id: session.id, title: session.title, category: session.category, modelID: session.modelId,
+            createdAt: session.createdAt.timeIntervalSince1970, updatedAt: session.updatedAt.timeIntervalSince1970,
+            sourceDeviceID: deviceID, memoryEnabled: memoryEnabled, modelBinding: modelBinding,
+            rawPinnedAt: pin?.timeIntervalSince1970, folderID: folderID, hasFolderField: hasFolderField)
+    }
 
-        // Resolve pinned_at merge:
-        // - remotePinnedAtRaw == nil → old device, don't touch local pin state
-        // - remotePinnedAtRaw == epoch 0 → explicit unpin from remote
-        // - remotePinnedAtRaw > 0 → pin from remote
-        // Rule: most recent pin/unpin wins (by timestamp). If remote has no pin info, keep local.
-        let resolvedPinnedAt: Double? = {
-            guard let rawDate = remotePinnedAtRaw else {
-                // Old device didn't send pinnedAt — preserve local state
-                return localPinnedAt
-            }
-            let remoteTs = rawDate.timeIntervalSince1970
-            if remoteTs <= 0 {
-                // Remote explicitly unpinned
-                if let localTs = localPinnedAt {
-                    // Local is pinned — keep local pin (local action is more recent if user pinned locally)
-                    // We can't know which is newer without a dedicated pin_updated_at, so keep local pin
-                    // to avoid accidental unpin from stale remote state
-                    return localTs
+    /// 只补入本会话尚未拥有的消息；相同ID被另一会话使用时由事务拒绝。
+    private func nmRemoteBackfill(sessionID: String, database: OpaquePointer) throws -> [NivoCloudChatSQL.Message] {
+        // nanoMuse: 参考副本保留修改版本，多设备按最新正文补入，兼容旧库缺少版本列。
+        try NivoCloudReferenceSQL.prepare(database: database)
+        return try NivoSQLiteWrite.readRows(database, sql: """
+            SELECT rm.id, rm.role, rm.parts_json, rm.created_at, rm.token_usage,
+                rm.reasoning_content, rm.stream_interrupt_count, COALESCE(rm.updated_at, rm.created_at)
+            FROM remote_messages rm WHERE rm.session_id = ?
+                AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.id = rm.id AND m.session_id = rm.session_id)
+            ORDER BY rm.id, COALESCE(rm.updated_at, rm.created_at) DESC, rm.device_id
+            """, values: [.text(sessionID)]) { statement -> NivoCloudChatSQL.Message? in
+                guard let identifier = Self.colTextOpt(statement, 0),
+                      sqlite3_column_type(statement, 3) != SQLITE_NULL else {
+                    throw NivoCloudChatSQLError.invalidRecord
                 }
-                return nil // both unpinned
-            } else {
-                // Remote is pinned
-                if let localTs = localPinnedAt {
-                    // Both pinned — keep the more recent pin timestamp
-                    return max(remoteTs, localTs)
-                }
-                // Local not pinned, remote is pinned — adopt remote pin
-                return remoteTs
-            }
-        }()
-
-        if let localTs = localUpdatedAt {
-            // Local exists — only update title/category/etc if remote is newer
-            if remoteUpdated > localTs {
-                iCloudLogger.info("[iCloud] mergeRemoteSession UPDATE (remote newer): id=\(session.id) remoteTs=\(remoteUpdated) localTs=\(localTs)")
-                // folder_id is written ONLY when the peer's record carried
-                // the field — an old build's record omitting it must not wipe
-                // a local folder assignment (same tolerance pinnedAt got).
-                let sql = remoteHasFolderField
-                    ? "UPDATE sessions SET title = ?, category = ?, updated_at = ?, memory_enabled = ?, model_binding = ?, pinned_at = ?, folder_id = ? WHERE id = ?"
-                    : "UPDATE sessions SET title = ?, category = ?, updated_at = ?, memory_enabled = ?, model_binding = ?, pinned_at = ? WHERE id = ?"
-                var stmt: OpaquePointer?
-                if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                    bindOptionalText(stmt, index: 1, value: session.title)
-                    bindOptionalText(stmt, index: 2, value: session.category)
-                    sqlite3_bind_double(stmt, 3, remoteUpdated)
-                    sqlite3_bind_int(stmt, 4, memoryEnabled ? 1 : 0)
-                    bindOptionalText(stmt, index: 5, value: modelBinding)
-                    if let pinTs = resolvedPinnedAt {
-                        sqlite3_bind_double(stmt, 6, pinTs)
-                    } else {
-                        sqlite3_bind_null(stmt, 6)
-                    }
-                    if remoteHasFolderField {
-                        bindOptionalText(stmt, index: 7, value: remoteFolderId)
-                        sqlite3_bind_text(stmt, 8, (session.id as NSString).utf8String, -1, nil)
-                    } else {
-                        sqlite3_bind_text(stmt, 7, (session.id as NSString).utf8String, -1, nil)
-                    }
-                    sqlite3_step(stmt)
-                }
-                sqlite3_finalize(stmt)
-                // Wake the home list. ContentView observes
-                // .sessionDidUpdate (debounce 3s — fine for title/pin
-                // edits arriving from a peer). Without this post a
-                // remote-newer merge silently updated SQLite while the
-                // list kept showing the stale snapshot until the user
-                // backgrounded the app or pulled-to-refresh
-                // (T-inbound-session-no-refresh).
-                NotificationCenter.default.post(name: .sessionDidUpdate, object: session.id)
-            } else {
-                let delta = localTs - remoteUpdated
-                iCloudLogger.info("[iCloud] mergeRemoteSession SKIP (local newer): id=\(session.id) localTs=\(localTs) remoteTs=\(remoteUpdated) delta=\(String(format: "%+.3f", delta))s from=\(fromDeviceId)")
-                if remoteUpdated > localTs {
-                    iCloudLogger.warning("[iCloud] mergeRemoteSession SKIP despite remote-newer: id=\(session.id) localTs=\(localTs) remoteTs=\(remoteUpdated) — should not happen")
-                }
-                // Folder membership needs the same skip-branch sub-merge as
-                // pin state, and for the same root cause: filing a session
-                // does NOT bump updated_at (an organizational move must not
-                // resort the list), so a peer's folder move arrives with an
-                // unchanged session timestamp, lands in THIS branch, and
-                // would otherwise never apply anywhere.
-                //
-                // Conservative rule, mirroring the stale-unpin guard below:
-                // adopt the remote folder only when we have no local opinion
-                // (local NULL). remote-NULL-vs-local-set and set-vs-set-
-                // different keep local — without a per-field timestamp we
-                // can't rank the two writes, and this is the local-newer
-                // branch. Known accepted limitation (same class as pin's):
-                // a bare "move out of folder" with no other session activity
-                // does not propagate; the dissolve path is unaffected since
-                // it also ships a FolderV2 tombstone that clears members.
-                if remoteHasFolderField, localFolderId == nil, let remoteFid = remoteFolderId {
-                    let fSql = "UPDATE sessions SET folder_id = ? WHERE id = ? AND folder_id IS NULL"
-                    var fStmt: OpaquePointer?
-                    if sqlite3_prepare_v2(db, fSql, -1, &fStmt, nil) == SQLITE_OK {
-                        sqlite3_bind_text(fStmt, 1, (remoteFid as NSString).utf8String, -1, nil)
-                        sqlite3_bind_text(fStmt, 2, (session.id as NSString).utf8String, -1, nil)
-                        sqlite3_step(fStmt)
-                    }
-                    sqlite3_finalize(fStmt)
-                    iCloudLogger.info("[iCloud] mergeRemoteSession folder sub-merge: id=\(session.id.prefix(8)) -> folder \(remoteFid.prefix(8))")
-                    NotificationCenter.default.post(name: .sessionDidUpdate, object: session.id)
-                }
-                // Even if we skip the main update, still merge pin state if remote has pin info
-                // and the resolved pin differs from local
-                if remotePinnedAtRaw != nil, resolvedPinnedAt != localPinnedAt {
-                    let pinSql = "UPDATE sessions SET pinned_at = ? WHERE id = ?"
-                    var pinStmt: OpaquePointer?
-                    if sqlite3_prepare_v2(db, pinSql, -1, &pinStmt, nil) == SQLITE_OK {
-                        if let pinTs = resolvedPinnedAt {
-                            sqlite3_bind_double(pinStmt, 1, pinTs)
-                        } else {
-                            sqlite3_bind_null(pinStmt, 1)
-                        }
-                        sqlite3_bind_text(pinStmt, 2, (session.id as NSString).utf8String, -1, nil)
-                        sqlite3_step(pinStmt)
-                    }
-                    sqlite3_finalize(pinStmt)
-                }
-            }
-        } else {
-            // [T-icloud-deleted-session-resurrection] Refuse to resurrect a
-            // session the user just deleted locally. fetchRecentV2 can pull the
-            // still-present cloud record back before our delete tombstone lands;
-            // without this guard the session reappears (with a ☁️ remote-origin
-            // marker). Only block when the inbound record isn't newer than the
-            // deletion — a genuine newer re-create of the same id still applies.
-            if isResurrectionOfDeleted(session.id, remoteUpdatedAt: Date(timeIntervalSince1970: remoteUpdated)) {
-                iCloudLogger.info("[iCloud] mergeRemoteSession SKIP (recently deleted locally — resurrection blocked): id=\(session.id) remoteTs=\(remoteUpdated)")
-                return
-            }
-            // Local doesn't have this session — insert
-            iCloudLogger.info("[iCloud] mergeRemoteSession INSERT: id=\(session.id) title=\(session.title ?? "nil") from=\(fromDeviceId)")
-            let sql = "INSERT INTO sessions (id, title, category, model_id, created_at, updated_at, remote_origin_device_id, memory_enabled, model_binding, pinned_at, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, (session.id as NSString).utf8String, -1, nil)
-                bindOptionalText(stmt, index: 2, value: session.title)
-                bindOptionalText(stmt, index: 3, value: session.category)
-                sqlite3_bind_text(stmt, 4, (session.modelId as NSString).utf8String, -1, nil)
-                sqlite3_bind_double(stmt, 5, session.createdAt.timeIntervalSince1970)
-                sqlite3_bind_double(stmt, 6, remoteUpdated)
-                sqlite3_bind_text(stmt, 7, (fromDeviceId as NSString).utf8String, -1, nil)
-                sqlite3_bind_int(stmt, 8, memoryEnabled ? 1 : 0)
-                bindOptionalText(stmt, index: 9, value: modelBinding)
-                if let pinTs = resolvedPinnedAt {
-                    sqlite3_bind_double(stmt, 10, pinTs)
-                } else {
-                    sqlite3_bind_null(stmt, 10)
-                }
-                // A folder_id referencing a folder we don't have yet is fine —
-                // the list renders it as ungrouped until FolderV2 arrives
-                // (fetchRecentV2 ordering gives no cross-type guarantees).
-                bindOptionalText(stmt, index: 11, value: remoteHasFolderField ? remoteFolderId : nil)
-                sqlite3_step(stmt)
-            }
-            sqlite3_finalize(stmt)
-            // Brand-new remote session — post `.sessionDidCreate` so the
-            // home list reloads immediately (no debounce on this name).
-            // Matches the local-create path at AIChatViewModel.swift:4266
-            // (T-inbound-session-no-refresh).
-            NotificationCenter.default.post(name: .sessionDidCreate, object: session.id)
-        }
-
-        // Backfill: messages may have arrived before this session was merged,
-        // or the session already existed locally and remote messages were stored
-        // only in remote_messages. Always try to backfill missing messages.
-        // [T-ios-listsessions-part-flags] inline bitmask (see backfillRemoteToLocal).
-        let backfillSql = """
-            INSERT OR IGNORE INTO messages (id, session_id, role, parts_json, created_at, token_usage, sort_order, reasoning_content, stream_interrupt_count, updated_at, part_flags)
-            SELECT rm.id, rm.session_id, rm.role, rm.parts_json, rm.created_at, rm.token_usage, rm.sort_order, rm.reasoning_content, rm.stream_interrupt_count, rm.created_at, \(Self.partFlagsSQLExpr("rm.parts_json"))
-            FROM remote_messages rm WHERE rm.session_id = ? AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.id = rm.id)
-        """
-        var bfStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, backfillSql, -1, &bfStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(bfStmt, 1, (session.id as NSString).utf8String, -1, nil)
-            sqlite3_step(bfStmt)
-        }
-        sqlite3_finalize(bfStmt)
-        let backfilled = sqlite3_changes(db)
-        if backfilled > 0 {
-            iCloudLogger.info("[iCloud] mergeRemoteSession backfilled \(backfilled) messages for \(session.id)")
-        }
+                let createdAt = sqlite3_column_double(statement, 3)
+                let updatedAt = sqlite3_column_double(statement, 7)
+                if try NivoCloudChatSQL.isMessageDeleted(id: identifier, sessionID: sessionID,
+                    updatedAt: updatedAt, database: database) { return nil }
+                guard let role = Self.colTextOpt(statement, 1), MessageRole(rawValue: role) != nil,
+                      let body = Self.colTextOpt(statement, 2) else { throw NivoCloudChatSQLError.invalidRecord }
+                let parts = try JSONDecoder().decode([ContentPart].self, from: Data(body.utf8))
+                let usage = Self.colTextOpt(statement, 4)
+                if let usage { _ = try JSONDecoder().decode(StoredTokenUsage.self, from: Data(usage.utf8)) }
+                return NivoCloudChatSQL.Message(id: identifier, sessionID: sessionID, role: role, partsJSON: body,
+                    createdAt: createdAt, usageJSON: usage, reasoning: Self.colTextOpt(statement, 5),
+                    interruptCount: Int(sqlite3_column_int64(statement, 6)), updatedAt: updatedAt,
+                    partFlags: Self.partFlags(for: parts))
+            }.compactMap { $0 }
     }
 
     /// Delete a local session if it originated from the given device (remote deletion propagation).
@@ -6353,287 +6074,37 @@ extension ChatStore {
         sqlite3_finalize(stmt)
     }
 
-    /// Merge a remote message into local messages table if the session exists locally.
-    /// Uses conditional upsert: INSERT if new, UPDATE if remote updated_at is newer.
+    // nanoMuse: 普通消息入站也验证真实正文和会话归属，失败不能被上层标为已同步。
+    /// 合并已解码的远端消息，只有事务提交后才使页面缓存及教练证据失效。
     func mergeRemoteMessage(
         id: String, sessionId: String, role: String, partsJson: String,
         createdAt: Date, tokenUsageJson: String?, sortOrder: Int,
         reasoningContent: String?, streamInterruptCount: Int,
         updatedAt: Date? = nil,
-        // [T-token-attribution-snapshot] nil when the sending device predates
-        // these fields. nil means "the remote told us nothing", NOT "the remote
-        // says this is empty" — the UPDATE below preserves the local value in
-        // that case. See the COALESCE note there.
         modelId: String? = nil, modelDisplayName: String? = nil,
         providerType: String? = nil, providerInstanceId: String? = nil
-    ) {
+    ) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        guard !SessionActivityTracker.isActiveThreadSafe(sessionId) else { throw NivoChatAccessError.busy }
+        guard MessageRole(rawValue: role) != nil else { throw NivoCloudChatSQLError.invalidRecord }
+        let parts = try JSONDecoder().decode([ContentPart].self, from: Data(partsJson.utf8))
+        if let tokenUsageJson { _ = try JSONDecoder().decode(StoredTokenUsage.self, from: Data(tokenUsageJson.utf8)) }
+        let message = NivoCloudChatSQL.Message(id: id, sessionID: sessionId, role: role, partsJSON: partsJson,
+            createdAt: createdAt.timeIntervalSince1970, usageJSON: tokenUsageJson, reasoning: reasoningContent,
+            interruptCount: streamInterruptCount, updatedAt: (updatedAt ?? createdAt).timeIntervalSince1970,
+            partFlags: Self.partFlags(for: parts), modelID: modelId, modelName: modelDisplayName,
+            providerType: providerType, providerID: providerInstanceId)
+        guard try NivoCloudChatSQL.mergeMessage(message, database: db) else { return }
         invalidateSessionListCache()
-        // Defer merging into a session that's actively running locally. While
-        // an agent loop is streaming / running tools, the message list is
-        // volatile and locally authoritative: appends bump sort_order and
-        // updated_at every tool round. A remote message arriving mid-run (often
-        // this device's own just-pushed rows echoed back by CloudKit) would
-        // win LWW or, worse, re-rank sort_order via the insert path's shift —
-        // scrambling the running session so listSessions can't resolve its
-        // preview ("No messages yet") and stale pre-retry content reappears.
-        // CloudKit re-delivers unmerged changes on the next fetch, so skipping
-        // here is safe: the session re-syncs once the run finishes and the
-        // tracker clears. [T-sync-clobbers-running-session]
-        if SessionActivityTracker.isActiveThreadSafe(sessionId) {
-            iCloudLogger.info("[iCloud] mergeRemoteMessage DEFER (session running locally): id=\(id.prefix(8)) sid=\(sessionId.prefix(8))")
-            return
-        }
-
-        // Only merge if the session exists in local sessions table
-        let checkSql = "SELECT id FROM sessions WHERE id = ?"
-        var checkStmt: OpaquePointer?
-        var sessionExists = false
-        if sqlite3_prepare_v2(db, checkSql, -1, &checkStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(checkStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            sessionExists = sqlite3_step(checkStmt) == SQLITE_ROW
-        }
-        sqlite3_finalize(checkStmt)
-        guard sessionExists else { return }
-
-        // [T-icloud-deleted-session-resurrection] Defence in depth: even if the
-        // parent session row somehow exists, refuse to re-insert a message whose
-        // session was just deleted locally and isn't newer than the deletion —
-        // so a stale inbound message can't resurrect content under a tombstoned
-        // session. (The session guard above normally already blocks this, since
-        // a deleted session has no row.)
-        let msgUpdatedAt = updatedAt ?? createdAt
-        if isResurrectionOfDeleted(sessionId, remoteUpdatedAt: msgUpdatedAt) {
-            iCloudLogger.info("[iCloud] mergeRemoteMessage SKIP (parent session recently deleted — resurrection blocked): id=\(id.prefix(8)) sid=\(sessionId.prefix(8))")
-            return
-        }
-
-        // Effective updated_at: use provided value, or fall back to created_at
-        // (old devices don't send updated_at)
-        let effectiveUpdatedAt = (updatedAt ?? createdAt).timeIntervalSince1970
-
-        // Check if message already exists locally and its updated_at
-        var localUpdatedAt: Double?
-        let existSql = "SELECT COALESCE(updated_at, created_at) FROM messages WHERE id = ?"
-        var existStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, existSql, -1, &existStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(existStmt, 1, (id as NSString).utf8String, -1, nil)
-            if sqlite3_step(existStmt) == SQLITE_ROW {
-                localUpdatedAt = sqlite3_column_double(existStmt, 0)
-            }
-        }
-        sqlite3_finalize(existStmt)
-
-        if let localTs = localUpdatedAt {
-            // Message exists — only update if remote is strictly newer
-            guard effectiveUpdatedAt > localTs else {
-                let delta = localTs - effectiveUpdatedAt
-                // Even when LWW says skip, opportunistically heal a
-                // stale local sort_order if the remote value disagrees.
-                // Common case: a previous build pushed sortOrder=0 for
-                // every message and the receiver's collision-by-arrival
-                // path stamped them with arbitrary positions. New build
-                // pushes correct sortOrder but updatedAt is unchanged
-                // (force-sync just re-uploads the same content), so
-                // strict-newer LWW would otherwise stay forever wrong.
-                // Note: previous builds healed local sort_order from the remote integer
-                // here. That's now intentionally dropped — remote sortOrder is a
-                // best-effort hint; the receiver derives its own from (created_at, id)
-                // rank on insert, and `repairSession` fixes any rank inversions on
-                // session open. See sessionNeedsRepair / mergeRemoteMessage insert path.
-                iCloudLogger.info("[iCloud] mergeRemoteMessage SKIP (local newer): id=\(id) localTs=\(localTs) remoteTs=\(effectiveUpdatedAt) delta=\(String(format: "%+.3f", delta))s")
-                return
-            }
-            iCloudLogger.info("[iCloud] mergeRemoteMessage UPDATE (remote newer): id=\(id) remoteTs=\(effectiveUpdatedAt) localTs=\(localTs)")
-            // Don't overwrite local sort_order from remote — receivers own ordering
-            // (derived from created_at rank on insert; repaired by repairSession).
-            // [T-ios-listsessions-part-flags] recompute from the inbound JSON.
-            let partFlags = Self.partFlags(fromPartsJSON: partsJson)
-            // [T-token-attribution-snapshot] The four attribution columns use
-            // COALESCE(?, col) rather than a plain assignment.
-            //
-            // A device running an older build re-sends this message WITHOUT
-            // these fields. A plain `model_id = ?` would then bind NULL and
-            // erase a snapshot this device recorded correctly — and because
-            // conflict resolution is last-write-wins on updated_at, the older
-            // device can legitimately win. The result would be attribution that
-            // silently disappears at random, which is close to impossible to
-            // diagnose from a bug report.
-            //
-            // COALESCE encodes the real semantics: absent means "no opinion",
-            // so keep what we have. Note this is only correct for snapshot-type
-            // columns; parts_json and friends must still be overwritten, since
-            // for those an incoming value genuinely is the newer truth.
-            let updateSql = """
-                UPDATE messages SET parts_json = ?, token_usage = ?, reasoning_content = ?,
-                    stream_interrupt_count = ?, updated_at = ?, part_flags = ?,
-                    model_id = COALESCE(?, model_id),
-                    model_display_name = COALESCE(?, model_display_name),
-                    provider_type = COALESCE(?, provider_type),
-                    provider_instance_id = COALESCE(?, provider_instance_id)
-                WHERE id = ?
-            """
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, updateSql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, (partsJson as NSString).utf8String, -1, nil)
-                if let tu = tokenUsageJson { sqlite3_bind_text(stmt, 2, (tu as NSString).utf8String, -1, nil) }
-                else { sqlite3_bind_null(stmt, 2) }
-                if let r = reasoningContent { sqlite3_bind_text(stmt, 3, (r as NSString).utf8String, -1, nil) }
-                else { sqlite3_bind_null(stmt, 3) }
-                sqlite3_bind_int(stmt, 4, Int32(streamInterruptCount))
-                sqlite3_bind_double(stmt, 5, effectiveUpdatedAt)
-                sqlite3_bind_int64(stmt, 6, Int64(partFlags))
-                // 7-10 feed the COALESCE guards: binding NULL leaves the
-                // existing column untouched, which is what an older sender
-                // (who knows nothing of these fields) must not disturb.
-                bindOptionalText(stmt, index: 7, value: modelId)
-                bindOptionalText(stmt, index: 8, value: modelDisplayName)
-                bindOptionalText(stmt, index: 9, value: providerType)
-                bindOptionalText(stmt, index: 10, value: providerInstanceId)
-                sqlite3_bind_text(stmt, 11, (id as NSString).utf8String, -1, nil)
-                sqlite3_step(stmt)
-            }
-            sqlite3_finalize(stmt)
-        } else {
-            // Message doesn't exist — insert.
-            // Always derive finalSortOrder from (created_at, id) rank against
-            // existing local rows; never trust the wire integer. The remote
-            // sortOrder is a best-effort hint that's wrong whenever sender
-            // and receiver have differing message counts (sender's larger
-            // values would otherwise stick on the receiver and push synced
-            // messages past the local tail). Tiebreak by id lexicographic
-            // to match the canonical (created_at ASC, id ASC) order used by
-            // repairSession at line ~2408.
-            let createdAtTs = createdAt.timeIntervalSince1970
-            let earlierSql = """
-                SELECT COALESCE(MAX(sort_order), -1)
-                FROM messages
-                WHERE session_id = ?
-                  AND (created_at < ? OR (created_at = ? AND id < ?))
-            """
-            var earlierStmt: OpaquePointer?
-            var earlierMax: Int32 = -1
-            if sqlite3_prepare_v2(db, earlierSql, -1, &earlierStmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(earlierStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-                sqlite3_bind_double(earlierStmt, 2, createdAtTs)
-                sqlite3_bind_double(earlierStmt, 3, createdAtTs)
-                sqlite3_bind_text(earlierStmt, 4, (id as NSString).utf8String, -1, nil)
-                if sqlite3_step(earlierStmt) == SQLITE_ROW {
-                    earlierMax = sqlite3_column_int(earlierStmt, 0)
-                }
-            }
-            sqlite3_finalize(earlierStmt)
-
-            let laterSql = """
-                SELECT MIN(sort_order)
-                FROM messages
-                WHERE session_id = ?
-                  AND (created_at > ? OR (created_at = ? AND id > ?))
-            """
-            var laterStmt: OpaquePointer?
-            var hasLater = false
-            var laterMin: Int32 = 0
-            if sqlite3_prepare_v2(db, laterSql, -1, &laterStmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(laterStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-                sqlite3_bind_double(laterStmt, 2, createdAtTs)
-                sqlite3_bind_double(laterStmt, 3, createdAtTs)
-                sqlite3_bind_text(laterStmt, 4, (id as NSString).utf8String, -1, nil)
-                if sqlite3_step(laterStmt) == SQLITE_ROW {
-                    if sqlite3_column_type(laterStmt, 0) != SQLITE_NULL {
-                        hasLater = true
-                        laterMin = sqlite3_column_int(laterStmt, 0)
-                    }
-                }
-            }
-            sqlite3_finalize(laterStmt)
-
-            let finalSortOrder: Int
-            if !hasLater {
-                // Append: nothing comes after.
-                finalSortOrder = Int(earlierMax) + 1
-            } else if earlierMax + 1 < laterMin {
-                // Gap available — slot in without shifting.
-                finalSortOrder = Int(earlierMax) + 1
-            } else {
-                // Shift all later rows up by 1 to make room.
-                let shiftSql = "UPDATE messages SET sort_order = sort_order + 1 WHERE session_id = ? AND sort_order >= ?"
-                var shiftStmt: OpaquePointer?
-                if sqlite3_prepare_v2(db, shiftSql, -1, &shiftStmt, nil) == SQLITE_OK {
-                    sqlite3_bind_text(shiftStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-                    sqlite3_bind_int(shiftStmt, 2, laterMin)
-                    sqlite3_step(shiftStmt)
-                }
-                sqlite3_finalize(shiftStmt)
-                finalSortOrder = Int(laterMin)
-            }
-
-            iCloudLogger.info("[iCloud] mergeRemoteMessage INSERT: id=\(id) session=\(sessionId) sortOrder=\(finalSortOrder) (remoteHint=\(sortOrder))")
-            // [T-ios-listsessions-part-flags] recompute from the inbound JSON.
-            let partFlags = Self.partFlags(fromPartsJSON: partsJson)
-            let insertSql = """
-                INSERT INTO messages (id, session_id, role, parts_json, created_at, token_usage, sort_order, reasoning_content, stream_interrupt_count, updated_at, part_flags, model_id, model_display_name, provider_type, provider_instance_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, insertSql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-                sqlite3_bind_text(stmt, 2, (sessionId as NSString).utf8String, -1, nil)
-                sqlite3_bind_text(stmt, 3, (role as NSString).utf8String, -1, nil)
-                sqlite3_bind_text(stmt, 4, (partsJson as NSString).utf8String, -1, nil)
-                sqlite3_bind_double(stmt, 5, createdAt.timeIntervalSince1970)
-                if let tu = tokenUsageJson { sqlite3_bind_text(stmt, 6, (tu as NSString).utf8String, -1, nil) }
-                else { sqlite3_bind_null(stmt, 6) }
-                sqlite3_bind_int(stmt, 7, Int32(finalSortOrder))
-                if let r = reasoningContent { sqlite3_bind_text(stmt, 8, (r as NSString).utf8String, -1, nil) }
-                else { sqlite3_bind_null(stmt, 8) }
-                sqlite3_bind_int(stmt, 9, Int32(streamInterruptCount))
-                sqlite3_bind_double(stmt, 10, effectiveUpdatedAt)
-                sqlite3_bind_int64(stmt, 11, Int64(partFlags))
-                // [T-token-attribution-snapshot] Carried through so a message
-                // that first arrives from another device keeps the attribution
-                // that device measured. Plain binds (not COALESCE) — on INSERT
-                // there is no local value to protect.
-                bindOptionalText(stmt, index: 12, value: modelId)
-                bindOptionalText(stmt, index: 13, value: modelDisplayName)
-                bindOptionalText(stmt, index: 14, value: providerType)
-                bindOptionalText(stmt, index: 15, value: providerInstanceId)
-                sqlite3_step(stmt)
-            }
-            sqlite3_finalize(stmt)
-        }
-        // Notify the in-process ViewModel cache that this session's
-        // messages have changed via iCloud merge. The foreground-visible
-        // VM already reloads via `.cloudSyncDidFetchChanges` at the end
-        // of the batch (AIChatViewModel:666), but a cached background VM
-        // for a non-active session would otherwise render its stale
-        // messages snapshot the next time the user opens it. The flag
-        // is consumed on the next getOrCreate HIT
-        // (T-inbound-message-cached-vm-stale).
-        let sid = sessionId
-        Task { @MainActor in
-            ViewModelCache.shared.markStale(sessionId: sid)
-        }
+        NotificationCenter.default.post(name: .nivoCoachSourcesChanged, object: sessionId)
+        Task { @MainActor in ViewModelCache.shared.markStale(sessionId: sessionId) }
     }
 
-    func deleteRemoteSession(id: String, deviceId: String) {
-        // Parameterized deletes to avoid SQL injection
-        for table in ["remote_messages", "remote_media"] {
-            let sql = "DELETE FROM \(table) WHERE session_id = ? AND device_id = ?"
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-                sqlite3_bind_text(stmt, 2, (deviceId as NSString).utf8String, -1, nil)
-                sqlite3_step(stmt)
-            }
-            sqlite3_finalize(stmt)
-        }
-        let sql = "DELETE FROM remote_sessions WHERE id = ? AND device_id = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 2, (deviceId as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
+    // nanoMuse: 旧协议参考删除也必须原子完成，失败不能确认接收批次。
+    /// 保留本机聊天，仅删除来源设备对应的会话、消息和附件索引。
+    func deleteRemoteSession(id: String, deviceId: String) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        try NivoCloudReferenceSQL.deleteSession(id: id, deviceID: deviceId, database: db)
     }
 
     func listRemoteSessions(deviceId: String) -> [ChatSession] {
@@ -6667,82 +6138,53 @@ extension ChatStore {
 
     // MARK: - Remote Message CRUD
 
+    // nanoMuse: 参考消息严格验证并携带版本，正文与占位会话共同提交。
+    /// 旧库自动补列，乱序消息不覆盖较新正文，任何读取或写入错误向同步层传播。
     func upsertRemoteMessage(
         id: String, deviceId: String, sessionId: String, role: String,
         partsJson: String, createdAt: Date, tokenUsageJson: String?,
-        sortOrder: Int, reasoningContent: String?, streamInterruptCount: Int
-    ) {
-        // Create placeholder session if it doesn't exist yet — messages may arrive
-        // before the Session record on the receiving device.
-        let placeholderSQL = """
-            INSERT OR IGNORE INTO remote_sessions (id, device_id, title, category, model_id, created_at, updated_at)
-            VALUES (?, ?, NULL, NULL, 'unknown', ?, ?)
-        """
-        var pStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, placeholderSQL, -1, &pStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(pStmt, 1, (sessionId as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(pStmt, 2, (deviceId as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(pStmt, 3, createdAt.timeIntervalSince1970)
-            sqlite3_bind_double(pStmt, 4, createdAt.timeIntervalSince1970)
-            sqlite3_step(pStmt)
-        }
-        sqlite3_finalize(pStmt)
-
-        let sql = """
-            INSERT OR REPLACE INTO remote_messages
-            (id, device_id, session_id, role, parts_json, created_at, token_usage, sort_order, reasoning_content, stream_interrupt_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 2, (deviceId as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 3, (sessionId as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 4, (role as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 5, (partsJson as NSString).utf8String, -1, nil)
-            sqlite3_bind_double(stmt, 6, createdAt.timeIntervalSince1970)
-            bindOptionalText(stmt, index: 7, value: tokenUsageJson)
-            sqlite3_bind_int64(stmt, 8, Int64(sortOrder))
-            bindOptionalText(stmt, index: 9, value: reasoningContent)
-            sqlite3_bind_int64(stmt, 10, Int64(streamInterruptCount))
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
+        sortOrder: Int, reasoningContent: String?, streamInterruptCount: Int, updatedAt: Date? = nil
+    ) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        guard MessageRole(rawValue: role) != nil else { throw NivoCloudChatSQLError.invalidRecord }
+        let parts = try JSONDecoder().decode([ContentPart].self, from: Data(partsJson.utf8))
+        if let tokenUsageJson { _ = try JSONDecoder().decode(StoredTokenUsage.self, from: Data(tokenUsageJson.utf8)) }
+        let message = NivoCloudChatSQL.Message(id: id, sessionID: sessionId, role: role, partsJSON: partsJson,
+            createdAt: createdAt.timeIntervalSince1970, usageJSON: tokenUsageJson, reasoning: reasoningContent,
+            interruptCount: streamInterruptCount, updatedAt: (updatedAt ?? createdAt).timeIntervalSince1970,
+            partFlags: Self.partFlags(for: parts))
+        try NivoCloudReferenceSQL.mergeMessage(message, deviceID: deviceId, sortOrder: sortOrder, database: db)
     }
 
-    /// Delete a single message from the local messages table by its message ID.
-    /// Used when a remote device signals a message-level deletion (retry / manual delete)
-    /// that should propagate across devices.
-    func deleteLocalMessage(messageId: String) {
+    // nanoMuse: 中继双UUID形式必须核对同一会话，并共同提交删除及防复活标记。
+    /// 失败向中继分页传播，不确认消息已删除。
+    func nmDeleteRelayMessage(messageID: String, sessionID: String) throws {
+        try Task.checkCancellation()
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoChatMutationSQL.deleteRelayMessage(id: messageID, sessionID: sessionID,
+            database: db, at: Date().timeIntervalSince1970)
+        nmChatMutationCommitted(sessionID: sessionID)
+    }
+
+    // nanoMuse: 先确定当前协议和历史复合名称的真实会话来源，再取得对应编辑占位。
+    /// 同ID的本机及参考记录必须归属一致。
+    func nmLegacyMessageSession(id: String, deviceID: String) throws -> String? {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        return try NivoCloudReferenceSQL.messageSession(id: id, deviceID: deviceID, database: db)
+    }
+
+    /// 参考表、权威消息和防复活标记共同提交，不产生新的远端删除请求。
+    func nmDeleteLegacyMessage(_ identity: NivoCloudReferenceSQL.MessageIdentity, deviceID: String,
+                               expectedSessionID: String?, preservingSessions: Set<String>) throws {
+        guard let db else { throw CocoaError(.fileReadUnknown) }
+        let removed = try NivoCloudReferenceSQL.deleteMessage(identity, deviceID: deviceID,
+            expectedSessionID: expectedSessionID, preservingSessions: preservingSessions, database: db)
+        guard removed else { return }
         invalidateSessionListCache()
-        let sql = "DELETE FROM messages WHERE id = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (messageId as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
+        NotificationCenter.default.post(name: .nivoCoachSourcesChanged, object: expectedSessionID)
+        if let expectedSessionID {
+            Task { @MainActor in ViewModelCache.shared.markStale(sessionId: expectedSessionID) }
         }
-        let changes = Int(sqlite3_changes(db))
-        sqlite3_finalize(stmt)
-        if changes > 0 {
-            iCloudLogger.warning("[EditSync] [iCloud] deleteLocalMessage: removed '\(messageId.prefix(8))' from local messages (inbound tombstone applied)")
-        } else {
-            // [T-ios-log-noise-reduction] Downgraded WARN→DEBUG: a delete for a
-            // message that never landed locally (synced from another device that
-            // both created and deleted it while we were away) is the normal
-            // tombstone path, not a warning. Was ~6.4k WARN lines per batch sync.
-            iCloudLogger.debug("[EditSync] [iCloud] deleteLocalMessage: NO-OP '\(messageId.prefix(8))' — message not present locally (already gone or never arrived)")
-        }
-    }
-
-    func deleteRemoteMessage(id: String, deviceId: String) {
-        let sql = "DELETE FROM remote_messages WHERE id = ? AND device_id = ?"
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, nil)
-            sqlite3_bind_text(stmt, 2, (deviceId as NSString).utf8String, -1, nil)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
     }
 
     func loadRemoteMessages(sessionId: String, deviceId: String) -> [RawMessage] {
@@ -7109,6 +6551,514 @@ extension ChatStore {
         }
         sqlite3_finalize(stmt)
         return message
+    }
+
+    // nanoMuse: 训练来源只有事务提交成功才可报告已保存，避免旧入口吞掉INSERT或COMMIT错误。
+    /// 严格保存训练来源，异常回滚；来源行、同步标记和会话触摸在同一事务中提交。
+    func nmAppendCoachMessage(_ message: RawMessage) throws {
+        guard let db, sqlite3_get_autocommit(db) != 0 else { throw CocoaError(.fileWriteUnknown) }
+        guard try nmCoachSources(chatSessionID: message.sessionId, identifiers: []).sessionExists else {
+            throw NivoCoachConversationError.deleted
+        }
+        guard sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        var isCommitted = false
+        defer { if !isCommitted { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
+        try nmInsertCoachSource(message)
+        try nmExecuteWrite("UPDATE sessions SET updated_at = ? WHERE id = ?",
+            values: [.real(Date().timeIntervalSince1970), .text(message.sessionId)])
+        try nmMarkDirtyStrict(recordType: "Message", recordID: message.id)
+        try nmMarkDirtyStrict(recordType: "Session", recordID: message.sessionId)
+        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        isCommitted = true
+        invalidateSessionListCache()
+        pendingSyncSessionIds.insert(message.sessionId)
+        nmScheduleStrictSync()
+        NotificationCenter.default.post(name: .sessionDidUpdate, object: message.sessionId)
+    }
+
+    // nanoMuse: 脚本输出是宿主结果，不能伪装为用户原话，也不能由吞错入口宣称已保存。
+    /// 按运行身份幂等保存脚本结果，复用严格消息与会话事务。
+    func nmAppendRoutineOutput(sessionID: String, runID: String, label: String, output: String, error: String?) throws {
+        guard UUID(uuidString: runID) != nil, output.utf8.count <= NivoRoutineRunRules.maximumResultBytes else {
+            throw NivoLifeError.invalidField("script_output")
+        }
+        let identifier = NivoRoutineConversationRules.resultMessage(runID: runID)
+        let parts: [ContentPart] = [.text(label + "\n\n" + output)]
+        if let existing = try nmLoadEvidenceMessage(id: identifier) {
+            guard existing.sessionId == sessionID, existing.role == .assistant, existing.parts == parts else {
+                throw NivoLifeError.operationConflict
+            }
+            return
+        }
+        var message = RawMessage(id: identifier, sessionId: sessionID, role: .assistant, parts: parts, createdAt: Date())
+        message.modelId = "scheduled-script"
+        message.errorInfo = error
+        try nmAppendCoachMessage(message)
+    }
+
+    /// 绑定正文与模型快照，任何参数绑定或执行错误都传回外层事务。
+    private func nmInsertCoachSource(_ message: RawMessage) throws {
+        let sql = """
+            INSERT INTO messages (id, session_id, role, parts_json, created_at, token_usage, sort_order,
+                reasoning_content, stream_interrupt_count, updated_at, error_info, part_flags,
+                model_id, model_display_name, provider_type, provider_instance_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        let parts = String(decoding: try JSONEncoder().encode(message.parts), as: UTF8.self)
+        let usage = try message.tokenUsage.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
+        let fields: [(Int32, String?)] = [(1, message.id), (2, message.sessionId), (3, message.role.rawValue),
+            (4, parts), (6, usage), (8, message.reasoningContent), (11, message.errorInfo),
+            (13, message.modelId), (14, message.modelDisplayName), (15, message.providerType), (16, message.providerInstanceId)]
+        // SQLITE_TRANSIENT复制每个Swift字符串，避免临时NSString在sqlite3_step前释放。
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for (index, value) in fields {
+            let result = value.map { sqlite3_bind_text(statement, index, $0, -1, transient) } ?? sqlite3_bind_null(statement, index)
+            guard result == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        }
+        let bindings = [sqlite3_bind_double(statement, 5, message.createdAt.timeIntervalSince1970),
+            sqlite3_bind_int64(statement, 7, try nmNextSortOrder(sessionID: message.sessionId)),
+            sqlite3_bind_int64(statement, 9, Int64(message.streamInterruptCount)),
+            sqlite3_bind_double(statement, 10, message.createdAt.timeIntervalSince1970),
+            sqlite3_bind_int64(statement, 12, Int64(Self.partFlags(for: message.parts)))]
+        guard bindings.allSatisfy({ $0 == SQLITE_OK }), sqlite3_step(statement) == SQLITE_DONE else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
+    // nanoMuse: 证据读取必须区分确实不存在与锁屏、SQLite故障，禁止把后者作为撤销训练的依据。
+    /// 账户迁移使用严格枚举，SQLite读取失败不能被解释为全部聊天已删除。
+    func nmAccountSessionIDs() throws -> Set<String> {
+        guard db != nil else { throw CocoaError(.fileReadUnknown) }
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT id FROM sessions", -1, &statement, nil) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        var identifiers = Set<String>()
+        while true {
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { return identifiers }
+            guard status == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else {
+                throw CocoaError(.fileReadUnknown)
+            }
+            identifiers.insert(String(cString: text))
+        }
+    }
+
+    // nanoMuse: 证据读取失败必须整批报错。
+    /// 在同一个actor调用中读取会话与来源，失败时整批抛错，不发布部分缺失结果。
+    func nmCoachSources(chatSessionID: String, identifiers: Set<String>) throws -> NivoCoachSourceBundle {
+        guard db != nil else { throw CocoaError(.fileReadUnknown) }
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT 1 FROM sessions WHERE id = ? LIMIT 1", -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (chatSessionID as NSString).utf8String, -1, nil) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_ROW || result == SQLITE_DONE else { throw CocoaError(.fileReadUnknown) }
+        guard result == SQLITE_ROW else { return NivoCoachSourceBundle(sessionExists: false, messages: [:]) }
+        var messages: [String: NivoCoachSourceSnapshot] = [:]
+        for identifier in identifiers {
+            guard let row = try nmLoadEvidenceMessage(id: identifier), row.sessionId == chatSessionID else { continue }
+            let text = row.parts.compactMap { part -> String? in
+                if case .text(let text) = part { return text }
+                return nil
+            }.joined(separator: "\n")
+            messages[identifier] = NivoCoachSourceSnapshot(sessionID: row.sessionId, role: row.role.rawValue,
+                text: text, digest: NivoUserTurnEvidence.digest(row),
+                createdAt: Int64(row.createdAt.timeIntervalSince1970 * 1_000), sortOrder: row.sortOrder)
+        }
+        return NivoCoachSourceBundle(sessionExists: true, messages: messages)
+    }
+
+    /// 严格读取证据消息，损坏的角色或正文不得降级为空文本或默认用户身份。
+    func nmLoadEvidenceMessage(id: String) throws -> RawMessage? {
+        guard db != nil else { throw CocoaError(.fileReadUnknown) }
+        let sql = "SELECT id, session_id, role, parts_json, created_at, sort_order FROM messages WHERE id = ?"
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (id as NSString).utf8String, -1, nil) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW else { throw CocoaError(.fileReadUnknown) }
+        guard let messageID = sqlite3_column_text(statement, 0), let sessionID = sqlite3_column_text(statement, 1),
+              let roleText = sqlite3_column_text(statement, 2), let body = sqlite3_column_text(statement, 3),
+              let role = MessageRole(rawValue: String(cString: roleText)) else { throw NivoLifeError.corruptStore }
+        let parts = try JSONDecoder().decode([ContentPart].self, from: Data(String(cString: body).utf8))
+        var row = RawMessage(id: String(cString: messageID), sessionId: String(cString: sessionID), role: role,
+                             parts: parts, createdAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 4)))
+        row.sortOrder = Int(sqlite3_column_int64(statement, 5))
+        return row
+    }
+
+    // nanoMuse: iCloud删除使用严格查询和事务，不能将数据库错误当成记录不存在或已经删除。
+    /// 只允许固定表的来源查询，缺失和SQL失败分别返回nil与抛错。
+    func nmRemoteChatSession(recordType: String, id: String) throws -> String? {
+        let table = try nmRemoteChatTable(recordType)
+        let column = table == "sessions" ? "id" : "session_id"
+        guard db != nil else { throw CocoaError(.fileReadUnknown) }
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT \(column) FROM \(table) WHERE id = ?", -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (id as NSString).utf8String, -1, nil) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW, let value = sqlite3_column_text(statement, 0) else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        return String(cString: value)
+    }
+
+    /// 远端删除不生成新的远端删除记录；会话及其正文、摘要在同一事务内完成。
+    func nmApplyRemoteChatDeletion(recordType: String, id: String, expectedSessionID: String?) throws -> Bool {
+        let table = try nmRemoteChatTable(recordType)
+        guard let db, sqlite3_get_autocommit(db) != 0,
+              sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        var isCommitted = false
+        defer { if !isCommitted { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
+        let source = try nmRemoteChatSession(recordType: recordType, id: id)
+        guard source == expectedSessionID else { throw NivoLifeError.operationConflict }
+        // nanoMuse: 删除版本、旧参考和权威数据共同提交，入站删除不再被后续旧副本补回。
+        let removed: Bool
+        let deletedAt = Date().timeIntervalSince1970
+        if table == "sessions" {
+            removed = try NivoCloudReferenceSQL.deleteSessionInTransaction(id: id, database: db, deletedAt: deletedAt)
+        } else if table == "messages" {
+            removed = try NivoCloudReferenceSQL.deleteMessageInTransaction(id: id, database: db, deletedAt: deletedAt)
+        } else {
+            try nmExecuteWrite("""
+                INSERT INTO deleted_record_tombstones(record_type, record_id, deleted_at) VALUES ('CompactMarker', ?, ?)
+                ON CONFLICT(record_type, record_id) DO UPDATE SET deleted_at = MAX(deleted_at, excluded.deleted_at)
+                """, values: [.text(id), .real(deletedAt)])
+            try nmExecuteWrite("DELETE FROM \(table) WHERE id = ?", values: [.text(id)])
+            removed = sqlite3_changes(db) > 0
+        }
+        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        isCommitted = true
+        guard removed else { return false }
+        invalidateSessionListCache()
+        if table == "sessions" { nmCleanupRemoteDeletedSession(id) }
+        NotificationCenter.default.post(name: .nivoCoachSourcesChanged, object: source)
+        return true
+    }
+
+    /// 表名由固定协议决定，不接受云端字符串直接拼接到SQL。
+    private func nmRemoteChatTable(_ recordType: String) throws -> String {
+        switch recordType {
+        case "Session", "SessionV2": return "sessions"
+        case "Message", "MessageV2": return "messages"
+        case "CompactMarker", "CompactMarkerV2": return "compact_markers"
+        default: throw NivoLifeError.invalidField("record_type")
+        }
+    }
+
+    /// 仅在SQL提交成功后清理会话文件和界面缓存，失败回滚不会先丢失附件。
+    private func nmCleanupRemoteDeletedSession(_ identifier: String) {
+        deleteSessionMedia(identifier)
+        Task { @MainActor in
+            if #available(iOS 17.0, *) { CloudSyncEngine.shared.removeSessionCache(identifier) }
+            SessionBadgeStore.shared.clearAll(for: identifier)
+            SessionActivityTracker.shared.setInactive(identifier, source: "remoteSessionDeleted")
+            AgentLiveActivityManager.shared.handleSessionDeleted(identifier)
+        }
+    }
+
+    // nanoMuse: 新增的教练和分支事务使用严格SQL辅助函数，任何一步失败均由调用方回滚。
+    /// 绑定参数的值类型，文本必须由SQLite复制，不能借用临时Swift字符串。
+    private enum NMWriteValue {
+        case text(String?), integer(Int64), real(Double)
+    }
+
+    /// 执行单条写语句，绑定、执行和提交分别由事务入口检查。
+    private func nmExecuteWrite(_ sql: String, values: [NMWriteValue]) throws {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for (offset, value) in values.enumerated() {
+            let index = Int32(offset + 1)
+            let result: Int32
+            switch value {
+            case .text(let text):
+                result = text.map { sqlite3_bind_text(statement, index, $0, -1, transient) } ?? sqlite3_bind_null(statement, index)
+            case .integer(let number): result = sqlite3_bind_int64(statement, index, number)
+            case .real(let number): result = sqlite3_bind_double(statement, index, number)
+            }
+            guard result == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        }
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw CocoaError(.fileWriteUnknown) }
+    }
+
+    /// 取下一条序号时不以0掩盖查询失败，避免把新证据插到历史开头。
+    private func nmNextSortOrder(sessionID: String) throws -> Int64 {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let sql = "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM messages WHERE session_id = ?"
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (sessionID as NSString).utf8String, -1, nil) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_ROW else { throw CocoaError(.fileReadUnknown) }
+        return sqlite3_column_int64(statement, 0)
+    }
+
+    /// 同步队列与正文同事务，遵循现有上传开关和V1/V2选择，写失败不发布成功。
+    private func nmMarkDirtyStrict(recordType: String, recordID: String, operation: String = "upsert") throws {
+        try Task.checkCancellation()
+        guard !syncZoneName.isEmpty, UploadPolicy.allowsRecordType(recordType) else { return }
+        let nextType = Self.v2RecordType(forV1: recordType)
+        let defaults = UserDefaults.standard
+        let legacyPaused = defaults.bool(forKey: "cloudSync.v2.enabled")
+            && (defaults.string(forKey: "cloudSync.v2.migrationStatus") ?? "pending") != "failed"
+        var types = [nextType]
+        if nextType != recordType, !legacyPaused { types.append(recordType) }
+        for type in types {
+            try nmExecuteWrite("""
+                INSERT OR REPLACE INTO sync_dirty_records
+                    (record_type, record_id, zone_name, operation, priority, created_at)
+                VALUES (?, ?, ?, ?, 0, ?)
+                """, values: [.text(type), .text(recordID), .text(syncZoneName), .text(operation), .real(Date().timeIntervalSince1970)])
+        }
+    }
+
+    // nanoMuse: 环境变量的文件恢复回执等待SQLite队列提交，失败时保留原恢复日志。
+    /// 启动时引擎尚未绑定zone，使用设备稳定身份记录队列，不把未初始化当作已发送。
+    func nmRecordEnvironmentChanges(_ journal: NivoEnvVarTransaction.Journal, zoneName: String) throws {
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoEnvVarSyncSQL.confirm(journal, database: db,
+            zoneName: syncZoneName.isEmpty ? zoneName : syncZoneName,
+            shouldUpload: UploadPolicy.allowsRecordType("EnvVarItem"))
+        nmScheduleStrictSync()
+    }
+
+    // nanoMuse: 提供商删除回执与全部关联删除队列共同提交，错误保留文件日志供重放。
+    /// 启动恢复也使用稳定zone登记，不因引擎尚未初始化而漏掉删除。
+    func nmRecordProviderDeletion(_ journal: NivoProviderDeletion.Journal, zoneName: String) throws {
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        let defaults = UserDefaults.standard
+        let legacyPaused = defaults.bool(forKey: "cloudSync.v2.enabled")
+            && (defaults.string(forKey: "cloudSync.v2.migrationStatus") ?? "pending") != "failed"
+        try NivoProviderDeletionSyncSQL.confirm(journal, database: db,
+            zoneName: syncZoneName.isEmpty ? zoneName : syncZoneName,
+            legacyRecordTypes: legacyPaused ? ["ProviderConfigV2"] : ["ProviderConfig", "ProviderConfigV2"],
+            shouldUpload: UploadPolicy.allowsRecordType)
+        nmScheduleStrictSync()
+    }
+
+    // nanoMuse: 保存受影响队列的原值，单提供商失败恢复不覆盖整个聊天数据库。
+    /// 调用方在配置变更前将回执写入已有备份日志，提交时再次核对队列基线。
+    func nmPrepareProviderSetup(_ plan: NivoProviderSetupSyncSQL.Plan, zoneName: String) throws -> NivoProviderSetupSyncSQL.Receipt {
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        let defaults = UserDefaults.standard
+        let legacyPaused = defaults.bool(forKey: "cloudSync.v2.enabled")
+            && (defaults.string(forKey: "cloudSync.v2.migrationStatus") ?? "pending") != "failed"
+        return try NivoProviderSetupSyncSQL.prepare(plan, database: db,
+            zoneName: syncZoneName.isEmpty ? zoneName : syncZoneName,
+            legacyRecordTypes: legacyPaused ? ["ProviderConfigV2"] : ["ProviderConfig", "ProviderConfigV2"],
+            shouldUpload: UploadPolicy.allowsRecordType)
+    }
+
+    /// 已持久化的回执是唯一发送意图，失败由相同回执恢复原队列。
+    func nmCommitProviderSetup(_ receipt: NivoProviderSetupSyncSQL.Receipt) throws {
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoProviderSetupSyncSQL.confirm(receipt, database: db)
+        nmScheduleStrictSync()
+    }
+
+    /// 回滚只恢复本次变动，之后新增的聊天同步和其他队列行继续保留。
+    func nmRollbackProviderSetup(_ receipt: NivoProviderSetupSyncSQL.Receipt) throws {
+        guard let db else { throw CocoaError(.fileWriteUnknown) }
+        try NivoProviderSetupSyncSQL.rollback(receipt, database: db)
+    }
+
+    /// 仅提交后通知同步引擎，运行中的聊天仍由原有延迟发送机制处理。
+    private func nmScheduleStrictSync() {
+        guard !syncZoneName.isEmpty, !syncSendDeferred else { return }
+        if #available(iOS 17.0, *) {
+            Task { @MainActor in
+                if SyncV2Bootstrap.isEnabled { SyncCore.shared.scheduleSend() }
+                else { CloudSyncEngine.shared.scheduleSend() }
+            }
+        }
+    }
+
+    // nanoMuse: 定时任务的显式模型同时保存在会话行，失败不降级成全局默认。
+    /// 更新模型与同步记录保持同一事务，调用方在成功后才刷新缓存对象。
+    func nmSetRoutineModel(sessionID: String, modelID: String, binding: String) throws {
+        guard let db, sqlite3_get_autocommit(db) != 0,
+              sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        var isCommitted = false
+        defer { if !isCommitted { sqlite3_exec(db, "ROLLBACK", nil, nil, nil) } }
+        try nmExecuteWrite("UPDATE sessions SET model_id = ?, model_binding = ?, updated_at = ? WHERE id = ?",
+            values: [.text(modelID), .text(binding), .real(Date().timeIntervalSince1970), .text(sessionID)])
+        guard sqlite3_changes(db) == 1 else { throw NivoLifeError.notFound(sessionID) }
+        try nmMarkDirtyStrict(recordType: "Session", recordID: sessionID)
+        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        isCommitted = true
+        nmScheduleStrictSync()
+    }
+
+    // nanoMuse: 分支在同一事务中继承模型绑定、记忆开关和消息元数据，写入失败不返回空壳会话。
+    /// 复制指定用户回合以前的内容，原会话计费不重复计入分支。
+    func nmCreateBranch(sourceID: String, branchID: String, userTurns: Int, title: String,
+                        modelBinding: String? = nil) throws -> String {
+        guard UUID(uuidString: branchID) != nil, let db, sqlite3_get_autocommit(db) != 0 else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        guard sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        var isCommitted = false
+        let mediaDirectory = minisBaseURL.appendingPathComponent(branchID, isDirectory: true)
+        // 新ID的文件目录必须为空，回滚只移除本次事务创建的目录。
+        let canCleanMedia = !FileManager.default.fileExists(atPath: mediaDirectory.path)
+        defer {
+            if !isCommitted {
+                sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+                if canCleanMedia { try? FileManager.default.removeItem(at: mediaDirectory) }
+            }
+        }
+        guard canCleanMedia else { throw NivoLifeError.operationConflict }
+        let rows = try NivoChatBranchRules.prefix(nmBranchRows(sourceID), userTurns: userTurns)
+        let copiedBinding = try modelBinding ?? nmBranchBinding(sourceID: sourceID, branchID: branchID)
+        let now = Date().timeIntervalSince1970
+        try nmExecuteWrite("""
+            INSERT INTO sessions (id, title, category, model_id, created_at, updated_at, source, memory_enabled, model_binding)
+            SELECT ?, ?, category, model_id, ?, ?, 'branch', memory_enabled, ? FROM sessions WHERE id = ?
+            """, values: [.text(branchID), .text(title), .real(now), .real(now), .text(copiedBinding), .text(sourceID)])
+        guard sqlite3_changes(db) == 1 else { throw NivoCoachConversationError.deleted }
+        var media: [String: MediaRef] = [:]
+        var messageIDs: [String: String] = [:]
+        for row in rows {
+            let parts = try NivoChatBranchRules.copyingMedia(row.parts) { reference in
+                if let existing = media[reference.relativePath] { return existing }
+                let copied = try nmCopyBranchMedia(reference, branchID: branchID)
+                media[reference.relativePath] = copied
+                return copied
+            }
+            messageIDs[row.id] = try nmCopyBranchRow(row.id, branchID: branchID, parts: parts)
+        }
+        try nmCopyBranchMarkers(sourceID: sourceID, branchID: branchID, messageIDs: messageIDs,
+                                maximumSortOrder: rows.map(\.sortOrder).max() ?? -1)
+        try nmMarkDirtyStrict(recordType: "Session", recordID: branchID)
+        guard sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        isCommitted = true
+        invalidateSessionListCache()
+        nmScheduleStrictSync()
+        return branchID
+    }
+
+    /// 数据库中的模型绑定也重建会话身份，冷启动恢复不会引用原会话ID。
+    private func nmBranchBinding(sourceID: String, branchID: String) throws -> String? {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(db, "SELECT model_binding FROM sessions WHERE id = ?", -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (sourceID as NSString).utf8String, -1, nil) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_ROW else { throw CocoaError(.fileReadUnknown) }
+        guard let value = sqlite3_column_text(statement, 0) else { return nil }
+        let source = try JSONDecoder().decode(SessionModelBinding.self, from: Data(String(cString: value).utf8))
+        let copy = SessionModelBinding(sessionId: branchID, primarySource: source.primarySource, subModelSource: source.subModelSource)
+        return String(decoding: try JSONEncoder().encode(copy), as: UTF8.self)
+    }
+
+    /// 分支读取逐行校验角色与正文，损坏数据不能被默默跳过。
+    private func nmBranchRows(_ sessionID: String, excluding: Set<String> = []) throws -> [RawMessage] {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let sql = "SELECT id, role, parts_json, created_at, sort_order FROM messages WHERE session_id = ? ORDER BY sort_order, created_at, id"
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (sessionID as NSString).utf8String, -1, nil) == SQLITE_OK else { throw CocoaError(.fileReadUnknown) }
+        var rows: [RawMessage] = []
+        while true {
+            let result = sqlite3_step(statement)
+            if result == SQLITE_DONE { return rows }
+            guard result == SQLITE_ROW, let identifier = sqlite3_column_text(statement, 0) else { throw CocoaError(.fileReadCorruptFile) }
+            // nanoMuse: 稳定ID已经获得中继确认，不再为它分配正文和附件描述。
+            if excluding.contains(String(cString: identifier).lowercased()) { continue }
+            guard let roleText = sqlite3_column_text(statement, 1), let body = sqlite3_column_text(statement, 2),
+                  let role = MessageRole(rawValue: String(cString: roleText)) else { throw CocoaError(.fileReadCorruptFile) }
+            let parts = try JSONDecoder().decode([ContentPart].self, from: Data(String(cString: body).utf8))
+            var row = RawMessage(id: String(cString: identifier), sessionId: sessionID, role: role, parts: parts,
+                                 createdAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 3)))
+            row.sortOrder = Int(sqlite3_column_int64(statement, 4))
+            rows.append(row)
+        }
+    }
+
+    /// 保留推理、错误和供应商快照，分支只重建身份和图片引用。
+    private func nmCopyBranchRow(_ identifier: String, branchID: String, parts: [ContentPart]) throws -> String {
+        let newID = UUID().uuidString
+        let body = String(decoding: try JSONEncoder().encode(parts), as: UTF8.self)
+        try nmExecuteWrite("""
+            INSERT INTO messages (id, session_id, role, parts_json, created_at, token_usage, sort_order,
+                reasoning_content, stream_interrupt_count, updated_at, error_info, part_flags,
+                model_id, model_display_name, provider_type, provider_instance_id)
+            SELECT ?, ?, role, ?, created_at, NULL, sort_order, reasoning_content, stream_interrupt_count,
+                updated_at, error_info, part_flags, model_id, model_display_name, provider_type, provider_instance_id
+            FROM messages WHERE id = ?
+            """, values: [.text(newID), .text(branchID), .text(body), .text(identifier)])
+        guard sqlite3_changes(db) == 1 else { throw CocoaError(.fileWriteUnknown) }
+        try nmMarkDirtyStrict(recordType: "Message", recordID: newID)
+        return newID
+    }
+
+    /// 摘要和消息在同一事务内复制；任何SQL失败都回滚整个分支。
+    private func nmCopyBranchMarkers(sourceID: String, branchID: String,
+                                     messageIDs: [String: String], maximumSortOrder: Int) throws {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let sql = """
+            SELECT id, session_id, summary, first_kept_sort_order, compacted_count, created_at,
+                ui_boundary_sort_order, boundary_message_id, first_kept_message_id, last_compacted_message_id, version
+            FROM compact_markers WHERE session_id = ? ORDER BY created_at, id
+            """
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
+              sqlite3_bind_text(statement, 1, (sourceID as NSString).utf8String, -1, nil) == SQLITE_OK else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        while true {
+            let result = sqlite3_step(statement)
+            if result == SQLITE_DONE { return }
+            guard result == SQLITE_ROW else { throw CocoaError(.fileReadUnknown) }
+            let original = readCompactMarker(from: statement)
+            guard let marker = NivoChatBranchRules.remap(original, branchID: branchID,
+                messageIDs: messageIDs, maximumSortOrder: maximumSortOrder) else { continue }
+            try nmExecuteWrite("""
+                INSERT INTO compact_markers (id, session_id, summary, first_kept_sort_order, compacted_count,
+                    created_at, ui_boundary_sort_order, boundary_message_id, first_kept_message_id, last_compacted_message_id, version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, values: [.text(marker.id), .text(branchID), .text(marker.summary),
+                    .integer(Int64(marker.firstKeptSortOrder)), .integer(Int64(marker.compactedCount)),
+                    .real(marker.createdAt.timeIntervalSince1970),
+                    marker.uiBoundarySortOrder.map { .integer(Int64($0)) } ?? .text(nil),
+                    .text(marker.boundaryMessageId), .text(marker.firstKeptMessageId),
+                    .text(marker.lastCompactedMessageId), .integer(Int64(marker.version))])
+            try nmMarkDirtyStrict(recordType: "CompactMarker", recordID: marker.id)
+        }
+    }
+
+    /// 文件源必须在会话媒体目录内，避免损坏的引用指向其他应用配置。
+    private func nmCopyBranchMedia(_ reference: MediaRef, branchID: String) throws -> MediaRef {
+        let root = minisBaseURL.resolvingSymlinksInPath().standardizedFileURL
+        let source = mediaFileURL(for: reference).resolvingSymlinksInPath().standardizedFileURL
+        guard source.path.hasPrefix(root.path + "/"),
+              try source.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        let identifier = UUID().uuidString
+        let name = identifier + "." + Self.fileExtension(for: reference.mimeType)
+        let relative = branchID + "/attachments/" + name
+        let target = minisBaseURL.appendingPathComponent(relative)
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: source, to: target)
+        try nmMarkDirtyStrict(recordType: "SessionFile", recordID: branchID + ":attachments/" + name)
+        return MediaRef(id: identifier, relativePath: relative, mimeType: reference.mimeType,
+                        originalFileName: reference.originalFileName)
     }
 
     // MARK: - Size Estimation for Sync Categories

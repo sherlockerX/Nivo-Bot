@@ -237,7 +237,8 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
 
     func draw() {
         let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !desc.isEmpty, !isBusy else { return }
+        guard !desc.isEmpty, !isBusy, !NivoAvatarWardrobe.shared.isBusy,
+              !NanoMuseAccountData.shared.isChangingAccount else { return }
         lastError = nil
         selected = nil
         candidates = Array(repeating: Candidate(), count: NanoMuseAvatarPrompts.candidates)
@@ -292,7 +293,7 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
     }
 
     func retry(_ index: Int) {
-        guard phase == .pick, index < candidates.count else { return }
+        guard phase == .pick, index >= 0, index < candidates.count else { return }
         let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
         let thisRound = round
         candidates[index] = Candidate()
@@ -303,28 +304,35 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
                     candidates[index] = Candidate(image: image, error: nil, drawing: false, file: store(image, round: thisRound, index: index))
                 }
             } catch {
-                if index < candidates.count { candidates[index] = Candidate(image: nil, error: NanoMuseCloud.describe(error), drawing: false) }
+                if index < candidates.count, thisRound == round { candidates[index] = Candidate(image: nil, error: NanoMuseCloud.describe(error), drawing: false) }
             }
         }
     }
 
     /// The chat flow picked one by tap or by words.
     @discardableResult
-    func adopt(index: Int) -> Bool {
-        guard phase == .pick, index < candidates.count, candidates[index].image != nil else { return false }
+    func adopt(index: Int) async -> Bool {
+        guard phase == .pick, index >= 0, index < candidates.count, candidates[index].image != nil else { return false }
         selected = index
-        adopt()
-        return true
+        return await adopt()
     }
 
     /// Wear the chosen picture now and pose the other moods from it.
-    func adopt() {
-        guard let i = selected, i < candidates.count, let base = candidates[i].image, !isBusy else { return }
+    @discardableResult func adopt() async -> Bool {
+        guard let i = selected, i >= 0, i < candidates.count, let base = candidates[i].image, !isBusy else { return false }
         let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        NanoMuseFaceStore.shared.adopt([.idle: base], description: desc, style: style.rawValue)
+        let thisRound = round
+        phase = .posing(done: 0, total: NanoMuseAvatarPrompts.posedMoods.count)
+        do { try await NivoAvatarWardrobe.shared.replace(stills: [.idle: base], description: desc, style: style.rawValue) }
+        catch {
+            if round == thisRound { phase = .pick; lastError = NanoMuseCloud.describe(error) }
+            return false
+        }
+        guard round == thisRound else { return false }
         candidates = []
         selected = nil
         poseMoods(from: base)
+        return true
     }
 
     /// Draw the four poses again for the face that is worn.
@@ -333,10 +341,19 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
         poseMoods(from: base)
     }
 
-    func reset() {
+    func reset() async {
         guard !isBusy else { return }
-        NanoMuseFaceStore.shared.reset()
+        do { try await NivoAvatarWardrobe.shared.wear("dragon"); phase = .describe }
+        catch { lastError = NanoMuseCloud.describe(error) }
+    }
+
+    /// 账户切换让所有已发出的生成结果失效，旧图片不能落入新账户。
+    func invalidateForAccountChange() {
+        round &+= 1
+        candidates = []
+        selected = nil
         phase = .describe
+        lastError = nil
     }
 
     func backToDescribe() {
@@ -348,16 +365,25 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
 
     private func poseMoods(from base: UIImage) {
         let moods = NanoMuseAvatarPrompts.posedMoods
+        let thisRound = round
+        let generation = NanoMuseAccountData.shared.generation
+        let faceID = NanoMuseFaceStore.shared.meta.faceId
         phase = .posing(done: 0, total: moods.count)
         Task { @MainActor [self] in
             var done = 0
             var drawn = 0
             for mood in moods {
+                guard round == thisRound, NanoMuseAccountData.shared.generation == generation,
+                      NanoMuseFaceStore.shared.meta.faceId == faceID else { return }
                 do {
                     let image = try await NanoMuseImageGen.edit(base, prompt: NanoMuseAvatarPrompts.mood(mood))
+                    guard round == thisRound, NanoMuseAccountData.shared.generation == generation,
+                          NanoMuseFaceStore.shared.meta.faceId == faceID else { return }
                     NanoMuseFaceStore.shared.put(mood, image: image)
                     drawn += 1
                 } catch {
+                    guard round == thisRound, NanoMuseAccountData.shared.generation == generation,
+                          NanoMuseFaceStore.shared.meta.faceId == faceID else { return }
                     self.lastError = NanoMuseCloud.describe(error)
                 }
                 done += 1
@@ -417,6 +443,9 @@ struct NanoMuseAvatarStudioView: View {
     private var content: some View {
             Form {
                 currentSection
+                Section {
+                    NavigationLink(AppLocalized("Avatar wardrobe")) { NivoAvatarWardrobeView() }
+                }
                 ownClipSection
                 switch studio.phase {
                 case .describe:
@@ -471,7 +500,7 @@ struct NanoMuseAvatarStudioView: View {
                 .presentationDetents([.medium])
             }
             .confirmationDialog(AppLocalized("Back to the built-in face"), isPresented: $confirmReset, titleVisibility: .visible) {
-                Button(AppLocalized("Back to the built-in face"), role: .destructive) { studio.reset() }
+                Button(AppLocalized("Back to the built-in face"), role: .destructive) { Task { await studio.reset() } }
                 Button(AppLocalized("Cancel"), role: .cancel) {}
             }
             .nanoMuseOwnClipHost(clipPicker)
@@ -701,7 +730,7 @@ struct NanoMuseAvatarStudioView: View {
             .padding(.vertical, 4)
             if studio.phase == .pick {
                 Button {
-                    studio.adopt()
+                        Task { await studio.adopt() }
                 } label: {
                     Label(AppLocalized("Use this one"), systemImage: "checkmark")
                 }

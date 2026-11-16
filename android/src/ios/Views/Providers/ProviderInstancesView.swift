@@ -9,6 +9,12 @@ struct ProviderInstancesView: View {
     @State private var showImportFile = false
     @State private var importMessage: String?
     @State private var showImportResult = false
+    // nanoMuse: 导入保存期间禁用重复触发，并保持明确等待反馈。
+    @State private var nmIsImporting = false
+    // nanoMuse: 删除保留来源身份，等待实际落盘，并在失败时保留可见重试入口。
+    @State private var nmIsDeleting = false
+    @State private var nmDeleteError: String?
+    @State private var nmDeleteScope: NivoOAuthScope?
     @State private var forceSyncToast: String?
     @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
     /// [T-provider-group-swipe-actions] Swipe-to-edit target. Value-driven so
@@ -22,6 +28,9 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
+            // nanoMuse: 经典布局也保留迁移故障和重试入口。
+            NivoProviderMigrationNotice()
+            NivoProviderDeletionNotice()
             // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
             Section {
                 NavigationLink {
@@ -60,6 +69,7 @@ struct ProviderInstancesView: View {
                                 // nanoMuse: not on the Cloud instance; it is the account (see ProviderInstanceDetailView).
                                 if instance.id != NanoMuseCloud.instance?.id {
                                     Button(role: .destructive) {
+                                        nmDeleteScope = NivoOAuthAccess.captureScope()
                                         pendingDeleteInstance = instance
                                     } label: {
                                         Label("Delete", systemImage: "trash")
@@ -180,12 +190,19 @@ struct ProviderInstancesView: View {
                     showImportResult = true
                     return
                 }
-                if let label = store.importInstanceJSON(json) {
-                    importMessage = AppLocalized("Imported provider \"\(label)\" successfully.")
-                } else {
-                    importMessage = AppLocalized("Invalid provider configuration file.")
+                guard !nmIsImporting else { return }
+                let sourceScope = NivoOAuthAccess.captureScope()
+                nmIsImporting = true
+                Task {
+                    defer { nmIsImporting = false }
+                    do {
+                        let label = try await store.importInstanceJSON(json, sourceScope: sourceScope)
+                        importMessage = AppLocalized("Imported provider \"\(label)\" successfully.")
+                    } catch {
+                        importMessage = AppLocalized("Could not import this provider configuration.")
+                    }
+                    showImportResult = true
                 }
-                showImportResult = true
             case .failure:
                 break
             }
@@ -224,7 +241,14 @@ struct ProviderInstancesView: View {
             presenting: pendingDeleteInstance
         ) { instance in
             Button("Delete", role: .destructive) {
-                store.removeInstance(instance.id)
+                // nanoMuse: 失败不提前报告删除成功，旧对话框不能跨账户执行。
+                guard let scope = nmDeleteScope else { return }
+                nmIsDeleting = true
+                Task {
+                    defer { nmIsDeleting = false }
+                    do { try await store.removeInstance(instance.id, sourceScope: scope) }
+                    catch { nmDeleteError = error.localizedDescription }
+                }
                 pendingDeleteInstance = nil
             }
             Button("Cancel", role: .cancel) { pendingDeleteInstance = nil }
@@ -235,6 +259,14 @@ struct ProviderInstancesView: View {
             Button("OK") {}
         } message: {
             if let msg = importMessage { Text(msg) }
+        }
+        .alert(AppLocalized("Error"), isPresented: Binding(get: { nmDeleteError != nil }, set: { if !$0 { nmDeleteError = nil } })) {
+            Button("OK") { nmDeleteError = nil }
+        } message: { Text(nmDeleteError ?? "") }
+        .disabled(nmIsImporting || nmIsDeleting)
+        .overlay {
+            if nmIsImporting { ProgressView(AppLocalized("Importing…")) }
+            else if nmIsDeleting { ProgressView(AppLocalized("Saving…")) }
         }
         .overlay(alignment: .top) {
             if let msg = forceSyncToast {

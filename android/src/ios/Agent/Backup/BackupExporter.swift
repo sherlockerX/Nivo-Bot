@@ -121,15 +121,34 @@ actor BackupExporter {
                 progress: (@Sendable (String) -> Void)? = nil,
                 progressDetailed: (@Sendable (String, Bool) -> Void)? = nil) async throws -> Summary {
         try await BackupActivityLock.shared.withLock(.export) {
-            try await exportBody(options: options, onBackupId: onBackupId,
-                                 progress: progress, progressDetailed: progressDetailed)
+            // nanoMuse: 从聊天导出前冻结，确保教练原话来源和课程档案属于同一快照。
+            let lease = options.categories.contains(.personalData) ? try await NivoPersonalBackupAccess.begin() : nil
+            // nanoMuse: 只导出配置也冻结变量编辑，避免秘密与元数据来自不同保存时刻。
+            var configurationLease: UUID?
+            do {
+                if options.categories.contains(.providers) || options.categories.contains(.environmentVariables) {
+                    configurationLease = try await NivoPersonalBackupAccess.beginProviderRestore(personalLeaseID: lease?.id)
+                }
+                var captured = options
+                if lease != nil && !options.allowResume { captured.snapshotAt = Date() }
+                let result = try await exportBody(options: captured, onBackupId: onBackupId,
+                    progress: progress, progressDetailed: progressDetailed, personalLease: lease)
+                if let configurationLease { await NivoPersonalBackupAccess.endProviderRestore(configurationLease) }
+                if let lease { await NivoPersonalBackupAccess.end(lease.id) }
+                return result
+            } catch {
+                if let configurationLease { await NivoPersonalBackupAccess.endProviderRestore(configurationLease) }
+                if let lease { await NivoPersonalBackupAccess.end(lease.id) }
+                throw error
+            }
         }
     }
 
     private func exportBody(options: Options,
                             onBackupId: (@Sendable (String) -> Void)? = nil,
                             progress: (@Sendable (String) -> Void)?,
-                            progressDetailed: (@Sendable (String, Bool) -> Void)? = nil) async throws -> Summary {
+                            progressDetailed: (@Sendable (String, Bool) -> Void)? = nil,
+                            personalLease: NivoPersonalBackupLease? = nil) async throws -> Summary {
         // §3.3 / §5.4: a package that carries credentials MUST be encrypted.
         // Enforced here rather than only in the UI, so no caller — debug RPC,
         // a future scheduler, anything — can produce a plaintext copy of the
@@ -279,6 +298,10 @@ actor BackupExporter {
             guard options.categories.contains(category) else { return }
             if resumed != nil,
                let done = BackupExportJournal.completedStat(category, in: staging) {
+                // nanoMuse: 续传不能借用前一个账户的个人快照。
+                if category == .personalData, let personalLease {
+                    try NivoPersonalBackupFiles.validateResume(root: staging, owner: personalLease.ownerKey)
+                }
                 stats[category.rawValue] = done
                 resumedCategories += 1
                 logger.info("[Backup] resume: skipping \(category.rawValue) — already complete")
@@ -295,6 +318,13 @@ actor BackupExporter {
             BackupExportJournal.markDone(category, stat: stat, in: staging)
         }
 
+        // nanoMuse: 个人快照优先封存；恢复中断备份时不能把后来档案混入旧聊天截点。
+        try await run(.personalData, AppLocalized("Exporting personal data…")) {
+            guard let personalLease else { throw NivoPersonalBackupError.busy }
+            guard resumed == nil else { throw NivoPersonalBackupError.snapshotChanged }
+            return try NivoPersonalBackupFiles.export(lease: personalLease, dataDir: dataDir,
+                blobStore: blobStore, fileIndex: fileIndex)
+        }
         try await run(.chats, AppLocalized("Exporting chats…"), announces: true) {
             try await exportChats(dataDir: dataDir, trees: trees,
                                   snapshotAt: options.snapshotAt,
@@ -751,8 +781,9 @@ actor BackupExporter {
                 includesCredentials: false)
         }
 
-        let secrets = await MainActor.run {
-            BackupSecretsCollector.collect(instances: config.instances)
+        // nanoMuse: 环境秘密读取失败终止导出，不能将半份凭证包报告为成功。
+        let secrets = try await MainActor.run {
+            try BackupSecretsCollector.collect(instances: config.instances)
         }
         // Named `secrets.json`, not `secrets.enc`: the §5.4 filename implies
         // encryption, and this stage does not encrypt. Calling it .enc would
@@ -870,7 +901,8 @@ actor BackupExporter {
     /// missing from `allAsDict()`.
     private func exportEnvironmentVariables(dataDir: URL) async throws
         -> BackupManifest.CategoryStat? {
-        let entries = await MainActor.run { EnvVarStore.shared.entries }
+        // nanoMuse: 恢复中的文件不能导出为看似完整的元数据快照。
+        let entries = try await MainActor.run { try EnvVarStore.shared.nmMetadataSnapshot() }
         guard !entries.isEmpty else { return nil }
         let url = dataDir.appendingPathComponent("env_vars.json")
         try BackupJSONFile.write(entries, to: url)

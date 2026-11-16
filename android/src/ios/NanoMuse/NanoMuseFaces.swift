@@ -244,7 +244,9 @@ final class NanoMuseFaceStore: ObservableObject {
     /// C12: the folder changed under the store — another account's face is in place (or none).
     /// The motion clips are per face and go; NanoMuseAvatarMotion draws new ones when enabled.
     func reload() {
-        NanoMuseAvatarMotion.shared.clear()
+        // 账户或衣柜已完成文件切换，只取消旧任务，保留新形象已有的动态片段。
+        NanoMuseAvatarMotion.shared.cancel()
+        NanoMuseAvatarMotion.shared.rescan()
         custom = [:]
         meta = Meta()
         emojiLook = nil

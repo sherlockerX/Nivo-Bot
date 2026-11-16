@@ -81,7 +81,8 @@ enum BackupSecretsCollector {
     /// - Parameter instances: the instances being exported, so the secrets
     ///   section never carries keys for a provider the package doesn't include.
     @MainActor
-    static func collect(instances: [ProviderInstance]) -> BackupSecrets {
+    // nanoMuse: 读取受保护或正在恢复的环境变量时传播错误，不悄悄跳过。
+    static func collect(instances: [ProviderInstance]) throws -> BackupSecrets {
         var out = BackupSecrets()
 
         for instance in instances {
@@ -120,8 +121,8 @@ enum BackupSecretsCollector {
             if !secret.isEmpty { out.providers.append(secret) }
         }
 
-        for entry in EnvVarStore.shared.entries {
-            guard let value = EnvVarStore.loadValueSync(forKey: entry.key), !value.isEmpty
+        for entry in try EnvVarStore.shared.nmMetadataSnapshot() {
+            guard let value = try NivoCredentialSyncKeychain.environmentValue(key: entry.key), !value.isEmpty
             else { continue }
             out.envVars.append(.init(name: entry.key, value: b64(value)))
         }

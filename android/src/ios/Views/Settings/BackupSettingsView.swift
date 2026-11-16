@@ -128,7 +128,14 @@ struct BackupSettingsView: View {
                     Toggle(isOn: binding(for: category)) {
                         HStack(spacing: 12) {
                             BackupCategoryIcon(category: category)
-                            Text(displayName(category))
+                            // nanoMuse: 说明个人数据实际包含哪些模块，避免与聊天备份混淆。
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(displayName(category))
+                                if category == .personalData {
+                                    Text(AppLocalized("Tasks, focus sessions, daily fragments, coach archives, routines and script files."))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
                 }
@@ -1149,6 +1156,8 @@ struct BackupSettingsView: View {
         case .mcpServers: return AppLocalized("MCP Servers")
         case .voiceCorrections: return AppLocalized("Voice Corrections")
         case .environmentVariables: return AppLocalized("Environment Variables")
+        // nanoMuse: 与恢复页共享个人数据分类名。
+        case .personalData: return AppLocalized("Personal data")
         }
     }
 

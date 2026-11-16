@@ -216,6 +216,13 @@ final class NanoMuseAvatarFlow: ObservableObject {
         stage = .idle
     }
 
+    /// 账户切换撤销旧聊天对工坊的绑定，迟到的异步失败不再写回旧对话。
+    func invalidateForAccountChange() {
+        stage = .idle
+        vm = nil
+        announcedRound = false
+    }
+
     func dismissShare() {
         if case .done = stage { stage = .idle }
     }
@@ -235,8 +242,23 @@ final class NanoMuseAvatarFlow: ObservableObject {
         guard case .choosing(let session, let desc) = stage, index >= 0, index < studio.candidates.count else { return }
         guard studio.candidates[index].image != nil else { return }
         let files = studio.candidateFiles
-        guard studio.adopt(index: index) else { return }
         stage = .finalizing(session: session, description: desc, chosen: index)
+        Task { @MainActor [self] in
+            guard await studio.adopt(index: index) else {
+                if case .finalizing(let current, _, _) = stage, current == session {
+                    stage = .choosing(session: session, description: desc)
+                    vm?.nmLocalTurn(assistant: studio.lastError ?? AppLocalized("The pictures did not come through. Try again in a minute."))
+                }
+                return
+            }
+            guard case .finalizing(let current, _, _) = stage, current == session,
+                  NanoMuseAccountData.shared.shows(session) else { return }
+            announceChoice(index, typed: typed, description: desc, files: files)
+        }
+    }
+
+    /// 只有图片已完成落盘才向聊天报告换装成功。
+    private func announceChoice(_ index: Int, typed: String?, description desc: String, files: [String]) {
         let line = typed ?? String(format: AppLocalized("Option %d"), index + 1)
         let fence = NanoMuseFences.fence(Self.blockOptions, ["desc": desc, "chosen": index, "files": files])
         var reply = String(format: AppLocalized("Done. My new look is on. I'm %@ now."), desc)

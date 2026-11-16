@@ -205,7 +205,12 @@ fun MosaicEditorScreen(
             savedTaskTitles = links.associate { it.taskId to it.title }
             savedFocusLinks = if (entryId != null) focusStore?.entryLinks(entryId).orEmpty() else emptyList()
             focusRecords = focusStore?.sessions().orEmpty()
-            focusSelections = if (found != null) focusStore?.draftLinks(id).orEmpty() else savedFocusLinks.map { it.sessionId }
+            // A session deleted after the draft was kept can no longer be linked or unticked in the
+            // picker; left in the selection it makes every save and autosave of this draft fail.
+            val linkable = focusRecords.filter { it.status == "finished" && it.mode != "break" }.map { it.id }.toSet() +
+                savedFocusLinks.map { it.sessionId }
+            focusSelections = if (found != null) focusStore?.draftLinks(id).orEmpty().filter { it in linkable }
+                else savedFocusLinks.map { it.sessionId }
             taskSelections = if (found != null) todoStore?.draftLinks(id).orEmpty() else links.map { link ->
                 TodoSelection(link.taskId, todoStore?.task(link.taskId)?.revision ?: -1)
             }

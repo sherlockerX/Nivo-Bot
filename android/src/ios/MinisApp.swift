@@ -360,7 +360,7 @@ struct MinisApp: App {
                     // killed mid-flight, put back whatever snapshot survived
                     // and log it — previously nothing knew a restore had even
                     // been interrupted.
-                    BackupRestoreJournal.reconcileAtLaunch()
+                    // nanoMuse: 恢复由账户启动入口统一执行，避免多窗口onAppear干扰正在进行的导入。
                     // [review I6] Remove staging trees no marker points at.
                     // `defer` cleanup only runs when the process survives, so
                     // an export killed mid-flight used to leave hundreds of MB
@@ -384,17 +384,16 @@ struct MinisApp: App {
                     //     beginBackgroundTask before iOS suspends it.
                     // Ownership is enforced where it belongs, by the run token
                     // in BackupRunController.finished(token:).
-                    // Migrate legacy provider config on first launch after upgrade
-                    ProviderMigration.migrateIfNeeded(store: ProviderConfigStore.shared)
-                    // Refresh model lists once per day to keep them current
-                    ProviderConfigStore.shared.refreshAllModelsIfNeeded()
-                    // [T-mimo-shadow-voice] One-time upgrade fix: force-refresh
-                    // mixed-modality providers (MiMo/DashScope) mis-classified by
-                    // the old voice-only whitelist, so their text models + shadow
-                    // voice rows recover promptly without waiting for a natural refresh.
-                    ProviderConfigStore.shared.migrateVoiceModalityIfNeeded()
-                    // For existing users with no model groups, create a default group silently
-                    Task { await ProviderConfigStore.shared.createDefaultGroupIfNeeded() }
+                    // nanoMuse: 等待账户恢复、权威配置载入与迁移落盘后再刷新模型和创建默认组。
+                    Task { @MainActor in
+                        // nanoMuse: start返回前已释放启动账户锁，草稿清理复用普通提供商租约。
+                        await NanoMuseAccountData.shared.start()
+                        NivoOAuthDraftHost.shared.refreshStatus()
+                        guard NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
+                              !NivoPersonalBackupAccess.hasAccountTransition else { return }
+                        try? await NivoOAuthDraftHost.shared.retry()
+                        await ProviderMigration.prepareModels(store: ProviderConfigStore.shared)
+                    }
                     shareLog.info("[Share] onAppear — checking for pending share")
                     shareCoordinator.checkForPendingShare()
                     // Set up background keep-alive manager
@@ -488,6 +487,12 @@ struct MinisApp: App {
             // runs on a later tick, outside the fragile window.
             Task { @MainActor in
                 await Task.yield()
+
+                // nanoMuse: 解锁返回前台后重试环境变量中断恢复，失败继续保留页面重试入口。
+                if NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
+                   !NivoPersonalBackupAccess.isBusy, !BackupRestoreJournal.hasPendingRecovery {
+                    EnvVarStore.shared.reloadFromDisk()
+                }
 
                 ViewModelCache.shared.resumeAllStreamingUI()
 

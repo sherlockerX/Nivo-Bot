@@ -64,6 +64,18 @@ struct NanoMuseIdea: Identifiable, Decodable {
     var prompt: String?
     var time: String?
 
+    /// 每日点子沿用现有确认面板，但始终准备普通聊天，不自动创建目标或例程。
+    init(dailyIdea: NivoDailyIdea) {
+        id = dailyIdea.id
+        emoji = dailyIdea.emoji
+        title = dailyIdea.title
+        body = dailyIdea.body
+        kind = .chat
+        category = nil
+        prompt = dailyIdea.prompt
+        time = nil
+    }
+
     private enum CodingKeys: String, CodingKey { case id, emoji, title, body, kind, category, prompt, time }
 
     init(from decoder: Decoder) throws {
@@ -108,8 +120,10 @@ struct NanoMuseIdeasRoom: View {
     /// A GOAL idea: "Create goal › category" in the main chat, with the idea's prompt as the seed.
     var onStartGoal: (NanoMuseGoalCategory, String?) -> Void
 
-    @State private var sections: [NanoMuseIdeaSection] = []
+    @ObservedObject private var daily = NivoDailyIdeaState.shared
     @State private var selected: NanoMuseIdea?
+    @ObservedObject private var life = NivoLifeModel.shared
+    @State private var pendingAction: (idea: NanoMuseIdea, kind: NanoMuseIdea.Kind, scope: NivoLifeScope)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -117,20 +131,40 @@ struct NanoMuseIdeasRoom: View {
             NanoMuseRoomHeader(chrome: chrome) {
                 NanoMuseRoomMenu(chrome: chrome) { EmptyView() }
             }
-            if sections.isEmpty {
-                NanoMuseEmptyState(symbol: "lightbulb", title: AppLocalized("Ideas"),
-                                   message: AppLocalized("The ideas could not be loaded."))
+            if daily.edition.sections.isEmpty {
+                if let error = daily.errorMessage {
+                    VStack {
+                        NanoMuseEmptyState(symbol: "lightbulb", title: AppLocalized("Ideas"), message: error)
+                        Button(AppLocalized("Retry")) { Task { await daily.refresh() } }
+                            .buttonStyle(.bordered).disabled(daily.isLoading).padding(.bottom, 24)
+                    }
+                } else { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                        ForEach(sections) { section in
-                            Text(section.title)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(AppLocalized("Ideas")).font(.largeTitle.weight(.bold))
+                            Text(daily.edition.localDate, style: .date).font(.caption.weight(.medium))
+                            Text(AppLocalized("Two ideas per category each day, stable during the day and repeated after seven days."))
+                                .font(.caption).foregroundStyle(.secondary)
+                            if let error = daily.errorMessage { Text(error).font(.caption).foregroundStyle(.secondary) }
+                        }.padding(.horizontal, 20).padding(.top, 16)
+                        ForEach(daily.edition.sections) { section in
+                            Text(section.category.title)
                                 .font(.headline)
                                 .padding(.horizontal, 20)
                                 .padding(.top, 18)
                                 .padding(.bottom, 4)
+                            if section.category == .media {
+                                Button(AppLocalized("Check stories to film today")) {
+                                    if let idea = daily.hotTopicIdea() { selected = NanoMuseIdea(dailyIdea: idea) }
+                                }.buttonStyle(.bordered).padding(.horizontal, 20).padding(.vertical, 4)
+                                Text(AppLocalized("Evergreen topics. Current stories need sources and date checks."))
+                                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 4)
+                            }
                             ForEach(section.ideas) { idea in
-                                Button { selected = idea } label: { row(idea) }
+                                let chatIdea = NanoMuseIdea(dailyIdea: idea)
+                                Button { selected = chatIdea } label: { row(chatIdea) }
                                     .buttonStyle(.plain)
                                 // Android's IdeasTab: a hairline under each row, from the text's left edge.
                                 NanoMuseTones.hairline.frame(height: 1).padding(.leading, 76).padding(.trailing, 20)
@@ -143,17 +177,26 @@ struct NanoMuseIdeasRoom: View {
         }
         // The chat's canvas, as Android's IdeasTab and docs/design.md; the grey page is the Feed's alone.
         .background(ChatColors.background.ignoresSafeArea())
-        .onAppear { if sections.isEmpty { sections = NanoMuseIdeas.load() } }
-        .sheet(item: $selected) { idea in
+        .modifier(NivoDailyIdeaRefresh())
+        .nmOnChange(of: life.accessScope) { _ in selected = nil; pendingAction = nil }
+        .sheet(item: $selected, onDismiss: finishIdeaAction) { idea in
             NanoMuseIdeaSheet(idea: idea) { action in
+                guard let scope = life.accessScope else { return }
+                pendingAction = (idea, action, scope)
                 selected = nil
-                switch action {
-                case .chat: onSend(idea.promptText)
-                case .routine: onCreateRoutine(idea)
-                case .goal: onStartGoal(NanoMuseGoalCategory.from(idea.category), idea.prompt)
-                }
             }
             .presentationDetents([.medium, .large])
+        }
+    }
+
+    /// 点子详情关闭后再打开编辑器或对话，切号后的旧点击直接失效。
+    private func finishIdeaAction() {
+        defer { pendingAction = nil }
+        guard let pending = pendingAction, life.accessScope == pending.scope else { return }
+        switch pending.kind {
+        case .chat: onSend(pending.idea.promptText)
+        case .routine: onCreateRoutine(pending.idea)
+        case .goal: onStartGoal(NanoMuseGoalCategory.from(pending.idea.category), pending.idea.prompt)
         }
     }
 

@@ -60,47 +60,47 @@ enum NanoMuseVendorSetup {
         }
     }
 
-    /// Add the vendor with a pasted key, fetch its models, make the chat default the group's first.
-    ///
-    /// The key is tried against the vendor's model list before anything is kept: a 401 or 403
-    /// throws `Refused` and leaves the phone as it was (an instance that already existed keeps
-    /// its previous key). Upstream's `refreshModels` would have fallen back to a catalogue list
-    /// and the wrong key would have gone unnoticed until the first chat.
+    /// 先在内存中探测新密钥；新实例、模型和默认组共同保存，原有实例只在探测后替换未变化的密钥。
     @discardableResult
-    static func install(_ vendor: NanoMuseVendor, apiKey: String, mainland: Bool, chinese: Bool) async throws -> ProviderInstance? {
+    static func install(_ vendor: NanoMuseVendor, apiKey: String, mainland: Bool, chinese: Bool,
+                        sourceScope: NivoOAuthScope,
+                        onRestoreFinished: (@MainActor (NivoOAuthScope) -> Void)? = nil) async throws -> ProviderInstance? {
+        try NivoOAuthAccess.validateScope(sourceScope)
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return nil }
-        let store = ProviderConfigStore.shared
         let existing = existingInstance(vendor, auth: nil, mainland: mainland)
         let inst: ProviderInstance = existing ?? {
             let (base, v1) = split(vendor.baseURL(mainland: mainland))
             return ProviderInstance(label: vendor.displayName(chinese: chinese), providerType: vendor.providerType, credentialType: .apiKey, customBaseURL: base.isEmpty ? nil : base, appendV1Suffix: v1)
         }()
-        let previousKey = existing.flatMap { ProviderKeychainHelper.loadAPIKey(instanceId: $0.id) }
-        ProviderKeychainHelper.saveAPIKey(key, instanceId: inst.id)
+        let previousKey: NivoCredentialSyncKeychain.ProviderSnapshot?
+        if existing != nil { previousKey = try NivoCredentialSyncKeychain.providerSnapshot(instanceID: inst.id) }
+        else { previousKey = nil }
         var models: [LLMModel] = []
         do {
-            models = try await ProviderConfigStore.fetchModelsForInstance(inst, forceRefresh: true)
+            models = try await ProviderConfigStore.fetchModelsWithFallback(inst, forceRefresh: true,
+                apiKeyOverride: key, rejectUnauthorized: true).models
         } catch {
-            if let refusal = refusal(error) {
-                if let previousKey { ProviderKeychainHelper.saveAPIKey(previousKey, instanceId: inst.id) } else { ProviderKeychainHelper.deleteAPIKey(instanceId: inst.id) }
-                throw refusal
-            }
-            // Anything else (no /models on this host, a network hiccup): upstream's fallback below.
+            try NivoOAuthAccess.validateScope(sourceScope)
+            if let refusal = refusal(error) { throw refusal }
+            // 不提供模型列表的端点仍允许保存，后续刷新沿用原有目录回退规则。
         }
-        if existing == nil { store.addInstance(inst) }
-        if models.isEmpty {
-            await store.refreshModels(for: inst)
-        } else {
-            store.replaceEntries(for: inst.id, models: models, caller: "NanoMuseVendorSetup.install")
+        try NivoOAuthAccess.validateScope(sourceScope)
+        if existing == nil {
+            if models.isEmpty { models = ModelsDevAPI.fetchModels(forBaseURL: vendor.baseURL(mainland: mainland)) }
+            try await NivoProviderJSONImport.create(inst, apiKey: key, sourceScope: sourceScope, models: models,
+                defaultChatModel: vendor.defaults["chat"] ?? "", onRestoreFinished: onRestoreFinished)
+            return inst
         }
-        adoptDefaults(inst, vendor: vendor)
+        try await NivoProviderJSONImport.update(inst, models: models, defaultChatModel: vendor.defaults["chat"] ?? "",
+            apiKey: key, expectedKey: previousKey, sourceScope: sourceScope, onRestoreFinished: onRestoreFinished)
         return inst
     }
 
     /// 401 / 403 from the models fetch, as upstream's APIs report them: `LLMError.invalidAPIKey`
     /// ("OpenAI HTTP 401: {…}") or, for Anthropic, `providerError` ("Failed to fetch models (401): …").
     static func refusal(_ error: Error) -> Refused? {
+        if let refusal = error as? Refused { return refusal }
         guard let llm = error as? LLMError else { return nil }
         let text: String
         switch llm {
@@ -116,76 +116,71 @@ enum NanoMuseVendorSetup {
         return Refused(status: status, vendorMessage: NanoMuseProviderReach.vendorMessage(text))
     }
 
-    /// A server on a computer of one's own (Ollama, LM Studio, vLLM): no key, the address the
-    /// person typed, the models fetched from it.
+    /// 本机无密钥端点也等待配置落盘，使用空鉴权探测模型，不创建空Keychain条目。
     @discardableResult
-    static func installLocal(_ vendor: NanoMuseVendor, address: String, chinese: Bool) async -> ProviderInstance? {
+    static func installLocal(_ vendor: NanoMuseVendor, address: String, chinese: Bool, sourceScope: NivoOAuthScope,
+                             onRestoreFinished: (@MainActor (NivoOAuthScope) -> Void)? = nil) async throws -> ProviderInstance? {
+        try NivoOAuthAccess.validateScope(sourceScope)
         let (base, v1) = split(address)
-        guard !base.isEmpty, URL(string: base)?.host != nil else { return nil }
-        let store = ProviderConfigStore.shared
+        guard let url = URL(string: base), url.host != nil,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return nil }
         let inst = ProviderInstance(label: vendor.displayName(chinese: chinese), providerType: .openAI, credentialType: .apiKey, customBaseURL: base, appendV1Suffix: v1)
-        store.addInstance(inst)
-        await store.refreshModels(for: inst)
-        adoptDefaults(inst, vendor: vendor)
+        let models = (try? await ProviderConfigStore.fetchModelsForInstance(inst, forceRefresh: true, apiKeyOverride: "")) ?? []
+        try NivoOAuthAccess.validateScope(sourceScope)
+        try await NivoProviderJSONImport.create(inst, apiKey: nil, sourceScope: sourceScope, models: models,
+            defaultChatModel: vendor.defaults["chat"] ?? "", onRestoreFinished: onRestoreFinished)
         return inst
     }
 
-    /// A sign-in that runs in a browser sheet (ChatGPT, Claude, OpenRouter): upstream's OAuth
-    /// manager leaves the token in the keychain under the instance id, then the instance is
-    /// added as upstream's AddProviderView does. Kimi's device code is a sheet of its own
-    /// (`KimiDeviceLoginSheet`); `finishSignIn` follows it.
+    /// 登录任务使用表单固定的实例身份，配置失败后可重试，不提前发布未保存的实例。
     @discardableResult
-    static func signIn(_ vendor: NanoMuseVendor, auth: String, mainland: Bool, chinese: Bool) async throws -> ProviderInstance? {
-        let store = ProviderConfigStore.shared
+    static func signIn(_ vendor: NanoMuseVendor, auth: String, instanceID: String, mainland: Bool, chinese: Bool,
+                       sourceScope: NivoOAuthScope,
+                       onRestoreFinished: (@MainActor (NivoOAuthScope) -> Void)? = nil) async throws -> ProviderInstance? {
+        try NivoOAuthAccess.validateScope(sourceScope)
         let existing = existingInstance(vendor, auth: auth, mainland: mainland)
-        let id = existing?.id ?? UUID().uuidString
+        guard existing == nil || existing?.id == instanceID else { throw NivoPersonalBackupError.snapshotChanged }
+        let id = instanceID
         switch auth {
         case NanoMuseCatalogue.authChatGPT: try await CodexOAuthManager.shared.login(instanceId: id)
         case NanoMuseCatalogue.authClaude: try await ClaudeOAuthManager.shared.login(instanceId: id)
         case NanoMuseCatalogue.authOpenRouter: try await OpenRouterOAuthManager.shared.login(instanceId: id)
         default: return nil
         }
-        let inst = existing ?? {
-            let fresh = ProviderInstance(id: id, label: NanoMuseCatalogue.planName(auth: auth, vendor: vendor, chinese: chinese), providerType: providerType(vendor, auth: auth), credentialType: .oauth)
-            store.addInstance(fresh)
-            return fresh
-        }()
-        await store.refreshModels(for: inst)
-        adoptDefaults(inst, vendor: vendor)
-        return inst
+        try NivoOAuthAccess.validateScope(sourceScope)
+        if let existing, ProviderConfigStore.shared.instance(for: id) != existing { throw NivoPersonalBackupError.snapshotChanged }
+        return try await finishSignIn(vendor, auth: auth, instanceId: id, mainland: mainland, chinese: chinese,
+            sourceScope: sourceScope, onRestoreFinished: onRestoreFinished)
     }
 
-    /// After Kimi's device code succeeded for `id`: the instance, its models, the defaults.
+    /// 设备码和浏览器授权共用配置提交入口，期间恢复或切号会使旧完成回调失效。
     @discardableResult
-    static func finishSignIn(_ vendor: NanoMuseVendor, auth: String, instanceId id: String, mainland: Bool, chinese: Bool) async -> ProviderInstance? {
+    static func finishSignIn(_ vendor: NanoMuseVendor, auth: String, instanceId id: String, mainland: Bool, chinese: Bool,
+                             sourceScope: NivoOAuthScope,
+                             onRestoreFinished: (@MainActor (NivoOAuthScope) -> Void)? = nil) async throws -> ProviderInstance? {
+        try NivoOAuthAccess.validateScope(sourceScope)
         let store = ProviderConfigStore.shared
-        let inst = store.instances.first { $0.id == id } ?? {
-            let fresh = ProviderInstance(id: id, label: NanoMuseCatalogue.planName(auth: auth, vendor: vendor, chinese: chinese), providerType: providerType(vendor, auth: auth), credentialType: .oauth)
-            store.addInstance(fresh)
-            return fresh
-        }()
-        await store.refreshModels(for: inst)
-        adoptDefaults(inst, vendor: vendor)
+        if let existing = store.instance(for: id) {
+            try await finishExisting(existing, vendor: vendor, sourceScope: sourceScope, onRestoreFinished: onRestoreFinished)
+            return existing
+        }
+        let inst = ProviderInstance(id: id, label: NanoMuseCatalogue.planName(auth: auth, vendor: vendor, chinese: chinese),
+            providerType: providerType(vendor, auth: auth), credentialType: .oauth)
+        let models = (try? await ProviderConfigStore.fetchModelsForInstance(inst, forceRefresh: true)) ?? []
+        try NivoOAuthAccess.validateScope(sourceScope)
+        try await NivoProviderJSONImport.createOAuth(inst, sourceScope: sourceScope, models: models,
+            defaultChatModel: vendor.defaults["chat"] ?? "", onRestoreFinished: onRestoreFinished)
         return inst
     }
 
-    /// A group named after the vendor with its chat default first (only if none of ours has
-    /// that model), so the group picker and the per-chat picker list the provider. The
-    /// default group is set only when the person had none at all: which slots the new key
-    /// takes over is the "Use it for" card's question (0.1.41), not a side effect of saving.
-    private static func adoptDefaults(_ inst: ProviderInstance, vendor: NanoMuseVendor) {
-        let store = ProviderConfigStore.shared
-        let entries = store.entries(for: inst.id).filter { !$0.isHidden }
-        let wanted = vendor.defaults["chat"] ?? ""
-        let chat = entries.first { $0.model.id == wanted }
-            ?? entries.first { !wanted.isEmpty && $0.model.id.hasSuffix("/" + wanted) }
-            ?? entries.first { $0.model.id.lowercased().contains("deepseek") && NanoMuseVision.deepSeekSees($0.model.id.lowercased()) == true }
-            ?? entries.first { NanoMuseModelSlots.chats($0) }
-        if let chat, !store.modelGroups.contains(where: { $0.memberEntryIds.contains(chat.id) }) {
-            let group = ModelGroup(name: inst.label, memberEntryIds: [chat.id])
-            store.addGroup(group)
-            if store.defaultPrimaryGroupId == nil { store.defaultPrimaryGroupId = group.id }
-        }
+    /// 已有实例保留用户模型修改；等待写盘及发送登记，失败向原表单传播。
+    private static func finishExisting(_ instance: ProviderInstance, vendor: NanoMuseVendor,
+                                       sourceScope: NivoOAuthScope,
+                                       onRestoreFinished: (@MainActor (NivoOAuthScope) -> Void)?) async throws {
+        let models = (try? await ProviderConfigStore.fetchModelsWithFallback(instance, forceRefresh: true).models) ?? []
+        try NivoOAuthAccess.validateScope(sourceScope)
+        try await NivoProviderJSONImport.update(instance, models: models, defaultChatModel: vendor.defaults["chat"] ?? "",
+            sourceScope: sourceScope, onRestoreFinished: onRestoreFinished)
     }
 }
 
@@ -204,6 +199,14 @@ struct NanoMuseVendorSheet: View {
     @State private var message: String?
     @State private var kimi = false
     @State private var kimiInstanceId = UUID().uuidString
+    @State private var browserInstanceId = UUID().uuidString
+    @State private var formScope: NivoOAuthScope?
+    // 新实例草稿与已有实例登录分开记录，页面关闭只清理前者。
+    @State private var oauthDraftID: String?
+    @State private var oauthInstanceID: String?
+    @State private var oauthTask: Task<Void, Never>?
+    @State private var saveTask: Task<Void, Never>?
+    @State private var hasLeft = false
     /// The provider just saved: the form gives way to the "Use it for" card (0.1.41).
     @State private var saved: ProviderInstance?
 
@@ -217,6 +220,7 @@ struct NanoMuseVendorSheet: View {
             Group {
                 if let saved {
                     NanoMuseUseItForView(instance: saved) {
+                        guard canComplete(saved) else { return }
                         onDone(saved)
                         dismiss()
                     }
@@ -225,19 +229,31 @@ struct NanoMuseVendorSheet: View {
                 }
             }
             .sheet(isPresented: $kimi) {
-                KimiDeviceLoginSheet(instanceId: kimiInstanceId) { success in
-                    guard success else { return }
-                    Task {
-                        let inst = await NanoMuseVendorSetup.finishSignIn(vendor, auth: NanoMuseCatalogue.authKimi, instanceId: kimiInstanceId, mainland: mainland, chinese: chinese)
-                        finish(inst)
-                    }
+                let identifier = kimiInstanceId
+                let sourceScope = formScope
+                KimiDeviceLoginSheet(instanceId: identifier, sourceScope: sourceScope) { success in
+                    guard success, !hasLeft else { return }
+                    startSave(isOAuth: true) { await finishKimi(identifier, sourceScope: sourceScope) }
                 }
             }
         }
+        .interactiveDismissDisabled(busy)
+        .onAppear {
+            hasLeft = false
+            if formScope == nil { formScope = NivoOAuthAccess.captureScope() }
+        }
+        .onDisappear { abandonOAuth() }
     }
 
     /// After a save: the "Use it for" card when the provider can take a slot, else straight out.
     private func finish(_ inst: ProviderInstance?) {
+        if let inst, oauthDraftID == inst.id {
+            NivoOAuthDraftHost.shared.complete(instanceID: inst.id)
+            oauthDraftID = nil
+        }
+        // 保存可能在系统关闭后完成，只结算草稿，不再展示用途卡片或调用导航回调。
+        guard canCompleteInCurrentScope else { return }
+        if let inst, !canComplete(inst) { return }
         if let inst, NanoMuseUseItForView.worthAsking(inst) {
             saved = inst
         } else {
@@ -246,12 +262,31 @@ struct NanoMuseVendorSheet: View {
         }
     }
 
+    /// 保存后发生账户或配置恢复时，旧页面只结算保存，不向新界面传递旧实例。
+    private func canComplete(_ instance: ProviderInstance) -> Bool {
+        guard canCompleteInCurrentScope else { return false }
+        return ProviderConfigStore.shared.instance(for: instance.id) == instance
+    }
+
+    private var canCompleteInCurrentScope: Bool {
+        guard !hasLeft, let formScope else { return false }
+        do { try NivoOAuthAccess.validateScope(formScope); return true }
+        catch { return false }
+    }
+
     private var form: some View {
         Form {
             if let auth {
                 Section {
                     Button {
-                        if auth == NanoMuseCatalogue.authKimi { kimiInstanceId = UUID().uuidString; kimi = true } else { Task { await runSignIn(auth) } }
+                        if auth == NanoMuseCatalogue.authKimi {
+                            if let identifier = beginOAuth(auth, proposedID: kimiInstanceId) {
+                                kimiInstanceId = identifier
+                                kimi = true
+                            }
+                        } else {
+                            startSave(isOAuth: true) { await runSignIn(auth) }
+                        }
                     } label: {
                         HStack {
                             Label(String(format: AppLocalized("Sign in with %@"), NanoMuseCatalogue.planName(auth: auth, vendor: vendor, chinese: chinese)), systemImage: "person.crop.circle.badge.checkmark")
@@ -263,6 +298,7 @@ struct NanoMuseVendorSheet: View {
                     Text(AppLocalized("A plan you already pay for"))
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
+                        if let message { Text(message).foregroundStyle(.red) }
                         Text(String(format: AppLocalized("Covers %@."), NanoMuseCatalogue.covers(vendor.capabilitiesFor(auth))))
                         if auth == NanoMuseCatalogue.authChatGPT {
                             Text(NanoMuseAllowance.storedGuidance()?.caveat(chinese: chinese).nilIfEmpty ?? AppLocalized("OpenAI's terms cover using a ChatGPT plan inside OpenAI's own Codex; other apps have had this access cut off before (OpenCode, January 2026). If it stops working, an API key does."))
@@ -278,7 +314,7 @@ struct NanoMuseVendorSheet: View {
                         .keyboardType(.URL)
                         .disabled(busy)
                     Button {
-                        Task { await saveLocal() }
+                        startSave { await saveLocal() }
                     } label: {
                         HStack {
                             Text(AppLocalized("Use this server"))
@@ -304,7 +340,7 @@ struct NanoMuseVendorSheet: View {
                         .autocorrectionDisabled()
                         .disabled(busy)
                     Button {
-                        Task { await save() }
+                        startSave { await save() }
                     } label: {
                         HStack {
                             Text(AppLocalized("Use this key"))
@@ -338,16 +374,20 @@ struct NanoMuseVendorSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { if address.isEmpty { address = vendor.baseURL } }
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Cancel")) { dismiss() } }
+            ToolbarItem(placement: .cancellationAction) {
+                Button(AppLocalized("Cancel")) { abandonOAuth(); dismiss() }.disabled(busy)
+            }
         }
     }
 
     private func save() async {
+        guard !busy, !hasLeft, let sourceScope = formScope else { return }
         busy = true
         defer { busy = false }
         message = nil
         do {
-            guard let inst = try await NanoMuseVendorSetup.install(vendor, apiKey: key, mainland: mainland, chinese: chinese) else {
+            guard let inst = try await NanoMuseVendorSetup.install(vendor, apiKey: key, mainland: mainland, chinese: chinese,
+                sourceScope: sourceScope, onRestoreFinished: { acceptOwnRestore($0, source: sourceScope) }) else {
                 message = AppLocalized("Nothing to add")
                 return
             }
@@ -359,23 +399,96 @@ struct NanoMuseVendorSheet: View {
     }
 
     private func saveLocal() async {
+        guard !busy, !hasLeft, let sourceScope = formScope else { return }
         busy = true
         defer { busy = false }
-        guard let inst = await NanoMuseVendorSetup.installLocal(vendor, address: address, chinese: chinese) else {
-            message = AppLocalized("That is not an address the phone can reach.")
-            return
-        }
-        finish(inst)
-    }
-
-    private func runSignIn(_ auth: String) async {
-        busy = true
-        defer { busy = false }
+        message = nil
         do {
-            let inst = try await NanoMuseVendorSetup.signIn(vendor, auth: auth, mainland: mainland, chinese: chinese)
+            guard let inst = try await NanoMuseVendorSetup.installLocal(vendor, address: address, chinese: chinese,
+                sourceScope: sourceScope, onRestoreFinished: { acceptOwnRestore($0, source: sourceScope) }) else {
+                message = AppLocalized("That is not an address the phone can reach.")
+                return
+            }
             finish(inst)
         } catch {
             message = error.localizedDescription
+        }
+    }
+
+    private func runSignIn(_ auth: String) async {
+        guard !busy, !hasLeft, let sourceScope = formScope,
+              let identifier = beginOAuth(auth, proposedID: browserInstanceId) else { return }
+        browserInstanceId = identifier
+        busy = true
+        defer { busy = false }
+        message = nil
+        do {
+            let inst = try await NanoMuseVendorSetup.signIn(vendor, auth: auth, instanceID: identifier,
+                mainland: mainland, chinese: chinese, sourceScope: sourceScope,
+                onRestoreFinished: { acceptOwnRestore($0, source: sourceScope) })
+            finish(inst)
+        } catch {
+            message = error.localizedDescription
+        }
+    }
+
+    private func finishKimi(_ identifier: String, sourceScope: NivoOAuthScope?) async {
+        guard !busy, !hasLeft, let sourceScope else { return }
+        busy = true
+        defer { busy = false }
+        message = nil
+        do {
+            let inst = try await NanoMuseVendorSetup.finishSignIn(vendor, auth: NanoMuseCatalogue.authKimi,
+                instanceId: identifier, mainland: mainland, chinese: chinese, sourceScope: sourceScope,
+                onRestoreFinished: { acceptOwnRestore($0, source: sourceScope) })
+            finish(inst)
+        } catch { message = error.localizedDescription }
+    }
+
+    /// 同一表单仅接受自身事务的代次变化，跨账户或外部恢复仍要求重新打开。
+    private func acceptOwnRestore(_ current: NivoOAuthScope, source: NivoOAuthScope) {
+        guard formScope == source, current.ownerKey == source.ownerKey,
+              current.accountGeneration == source.accountGeneration else { return }
+        formScope = current
+    }
+
+    /// 同步保留任务句柄，双击不能覆盖仍在提交的任务并提前开放草稿清理。
+    private func startSave(isOAuth: Bool = false, _ operation: @escaping @MainActor () async -> Void) {
+        guard saveTask == nil, !busy, !hasLeft else { return }
+        let task = Task { @MainActor in
+            defer { saveTask = nil; if isOAuth { oauthTask = nil } }
+            await operation()
+        }
+        saveTask = task
+        if isOAuth { oauthTask = task }
+    }
+
+    /// 授权开始前固定已有实例身份，新草稿登记失败则不允许写凭证。
+    private func beginOAuth(_ auth: String, proposedID: String) -> String? {
+        do {
+            guard !hasLeft, let formScope else { throw CancellationError() }
+            let existing = NanoMuseVendorSetup.existingInstance(vendor, auth: auth, mainland: mainland)
+            let identifier = existing?.id ?? proposedID
+            try NivoOAuthDraftHost.shared.begin(instanceID: identifier, isExisting: existing != nil,
+                sourceScope: formScope)
+            oauthInstanceID = identifier
+            if existing == nil { oauthDraftID = identifier }
+            return identifier
+        } catch {
+            message = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// 返回、取消和系统关闭均撤销迟到登录，草稿移交宿主后仍有独立重试入口。
+    private func abandonOAuth() {
+        guard !hasLeft else { return }
+        hasLeft = true
+        oauthTask?.cancel()
+        if let oauthInstanceID { NivoOAuthAccess.invalidate(instanceID: oauthInstanceID) }
+        if let oauthDraftID {
+            // 取消只表达退出意图；必须等保存提交或回滚结束后才能开放凭证清理。
+            NivoOAuthDraftHost.shared.abandon(instanceID: oauthDraftID, after: saveTask ?? oauthTask)
         }
     }
 }

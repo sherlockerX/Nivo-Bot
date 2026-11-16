@@ -335,74 +335,61 @@ enum NanoMuseCloud {
         return key
     }
 
-    /// A sign-in reply → the provider instance, its models, a default group, the cached account.
+    /// 先安装账户资料，再提交本机密钥与缓存，模型刷新在事务提交后进行。
     private static func adopt(_ reply: [String: Any]) async throws -> Account {
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { NivoPersonalBackupAccess.endAccountChange() }
         guard let apiKey = reply["api_key"] as? String, !apiKey.isEmpty else {
             throw CloudError(code: "bad_reply", message: "The relay sent no key", status: 0)
         }
-        // The host the code was sent to is the host the key is for; the relay's own idea of
-        // its public address (`base_url`) is informational.
-        let base = baseURL
         let store = ProviderConfigStore.shared
-        // C12: who was here before the key is written — the phone's own set (signed out), or
-        // an account a sign-in reached without a sign-out (nothing of it is deleted without
-        // the sheet's question: it is put aside, as *Keep* would)
-        let before = NanoMuseAccountData.shared.current
-
-        // One instance per relay: signing in again on the same phone refreshes the key and
-        // keeps the entries and groups that already point at it.
-        let inst: ProviderInstance
-        if var existing = instance {
-            if existing.customBaseURL != base {
-                existing.customBaseURL = base
-                store.updateInstance(existing)
-            }
-            ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: existing.id)
-            // C12: the relay's key is this phone's alone, never in iCloud Keychain; upstream's
-            // helper writes a synchronizable item, so it is rewritten device-only at once,
-            // before the model fetch below gives iCloud time to pick it up.
-            NanoMuseAccountData.saveRelayKey(apiKey, instanceId: existing.id)
-            inst = existing
-        } else {
-            let fresh = ProviderInstance(
-                label: label,
-                providerType: .openAI,
-                credentialType: .apiKey,
-                customBaseURL: base,
-                appendV1Suffix: true
-            )
-            // Key first: addInstance fetches the model list on its own right away.
-            ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: fresh.id)
-            NanoMuseAccountData.saveRelayKey(apiKey, instanceId: fresh.id) // C12, as above
-            store.addInstance(fresh)
-            inst = fresh
-        }
-        UserDefaults.standard.set(inst.id, forKey: Keys.instance)
-        UserDefaults.standard.removeObject(forKey: Keys.ended) // a sign-in answers the sentence (C12)
-        // A sign-in that created the account owes the first run a password page (NanoMuseFirstRun).
-        if (reply["created"] as? Bool) == true { UserDefaults.standard.set(true, forKey: Keys.fresh) }
-        if let region = reply["region"] as? String, !region.isEmpty { UserDefaults.standard.set(region, forKey: "nanomuse.relay.region") }
-
-        // The models the relay serves — the same `/v1/models` call every provider gets; the
-        // relay includes modalities so a picture model is recognised as one.
-        await store.refreshModels(for: inst)
-        let menu = reply["models"] as? [[String: Any]] ?? []
-        NanoMuseRelayMenu.store(menu) // the pickers' Cloud group (Settings › Models) reads it without a round trip
-        provisionDefaults(store: store, instance: inst, models: menu)
-
+        var candidate = instance ?? ProviderInstance(label: label, providerType: .openAI,
+            credentialType: .apiKey, customBaseURL: baseURL, appendV1Suffix: true)
+        candidate.customBaseURL = baseURL
         let parsed = parseAccount(reply)
-        account = parsed
-        NanoMuseNudges.shared.absorb(me: reply) // nanoMuse: contract C1 — the star policy rides along
-        // C12: whoever was here is put aside, and this account's own set comes back (or starts empty)
-        let after = NanoMuseAccountData.shared.current
-        if after != before {
-            await NanoMuseAccountData.shared.leave(account: before, keep: true)
-            await NanoMuseAccountData.shared.enter(account: after)
+        let target = NanoMuseSync.accountKey(id: parsed.id, hint: parsed.hint, apiKey: apiKey)
+        let identity = try NivoAccountSwitchIdentity.signingIn(provider: candidate, account: parsed, key: apiKey)
+        try await NanoMuseAccountData.shared.switchAccount(to: target, keepSource: true, identity: identity) {
+            try NanoMuseAccountData.saveRelayKeyChecked(apiKey, instanceId: candidate.id)
+            try restoreTransitionIdentity(identity)
         }
-        await MainActor.run { NanoMuseHub.shared.restart() } // the new key joins the hub
-        NanoMuseSync.shared.accountChanged() // C10: another account's conversations are not this one's to show or push
-        NanoMuseProfileSync.shared.pull() // C8: the account's name and face land now, not at the next cold start
+        UserDefaults.standard.removeObject(forKey: Keys.ended)
+        if (reply["created"] as? Bool) == true { UserDefaults.standard.set(true, forKey: Keys.fresh) }
+        if let region = reply["region"] as? String, !region.isEmpty {
+            UserDefaults.standard.set(region, forKey: "nanomuse.relay.region")
+        }
+        await store.refreshModels(for: candidate)
+        let menu = reply["models"] as? [[String: Any]] ?? []
+        NanoMuseRelayMenu.store(menu)
+        provisionDefaults(store: store, instance: candidate, models: menu)
+        NanoMuseNudges.shared.absorb(me: reply)
+        NanoMuseHub.shared.restart()
+        NanoMuseSync.shared.accountChanged()
+        NanoMuseProfileSync.shared.pull()
         return parsed
+    }
+
+    /// 事务恢复按保存的提供商ID校验密钥，不能依赖可能还没更新的缓存账号。
+    static var transitionInstanceID: String? { UserDefaults.standard.string(forKey: Keys.instance) }
+
+    /// 从事务日志补全身份缓存；日志仅包含公有配置，不包含API密钥。
+    static func restoreTransitionIdentity(_ identity: NivoAccountSwitchIdentity) throws {
+        guard let encodedProvider = identity.provider, let encodedAccount = identity.account else {
+            clear()
+            guard UserDefaults.standard.synchronize() else { throw CocoaError(.fileWriteUnknown) }
+            // 旧提供商在异步配置确认阶段删除，不能在身份缓存提交时提前清除Keychain。
+            return
+        }
+        let provider = try JSONDecoder().decode(ProviderInstance.self, from: encodedProvider)
+        let parsed = try JSONDecoder().decode(Account.self, from: encodedAccount)
+        guard try identity.isApplied() else { throw NivoLifeError.accountChanged }
+        try NanoMuseAccountData.removeSyncedRelayKey(instanceId: provider.id)
+        let store = ProviderConfigStore.shared
+        if store.instances.contains(where: { $0.id == provider.id }) { store.updateInstance(provider) }
+        else { store.addInstance(provider) }
+        UserDefaults.standard.set(provider.id, forKey: Keys.instance)
+        account = parsed
+        guard UserDefaults.standard.synchronize() else { throw CocoaError(.fileWriteUnknown) }
     }
 
     /// Re-read the balance. Returns nil (and forgets the account) when the key is gone.
@@ -410,8 +397,13 @@ enum NanoMuseCloud {
         guard let inst = instance, let key = ProviderKeychainHelper.loadAPIKey(instanceId: inst.id), !key.isEmpty else {
             return nil
         }
+        let generation = NanoMuseAccountData.shared.generation
         do {
             let me = try await call("GET", "/v1/me", body: nil, token: key)
+            guard !NanoMuseAccountData.shared.isChangingAccount,
+                  NanoMuseAccountData.shared.generation == generation, apiKey == key else {
+                throw NivoLifeError.accountChanged
+            }
             let parsed = parseAccount(me)
             account = parsed
             NanoMuseNudges.shared.absorb(me: me) // nanoMuse: contract C1
@@ -424,35 +416,39 @@ enum NanoMuseCloud {
             // `account_deleted` — the account itself is gone at the relay — leaves nothing to
             // come back to, and the data goes.
             let keep = NanoMuseAccountData.keepOnRefusedKey(code: error.code)
-            await forgetLocally(keep: keep)
+            try await forgetLocally(keep: keep, expectedKey: key)
             if keep { UserDefaults.standard.set(true, forKey: Keys.ended) }
             return nil
         }
     }
 
-    /// Revoke this phone's key at the relay and take the provider out of the app. The account's
-    /// chats, memory, feed, goals and face stay on the phone — put aside for its return — only
-    /// with `keep` (the sign-out sheet's switch, off by default; contract C12).
-    static func signOut(keep: Bool = false) async {
+    /// 退出请求和本地切换共用独占边界，失败向页面传播，不显示虚假的已退出状态。
+    static func signOut(keep: Bool = false) async throws {
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { NivoPersonalBackupAccess.endAccountChange() }
+        try NanoMuseAccountData.shared.requireSwitchAccess()
         NanoMuseHub.shared.stop()
-        if let inst = instance, let key = ProviderKeychainHelper.loadAPIKey(instanceId: inst.id), !key.isEmpty {
+        if let key = apiKey {
             _ = try? await call("POST", "/v1/auth/sign-out", body: nil, token: key)
         }
-        await forgetLocally(keep: keep)
+        try await forgetLocallyLocked(keep: keep)
     }
 
-    /// The phone forgets the account: the account's data leaves the fixed paths (C12,
-    /// `NanoMuseAccountData.leave` — put aside with `keep`, deleted without), the provider and
-    /// the key go, and the phone's own set comes back. The account's data moves while the
-    /// account is still the signed-in key; the phone's set returns only once the key is gone,
-    /// so nothing made in the gap is filed under the account that left.
-    static func forgetLocally(keep: Bool) async {
-        NanoMuseHub.shared.stop()
-        let account = NanoMuseAccountData.shared.current
-        if !account.isEmpty { await NanoMuseAccountData.shared.leave(account: account, keep: keep) }
-        if let inst = instance { ProviderConfigStore.shared.removeInstance(inst.id) }
-        clear()
-        if !account.isEmpty { await NanoMuseAccountData.shared.enter(account: NanoMuseAccountData.local) }
+    /// 401只可清理发出该请求的身份，旧网络响应不能退出后来登录的新账号。
+    static func forgetLocally(keep: Bool, expectedKey: String? = nil) async throws {
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { NivoPersonalBackupAccess.endAccountChange() }
+        if let expectedKey, apiKey != expectedKey { throw NivoLifeError.accountChanged }
+        try await forgetLocallyLocked(keep: keep)
+    }
+
+    /// 调用方必须持有账户锁，禁止嵌套请求同一锁。
+    static func forgetLocallyLocked(keep: Bool) async throws {
+        let identity = NivoAccountSwitchIdentity.signingOut()
+        try await NanoMuseAccountData.shared.switchAccount(to: NanoMuseAccountData.local,
+            keepSource: keep, identity: identity) {
+            try restoreTransitionIdentity(identity)
+        }
     }
 
     /// A sentence for the person, from the relay's stable error codes.

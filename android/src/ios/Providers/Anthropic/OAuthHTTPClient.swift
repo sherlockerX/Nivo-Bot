@@ -676,11 +676,8 @@ private final class OAuthURLProtocol: URLProtocol, URLSessionDataDelegate {
                 return
             case .success(let token):
                 mutable.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                #if DEBUG
-                logger.info("[URLProtocol] Set Bearer token (prefix: \(token.prefix(16))...)")
-                #else
+                // nanoMuse: 调试构建也不记录认证令牌片段。
                 logger.info("[URLProtocol] Set Bearer token")
-                #endif
             }
 
             #if DEBUG
@@ -688,8 +685,9 @@ private final class OAuthURLProtocol: URLProtocol, URLSessionDataDelegate {
             var headerLines: [String] = ["[URLProtocol] Final Headers:"]
             for key in headers.keys.sorted() {
                 let value = headers[key] ?? ""
-                if key.lowercased() == "authorization" {
-                    headerLines.append("  \(key): Bearer \(value.dropFirst(min(7, value.count)).prefix(16))...")
+                // nanoMuse: 认证头始终完全遮蔽，不保留可关联的秘密前缀。
+                if ["authorization", "x-api-key", "api-key", "cookie"].contains(key.lowercased()) {
+                    headerLines.append("  \(key): [redacted]")
                 } else {
                     headerLines.append("  \(key): \(value)")
                 }

@@ -27,6 +27,16 @@
 
 import SwiftUI
 
+/// 聊天直接报告思考能力，草稿无需先进入持久会话缓存。
+struct NanoMuseThinkingAvailabilityKey: PreferenceKey {
+    static let defaultValue: [String: Bool] = [:]
+
+    /// 主聊天与旁聊可同时保留在层级中，按实际会话身份合并。
+    static func reduce(value: inout [String: Bool], nextValue: () -> [String: Bool]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, current in current })
+    }
+}
+
 /// The height of the shell's floating bottom bar over the chat's bottom edge, 0 when the shell
 /// is off or the bar is away for the keyboard. `NanoMuseHomeView` sets it over the chat layer;
 /// `NanoMuseComposerHost` stands the composer column that much above the bottom, and the
@@ -317,10 +327,12 @@ private struct NanoMuseComposerVignette: View {
 /// and the Action Button's voice prompt (#296).
 struct NanoMuseChatHooks: ViewModifier {
     let vm: AIChatViewModel
+    let sessionKey: String
     /// `vm.isProcessing`, passed as a value so a change re-runs this body and `onChange` sees it.
     let processing: Bool
     let composer: NanoMuseComposerWatch
     let readOnly: Bool
+    let visible: Bool
     let perform: (NanoMuseChatAction) -> Void
     /// The composer's voice panel model, and the chat's switch into voice mode (the mic
     /// button's path), for a voice prompt the Action Button asked for.
@@ -331,11 +343,15 @@ struct NanoMuseChatHooks: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .preference(key: NanoMuseThinkingAvailabilityKey.self, value: [sessionKey:
+                !vm.availableThinkingLevels.isEmpty && (vm.currentThinkingLevel.isEnabled || vm.currentModelSupportsReasoning)])
             .onReceive(NotificationCenter.default.publisher(for: .nanoMuseChatAction)) { note in
                 guard let action = NanoMuseChatAction.from(note, for: vm.nmSessionKey) else { return }
                 if action == .anchors {
                     sheets.open(.anchors, session: vm.nmSessionKey)
-                } else {
+                } else if action == .thinking {
+                    sheets.open(.thinking, session: vm.nmSessionKey)
+                } else if action != .voiceCall {
                     perform(action)
                 }
             }
@@ -356,6 +372,11 @@ struct NanoMuseChatHooks: ViewModifier {
             }
             .onReceive(NanoMusePresence.shared.$revision) { _ in vm.nmApplyPresence() }
             .onReceive(vm.$messages) { _ in vm.nmApplyPresence() }
+            // 主要聊天、旁聊和经典布局共用查看登记；关闭旧页面不会撤销新页面的令牌。
+            .modifier(NanoMuseRunViewing(session: vm.nmSessionKey,
+                visible: visible && sheets.binding(for: vm).wrappedValue == nil))
+            .modifier(NanoMuseCallHost(vm: vm, readOnly: readOnly, voice: voice))
+            .modifier(NivoCoachChatHost(vm: vm, readOnly: readOnly))
             .sheet(item: sheets.binding(for: vm)) { request in
                 NanoMuseChatSheetContent(request: request, vm: vm)
             }

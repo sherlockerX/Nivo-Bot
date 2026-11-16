@@ -291,8 +291,7 @@ enum NanoMuseGoalFlow {
             routine.goalId = g.id
             routine.sessionId = g.sessionId
             routine.intervalHours = g.checkEveryHours > 0 ? g.checkEveryHours : nil
-            NanoMuseScheduler.shared.create(routine)
-            g.routineId = routine.id
+            g.routineId = NanoMuseScheduler.shared.create(routine)?.id
         }
         store.upsert(g)
         NanoMuseScheduler.shared.requestNotificationPermission()
@@ -383,6 +382,7 @@ struct NanoMuseGoalsRoom: View {
     @State private var pickedCategory: NanoMuseGoalCategory?
     @State private var deleting: NanoMuseGoal?
     @State private var editingRoutine: NanoMuseRoutine?
+    @State private var historyRoutine: NanoMuseRoutine?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -414,6 +414,12 @@ struct NanoMuseGoalsRoom: View {
         .sheet(item: $editingRoutine) { routine in
             NanoMuseRoutineEditor(routine: routine)
         }
+        .sheet(item: $historyRoutine) { routine in NivoRoutineHistoryView(routineID: routine.id) }
+        .alert(AppLocalized("Could not save"), isPresented: Binding(
+            get: { scheduler.persistenceError != nil }, set: { if !$0 { scheduler.clearPersistenceError() } }
+        )) {
+            Button(AppLocalized("OK")) { scheduler.clearPersistenceError() }
+        } message: { Text(scheduler.persistenceError ?? "") }
         .confirmationDialog(AppLocalized("Delete this goal? Its conversation stays in your chats."), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
             Button(AppLocalized("Delete goal"), role: .destructive) {
                 if let g = deleting { NanoMuseGoalFlow.delete(g) }
@@ -576,6 +582,7 @@ struct NanoMuseGoalsRoom: View {
             }
             Menu {
                 Button { editingRoutine = routine } label: { Label(AppLocalized("Edit"), systemImage: "pencil") }
+                Button { historyRoutine = routine } label: { Label(AppLocalized("Run records"), systemImage: "clock.arrow.circlepath") }
                 Button { Task { @MainActor in await scheduler.run(routine.id) } } label: { Label(AppLocalized("Run now"), systemImage: "play") }
                 if let sid = routine.sessionId {
                     Button { onOpenSession(sid) } label: { Label(AppLocalized("Open conversation"), systemImage: "bubble.left") }
@@ -666,75 +673,9 @@ struct NanoMuseGoalCategorySheet: View {
 
 // MARK: - Routine editor
 
+/// 复用完整定时任务表单，目标页和设置页使用同一份编辑行为。
 struct NanoMuseRoutineEditor: View {
-    @State var routine: NanoMuseRoutine
-    @Environment(\.dismiss) private var dismiss
-    @State private var time: Date = Date()
+    var routine: NanoMuseRoutine
 
-    private var isNew: Bool { NanoMuseScheduler.shared.routine(id: routine.id) == nil }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField(AppLocalized("Name"), text: $routine.label)
-                    DatePicker(AppLocalized("Time"), selection: $time, displayedComponents: .hourAndMinute)
-                    Picker(AppLocalized("Repeat"), selection: $routine.repeatMode) {
-                        Text(AppLocalized("Every day")).tag(NanoMuseRoutine.Repeat.daily)
-                        Text(AppLocalized("Weekdays")).tag(NanoMuseRoutine.Repeat.weekdays)
-                        Text(AppLocalized("Once")).tag(NanoMuseRoutine.Repeat.once)
-                    }
-                    Toggle(AppLocalized("On"), isOn: $routine.enabled).tint(NanoMuseTones.action)
-                }
-                Section {
-                    TextEditor(text: $routine.prompt)
-                        .frame(minHeight: 120)
-                } header: {
-                    Text(AppLocalized("What to do"))
-                } footer: {
-                    Text(AppLocalized("Sent to the agent as a message at the set time, in its own conversation. On the iPhone the run happens when the app is open; at the set time you get a reminder to open it. Nothing runs while the app is asleep."))
-                }
-                if !routine.runs.isEmpty {
-                    Section(AppLocalized("Run records")) {
-                        ForEach(Array(routine.runs.enumerated()), id: \.offset) { _, run in
-                            HStack {
-                                Image(systemName: run.ok ? "checkmark.circle" : "exclamationmark.circle")
-                                    .foregroundStyle(run.ok ? Color.green : Color.orange)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(run.at.formatted(date: .abbreviated, time: .shortened)).font(.subheadline)
-                                    if let note = run.note, !note.isEmpty { Text(note).font(.caption).foregroundStyle(.secondary) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle(isNew ? AppLocalized("New routine") : AppLocalized("Edit routine"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Cancel")) { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(AppLocalized("Save")) { save() }
-                        .disabled(routine.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-            .onAppear {
-                var c = DateComponents()
-                c.hour = routine.hour
-                c.minute = routine.minute
-                time = Calendar.current.date(from: c) ?? Date()
-            }
-        }
-    }
-
-    private func save() {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: time)
-        var r = routine
-        r.hour = c.hour ?? 9
-        r.minute = c.minute ?? 0
-        if r.label.trimmingCharacters(in: .whitespaces).isEmpty { r.label = String(r.prompt.prefix(40)) }
-        if isNew { NanoMuseScheduler.shared.create(r) } else { NanoMuseScheduler.shared.update(r) }
-        NanoMuseScheduler.shared.requestNotificationPermission()
-        dismiss()
-    }
+    var body: some View { NivoRoutineEditorForm(routine: routine) }
 }

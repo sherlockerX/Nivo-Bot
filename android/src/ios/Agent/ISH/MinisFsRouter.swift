@@ -31,6 +31,8 @@ final class MinisFsRouter: @unchecked Sendable {
     private var nextContext: UInt64 = 1
     private var contextToSid: [UInt64: String] = [:]
     private var sidToContext: [String: UInt64] = [:]
+    // nanoMuse: 定时命令使用独立且短期的上下文，普通会话不能借用运行上报权限。
+    private var executionContexts: Set<UInt64> = []
 
     /// Host base URL (~/Library/MinisChat/minis). Captured once at install time.
     private let minisBaseURL: URL
@@ -59,6 +61,27 @@ final class MinisFsRouter: @unchecked Sendable {
         if context == 0 { return nil }
         lock.lock(); defer { lock.unlock() }
         return contextToSid[context]
+    }
+
+    // nanoMuse: 身份由宿主在启动进程前分配，来宾变量无法指定这个内核字段。
+    /// 创建仍路由到同一会话文件的临时上下文，只有登记方负责撤销。
+    func executionContext(for sid: String) -> UInt64 {
+        _ = context(for: sid)
+        lock.lock(); defer { lock.unlock() }
+        let context = nextContext
+        nextContext &+= 1
+        if nextContext == 0 { nextContext = 1 }
+        contextToSid[context] = sid
+        executionContexts.insert(context)
+        return context
+    }
+
+    // nanoMuse: 稳定会话映射不受命令结束影响，迟到释放也不会删除其他上下文。
+    /// 进程回调结束后只撤销临时映射。
+    func releaseExecutionContext(_ context: UInt64) {
+        lock.lock(); defer { lock.unlock() }
+        guard executionContexts.remove(context) != nil else { return }
+        contextToSid.removeValue(forKey: context)
     }
 
     /// Install the path-translate hook on ISHKernel. Idempotent; call once

@@ -518,6 +518,18 @@ struct BackupRestoreView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 } else {
+                    // nanoMuse: 说明恢复后的任务状态，并列出保留本机版本的冲突内容。
+                    if c.importedPausedRoutines > 0 {
+                        Text(AppLocalized("Imported routines are paused. Review them before enabling them; script approvals must be confirmed again."))
+                            .font(.caption)
+                    }
+                    if !c.keptLocalConflicts.isEmpty {
+                        DisclosureGroup(AppLocalized("Kept local versions because the backup differs")) {
+                            ForEach(Array(c.keptLocalConflicts.enumerated()), id: \.offset) { _, path in
+                                Text(path).font(.caption).textSelection(.enabled)
+                            }
+                        }
+                    }
                     if c.sizeSkippedInPackage > 0 {
                         Text("\(displayNameRaw(c.category)): \(c.sizeSkippedInPackage) file(s) weren't in the backup (size limit)")
                             .font(.caption)
@@ -778,6 +790,8 @@ struct BackupRestoreView: View {
                 return "\(providers) · \(r) · \(size)"
             }
             return "\(providers) · \(size)"
+        case .personalData:
+            return AppLocalized("Tasks, focus sessions, daily fragments and coach archives.") + " · " + size
         default:
             break
         }
@@ -794,6 +808,8 @@ struct BackupRestoreView: View {
         case .mcpServers: return AppLocalized("MCP Servers")
         case .voiceCorrections: return AppLocalized("Voice Corrections")
         case .environmentVariables: return AppLocalized("Environment Variables")
+        // nanoMuse: 与导出页共享个人数据分类名。
+        case .personalData: return AppLocalized("Personal data")
         }
     }
 

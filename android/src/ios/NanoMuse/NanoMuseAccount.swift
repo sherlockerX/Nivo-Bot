@@ -224,16 +224,22 @@ extension NanoMuseCloud {
     /// Every device's key, this phone's included; then the provider leaves the app, and this
     /// phone's copy of the account's data stays only with `keep` (contract C12).
     static func signOutEverywhere(keep: Bool = false) async throws {
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { NivoPersonalBackupAccess.endAccountChange() }
+        try NanoMuseAccountData.shared.requireSwitchAccess()
         _ = try await call("POST", "/v1/auth/sign-out-all", body: ["all": true], token: key())
-        await forgetLocally(keep: keep)
+        try await forgetLocallyLocked(keep: keep)
     }
 
     /// The account, its keys, ledger, devices and synced conversations — gone for good at the
     /// relay; and everything of it on this phone — chats, memory, feed, goals, face, the key —
     /// goes too (contract C12). The next sign-in with the same address is a new account.
     static func deleteAccount() async throws {
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { NivoPersonalBackupAccess.endAccountChange() }
+        try NanoMuseAccountData.shared.requireSwitchAccess()
         _ = try await call("POST", "/v1/auth/delete", body: nil, token: key())
-        await forgetLocally(keep: false)
+        try await forgetLocallyLocked(keep: false)
     }
 }
 
@@ -282,7 +288,8 @@ final class NanoMuseStar: ObservableObject {
 
     /// Still worth asking at this moment: on in the policy, not spent, not starred, under the cap, cooldown over.
     func due(_ moment: NanoMuseStarMoment) -> Bool {
-        NanoMuseStarGate.due(moment, ledger: ledger, policy: policy)
+        // 个人构建关闭经此门禁发起的Star提示，包括卡片和账号行。
+        !NanoMuseOffline.isOn && NanoMuseStarGate.due(moment, ledger: ledger, policy: policy)
     }
 
     /// The card or row was shown (or waved away): the moment is spent and the cooldown starts.

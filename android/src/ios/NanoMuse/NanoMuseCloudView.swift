@@ -364,11 +364,16 @@ struct NanoMuseCloudView: View {
     private func changeRelay(keep: Bool) async {
         busy = true
         defer { busy = false }
-        await NanoMuseCloud.signOut(keep: keep)
-        account = nil
-        message = nil
-        failed = false
-        pickingRelay = true
+        do {
+            try await NanoMuseCloud.signOut(keep: keep)
+            account = nil
+            message = nil
+            failed = false
+            pickingRelay = true
+        } catch {
+            failed = true
+            message = NanoMuseCloud.describe(error)
+        }
     }
 
     private func sendCode() async {
@@ -449,7 +454,7 @@ struct NanoMuseCloudView: View {
         defer { busy = false }
         do {
             switch way {
-            case .here: await NanoMuseCloud.signOut(keep: keep)
+            case .here: try await NanoMuseCloud.signOut(keep: keep)
             case .everywhere: try await NanoMuseCloud.signOutEverywhere(keep: keep)
             case .delete: try await NanoMuseCloud.deleteAccount()
             }

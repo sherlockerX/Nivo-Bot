@@ -27,6 +27,10 @@ enum NanoMuseChatAction: String {
     case skills, mcps, memories
     /// Conversation anchors: the questions, the bookmarks, a search of this chat (NanoMuseAnchorsSheet).
     case anchors
+    /// The thinking intensity of this chat's model; the main chat has no title bar to hold the side chat's badge.
+    case thinking
+    /// 全屏语音通话。
+    case voiceCall
 
     static func post(_ action: NanoMuseChatAction, session: String) {
         NotificationCenter.default.post(name: .nanoMuseChatAction, object: session, userInfo: ["action": action.rawValue])
@@ -76,11 +80,23 @@ extension AIChatViewModel {
         if let draft = draftId, let real = sessionId, draft != real { nmRebind(from: draft, to: real) }
         let key = nmSessionKey
         var parts: [String] = []
+        if let call = NanoMuseCallSession.prompt(for: self) { parts.append(call) }
         if let user = NanoMuseSystemFiles.userPromptFragment() { parts.append(user) }
         if let goal = NanoMuseGoalFlow.systemAddendum(session: key) { parts.append(goal) }
         if let feed = NanoMuseFeedFlow.systemAddendum(session: key) { parts.append(feed) }
         if let addenda = NanoMuseSessionAddenda.forPrompt(session: key) { parts.append(addenda) }
         if let naming = NanoMuseFirstConversation.shared.systemAddendum(session: key) { parts.append(naming) }
+        parts.append("Timed tasks use minis-scheduled through the shell tool. Read minis-scheduled --help, list tasks and their revisions before changes. Use --expected-revision for mutations. A run reply with accepted=true means durably queued, never completed; inspect logs for its run_id. On iOS tasks start while the app is open, with reminders while it is asleep. Notification policies and quiet hours are available. Explicit .sh or .py scripts live in /var/minis/home/bin; probe checks availability without running the script. Execution requires user approval of the frozen content and arguments. Only a process started by the current task can use minis-scheduled report. Keep the real exit code, a task's self-report and an unverified outcome distinct. Never claim a prompt task has verified a script exit code.")
+        // nanoMuse: 任务与专注工具的规则和Android主聊天保持一致；工具本身仍在注册和执行层复核前台、账号及原话边界。
+        if sessionId == UserDefaults.standard.string(forKey: NanoMuseMainChat.key) {
+            parts.append(NivoLifeToolBridge.promptParagraph())
+        }
+        if sessionId == UserDefaults.standard.string(forKey: NanoMuseMainChat.key)
+            || NivoCoachChatContext.shared.isPractice(sessionId) {
+            parts.append(NivoCoachToolBridge.promptParagraph())
+            parts.append(NivoMosaicToolBridge.promptParagraph())
+        }
+        if let practice = NivoCoachChatContext.shared.prompt(for: sessionId) { parts.append(practice) }
         guard !parts.isEmpty else { return "" }
         return "\n\n" + parts.joined(separator: "\n\n")
     }
@@ -114,6 +130,7 @@ extension AIChatViewModel {
             let msg = ChatMessage(role: .assistant, content: assistant, blocks: [AssistantBlock(kind: .text, content: assistant)])
             messages.append(msg)
             agentMessages.append(AgentMessage(role: .assistant, parts: [.text(assistant)]))
+            NanoMuseCallSession.acceptFinalAnswer(assistant, from: self, generation: NanoMuseCallSession.generation(for: self))
         }
         guard !agentMessages.isEmpty else { return }
         inputText = ""

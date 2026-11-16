@@ -47,7 +47,9 @@ extension AIChatViewModel {
                 }
             }
             do {
-                var thinkLvl = sessionId.flatMap { ProviderConfigStore.shared.inferenceConfig(for: $0)?.thinkingLevel } ?? .off
+                // nanoMuse: 通话临时关闭思考，不覆盖会话设置。
+                var thinkLvl: ThinkingLevel = NanoMuseCallSession.contains(self) ? .off
+                    : (sessionId.flatMap { ProviderConfigStore.shared.inferenceConfig(for: $0)?.thinkingLevel } ?? .off)
                 // [T-fallback-thinking-preclamp] Clamp to the CURRENT entry's
                 // effective max BEFORE building the request — the session's
                 // persisted level may exceed what this (possibly re-resolved)
@@ -123,7 +125,9 @@ extension AIChatViewModel {
                 // distinguish fallbackable errors from network errors.
                 let currentModel = currentEntryId.flatMap { ProviderConfigStore.shared.entry(for: $0)?.model } ?? model
                 let maxTok = dynamicMaxTokens(provider: currentProvider, model: currentModel, lastContextTokens: lastContextTokens)
-                var thinkLvl = sessionId.flatMap { ProviderConfigStore.shared.inferenceConfig(for: $0)?.thinkingLevel } ?? .off
+                // nanoMuse: 通话临时关闭思考，不覆盖会话设置。
+                var thinkLvl: ThinkingLevel = NanoMuseCallSession.contains(self) ? .off
+                    : (sessionId.flatMap { ProviderConfigStore.shared.inferenceConfig(for: $0)?.thinkingLevel } ?? .off)
                 // [T-fallback-thinking-preclamp] When falling back (e.g. a
                 // Responses-API primary at xhigh → a Chat-API seed model that
                 // tops out at high), the session's persisted level was passed

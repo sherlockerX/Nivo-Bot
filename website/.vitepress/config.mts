@@ -76,6 +76,7 @@ function placeholderOrHtml(raw: string): string {
 const getStarted: DefaultTheme.SidebarItem[] = [
   { text: 'Android', link: '/android' },
   { text: 'iPhone and iPad', link: '/ios' },
+  { text: 'iOS local port status', link: '/ios-local-port' },
   { text: 'The desktop app', link: '/desktop' },
   { text: 'The web console', link: '/web' },
   { text: 'One account, all your devices', link: '/trial' },
@@ -134,6 +135,7 @@ const contribute: DefaultTheme.SidebarItem[] = [
 const zhGetStarted: DefaultTheme.SidebarItem[] = [
   { text: 'Android', link: '/zh/android' },
   { text: 'iPhone 和 iPad', link: '/zh/ios' },
+  { text: 'iOS本地适配进展', link: '/zh/ios-local-port' },
   { text: '桌面版', link: '/zh/desktop' },
   { text: '网页控制台', link: '/zh/web' },
   { text: '一个账号，所有设备', link: '/zh/trial' },

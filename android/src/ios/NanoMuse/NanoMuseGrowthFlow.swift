@@ -359,17 +359,10 @@ enum NanoMuseGrowthFlow {
     /// The skill an ability's own course is written under.
     static func courseSkill(_ trackId: String) -> String { "growth-\(trackId)" }
 
-    /// The first message of the chat that builds (or rebuilds) an ability's course with the
-    /// course framework skill (growth-course-builder): the ability, what the person wants from
-    /// it, its course folder and their record so far.
+    /// 旧入口只提供需求背景，建课必须回到主聊天的草稿、提案和确认流程。
     static func buildOpener(_ trackId: String) -> String? {
         let store = NanoMuseGrowthStore.shared
         guard let track = store.state.tracks.first(where: { $0.id == trackId }) else { return nil }
-        var skill = track.skill
-        if skill == NanoMuseGrowthStore.generalSkill {
-            skill = courseSkill(track.id)
-            store.setSkill(track.id, skill)
-        }
         let title = track.displayTitle
         let answers = store.responses.values.filter { $0.track == track.id }.count
         let scores = track.scores.suffix(NanoMuseGrowthStore.window).map(String.init).joined(separator: ", ")
@@ -377,8 +370,8 @@ enum NanoMuseGrowthFlow {
         let memory = String(store.read(store.memoryFile).prefix(600))
         let full = memory.isEmpty ? record : record + " " + String(format: AppLocalized("Growth memory: %@"), memory)
         let want = track.about.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } ?? title
-        return String(format: AppLocalized("Build the course for “%@” on my Coach page, following the course framework at /var/minis/skills/growth-course-builder/SKILL.md. What I want to be able to do: %@\n\nCourse folder: %@. Skill name: %@. If a course is already there, this is a rebuild.\n\nMy growth record: %@\n\nAsk me two or three questions first, and send me the book list to confirm before you write the book cards."),
-                      title, want, "/var/minis/skills/\(skill)/", skill, full)
+        return String(format: AppLocalized("Help me plan a course for %@. My goal: %@. Earlier training record: %@. Discuss the plan with me in the main chat and create a Coach draft. Activate it only after I confirm the proposal."),
+                      title, want, full)
     }
 }
 

@@ -57,6 +57,9 @@ actor BackupImporter {
         /// Credentials left alone because a local one already exists — an old
         /// backup must not clobber a key the user has since rotated.
         var credentialsKept = 0
+        // nanoMuse: 内容冲突单独报告，不能显示成“已经是最新”。
+        var keptLocalConflicts: [String] = []
+        var importedPausedRoutines = 0
         var failed: String?
     }
 
@@ -107,6 +110,12 @@ actor BackupImporter {
     }
 
     private let fm = FileManager.default
+    // nanoMuse: 每次恢复持有当前账户的个人数据租约，失败也必须等待解冻。
+    var personalLease: NivoPersonalBackupLease?
+    // nanoMuse: 提供商单独恢复同样持有账户和同步租约。
+    private var providerRestoreLease: UUID?
+    // nanoMuse: 密钥正文只在内存中持有，持久日志只包含插入目标和事务标记。
+    var credentialRestorePlan: NivoCredentialRestore.Plan?
 
     // MARK: - Entry point
 
@@ -117,13 +126,34 @@ actor BackupImporter {
                   options: Options = Options(),
                   progress: (@Sendable (String) -> Void)? = nil) async throws -> Report {
         try await BackupActivityLock.shared.withLock(.restore) {
-            try await importBody(from: packageURL, options: options, progress: progress)
+            // nanoMuse: 异步清理显式等待，避免defer中的Task与下一次恢复竞态。
+            do {
+                let result = try await importBody(from: packageURL, options: options, progress: progress)
+                await releasePersonalLease()
+                return result
+            } catch {
+                await releasePersonalLease()
+                throw error
+            }
         }
+    }
+
+    private func releasePersonalLease() async {
+        if let providerRestoreLease {
+            await ProviderConfigStore.shared.nmEndRestore(providerRestoreLease)
+            await NivoPersonalBackupAccess.endProviderRestore(providerRestoreLease)
+        }
+        providerRestoreLease = nil
+        credentialRestorePlan = nil
+        if let personalLease { await NivoPersonalBackupAccess.end(personalLease.id) }
+        personalLease = nil
     }
 
     private func importBody(from packageURL: URL,
                             options: Options,
                             progress: (@Sendable (String) -> Void)?) async throws -> Report {
+        // nanoMuse: 尚有未恢复快照时不覆盖日志，保留唯一的回滚路径。
+        guard !BackupRestoreJournal.hasPendingRecovery else { throw NivoPersonalBackupError.busy }
         let started = Date()
 
         // Unpack to a working directory. The package must be expanded before
@@ -205,8 +235,9 @@ actor BackupImporter {
         progress?("Preflight…")
         try preflight(manifest: manifest, options: options)
 
-        let wanted = options.categories
-            ?? Set(manifest.categories.keys.compactMap(BackupCategory.init(rawValue:)))
+        // nanoMuse: 请求未包含在包中的类别不能触发空恢复或不存在的个人数据租约。
+        let available = Set(manifest.categories.keys.compactMap(BackupCategory.init(rawValue:)))
+        let wanted = options.categories?.intersection(available) ?? available
 
         // Index the package's file tree once; every file-carrying category
         // filters this rather than re-reading the index per category.
@@ -223,20 +254,38 @@ actor BackupImporter {
         // delete each other's rollback snapshots.
         let runId = UUID().uuidString.prefix(8).lowercased()
         let staging = BackupRestoreJournal.stagingRoot(runId: String(runId))
+        // nanoMuse: 导入聊天前冻结课程来源；个人数据恢复默认合并到当前账户。
+        if wanted.contains(.personalData), manifest.categories[BackupCategory.personalData.rawValue] != nil {
+            personalLease = try await NivoPersonalBackupAccess.begin()
+        }
+        // nanoMuse: 占位先于任何配置快照，已开始的入站操作会拒绝本次恢复，新的入站等待结束。
+        if wanted.contains(.providers) || wanted.contains(.environmentVariables) {
+            let identifier = try await NivoPersonalBackupAccess.beginProviderRestore(personalLeaseID: personalLease?.id)
+            providerRestoreLease = identifier
+            // nanoMuse: 仅恢复环境变量也冻结编辑和同步；提供商秘密仍受原有分类策略约束。
+            if wanted.contains(.providers) {
+                try await ProviderConfigStore.shared.nmBeginRestore(identifier)
+                credentialRestorePlan = try await BackupSecretsImporter.prepare(from: root)
+            }
+        }
+        // nanoMuse: 全部快照先于日志准备完成，快照失败时尚未触碰正式资料。
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
-        BackupRestoreJournal.begin(backupId: manifest.backupId,
-                                   categories: orderedCategories(wanted).map(\.rawValue))
-        // Cleared only on a clean finish; if the process dies first the marker
-        // survives and the next launch reconciles.
-        defer { BackupRestoreJournal.finish(runId: String(runId)) }
+        var snapshots: [BackupCategory: BackupRollbackSnapshot] = [:]
+        for category in orderedCategories(wanted) {
+            snapshots[category] = try await snapshotForRollback(category: category, staging: staging)
+        }
+        try BackupRestoreJournal.begin(backupId: manifest.backupId,
+            categories: orderedCategories(wanted).map(\.rawValue), runId: String(runId),
+            credentialRestore: credentialRestorePlan?.receipt)
+        // nanoMuse: 不用defer吞掉日志删除失败，正式返回报告之前必须完成清理。
+        var canFinishJournal = true
 
         // Order matters: sessions must exist before messages/markers reference
         // them, so chats runs as one unit internally.
         for category in orderedCategories(wanted) {
             progress?("Restoring \(category.rawValue)…")
-            var snapshot: BackupRollbackSnapshot?
+            let snapshot = snapshots[category]
             do {
-                snapshot = try snapshotForRollback(category: category, staging: staging)
                 var cat = try await importCategory(category, root: root, fileIndex: fileIndex,
                                                    options: options)
                 cat.sizeSkippedInPackage = fileIndex
@@ -253,16 +302,22 @@ actor BackupImporter {
                 var cat = CategoryReport(category: category.rawValue)
                 cat.failed = error.localizedDescription
                 report.categories.append(cat)
-                if let snapshot, (try? rollback(snapshot)) != nil {
-                    report.rolledBack.append(category.rawValue)
+                if let snapshot {
+                    do { try await rollback(snapshot); report.rolledBack.append(category.rawValue) }
+                    catch { canFinishJournal = false }
                 }
                 // §8.3: a failed category does not abort the ones already done.
                 continue
             }
         }
 
+        // nanoMuse: 回滚未完成时保留日志且不加载半恢复的仓库，不将本轮报告伪装成完成。
+        guard canFinishJournal else { throw NivoLifeError.corruptStore }
         progress?("Reloading stores…")
-        await reloadStores(for: wanted)
+        // nanoMuse: 清理孤立快照失败也不能跳过缓存恢复；提供商先等待已排队写入。
+        if wanted.contains(.providers) { try await ProviderConfigStore.shared.nmWaitForConfigurationWrites() }
+        try await reloadStores(for: wanted)
+        try BackupRestoreJournal.finish(runId: String(runId))
 
         report.duration = Date().timeIntervalSince(started)
         logger.info("[Restore] done id=\(manifest.backupId) imported=\(report.totalImported) updated=\(report.totalUpdated) skipped=\(report.totalSkipped)")
@@ -442,7 +497,7 @@ actor BackupImporter {
         // this one would have failed had it simply been appended to the enum.
         let order: [BackupCategory] = [.chats, .sharedFiles, .skills, .memory,
                                        .providers, .environmentVariables,
-                                       .mcpServers, .voiceCorrections]
+                                       .mcpServers, .voiceCorrections, .personalData] // nanoMuse: 聊天先恢复，教练来源随后校验。
         return order.filter { wanted.contains($0) }
     }
 }

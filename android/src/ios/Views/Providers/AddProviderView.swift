@@ -164,6 +164,15 @@ struct AddProviderView: View {
     @State private var errorMessage: String?
     @State private var pendingInstanceId = UUID().uuidString
     @State private var pendingOAuthDone = false
+    // nanoMuse: 页面拥有登录任务，返回或放弃后不接受旧任务的状态更新。
+    @State private var nmOAuthTask: Task<Void, Never>?
+    @State private var nmSaveTask: Task<Void, Never>?
+    @State private var nmOAuthAttempt = UUID()
+    @State private var nmDidSavePending = false
+    @State private var nmFormScope: NivoOAuthScope?
+    // nanoMuse: 只有本页创建的草稿才移交清理，保存确认前一直保留其身份。
+    @State private var nmDraftInstanceID: String?
+    @State private var nmHasLeft = false
     @State private var oauthMaskedToken: String?
     // [T-kimi-oauth] Present the device-code login sheet (user code +
     // verification URL + polling) for Kimi's RFC 8628 flow.
@@ -261,6 +270,8 @@ struct AddProviderView: View {
 
     /// Exit intent chokepoint: confirm when input would be lost, else leave.
     private func requestExit() {
+        // nanoMuse: 提交期间保留表单，避免关闭回调清除正在提交的授权。
+        guard !isSaving else { return }
         if hasUnsavedInput {
             showUnsavedExitDialog = true
         } else {
@@ -274,6 +285,9 @@ struct AddProviderView: View {
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.88), value: currentStep)
         .navigationTitle(navigationTitle)
+        // nanoMuse: 导入等待实际存储确认，期间不接受重复操作或交互关闭。
+        .disabled(isSaving)
+        .overlay { if isSaving { ProgressView(AppLocalized("Saving…")) } }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -302,7 +316,7 @@ struct AddProviderView: View {
         }
         // Block the interactive pull-down while input would be lost; exits
         // then go through requestExit()'s confirmation.
-        .interactiveDismissDisabled(hasUnsavedInput)
+        .interactiveDismissDisabled(hasUnsavedInput || isSaving)
         .confirmationDialog(
             AppLocalized("You have unsaved provider settings."),
             isPresented: $showUnsavedExitDialog,
@@ -333,8 +347,10 @@ struct AddProviderView: View {
         .sheet(isPresented: $showKimiLogin) {
             // [T-kimi-oauth] RFC 8628 device-code login. On success, mark the
             // OAuth step done + surface the masked token, matching startOAuth().
-            KimiDeviceLoginSheet(instanceId: pendingInstanceId) { success in
-                if success {
+            let identifier = pendingInstanceId
+            KimiDeviceLoginSheet(instanceId: identifier, sourceScope: nmFormScope) { success in
+                if success, !nmHasLeft, pendingInstanceId == identifier, selectedType == .kimiCode {
+                    guard nmCanSaveInCurrentScope() else { return }
                     oauthAuthTime = Date()
                     oauthMaskedToken = loadMaskedToken(type: .kimiCode)
                     pendingOAuthDone = true
@@ -352,9 +368,16 @@ struct AddProviderView: View {
             if let msg = importMessage { Text(msg) }
         }
         .onAppear {
+            nmHasLeft = false
+            if nmFormScope == nil { nmFormScope = NivoOAuthAccess.captureScope() }
             if !consentAccepted && store.instances.isEmpty {
                 showDataSharingConsent = true
             }
+        }
+        // nanoMuse: 系统关闭表单也回收未保存授权；已经加入配置的实例不在此清理。
+        .onDisappear {
+            nmHasLeft = true
+            if !nmDidSavePending { nmDiscardPendingOAuth() }
         }
     }
 
@@ -374,13 +397,24 @@ struct AddProviderView: View {
                 showImportResult = true
                 return
             }
-            if let label = store.importInstanceJSON(json) {
-                importMessage = AppLocalized("Imported provider \"\(label)\" successfully.")
-                importSucceeded = true
-            } else {
-                importMessage = AppLocalized("Invalid provider configuration file.")
+            // nanoMuse: 读取文件后等待统一导入事务，失败保留当前页面和原文件。
+            guard !isSaving, nmCanSaveInCurrentScope() else { return }
+            let sourceScope = nmFormScope
+            isSaving = true
+            nmSaveTask = Task {
+                defer { isSaving = false; nmSaveTask = nil }
+                do {
+                    guard let sourceScope else { throw CancellationError() }
+                    let label = try await NivoProviderJSONImport.run(json, sourceScope: sourceScope) {
+                        nmAcceptOwnRestore($0, source: sourceScope)
+                    }
+                    importMessage = AppLocalized("Imported provider \"\(label)\" successfully.")
+                    importSucceeded = true
+                } catch {
+                    importMessage = AppLocalized("Could not import this provider configuration.")
+                }
+                if nmCanCompleteInCurrentScope { showImportResult = true }
             }
-            showImportResult = true
         case .failure:
             break
         }
@@ -772,9 +806,14 @@ struct AddProviderView: View {
                     // Kimi uses a device-code sheet (RFC 8628); every other
                     // provider drives its redirect/PKCE flow inline via startOAuth.
                     if selectedType == .kimiCode {
-                        showKimiLogin = true
+                        // nanoMuse: 设备码写入前先建立草稿登记，登记失败时不启动授权。
+                        if nmBeginOAuthDraft() { showKimiLogin = true }
                     } else {
-                        Task { await startOAuth() }
+                        // nanoMuse: 保留任务句柄，并固定发起时的实例和界面尝试身份。
+                        let identifier = pendingInstanceId
+                        let attempt = UUID()
+                        nmOAuthAttempt = attempt
+                        nmOAuthTask = Task { await startOAuth(instanceID: identifier, attempt: attempt) }
                     }
                 } label: {
                     HStack {
@@ -784,6 +823,7 @@ struct AddProviderView: View {
                         Spacer()
                     }
                 }
+                .disabled(nmOAuthTask != nil)
             }
         } header: {
             Text("OAuth")
@@ -886,6 +926,8 @@ struct AddProviderView: View {
     // MARK: - Actions
 
     private func saveApiKeyInstance() {
+        // nanoMuse: 密钥表单同样不能在切号或恢复后写入另一个配置。
+        guard !isSaving, nmCanSaveInCurrentScope() else { return }
         guard let type = selectedType else { return }
         let trimmedKey = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedLabel = labelInput.trimmingCharacters(in: .whitespaces)
@@ -906,17 +948,24 @@ struct AddProviderView: View {
             customBaseURL: base,
             appendV1Suffix: appendV1SuffixInput
         )
-        // Nothing to store for a keyless endpoint — and never write an empty
-        // string to the Keychain (hasAnyCredential treats empty as absent).
-        if !trimmedKey.isEmpty {
-            ProviderKeychainHelper.saveAPIKey(trimmedKey, instanceId: instance.id)
+        // nanoMuse: 密钥、配置和发送队列共用可恢复入口，全部确认后才关闭新增表单。
+        guard let sourceScope = nmFormScope else { isSaving = false; return }
+        nmSaveTask = Task {
+            defer { isSaving = false; nmSaveTask = nil }
+            do {
+                try await NivoProviderJSONImport.create(instance, apiKey: trimmedKey, sourceScope: sourceScope) {
+                    nmAcceptOwnRestore($0, source: sourceScope)
+                }
+                if nmCanCompleteInCurrentScope { dismiss() }
+            } catch {
+                errorMessage = error.localizedDescription
+                if !nmHasLeft { ShareFeedbackToast.show(AppLocalized("Could not save")) }
+            }
         }
-        store.addInstance(instance)
-        isSaving = false
-        dismiss()
     }
 
     private func saveOAuthInstance() {
+        guard !isSaving, pendingOAuthDone, nmCanSaveInCurrentScope() else { return }
         guard let type = selectedType else { return }
         let trimmedLabel = labelInput.trimmingCharacters(in: .whitespaces)
 
@@ -926,11 +975,12 @@ struct AddProviderView: View {
             providerType: type,
             credentialType: .oauth
         )
-        store.addInstance(instance)
-        dismiss()
+        // nanoMuse: 已授权不代表配置已保存，等待SQLite、镜像和同步登记全部确认。
+        nmCommitOAuth(instance, manualToken: nil)
     }
 
     private func saveManualOAuthInstance() {
+        guard !isSaving, nmCanSaveInCurrentScope() else { return }
         guard let type = selectedType else { return }
         let trimmedToken = manualOAuthTokenInput.components(separatedBy: .whitespacesAndNewlines).joined()
         let trimmedLabel = labelInput.trimmingCharacters(in: .whitespaces)
@@ -945,31 +995,77 @@ struct AddProviderView: View {
             customBaseURL: trimmedBase.isEmpty ? nil : trimmedBase,
             appendV1Suffix: appendV1SuffixInput
         )
-        ProviderKeychainHelper.saveOAuthString(trimmedToken, instanceId: instance.id, account: "manual-oauth-token")
-        store.addInstance(instance)
-        dismiss()
+        // nanoMuse: 手动凭证随事务写入，失败清除本次插入并保留用户输入。
+        nmOAuthTask?.cancel()
+        NivoOAuthAccess.invalidate(instanceID: instance.id)
+        nmCommitOAuth(instance, manualToken: trimmedToken)
+    }
+
+    // nanoMuse: 两种授权新增共用等待和失败反馈，内存列表出现条目不能替代持久化确认。
+    private func nmCommitOAuth(_ instance: ProviderInstance, manualToken: String?) {
+        guard let sourceScope = nmFormScope else { return }
+        isSaving = true
+        errorMessage = nil
+        nmSaveTask = Task {
+            defer { isSaving = false; nmSaveTask = nil }
+            do {
+                try await NivoProviderJSONImport.createOAuth(instance, manualToken: manualToken, sourceScope: sourceScope) {
+                    nmAcceptOwnRestore($0, source: sourceScope)
+                }
+                nmDidSavePending = true
+                NivoOAuthDraftHost.shared.complete(instanceID: instance.id)
+                nmDraftInstanceID = nil
+                if nmCanCompleteInCurrentScope { dismiss() }
+            } catch {
+                errorMessage = error.localizedDescription
+                if !nmHasLeft { ShareFeedbackToast.show(AppLocalized("Could not save")) }
+            }
+        }
+    }
+
+    // nanoMuse: 保存已提交后只跳过失效导航，不能把新的账户恢复误报成本次保存失败。
+    private var nmCanCompleteInCurrentScope: Bool {
+        guard !nmHasLeft, let nmFormScope else { return false }
+        do { try NivoOAuthAccess.validateScope(nmFormScope); return true }
+        catch { return false }
+    }
+
+    // nanoMuse: 只有本页取得并结束的租约可以刷新表单代次，其他恢复不会使旧输入重新有效。
+    private func nmAcceptOwnRestore(_ current: NivoOAuthScope, source: NivoOAuthScope) {
+        guard nmFormScope == source, current.ownerKey == source.ownerKey,
+              current.accountGeneration == source.accountGeneration else { return }
+        nmFormScope = current
     }
 
     @MainActor
-    private func startOAuth() async {
+    private func startOAuth(instanceID: String, attempt: UUID) async {
         guard let type = selectedType else { return }
+        // nanoMuse: 旧任务收尾不清除新任务句柄；等待后始终使用捕获的实例ID。
+        defer { if nmOAuthAttempt == attempt { nmOAuthTask = nil } }
+        guard nmCanSaveInCurrentScope() else { return }
+        guard nmBeginOAuthDraft() else { return }
         errorMessage = nil
         do {
             switch type {
-            case .anthropic: try await ClaudeOAuthManager.shared.login(instanceId: pendingInstanceId)
-            case .gemini: try await GeminiOAuthManager.shared.login(instanceId: pendingInstanceId)
-            case .openAI: try await CodexOAuthManager.shared.login(instanceId: pendingInstanceId)
-            case .antigravity: try await AntigravityOAuthManager.shared.login(instanceId: pendingInstanceId)
-            case .openRouter: try await OpenRouterOAuthManager.shared.login(instanceId: pendingInstanceId)
+            case .anthropic: try await ClaudeOAuthManager.shared.login(instanceId: instanceID)
+            case .gemini: try await GeminiOAuthManager.shared.login(instanceId: instanceID)
+            case .openAI: try await CodexOAuthManager.shared.login(instanceId: instanceID)
+            case .antigravity: try await AntigravityOAuthManager.shared.login(instanceId: instanceID)
+            case .openRouter: try await OpenRouterOAuthManager.shared.login(instanceId: instanceID)
             case .openAIResponses: break // API key only, no OAuth
-            case .xAI: try await XAIOAuthManager.shared.login(instanceId: pendingInstanceId)
+            case .xAI: try await XAIOAuthManager.shared.login(instanceId: instanceID)
             case .kimiCode: break // device-code flow runs in KimiDeviceLoginSheet, not here
             case .unsupported: break // free / unsupported — no OAuth
             }
+            guard !Task.isCancelled, nmOAuthAttempt == attempt, pendingInstanceId == instanceID,
+                  selectedType == type else { return }
             oauthAuthTime = Date()
             oauthMaskedToken = loadMaskedToken(type: type)
             pendingOAuthDone = true
+        } catch is CancellationError {
+            // 主动返回或账户恢复不作为登录失败弹出。
         } catch {
+            guard !Task.isCancelled, nmOAuthAttempt == attempt, pendingInstanceId == instanceID else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -1003,6 +1099,8 @@ struct AddProviderView: View {
     }
 
     private func goBack() {
+        // nanoMuse: 工具栏也要遵守保存占位，不能在提交中途丢弃凭证。
+        guard !isSaving else { return }
         // Voice-template entry skipped the credential step, so Back returns
         // all the way to the type list (and clears the prefilled fields) rather
         // than dropping the user onto a credential picker they never saw.
@@ -1019,21 +1117,8 @@ struct AddProviderView: View {
             return
         }
         if selectedCredential != nil {
-            // If we started OAuth but haven't saved, clean up the pending token
-            if selectedCredential == .oauth && pendingOAuthDone {
-                ProviderKeychainHelper.deleteOAuthToken(instanceId: pendingInstanceId)
-                ProviderKeychainHelper.deleteOAuthString(instanceId: pendingInstanceId, account: "oauth-email")
-                ProviderKeychainHelper.deleteOAuthString(instanceId: pendingInstanceId, account: "oauth-gcp-project")
-                ProviderKeychainHelper.deleteOAuthString(instanceId: pendingInstanceId, account: "manual-oauth-token")
-                // OpenRouter OAuth stores a permanent API key, not an OAuth token
-                if selectedType == .openRouter {
-                    ProviderKeychainHelper.deleteAPIKey(instanceId: pendingInstanceId)
-                }
-                pendingOAuthDone = false
-                oauthMaskedToken = nil
-                oauthAuthTime = nil
-                pendingInstanceId = UUID().uuidString
-            }
+            // nanoMuse: 还在授权中的任务同样需要撤销，不能只清理已完成登录。
+            if selectedCredential == .oauth { nmDiscardPendingOAuth() }
             selectedCredential = nil
             useResponsesAPI = false
             apiKeyInput = ""
@@ -1047,17 +1132,58 @@ struct AddProviderView: View {
     }
 
     private func cleanupAndDismiss() {
-        // If we started OAuth but never saved, clean up
-        if pendingOAuthDone {
-            ProviderKeychainHelper.deleteOAuthToken(instanceId: pendingInstanceId)
-            ProviderKeychainHelper.deleteOAuthString(instanceId: pendingInstanceId, account: "oauth-email")
-            ProviderKeychainHelper.deleteOAuthString(instanceId: pendingInstanceId, account: "oauth-gcp-project")
-            if selectedType == .openRouter {
-                ProviderKeychainHelper.deleteAPIKey(instanceId: pendingInstanceId)
-            }
-            ProviderKeychainHelper.deleteOAuthString(instanceId: pendingInstanceId, account: "manual-oauth-token")
-        }
+        nmHasLeft = true
+        nmDiscardPendingOAuth()
         dismiss()
+    }
+
+    // nanoMuse: 未保存实例使用随机独立身份，撤销后立即更换，迟到回调无法污染下一步。
+    /// 回收本页未保存的所有凭证及资料，已经安装的实例由配置页管理。
+    private func nmDiscardPendingOAuth() {
+        guard !nmDidSavePending else { return }
+        let identifier = pendingInstanceId
+        nmOAuthAttempt = UUID()
+        nmOAuthTask?.cancel()
+        nmOAuthTask = nil
+        NivoOAuthAccess.invalidate(instanceID: identifier)
+        // nanoMuse: 删除可能失败，长寿命宿主保留原ID并通过持久协调器确认结果。
+        if let draftID = nmDraftInstanceID {
+            let source = nmFormScope
+            NivoOAuthDraftHost.shared.abandon(instanceID: draftID, after: nmSaveTask) { current in
+                if let source { nmAcceptOwnRestore(current, source: source) }
+            }
+        }
+        nmDraftInstanceID = nil
+        pendingOAuthDone = false
+        oauthMaskedToken = nil
+        oauthAuthTime = nil
+        pendingInstanceId = UUID().uuidString
+    }
+
+    /// nanoMuse: 登录前登记新草稿，避免授权写入后页面消失而失去清理入口。
+    private func nmBeginOAuthDraft() -> Bool {
+        do {
+            guard let nmFormScope, !nmHasLeft else { throw CancellationError() }
+            try NivoOAuthDraftHost.shared.begin(instanceID: pendingInstanceId,
+                isExisting: store.instance(for: pendingInstanceId) != nil, sourceScope: nmFormScope)
+            nmDraftInstanceID = pendingInstanceId
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    /// 恢复或切号后的旧表单保留输入并报告失败，不写入当前配置。
+    private func nmCanSaveInCurrentScope() -> Bool {
+        do {
+            guard let nmFormScope else { throw CancellationError() }
+            try NivoOAuthAccess.validateScope(nmFormScope)
+            return true
+        } catch {
+            errorMessage = AppLocalized("Could not save")
+            return false
+        }
     }
 
     // MARK: - Helpers

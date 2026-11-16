@@ -609,9 +609,9 @@ final class NanoMuseFirstConversation: ObservableObject {
         }
     }
 
-    /// The agent has its name (C5): the first feed day gets written in the background, once.
+    /// 新教练由用户选择课程后开始，命名结束不自动生成旧训练卡。
     private func finished() {
-        NanoMuseFeedFlow.writeFirstDayIfNeeded()
+        NanoMuseFeedFlow.retireLegacyRoutine()
     }
 
     /// A chip was tapped: the name is saved at once; the model's next reply is its first as itself.

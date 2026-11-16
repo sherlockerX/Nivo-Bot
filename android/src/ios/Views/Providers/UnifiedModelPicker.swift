@@ -768,6 +768,10 @@ struct UnifiedModelPicker: View {
         guard let entry = store.entry(for: entryId) ?? Self.systemEntry(for: entryId) else {
             return AppLocalized("Model not found")
         }
+        // nanoMuse: 组内条目和普通列表共享调用方的能力筛选，不能从展开组绕过限制。
+        if let filter = config.candidateFilter, !filter(entry) {
+            return AppLocalized("This model may not work as an Agent")
+        }
         if !entry.displayTraits.requiresCredential { return nil }
         if entry.isHidden { return AppLocalized("Hidden") }
         guard let instance = store.instance(for: entry.providerInstanceId) else {

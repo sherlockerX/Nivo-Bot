@@ -49,7 +49,8 @@ struct EnvVarsCollection: ConfigCollection {
 
     func remove(id: String) throws {
         guard let e = entry(id) else { throw ConfigError.unknownPath("envvars.\(id)") }
-        EnvVarStore.shared.delete(id: e.id)
+        // nanoMuse: 实际写盘失败不能向AI报告删除成功。
+        guard EnvVarStore.shared.delete(id: e.id) else { throw CocoaError(.fileWriteUnknown) }
     }
 
     private func entry(_ key: String) -> EnvVarEntry? {
@@ -86,7 +87,8 @@ struct EnvVarsCollection: ConfigCollection {
                 // updateNote bypasses the value-aware update path so
                 // we never need to read or rewrite the Keychain
                 // secret to change a description.
-                EnvVarStore.shared.updateNote(id: e.id, note: s)
+                // nanoMuse: 备注版本持久化失败需要让调用方重试。
+                guard EnvVarStore.shared.updateNote(id: e.id, note: s) else { throw CocoaError(.fileWriteUnknown) }
             }
         )
     }

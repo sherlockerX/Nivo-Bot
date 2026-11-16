@@ -94,6 +94,8 @@ actor ISHExecutionCoordinator {
         sessionId: String,
         command: String,
         timeout: TimeInterval?,
+        // nanoMuse: 仅宿主持有的运行身份可请求可信上报上下文。
+        scheduledRunID: String? = nil,
         lineCallback: @escaping (String) -> Void,
         pidCallback: @escaping (Int32) -> Void
     ) async throws -> ISHCommandResult {
@@ -107,23 +109,36 @@ actor ISHExecutionCoordinator {
         let head = InflightExec(id: myId, startTime: Date())
         perSessionInflight[sessionId, default: []].append(head)
         syncInflightPidSnapshot()
-
-        try Task.checkCancellation()
-
-        mountedSessionId = sessionId
-        ensureStaticMountsInitialized(for: sessionId)
-
-        let fsContext = MinisFsRouter.shared.context(for: sessionId)
-
+        // nanoMuse: 挂载、取消或租约验证失败也必须释放在途记录。
         defer {
-            // Dequeue self. No waiters to wake — concurrent dispatch.
-            if var queue = perSessionInflight[sessionId],
-               let idx = queue.firstIndex(where: { $0.id == myId }) {
-                queue.remove(at: idx)
+            if var queue = perSessionInflight[sessionId], let index = queue.firstIndex(where: { $0.id == myId }) {
+                queue.remove(at: index)
                 perSessionInflight[sessionId] = queue.isEmpty ? nil : queue
                 syncInflightPidSnapshot()
             }
         }
+
+        try Task.checkCancellation()
+        // nanoMuse: 备份冻结home时禁止新增写入，登记在途记录后检查以关闭并发窗口。
+        guard await MainActor.run(body: { !NivoPersonalBackupAccess.isBusy }) else {
+            throw NivoPersonalBackupError.busy
+        }
+
+        mountedSessionId = sessionId
+        ensureStaticMountsInitialized(for: sessionId)
+
+        // nanoMuse: 持久home必须实际挂载成功，不能静默落到临时rootfs。
+        try ensureScheduledHome()
+        let lease = scheduledRunID.flatMap { NivoScheduledRunScopes.shared.lease(sessionID: sessionId, runID: $0) }
+        if scheduledRunID != nil, lease == nil { throw NivoLifeError.invalidField("NOT_IN_TASK_RUN") }
+        let fsContext = lease == nil ? MinisFsRouter.shared.context(for: sessionId) : MinisFsRouter.shared.executionContext(for: sessionId)
+        defer {
+            if lease != nil {
+                NivoScheduledRunScopes.shared.unbind(context: fsContext)
+                MinisFsRouter.shared.releaseExecutionContext(fsContext)
+            }
+        }
+        if let lease { try NivoScheduledRunScopes.shared.bind(context: fsContext, to: lease) }
 
         return try await runCommand(
             sessionId: sessionId,
@@ -134,6 +149,56 @@ actor ISHExecutionCoordinator {
             lineCallback: lineCallback,
             pidCallback: pidCallback
         )
+    }
+
+    // nanoMuse: 脚本执行器复用相同挂载准备，但使用独立argv进程。
+    /// 只准备挂载，不执行脚本，也不生成模型请求。
+    func prepareScheduled(sessionID: String) throws {
+        guard ISHKernel.shared.isBooted else { throw ISHCoordinatorError.kernelNotBooted }
+        ensureStaticMountsInitialized(for: sessionID)
+        _ = MinisFsRouter.shared.context(for: sessionID)
+        try ensureScheduledHome()
+    }
+
+    // nanoMuse: 个人备份也必须包含尚未搬出旧镜像的脚本，不启动或执行脚本。
+    /// 活动命令结束后迁移home；内核已启动时保持原有挂载可用。
+    func prepareHomeForBackup() throws {
+        guard perSessionInflight.isEmpty, !NivoScheduledRunScopes.shared.isBusy else {
+            throw NivoPersonalBackupError.chatRunning
+        }
+        if ISHKernel.shared.isBooted { try ensureScheduledHome() }
+        else { _ = try prepareHomeFiles() }
+    }
+
+    private func ensureScheduledHome() throws {
+        let directory = try NivoScheduledHome.ensure()
+        let path = "/var/minis/home"
+        let legacy = RootfsManager.shared.dataPath.appendingPathComponent("var/minis/home")
+        // nanoMuse: rootfs重建后不能只相信旧缓存；文件和挂载登记必须同时存在。
+        if mountedPaths[path] == directory,
+           (try? FileManager.default.destinationOfSymbolicLink(atPath: legacy.path)) != nil,
+           legacy.resolvingSymlinksInPath().standardizedFileURL.path == directory.standardizedFileURL.path { return }
+        _ = try prepareHomeFiles()
+        if mountedPaths.removeValue(forKey: path) != nil { _ = ISHKernel.shared.bindUnmountPath(path) }
+        ensureParentDirsInMetaDB(for: path + "/bin/placeholder")
+        guard ISHKernel.shared.bindMountPath(path, toHostPath: directory.path) >= 0 else {
+            throw NivoLifeError.invalidField("SCRIPT_HOME_UNAVAILABLE")
+        }
+        mountedPaths[path] = directory
+        ensureFakefsMetadata(for: path, isDirectory: true)
+        ensureFakefsMetadata(for: path + "/bin", isDirectory: true)
+        // nanoMuse: 子路径沿用fakefs的bind_mount_ensure_inode按实际文件自动登记，保留旧权限信息。
+    }
+
+    private func prepareHomeFiles() throws -> URL {
+        let directory = try NivoScheduledHome.ensure()
+        // nanoMuse: fakefs挂载会递归删除旧节点，必须先归档并完成可恢复迁移。
+        let legacy = RootfsManager.shared.dataPath.appendingPathComponent("var/minis/home")
+        let receipts = try NivoScheduledHomeMigration(home: directory, legacyHome: legacy).prepare()
+        for receipt in receipts {
+            logger.info("HOME migration copied=\(receipt.copied.count) conflicts=\(receipt.conflicts.count) skipped=\(receipt.skipped.count)")
+        }
+        return directory
     }
 
     /// Called from loadSession() for UI readiness. Per-session buckets are
@@ -279,7 +344,19 @@ actor ISHExecutionCoordinator {
         let effectiveTimeout = timeout ?? 300 // 5 minute default
 
         // Load user-defined env vars (nonisolated, reads from disk + Keychain)
-        let customEnv = EnvVarStore.shared.allAsDict()
+        // nanoMuse: 任务身份仅注入本次进程，报告权限仍验证内核fs_context。
+        let environmentStore = await MainActor.run { EnvVarStore.shared }
+        var customEnv = try environmentStore.allAsDict()
+        if let lease = NivoScheduledRunScopes.shared.lease(context: fsContext) {
+            customEnv["MINIS_TASK_ID"] = lease.taskID
+            customEnv["MINIS_RUN_ID"] = lease.runID
+            customEnv["MINIS_CHAT_SESSION_ID"] = lease.sessionID
+            customEnv["HOME"] = "/var/minis/home"
+            // nanoMuse: 定时模型工具也等到原生清理完成才释放可信上报上下文。
+            return try await runManagedCommand(command, environment: customEnv, fsContext: fsContext,
+                sessionID: sessionId, inflightID: myId, timeout: effectiveTimeout,
+                lineCallback: lineCallback, pidCallback: pidCallback)
+        }
 
         // Feed the command as a script via stdin pipe to /bin/sh.
         // This avoids shell quoting issues with multi-line or special-char commands.
@@ -429,6 +506,45 @@ actor ISHExecutionCoordinator {
                 execute: work
             )
         }
+    }
+
+    // nanoMuse: 与显式脚本共享取消和超时交接，不提前恢复continuation或解除账户占位。
+    private func runManagedCommand(_ command: String, environment: [String: String], fsContext: UInt64,
+                                   sessionID: String, inflightID: UUID, timeout: TimeInterval,
+                                   lineCallback: @escaping (String) -> Void,
+                                   pidCallback: @escaping (Int32) -> Void) async throws -> ISHCommandResult {
+        let state = NivoScheduledProcessWaiter { _ in ISHShellExecutor.cancelExecutionContext(fsContext) }
+        defer {
+            recordInflightPid(sessionId: sessionID, id: inflightID, pid: 0)
+            pidCallback(0)
+        }
+        let result = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                state.start(continuation, timeout: timeout)
+                guard state.beginLaunch() else { return }
+                let process = ISHShellExecutor.executeExecutable("/bin/sh",
+                    arguments: ["-c", "cd /var/minis/home || exit 125\n" + command],
+                    environment: environment, stdinData: nil, fsContext: fsContext,
+                    maximumCaptureBytes: 128 * 1_024,
+                    lineCallback: { line, _ in lineCallback(line) }) { native in
+                        state.complete(NivoScheduledProcessResult(stdout: native.output, stderr: native.errorOutput,
+                            exitCode: Int(native.exitCode), stdoutBytes: Int64(clamping: native.stdoutBytes),
+                            truncated: native.outputTruncated || native.errorOutputTruncated,
+                            captureError: native.captureError, timedOut: native.error == .timeout))
+                    }
+                recordInflightPid(sessionId: sessionID, id: inflightID, pid: process)
+                pidCallback(process)
+                state.didLaunch(process)
+            }
+        } onCancel: { state.cancel() }
+        var output = result.stdout
+        if !result.stderr.isEmpty { output += "\n" + result.stderr }
+        if result.truncated { output += "\nSCRIPT_OUTPUT_TRUNCATED" }
+        if let failure = result.captureError { output += "\n" + failure }
+        let exitCode = result.captureError != nil && result.exitCode == 0 ? 125 : result.exitCode
+        if exitCode != 0 { output += "\n(exit code: \(exitCode))" }
+        if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { output = "(command completed with no output)" }
+        return ISHCommandResult(output: output, exitCode: exitCode)
     }
 
     private func recordInflightPid(sessionId: String, id: UUID, pid: Int32) {

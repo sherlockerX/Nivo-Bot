@@ -13,6 +13,10 @@ private let logger = AppLogger(category: "AIChatVM")
 
 @MainActor
 final class AIChatViewModel: ObservableObject, SpeechControlling {
+    // nanoMuse: 固定教练回复对应的账户代次和课次，不使用临时界面UUID归档。
+    var nmCoachTurnCapture: NivoCoachTurnCapture?
+    // nanoMuse: 仅宿主调度器设置，普通聊天不能从环境变量继承定时上报能力。
+    var nmScheduledRunID: String?
 
     /// Maximum characters returned in a single tool result to the model
     static let kMaxToolResultChars = 15000
@@ -455,6 +459,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
 
     deinit {
         let vmId = vmInstanceId
+        let nmRunToken = nmRunLedgerToken // nanoMuse: 不在异步清理中捕获正在析构的模型对象。
+        Task { @MainActor in NanoMuseRunLedger.shared.abandon(nmRunToken) }
         // Snapshot tracker-relevant state at deinit so we can spot leaks: if
         // isProcessing was still true when the vm is about to die, the
         // corresponding sessionId/draftId keys will remain stuck in
@@ -562,11 +568,13 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     /// (which is nonisolated and can't touch @Published MainActor properties).
     /// Updated on every isProcessing flip and on send entry.
     nonisolated(unsafe) var _deinitSnapshot: String = "isProcessing=false session=nil draft=nil"
+    let nmRunLedgerToken = UUID() // nanoMuse: 稳定运行身份避免对象地址复用及迟到析构清理。
 
     @Published var isProcessing = false {
         didSet {
             _deinitSnapshot = "isProcessing=\(isProcessing) session=\(sessionId ?? "nil") draft=\(draftId ?? "nil")"
             if isProcessing && !oldValue {
+                NanoMuseRunLedger.shared.began(self) // nanoMuse: 即使页面离开也跟踪真实运行。
                 // Agent loop starting — defer iCloud sync sends until completion
                 Task { await ChatStore.shared.setSyncSendDeferred(true) }
                 // [T-ios-defer-icloud-sync-after-stop] A new turn supersedes any
@@ -586,6 +594,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 // elsewhere — and correlate with the content being rendered.
                 StreamingHangLogger.shared.acquire(reason: "isProcessing=true session=\(sessionId ?? "nil")")
             } else if !isProcessing && oldValue {
+                NanoMuseRunLedger.shared.ended(self) // nanoMuse: 从模型生命周期结算，不依赖页面观察者。
                 // [T-ios-defer-icloud-sync-after-stop] Agent loop finished. Do
                 // NOT flush the deferred iCloud push or replay a pull reload now
                 // — that immediate sync is what overwrote the just-finished
@@ -1274,17 +1283,9 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         objectWillChange.send()
     }
 
-    /// True for the synchronous window of `retryFromMessage` /
-    /// `retryFromToolBlock`: from the moment we start clearing `canResume` /
-    /// truncating `messages` until the DB truncation (`deleteMessagesAfter`)
-    /// has completed. While set, a deferred iCloud-sync `reloadMessagesFromDB`
-    /// must NOT run — it would rebuild `messages` from a DB snapshot taken
-    /// mid-truncation (before/around the delete) and can drop the retried user
-    /// message from the UI even though it survives in agentHistory (so the
-    /// reply is based on it but its bubble vanishes). Reload calls skip+rearm
-    /// while this is true, and the canResume didSet does not replay the
-    /// deferred reload; the next safe idle drains it. [T-ios-retry-usermsg-vanish]
-    var isTruncatingForRetry = false
+    // nanoMuse: 持久编辑期间禁止重复操作和同步重载，成功后才截断界面。
+    /// 写盘失败会保留原历史；恢复、任务调度和界面按钮共用此编辑窗口。
+    @Published var isTruncatingForRetry = false
 
     // MARK: - Browser
     let browserTabPool = BrowserTabPool()
@@ -1645,6 +1646,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         // Enabled AND not muted AND not capturing. `canPlay` folds in the temporary
         // mute (capsule speaker) on top of the full on/off `isEnabled`.
         VoiceOutputState.shared.canPlay && !VoiceModePreference.shared.isCapturing
+            && !NanoMuseCallSession.isActive // nanoMuse: 通话独占朗读输出。
     }
 
     /// True when a configured cloud TTS model is selected (not the offline System
@@ -2023,7 +2025,10 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
 
     /// Session ID for persistence integration. Set by the view on appear.
     var sessionId: String? {
-        didSet { browserTabPool.sessionId = sessionId }
+        didSet {
+            browserTabPool.sessionId = sessionId
+            NanoMuseRunLedger.shared.rebind(self) // nanoMuse: 草稿取得真实ID后立即迁移任务状态。
+        }
     }
 
     /// The draft ID assigned by the parent view (e.g. "__new__<UUID>").
@@ -2214,7 +2219,11 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
 
     // MARK: - Send Message
 
-    func send() {
+    // nanoMuse: 定时调用显式交出身份，普通界面调用保持无参。
+    func send(scheduledRunID: String? = nil) {
+        // nanoMuse: 备份的聊天来源与教练档案必须位于同一个静止边界。
+        do { try NivoChatAccountAccess.require(sessionID: sessionId, scheduledRunID: scheduledRunID) }
+        catch { if !isProcessing { errorMessage = NivoLifeModel.message(error) }; return }
         // Read-only mode — cannot send messages
         guard remoteDeviceId == nil else { return }
 
@@ -2238,6 +2247,12 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         #endif
         guard !text.isEmpty || !pendingAttachments.isEmpty, !isProcessing else {
             logger.warning("🔑DRAFT [vm=\(self.vmInstanceId)] send() GUARD FAILED — text.isEmpty=\(text.isEmpty) attachments.isEmpty=\(pendingAttachments.isEmpty) isProcessing=\(self.isProcessing)")
+            return
+        }
+        // nanoMuse: 编辑先提交截断，失败保留草稿；提交后再走正常发送与上下文检查。
+        guard !isTruncatingForRetry else { return }
+        if editingMessageIndex != nil {
+            nmSendEditedMessage(scheduledRunID: scheduledRunID)
             return
         }
         // nanoMuse: "change your avatar to …" (and a pick while the options are up) is handled in the app, not by the model.
@@ -2332,56 +2347,6 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         userDidCancel = false
 
         inputText = ""
-
-        // If editing a previous message, truncate conversation from that point first
-        if let editIdx = editingMessageIndex {
-            editingMessageIndex = nil
-            // Remove the edited message and everything after it from UI
-            if editIdx < messages.count {
-                messages.removeSubrange(editIdx...)
-            }
-            // Trim agentHistory: count remaining user BUBBLES (not synthetic
-            // user-role entries — see isUserBubbleEntry), then keep all
-            // history entries through the assistant reply (+ tool results)
-            // that follow the last remaining user bubble.
-            let remainingUserCount = messages.filter { $0.role == .user }.count
-            var usersSeen = 0
-            var keepUpTo = -1
-            for (i, entry) in agentHistory.enumerated() {
-                if Self.isUserBubbleEntry(entry) {
-                    usersSeen += 1
-                    if usersSeen > remainingUserCount {
-                        // This is the edited message's entry — stop before it
-                        break
-                    }
-                }
-                keepUpTo = i
-            }
-            if remainingUserCount == 0 {
-                agentHistory.removeAll()
-            } else if keepUpTo + 1 < agentHistory.count {
-                agentHistory.removeSubrange((keepUpTo + 1)...)
-            }
-            // Trim persisted messages.
-            // Phase B: agentHistory is no longer mutated by compact, so agentHistory.count
-            // is 1:1 with the DB row count; passing it as keepCount is semantically correct.
-            let persistedKeepCount = agentHistory.count
-            let hasMarker = cachedLatestMarker != nil
-            logger.info("[DeleteAfter] edit path: sid=\(sessionId?.prefix(8) ?? "nil") keepCount=\(persistedKeepCount) hasMarker=\(hasMarker)")
-            if let sessionId {
-                Task { await ChatStore.shared.deleteMessagesAfter(sessionId: sessionId, keepCount: persistedKeepCount) }
-            }
-            // Rebuild toolSnapshots from remaining messages
-            toolSnapshots = messages
-                .filter { $0.role == .assistant }
-                .flatMap { msg in
-                    msg.blocks.compactMap { block -> ToolSnapshotItem? in
-                        guard let tuId = block.toolUseId else { return nil }
-                        return toolSnapshots.first(where: { $0.id == tuId })
-                    }
-                }
-            logger.info("✏️ send() edit applied: truncated to \(self.messages.count) messages, \(self.agentHistory.count) history entries")
-        }
 
         // Close any stale tool blocks still showing as streaming/running from a
         // previous interrupted response so the UI stops showing loading indicators.
@@ -2761,6 +2726,10 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     /// Retry the next agent loop iteration (continue from where the error occurred,
     /// keeping all previously completed tool blocks and conversation history).
     func retry() {
+        // nanoMuse: 恢复期间保留原对话，不在前置截断步骤修改来源。
+        guard !isProcessing, !isTruncatingForRetry else { return }
+        do { try NivoChatAccountAccess.require(sessionID: sessionId) }
+        catch { errorMessage = NivoLifeModel.message(error); return }
         guard !isProcessing else { return }
         guard let lastMsg = messages.last, lastMsg.role == .assistant else { return }
 
@@ -2937,6 +2906,10 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     /// Resume an interrupted agent loop. Injects a "Continue" user message
     /// into agentHistory so the model knows to pick up where it left off.
     func resume() {
+        // nanoMuse: 等待备份租约退出后才能继续模型回合。
+        guard !isProcessing, !isTruncatingForRetry else { return }
+        do { try NivoChatAccountAccess.require(sessionID: sessionId) }
+        catch { errorMessage = NivoLifeModel.message(error); return }
         guard !isProcessing, canResume else { return }
         // [T-ios-orphan-user-tail GH#262/#263] A tail of "user turn with no
         // reply at all" has no assistant row to resume INTO — the reply never
@@ -3225,217 +3198,47 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         return hasVisibleText || (hasNonToolPayload && !hasSyntheticText)
     }
 
-    func retryFromMessage(_ messageId: UUID, replacementAttachments: [InputAttachment]? = nil) {
-        guard !isProcessing else { return }
-        // [T-ios-retry-keyboard] Re-running from an existing user message is a
-        // retry, not a new send.
-        turnStartedByRetry = true
-        // [T-ios-retry-usermsg-vanish] Guard the whole truncation window so a
-        // deferred iCloud-sync reload can't rebuild `messages` from a
-        // mid-truncation DB snapshot and drop the retried user message. Cleared
-        // once the DB truncation Task below finishes; isProcessing=true (set in
-        // launchRerunAgentLoop) keeps suppressing reloads afterward.
-        isTruncatingForRetry = true
-        canResume = false
-        userDidCancel = false
-        guard let idx = messages.firstIndex(where: { $0.id == messageId }),
-              messages[idx].role == .user else {
-            isTruncatingForRetry = false
-            return
-        }
-
-        // Remove everything AFTER the selected user message (keep the user message itself)
-        if idx + 1 < messages.count {
-            messages.removeSubrange((idx + 1)...)
-        }
-        // [T-ios-retry-ui-clear] symmetric with retryFromToolBlock's paths —
-        // force a top-level publish so the UI clears synchronously on this
-        // tick. The vm.$messages sink already fires off-tick (main-queue
-        // receive), so without this the stale cells linger one runloop.
-        if !transitionSuspended { objectWillChange.send() }
-        AppLogger(category: "RetryDiag").info("[RetryDiag] retryFromMessage truncated userIdx=\(idx) messagesCount=\(self.messages.count)")
-
-        // Trim agentHistory: count how many user BUBBLES (not synthetic
-        // user-role entries — see isUserBubbleEntry) up to and including this
-        // one, then find the matching entry in agentHistory and remove
-        // everything after it.
-        let targetUserCount = messages[...idx].filter { $0.role == .user }.count
-        var usersSeen = 0
-        var keepUpTo = -1  // index of the last entry to keep (inclusive)
-        for (i, entry) in agentHistory.enumerated() {
-            if Self.isUserBubbleEntry(entry) {
-                usersSeen += 1
-            }
-            if usersSeen == targetUserCount {
-                keepUpTo = i
-                break
-            }
-        }
-        // [T-ios-retry-anchor-synthetic-user] Fail OPEN on a UI↔history
-        // mismatch: anchor to the end (truncation becomes a no-op) and let the
-        // rerun proceed with full history. Keeping too much is recoverable;
-        // the old behavior (keepUpTo = 0) silently nuked the session down to
-        // one entry.
-        if keepUpTo < 0 {
-            logger.error("[RetryDiag] retryFromMessage anchor NOT FOUND (targetUserCount=\(targetUserCount), history=\(self.agentHistory.count)) — keeping full history")
-            keepUpTo = agentHistory.count - 1
-        }
-        // Keep entries 0...keepUpTo, remove the rest
-        if keepUpTo + 1 < agentHistory.count {
-            agentHistory.removeSubrange((keepUpTo + 1)...)
-        }
-
-        // Replace attachments in the last user message of agentHistory if new ones are provided
-        if let newAttachments = replacementAttachments, !newAttachments.isEmpty {
-            let uploadsDir = Self.minisUploadsDir(for: sessionId ?? "draft")
-            let fm = FileManager.default
-            try? fm.createDirectory(at: uploadsDir, withIntermediateDirectories: true)
-            let nowStr = ISO8601DateFormatter().string(from: Date())
-            let (newParts, newMetas) = processAttachments(newAttachments, uploadsDir: uploadsDir, nowStr: nowStr)
-            Self.cleanupAttachmentFiles(newAttachments)
-
-            // Replace parts in the last user agentHistory entry:
-            // keep only .text parts that are NOT <user-attached-files>, then append new parts
-            if !agentHistory.isEmpty {
-                var lastEntry = agentHistory[keepUpTo]
-                let filteredParts = lastEntry.parts.filter { part in
-                    if case .text(let t) = part, t.contains("<user-attached-files>") { return false }
-                    if case .imageData = part { return false }
-                    return true
-                }
-                lastEntry.parts = filteredParts + newParts
-                agentHistory[keepUpTo] = lastEntry
-            }
-
-            // Update the ChatMessage's attachments for display
-            messages[idx].attachments = newMetas
-            // [T-ios-user-attach-mount-invalidate] FOURTH mount site. Unlike the
-            // send/drain sites this one has no two-phase race — it rewrites the
-            // attachments of an EXISTING message — but that is precisely why it
-            // needs the pair: the cell has certainly measured and cached a
-            // height by now, and swapping the tile set is an in-place height
-            // change on an item whose identity does not move, so the cached
-            // value would be served until something else forced a relayout.
-            if !newMetas.isEmpty {
-                NotificationCenter.default.post(name: .minisUserAttachmentsMounted,
-                                                object: messages[idx].id)
-            }
-        }
-
-        // Trim persisted messages to match.
-        // Phase B: agentHistory is no longer mutated by compact, so keepCount is valid.
-        let persistedKeepCount = agentHistory.count
-        let hasMarkerResend = cachedLatestMarker != nil
-        logger.info("[DeleteAfter] resend path: sid=\(sessionId?.prefix(8) ?? "nil") keepCount=\(persistedKeepCount) hasMarker=\(hasMarkerResend)")
-        if let sessionId {
-            Task { @MainActor [weak self] in
-                await ChatStore.shared.deleteMessagesAfter(sessionId: sessionId, keepCount: persistedKeepCount)
-                // DB truncation done — the truncation window is closed. By now
-                // launchRerunAgentLoop has set isProcessing=true, so reloads
-                // stay suppressed through the rerun; this just releases the
-                // retry-specific guard.
-                self?.isTruncatingForRetry = false
-            }
-        } else {
-            isTruncatingForRetry = false
-        }
-
-        rebuildToolSnapshotsFromMessages()
-        launchRerunAgentLoop(label: "retryFromMessage")
+    // nanoMuse: 重试先验证来源并提交截断，数据库失败不会提前删界面或启动模型。
+    /// 保留选定用户回合，替换附件与后续历史删除共同提交。
+    func retryFromMessage(_ messageId: UUID, replacementAttachments: [InputAttachment]? = nil, scheduledRunID: String? = nil) {
+        guard !isProcessing, !isTruncatingForRetry,
+              let index = messages.firstIndex(where: { $0.id == messageId && $0.role == .user }) else { return }
+        do {
+            let historyIndex = try nmUserHistoryIndex(at: index)
+            let retained = Array(agentHistory.prefix(historyIndex + 1))
+            nmCommitHistoryEdit(retaining: retained, replacingAttachments: replacementAttachments,
+                scheduledRunID: scheduledRunID, apply: { metas in
+                    self.messages = Array(self.messages.prefix(index + 1))
+                    if let metas {
+                        self.messages[index].attachments = metas
+                        self.messages[index].inputAttachments = []
+                        NotificationCenter.default.post(name: .minisUserAttachmentsMounted, object: messageId)
+                    }
+                }, continueAfterCommit: {
+                    self.turnStartedByRetry = true
+                    self.launchRerunAgentLoop(label: "retryFromMessage")
+                })
+        } catch { errorMessage = NivoLifeModel.message(error) }
     }
 
-    /// [T-ios-delete-from-message] Delete a user message and everything after
-    /// it, from the UI, the model-facing history, and the DB.
-    ///
-    /// Deliberately built as `retryFromMessage` minus the rerun, plus one row:
-    /// deleting an arbitrary message would leave `tool_use` blocks without
-    /// their `tool_result` (a hard 400 from every provider on the next turn),
-    /// so the only safe cut is a SUFFIX cut. Reusing the retry rule gives that
-    /// for free — it anchors on user BUBBLES in `agentHistory`
-    /// (`isUserBubbleEntry` skips synthetic tool_result user-role entries), so
-    /// the boundary always lands on a completed turn and can never split a
-    /// tool_use/tool_result pair.
-    ///
-    /// The one difference from retry: the anchor user message is removed too
-    /// (`keepUpTo - 1`), so the surviving history ends on the PREVIOUS
-    /// assistant turn — still a valid, self-consistent context.
+    // nanoMuse: 删除按真实用户回合切后缀，找不到锚点时保留全部内容。
+    /// 删除原用户回合及后续回复，避免产生孤立工具结果。
     func deleteFromMessage(_ messageId: UUID) {
-        guard !isProcessing else { return }
-        // Same truncation guard as retry: a deferred iCloud-sync reload landing
-        // mid-truncation would rebuild `messages` from a stale DB snapshot and
-        // resurrect the rows we are deleting. Unlike retry there is no
-        // `isProcessing = true` afterwards to keep suppressing reloads, so this
-        // flag must stay set until the DB delete has actually committed.
-        isTruncatingForRetry = true
-        canResume = false
-        userDidCancel = false
-        guard let idx = messages.firstIndex(where: { $0.id == messageId }),
-              messages[idx].role == .user else {
-            isTruncatingForRetry = false
-            return
-        }
-
-        let deletedCount = messages.count - idx
-
-        // Remove the selected user message AND everything after it.
-        messages.removeSubrange(idx...)
-        // [T-ios-retry-ui-clear] Force a top-level publish so the cells clear on
-        // this tick; the $messages sink alone fires off-tick.
-        if !transitionSuspended { objectWillChange.send() }
-
-        // Anchor in agentHistory by user-bubble count, exactly as retry does.
-        // `messages` is already truncated, so its remaining .user rows are
-        // precisely the bubbles that must survive; the deleted bubble is the
-        // (keepUserCount + 1)-th one in agentHistory, and we keep everything
-        // strictly before it.
-        // The bubble being deleted is the (keepUserCount + 1)-th in
-        // agentHistory. Find its index and keep everything strictly before it;
-        // that index IS the cut point whether or not more bubbles follow.
-        let keepUserCount = messages.filter { $0.role == .user }.count
-        var usersSeen = 0
-        var keepUpTo = -1  // index of the last agentHistory entry to keep
-        var anchorFound = false
-        for (i, entry) in agentHistory.enumerated() where Self.isUserBubbleEntry(entry) {
-            usersSeen += 1
-            if usersSeen == keepUserCount + 1 {
-                keepUpTo = i - 1
-                anchorFound = true
-                break
-            }
-        }
-        // [T-ios-retry-anchor-synthetic-user] Fail OPEN on a UI↔history
-        // mismatch, same as retry: keep the full history rather than silently
-        // nuking the session. The UI + DB still truncate, so the worst case is
-        // an over-long context, not a corrupt one. Deleting the FIRST user
-        // bubble legitimately yields keepUpTo = -1 with anchorFound = true —
-        // that clears the whole history and is not an error.
-        if !anchorFound {
-            logger.error("[DeleteDiag] deleteFromMessage anchor NOT FOUND (keepUserCount=\(keepUserCount), history=\(self.agentHistory.count)) — keeping full history")
-            keepUpTo = agentHistory.count - 1
-        }
-        if keepUpTo + 1 < agentHistory.count {
-            agentHistory.removeSubrange((keepUpTo + 1)...)
-        }
-
-        logger.info("[DeleteDiag] deleteFromMessage idx=\(idx) deleted=\(deletedCount) messagesLeft=\(self.messages.count) historyLeft=\(self.agentHistory.count)")
-
-        let persistedKeepCount = agentHistory.count
-        if let sessionId {
-            Task { @MainActor [weak self] in
-                await ChatStore.shared.deleteMessagesAfter(sessionId: sessionId, keepCount: persistedKeepCount)
-                self?.isTruncatingForRetry = false
-            }
-        } else {
-            isTruncatingForRetry = false
-        }
-
-        rebuildToolSnapshotsFromMessages()
+        guard !isProcessing, !isTruncatingForRetry,
+              let index = messages.firstIndex(where: { $0.id == messageId && $0.role == .user }) else { return }
+        do {
+            let historyIndex = try nmUserHistoryIndex(at: index)
+            nmCommitHistoryEdit(retaining: Array(agentHistory.prefix(historyIndex)), apply: { _ in
+                self.messages = Array(self.messages.prefix(index))
+            })
+        } catch { errorMessage = NivoLifeModel.message(error) }
     }
 
     /// Rebuild `toolSnapshots` to only those still referenced by a tool_use
     /// block in the (post-truncation) messages list. Shared by the user-
     /// message retry path and the tool-block re-run path.
-    private func rebuildToolSnapshotsFromMessages() {
+    // nanoMuse: 事务编辑桥在提交成功后复用快照重建。
+    func rebuildToolSnapshotsFromMessages() {
         toolSnapshots = messages
             .filter { $0.role == .assistant }
             .flatMap { msg in
@@ -3600,223 +3403,66 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         }
     }
 
-    /// [T-ios-rerun-from-tool-block-position] Re-run the agent loop from the
-    /// point a specific tool_use was about to be issued. Block-boundary cut:
-    /// keep the blocks BEFORE the target tool_use in its assistant turn, drop
-    /// the target block + later blocks in that turn + all later messages, then
-    /// re-run so the model re-decides from that point.
-    ///
-    /// Anchor is the block's `toolUseId` (stable, unique) — NOT positional
-    /// counting — so streaming / multi-entry-per-UI-message alignment can't
-    /// drift.
-    ///
-    /// Degenerate case: if the target is the FIRST block of its assistant
-    /// message and nothing precedes it in that turn, this is equivalent to
-    /// truncating at the preceding user message — delegate to
-    /// retryFromMessage(precedingUser) and skip the sub-message rewrite.
+    // nanoMuse: 工具锚点在任何界面变更之前验证，正文裁剪和后续删除原子提交。
+    /// 合并显示的一行可能对应多条数据库消息，仍以toolUseId定位真实边界。
     func retryFromToolBlock(blockId: UUID) {
-        guard !isProcessing else { return }
-
-        // Locate the assistant UI message + the target block's index within it.
-        guard let asstMsgIdx = messages.firstIndex(where: { m in
-            m.role == .assistant && m.blocks.contains(where: { $0.id == blockId })
-        }) else { return }
-        let asstMsg = messages[asstMsgIdx]
-        guard let blockIdx = asstMsg.blocks.firstIndex(where: { $0.id == blockId }) else { return }
-        guard let targetToolUseId = asstMsg.blocks[blockIdx].toolUseId, !targetToolUseId.isEmpty else {
-            // Not a tool block — nothing to anchor on.
+        guard !isProcessing, !isTruncatingForRetry,
+              let messageIndex = messages.firstIndex(where: { $0.role == .assistant && $0.blocks.contains { $0.id == blockId } }) else { return }
+        let message = messages[messageIndex]
+        guard let blockIndex = message.blocks.firstIndex(where: { $0.id == blockId }),
+              let toolID = message.blocks[blockIndex].toolUseId, !toolID.isEmpty else { return }
+        let hasPrecedingContent = message.blocks.prefix(blockIndex).contains { block in
+            if case .text = block.kind { return !block.content.isEmpty }
+            return true
+        }
+        if !hasPrecedingContent, let userIndex = messages.prefix(messageIndex).lastIndex(where: { $0.role == .user }) {
+            retryFromMessage(messages[userIndex].id)
             return
         }
-
-        // Degenerate: target is the first block and no real content precedes it
-        // in this turn → fall back to the preceding-user-message truncation.
-        let hasPrecedingContent = asstMsg.blocks[..<blockIdx].contains { blk in
-            switch blk.kind {
-            case .text: return !blk.content.isEmpty
-            default: return true  // any earlier tool/info block counts
+        let anchors = agentHistory.enumerated().flatMap { entryIndex, entry -> [(Int, Int)] in
+            guard entry.role == .assistant else { return [] }
+            return entry.parts.enumerated().compactMap { partIndex, part in
+                if case .toolUse(let identifier, _, _) = part, identifier == toolID { return (entryIndex, partIndex) }
+                return nil
             }
+        }
+        guard anchors.count == 1, let (entryIndex, partIndex) = anchors.first else {
+            errorMessage = NivoLifeModel.message(NivoChatMutationError.staleHistory)
+            return
         }
         if !hasPrecedingContent {
-            if let userIdx = messages[..<asstMsgIdx].lastIndex(where: { $0.role == .user }) {
-                // Normal degenerate case: a user message precedes this turn —
-                // truncate at it and re-run (existing whole-turn path).
-                logger.info("[RerunToolBlock] degenerate → retryFromMessage(precedingUser) tuId=\(targetToolUseId.prefix(12))")
-                retryFromMessage(messages[userIdx].id)
-                return
-            }
-            // [T-ios-retry-double-header] No preceding user message (session
-            // opens with an assistant turn — e.g. SOUL greeting / system-
-            // triggered). Don't silently no-op: truncate from this assistant
-            // message's START (drop the whole message + everything after, drop
-            // its agentHistory entry + everything after) and re-run fresh.
-            canResume = false
-            userDidCancel = false
-            messages.removeSubrange(asstMsgIdx...)
-            // [T-ios-retry-ui-clear] mirror the sub-message path: force a
-            // top-level publish so the UI clears immediately on this tick
-            // even when the snapshot binding's main-queue receive hasn't
-            // fired yet.
-            if !transitionSuspended { objectWillChange.send() }
-            retrySnapshotReloadSignal.send()
-            AppLogger(category: "RetryDiag").info("[RetryDiag] degenerate(noPrecedingUser) truncated asstMsgIdx=\(asstMsgIdx) messagesCount=\(self.messages.count)")
-            // Find this assistant turn's agentHistory entry via the target's
-            // toolUseId and drop it + all later entries.
-            var dropFromEntry: Int? = nil
-            outer0: for (ei, entry) in agentHistory.enumerated() where entry.role == .assistant {
-                for part in entry.parts {
-                    if case .toolUse(let id, _, _) = part, id == targetToolUseId {
-                        dropFromEntry = ei
-                        break outer0
-                    }
-                }
-            }
-            if let ei = dropFromEntry, ei < agentHistory.count {
-                agentHistory.removeSubrange(ei...)
-            }
-            let keepCount = agentHistory.count
-            logger.info("[RerunToolBlock] degenerate (no precedingUser) → truncate from assistant start tuId=\(targetToolUseId.prefix(12)) keepCount=\(keepCount)")
-            if let sessionId {
-                Task { await ChatStore.shared.deleteMessagesAfter(sessionId: sessionId, keepCount: keepCount) }
-            }
-            rebuildToolSnapshotsFromMessages()
-            // No resume target — a fresh assistant message is appended by the
-            // agent loop (messages.last is now whatever preceded this turn).
-            launchRerunAgentLoop(label: "retryFromToolBlock")
+            nmCommitHistoryEdit(retaining: Array(agentHistory.prefix(entryIndex)), apply: { _ in
+                self.messages = Array(self.messages.prefix(messageIndex))
+            }, continueAfterCommit: {
+                self.turnStartedByRetry = true
+                self.launchRerunAgentLoop(label: "retryFromToolBlock")
+            })
             return
         }
-
-        canResume = false
-        userDidCancel = false
-
-        // --- Sub-message cut ---
-        // 1. UI: trim this assistant message's blocks to before the target,
-        //    and drop all later messages.
-        // [T-ios-retry-ui-clear] Mutating `messages[asstMsgIdx].blocks` only
-        // fires the *nested* ChatMessage.$blocks publisher; the collection
-        // view's `lastMessageBlockCountSub` is wired to the CURRENT last
-        // message (which at this moment is something AFTER asstMsgIdx, not
-        // asstMsgIdx itself), so that publisher fires on an unrelated
-        // message — no snapshot rebuild keys off the trim. The
-        // removeSubrange below DOES publish on `vm.$messages` and triggers
-        // applySnapshot, but the in-snapshot identifiers come from
-        // `block.id` so the stale block items can linger one runloop tick
-        // before the cells are dropped. Force a top-level publish so SwiftUI
-        // / the collection-view bindings see the cut synchronously.
-        messages[asstMsgIdx].blocks = Array(asstMsg.blocks[..<blockIdx])
-        if asstMsgIdx + 1 < messages.count {
-            messages.removeSubrange((asstMsgIdx + 1)...)
+        var retained = Array(agentHistory.prefix(entryIndex))
+        if partIndex > 0 {
+            var entry = agentHistory[entryIndex]
+            entry.parts = Array(entry.parts.prefix(partIndex))
+            retained.append(entry)
         }
-        if !transitionSuspended { objectWillChange.send() }
-        retrySnapshotReloadSignal.send()
-        AppLogger(category: "RetryDiag").info("[RetryDiag] blocks truncated asstMsgIdx=\(asstMsgIdx) blockIdx=\(blockIdx) remainingBlocks=\(self.messages[asstMsgIdx].blocks.count) messagesCount=\(self.messages.count)")
-
-        // 2. agentHistory: find the assistant entry carrying the target
-        //    .toolUse(id==targetToolUseId), trim its parts to before that
-        //    part, and drop every entry after it.
-        var cutEntryIdx: Int? = nil
-        var cutPartIdx: Int? = nil
-        outer: for (ei, entry) in agentHistory.enumerated() where entry.role == .assistant {
-            for (pi, part) in entry.parts.enumerated() {
-                if case .toolUse(let id, _, _) = part, id == targetToolUseId {
-                    cutEntryIdx = ei
-                    cutPartIdx = pi
-                    break outer
-                }
+        let retainedIDs = Set(retained.compactMap(\.dbMessageId))
+        nmCommitHistoryEdit(retaining: retained, trimmedToolUseID: partIndex > 0 ? toolID : nil, apply: { _ in
+            message.blocks = Array(message.blocks.prefix(blockIndex))
+            message.content = message.blocks.compactMap { block in
+                if case .text = block.kind { return block.content }
+                return nil
+            }.joined(separator: "\n\n")
+            message.nmSourceMessageIDs.formIntersection(retainedIDs)
+            self.messages = Array(self.messages.prefix(messageIndex + 1))
+            for block in message.blocks {
+                if case .streaming = block.toolStatus { block.toolStatus = .cancelled }
+                else if case .running = block.toolStatus { block.toolStatus = .cancelled }
             }
-        }
-        guard let entryIdx = cutEntryIdx, let partIdx = cutPartIdx else {
-            // Anchor not found in agentHistory — abort without mutating further
-            // to avoid a half-applied truncation. (Shouldn't happen: UI block
-            // implies a persisted tool_use entry.)
-            logger.warning("[RerunToolBlock] toolUseId \(targetToolUseId.prefix(12)) not found in agentHistory — aborting sub-message cut")
-            return
-        }
-
-        // [RetryDiag] Index/parts alignment for the sub-message cut. asstMsgIdx
-        // is the UI message; entryIdx/partIdx are the agentHistory cut point.
-        // Under merged rendering one UI message maps to MANY agentHistory
-        // entries, so blockIdx (UI) and partIdx (history) are NOT expected to
-        // match — log both to confirm the anchor resolved to the right entry.
-        AppLogger(category: "RetryDiag").info("[RetryDiag] sub-cut anchor tuId=\(targetToolUseId.prefix(12)) UI(asstMsgIdx=\(asstMsgIdx) blockIdx=\(blockIdx) blocks=\(self.messages[asstMsgIdx].blocks.count)) history(entryIdx=\(entryIdx) partIdx=\(partIdx) entryParts=\(self.agentHistory[entryIdx].parts.count) totalEntries=\(self.agentHistory.count))")
-
-        dumpHistoryPairing("subcut-BEFORE entryIdx=\(entryIdx) partIdx=\(partIdx) targetTU=\(targetToolUseId.prefix(8))")
-        let trimmedEntryDbId = agentHistory[entryIdx].dbMessageId
-        let partsBefore = agentHistory[entryIdx].parts.count
-        // Log exactly which parts the cut removes from this entry (partIdx...).
-        // A tool_use here whose tool_result lives in a kept entry → orphan.
-        let removedParts = agentHistory[entryIdx].parts[partIdx...].map { p -> String in
-            switch p {
-            case .text(let t): return "text(\(t.count)ch)"
-            case .toolUse(let id, let name, _): return "TU(\(name),\(id.prefix(8)))"
-            case .toolResult(let id, _, _, _, _, _, _, _): return "TR(\(id.prefix(8)))"
-            case .imageData: return "image"
-            }
-        }
-        AppLogger(category: "PairDiag").info("[PairDiag] subcut removes entry[\(entryIdx)].parts[\(partIdx)...]: [\(removedParts.joined(separator: ", "))]")
-        agentHistory[entryIdx].parts = Array(agentHistory[entryIdx].parts[..<partIdx])
-        let droppedEntries = (entryIdx + 1 < agentHistory.count) ? (agentHistory.count - (entryIdx + 1)) : 0
-        if entryIdx + 1 < agentHistory.count {
-            agentHistory.removeSubrange((entryIdx + 1)...)
-        }
-        AppLogger(category: "RetryDiag").info("[RetryDiag] sub-cut applied entry[\(entryIdx)] parts \(partsBefore)→\(self.agentHistory[entryIdx].parts.count), droppedTrailingEntries=\(droppedEntries), newHistoryCount=\(self.agentHistory.count), trimmedRowDbId=\(trimmedEntryDbId?.prefix(8) ?? "nil")")
-        // If this fires ORPHANS, the sub-cut stranded a tool_result — i.e. the
-        // (entryIdx, partIdx) cut point removed a tool_use whose tool_result
-        // sits in an entry that was NOT dropped. That's the bug to chase.
-        dumpHistoryPairing("subcut-AFTER")
-
-        // 3. Persist: delete rows after the trimmed assistant entry, then
-        //    rewrite the trimmed entry's row in place.
-        let persistedKeepCount = agentHistory.count
-        logger.info("[RerunToolBlock] sub-message cut tuId=\(targetToolUseId.prefix(12)) keepCount=\(persistedKeepCount) trimmedRow=\(trimmedEntryDbId?.prefix(8) ?? "nil")")
-        if let sessionId {
-            // [T-ios-retry-from-tool-block-oob] Snapshot the whole trimmed entry
-            // (a value type) SYNCHRONOUSLY, before the Task suspends. The Task
-            // below first awaits deleteMessagesAfter; during that suspension the
-            // re-run agent loop (launchRerunAgentLoop, started further down) runs
-            // runAgentLoop's "remove orphaned tool_result" pass, which can shrink
-            // agentHistory (e.g. 19→18). If we then read `agentHistory[entryIdx]`
-            // after the await, entryIdx is stale and the subscript traps with
-            // "Index out of range" (ContiguousArrayBuffer.swift:692, crash
-            // 2026-05-31). buildRawMessage takes an AgentMessage by value, so the
-            // captured snapshot is all we need — never index the live array here.
-            let trimmedEntry = agentHistory[entryIdx]
-            let trimmedParts = trimmedEntry.parts
-            let dbId = trimmedEntryDbId
-            Task {
-                await ChatStore.shared.deleteMessagesAfter(sessionId: sessionId, keepCount: persistedKeepCount)
-                if let dbId {
-                    let raw = await self.buildRawMessage(trimmedEntry)
-                    await ChatStore.shared.updateMessageParts(messageId: dbId, parts: raw?.parts ?? Self.contentPartsFallback(trimmedParts))
-                }
-            }
-        }
-
-        // 4. toolSnapshots + re-run.
-        // [T-ios-retry-double-header] The trimmed assistant message survives
-        // at asstMsgIdx (now the last message) with `blockIdx` surviving
-        // blocks. Resume INTO it so the new generation continues that turn
-        // rather than appending a second assistant message (which rendered a
-        // duplicate header). Mark its still-streaming/running tool blocks
-        // cancelled first (none should remain before the cut point, but guard).
-        for block in messages[asstMsgIdx].blocks {
-            if case .streaming = block.toolStatus { block.toolStatus = .cancelled }
-            else if case .running = block.toolStatus { block.toolStatus = .cancelled }
-        }
-        rebuildToolSnapshotsFromMessages()
-        launchRerunAgentLoop(label: "retryFromToolBlock", resumeAt: asstMsgIdx, resumeBlocks: blockIdx)
-    }
-
-    /// Fallback ContentPart serialization if buildRawMessage returns nil
-    /// (e.g. empty session id). Encodes only text/toolUse/toolResult parts —
-    /// imageData parts are dropped (they're re-fetchable and not part of the
-    /// truncation invariant). [T-ios-rerun-from-tool-block-position]
-    private static func contentPartsFallback(_ parts: [AgentContentPart]) -> [ContentPart] {
-        parts.compactMap { p in
-            switch p {
-            case .text(let t): return .text(t)
-            default: return nil
-            }
-        }
+        }, continueAfterCommit: {
+            guard let resumeIndex = self.messages.firstIndex(where: { $0.id == message.id }) else { return }
+            self.turnStartedByRetry = true
+            self.launchRerunAgentLoop(label: "retryFromToolBlock", resumeAt: resumeIndex, resumeBlocks: blockIndex)
+        })
     }
 
     /// Append text to the chat input, separated by a single space on each side
@@ -3857,7 +3503,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     /// The next call to send() will truncate the conversation from this message
     /// and re-run the agent loop with the edited content.
     func editMessage(_ messageId: UUID) {
-        guard !isProcessing else { return }
+        // nanoMuse: 提交中的草稿保持稳定，不能借另一个编辑改变锚点。
+        guard !isProcessing, !isTruncatingForRetry else { return }
         guard let idx = messages.firstIndex(where: { $0.id == messageId }),
               messages[idx].role == .user else { return }
 
@@ -3911,6 +3558,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     }
 
     func cancelEdit() {
+        // nanoMuse: 已开始持久化的编辑先等待结果，失败后仍可取消。
+        guard !isTruncatingForRetry else { return }
         editingMessageIndex = nil
         inputText = ""
         attachments = []
@@ -4205,7 +3854,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         msgIdx: inout Int,
         committedBlockCount: inout Int,
         turnUsage: TokenUsage
-    ) async -> Bool {
+    ) async throws -> Bool {
         guard !promptQueue.isEmpty else { return false }
         let queued = promptQueue
         promptQueue.removeAll()
@@ -4280,6 +3929,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         if let pid = await persistAgentMessage(queueMsg, snapshots: [:]), queueIdx < agentHistory.count {
             agentHistory[queueIdx].dbMessageId = pid
         }
+        // nanoMuse: 排队消息开始新一轮时捕获其自己的课次和数据库消息身份。
+        try await nmPrepareCoachTurn()
         // Cache markdown on the completed assistant message before starting a new one
         if msgIdx < messages.count {
             for i in messages[msgIdx].blocks.indices {
@@ -4733,6 +4384,9 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     }
 
     private func runAgentLoop(resumingAt existingMsgIdx: Int? = nil, committedBlocks: Int? = nil) async throws {
+        // nanoMuse: 重试和后台任务也必须遵守个人数据冻结边界。
+        try NivoChatAccountAccess.require(sessionID: sessionId, scheduledRunID: nmScheduledRunID)
+        let nmCallGeneration = NanoMuseCallSession.generation(for: self) // nanoMuse: 锁定本轮通话代次。
         // REPRO-DIAG(2026-05-16): bump global round counter and emit a clear
         // BEGIN/END marker so the user can grep `ROUND \d+` to slice the log
         // by attempt. A "round" = one runAgentLoop invocation, which is
@@ -4792,6 +4446,9 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 activeGroupId = gid
             }
         }
+        // nanoMuse: 用户原话先由宿主归档，再建立专题上下文和受限工具。
+        try await nmPrepareCoachTurn()
+        await NivoCoachChatContext.shared.refresh(sessionID: sessionId)
         let tools = makeAgentTools()
 
         let activeModel = ProviderConfigStore.shared.entry(for: entry.id)?.model ?? selectedModel
@@ -5767,6 +5424,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 }
 
                 // Flush any remaining unspoken text (streaming TTS already spoke most sentences)
+                // nanoMuse: 仅交付已确认完成且无工具调用的最终答案，禁止朗读过程说明。
+                if !canResume { NanoMuseCallSession.acceptFinalAnswer(streamResult.assistantText, from: self, generation: nmCallGeneration) }
                 let remainingSpeak: String
                 if streamResult.spokenTextOffset < streamResult.assistantText.count {
                     let startIdx = streamResult.assistantText.index(streamResult.assistantText.startIndex, offsetBy: streamResult.spokenTextOffset)
@@ -5788,9 +5447,21 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 // it names the backup model when one took over. Passing it here
                 // (rather than letting the persist layer look up the session) is
                 // what keeps attribution correct across a silent switch.
-                if let persistedId = await persistAgentMessage(assistantMessage, tokenUsage: turnUsage, thoughtSignatures: sigMap, streamInterruptCount: interruptCount, modelEntryId: activeEntryId),
-                   assistantAgentIdx < agentHistory.count {
+                // nanoMuse: 保存前固定课次及展示行，排队发送或重试不能把旧回复绑定到新回合。
+                let nmReplyCapture = nmCoachTurnCapture
+                let nmReplyDisplayID = runMsgId
+                let nmReplyIsFinal = !canResume
+                let savedReplyID = await persistAgentMessage(assistantMessage, tokenUsage: turnUsage, thoughtSignatures: sigMap, streamInterruptCount: interruptCount, modelEntryId: activeEntryId, nmArchiveFinalText: nmReplyIsFinal ? streamResult.assistantText : nil, nmArchiveCapture: nmReplyCapture)
+                if nmReplyCapture != nil, savedReplyID == nil, !streamResult.assistantText.isEmpty {
+                    throw NivoCoachConversationError.storage
+                }
+                if let persistedId = savedReplyID, assistantAgentIdx < agentHistory.count {
                     agentHistory[assistantAgentIdx].dbMessageId = persistedId
+                    // nanoMuse: 最终可见回复落盘后才成为教练档案来源。
+                    if nmReplyIsFinal {
+                        await nmRecordCoachReply(messageID: persistedId, displayMessageID: nmReplyDisplayID,
+                            text: streamResult.assistantText, captured: nmReplyCapture)
+                    }
                     // [T-error-persist-ios] Persist this turn's error state AFTER the
                     // row exists + dbMessageId is assigned, keyed by that id, so the
                     // indicator survives reload. Write UNCONDITIONALLY (incl. nil) so a
@@ -5811,7 +5482,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 // made it read as in-loop context for this turn. Errors above
                 // (canResume true) still inject: the user's new message takes
                 // precedence over a stale interrupted-banner from this finished turn.
-                if await injectQueuedPromptsAsNewTurn(
+                if try await injectQueuedPromptsAsNewTurn(
                     msgIdx: &msgIdx,
                     committedBlockCount: &committedBlockCount,
                     turnUsage: turnUsage
@@ -6055,7 +5726,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 // assistant blocks, and starts a fresh assistant message. We then
                 // `continue` so the next iteration produces a dedicated response to
                 // the queued prompt — abandoning the rest of the running plan.
-                if await injectQueuedPromptsAsNewTurn(
+                if try await injectQueuedPromptsAsNewTurn(
                     msgIdx: &msgIdx,
                     committedBlockCount: &committedBlockCount,
                     turnUsage: turnUsage

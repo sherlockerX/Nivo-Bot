@@ -200,6 +200,7 @@ struct CollectionViewMessageListV3: UIViewControllerRepresentable {
         if !vm.isLoadingSession && !vm.streamingUIUpdatesSuspended {
             coord.flushPendingSnapshotIfNeeded(caller: "updateUIVC-backstop")
         }
+        coord.nmScheduleSourceNavigation() // nanoMuse: 复用页面的可见性变化也检查待定位来源。
 
         if inputFocused != coord.lastInputFocused {
             let wasNearBottom = coord.scrollMode == .autoScrolling && coord.isNearBottom()
@@ -985,12 +986,15 @@ extension CollectionViewMessageListV3 {
         private var subscriptions = Set<AnyCancellable>()
         private var contentSizeObservation: NSKeyValueObservation?
         private var showSteps = NanoMuseSteps.defaultValue // nanoMuse: snapshot-level visibility.
+        private var nmAnchorJumpID = UUID() // nanoMuse: 新跳转撤销上一次延迟高亮。
+        private var nmSourceNavigationScheduled = false // nanoMuse: 合并同一布局周期的来源定位请求。
 
         // MARK: - Setup
 
         func attach(to vc: MessageListViewController, vm: AIChatViewModel, showSteps: Bool) {
             self.viewController = vc
             self.vm = vm
+            vc.nmSourceNavigationReady = { [weak self] in self?.nmScheduleSourceNavigation() } // nanoMuse: 布局结束后再发布定位状态。
             self.showSteps = showSteps // nanoMuse: apply the persisted value before the first snapshot.
             vc.loadViewIfNeeded()
             guard let collectionView = vc.collectionView else { return }
@@ -1177,6 +1181,7 @@ extension CollectionViewMessageListV3 {
         private var firstCellConfigTime: CFAbsoluteTime = 0
 
         private func configureCell(_ cell: SelfSizingCell, item: MessageListItem, indexPath: IndexPath) {
+            NanoMuseAnchorPulse.clear(cell) // nanoMuse: 复用时不保留上一条消息的定位提示。
             guard let vm else { return }
             let configStart = CACurrentMediaTime()
             cellConfigCount += 1
@@ -1716,6 +1721,12 @@ extension CollectionViewMessageListV3 {
                 }
                 .store(in: &subscriptions)
 
+            // nanoMuse: 同聊天档案退出时不重载消息，直接用真实来源映射执行一次定位。
+            NivoCoachSourceNavigation.shared.$state
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.nmScheduleSourceNavigation() }
+                .store(in: &subscriptions)
+
             // 1. Messages → snapshot
             //    Skip while isLoadingSession — binding 3 handles the post-load apply.
             //    This prevents a redundant apply when $messages and $isLoadingSession
@@ -1882,6 +1893,7 @@ extension CollectionViewMessageListV3 {
                     // Switching into a session resets the up-button turn-walk.
                     self.lastJumpedUserId = nil
                     let isFirstLoad = self.previousSnapshotIds.isEmpty
+                    let hasSourceNavigation = self.nmSourceTargetsCurrentChat // nanoMuse: 显式来源优先于首次滚到底部。
                     // Only clear caches when items will actually change — prevents
                     // a duplicate dispatch from clearing caches that won't be rebuilt.
                     if let msgs = self.vm?.messages {
@@ -1895,7 +1907,7 @@ extension CollectionViewMessageListV3 {
                         self.hasPendingSnapshot = false
                         self.applySnapshot(messages: msgs, caller: "bind3-sessionLoad")
                     }
-                    if isFirstLoad {
+                    if isFirstLoad && !hasSourceNavigation {
                         // First load: scroll to bottom and clamp.
                         // 8s window (was 2s) so async video thumbnail
                         // generation can complete and the cell-height
@@ -2443,6 +2455,7 @@ extension CollectionViewMessageListV3 {
 
         private func applySnapshot(messages rawMessages: [ChatMessage], caller: String = "?") {
             guard let vm, !vm.isLoadingSession else { return }
+            defer { nmScheduleSourceNavigation() } // nanoMuse: 快照应用后才能定位真实行。
 
             // [T-bridge-message-ui-leak] Single UI-collection sink for EVERY
             // path that pushes messages to the list (loadSession, live inject,
@@ -4106,6 +4119,57 @@ extension CollectionViewMessageListV3 {
             }
         }
 
+        /// nanoMuse: 快照、可见性和账户代次都就绪后才消费来源；未加载时保留意图。
+        private func nmConsumeSourceNavigation() {
+            let navigation = NivoCoachSourceNavigation.shared
+            guard let request = navigation.state.pending, let vm else { return }
+            let visible = nmSourceViewIsVisible() && !SessionLockStore.shared.isVisuallyLocked(request.chatID)
+            switch navigation.decision(for: vm, isVisible: visible) {
+            case .waiting: return
+            case .discarded: navigation.consume(request.id)
+            case .unavailable:
+                navigation.consume(request.id)
+                ShareFeedbackToast.show(AppLocalized("Original message link unavailable. This saved excerpt is still available."))
+            case .scroll(let identifier):
+                guard let source = dataSource, source.snapshot().itemIdentifiers.contains(where: { item in
+                    switch item {
+                    case .wholeMessage(let id), .assistantHeader(let id): return id == identifier
+                    default: return false
+                    }
+                }) else { return }
+                navigation.consume(request.id)
+                nmScrollToMessage(identifier)
+            }
+        }
+
+        /// nanoMuse: 切换页签后的SwiftUI布局在当前更新返回后生效，不增加计时器或任意等待。
+        func nmScheduleSourceNavigation() {
+            guard nmSourceTargetsCurrentChat, !nmSourceNavigationScheduled else { return }
+            nmSourceNavigationScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.nmSourceNavigationScheduled = false
+                self.nmConsumeSourceNavigation()
+            }
+        }
+
+        private var nmSourceTargetsCurrentChat: Bool {
+            guard let request = NivoCoachSourceNavigation.shared.state.pending else { return false }
+            return request.chatID == vm?.sessionId && request.scope == NivoLifeModel.shared.accessScope
+        }
+
+        /// nanoMuse: 保留在层级中的透明主聊天不算正在查看来源。
+        private func nmSourceViewIsVisible() -> Bool {
+            guard let controller = viewController, controller.nmIsVisible,
+                  controller.viewIfLoaded?.window != nil else { return false }
+            var ancestor: UIView? = controller.viewIfLoaded
+            while let view = ancestor {
+                if view.isHidden || view.alpha < 0.01 { return false }
+                ancestor = view.superview
+            }
+            return true
+        }
+
         /// nanoMuse: a message picked in the anchors sheet: its row at the top, as the up button
         /// lands on a question, then the scroll buttons re-synced the same two ways. A list that
         /// does not hold the message does nothing.
@@ -4118,9 +4182,29 @@ extension CollectionViewMessageListV3 {
                       }
                   }),
                   let ip = ds.indexPath(for: item) else { return }
-            cv.scrollToItem(at: ip, at: .top, animated: true)
+            // nanoMuse: 主动定位退出自动跟随，新回复不会立即把阅读位置拉回底部。
+            scrollMode = .userBrowsing
+            clampAfterSessionLoad = false // nanoMuse: 来源跳转解除首次加载和附件回调的底部钉住。
+            clampDeadline = .distantPast
+            pendingScrollWork?.cancel()
+            pendingScrollWork = nil
+            let jump = UUID()
+            nmAnchorJumpID = jump
+            for cell in cv.visibleCells { NanoMuseAnchorPulse.clear(cell) }
+            let animated = !UIAccessibility.isReduceMotionEnabled
+            cv.scrollToItem(at: ip, at: .top, animated: animated)
             DispatchQueue.main.async { [weak self] in self?.syncScrollFlags() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.syncScrollFlags() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (animated ? 0.4 : 0)) { [weak self] in
+                guard let self, self.nmAnchorJumpID == jump,
+                      let current = self.viewController?.collectionView, let source = self.dataSource else { return }
+                self.syncScrollFlags()
+                for path in current.indexPathsForVisibleItems {
+                    guard let visible = source.itemIdentifier(for: path),
+                          visible == item || Self.item(visible, belongsTo: id),
+                          let cell = current.cellForItem(at: path) else { continue }
+                    NanoMuseAnchorPulse.show(cell)
+                }
+            }
         }
 
         /// Compact dump of the isWithinBottom inputs for ScrollDiag logs.

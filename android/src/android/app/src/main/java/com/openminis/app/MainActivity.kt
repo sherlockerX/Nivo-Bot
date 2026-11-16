@@ -499,7 +499,11 @@ class MainActivity : ComponentActivity() {
         // while inside a chat, synthesise an OpenSession deep-link so
         // the navigation stack lands on that chat instead of the
         // sessions list. T166.
-        val explicitDeepLink = DeepLinkHandler.parse(intent?.data)
+        // nanoMuse: the launch intent stays with the activity, so a recreation (dark mode, font size,
+        // a return from recents after the process was killed) must not follow its link a second time.
+        val isFirstDelivery = savedInstanceState == null &&
+            ((intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
+        val explicitDeepLink = if (isFirstDelivery) DeepLinkHandler.parse(intent?.data) else DeepLinkAction.Unknown
         val launchDeepLink = if (explicitDeepLink !is DeepLinkAction.Unknown) {
             explicitDeepLink
         } else {
@@ -742,7 +746,7 @@ class MainActivity : ComponentActivity() {
             }
             // T183: any settings screen reachable by route string.
             is DeepLinkAction.OpenSettingsScreen -> {
-                nav.navigate(action.route)
+                nav.navigate(action.route) { launchSingleTop = true } // nanoMuse: a second tap on the same link does not stack the page twice
             }
             is DeepLinkAction.OpenPermissionSettings -> {
                 nav.navigate(Routes.PERMISSIONS)

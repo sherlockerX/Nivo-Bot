@@ -121,6 +121,8 @@ fun NanoMuseHome(
     val focusOwnerEpoch by io.github.nanomuse.account.AccountData.epoch.collectAsState()
     LaunchedEffect(focusOwnerEpoch) {
         // 用户主动收起不会再弹出，系统回收后才从同一会话恢复沉浸窗口。
+        // 每个进程每个账号代次只检查一次：从设置等页面返回时首页会重新进入组合，不能再把人拉回专注全屏。
+        if (!focusRestoreChecked.add(focusOwnerEpoch)) return@LaunchedEffect
         try {
             val focusStore=io.github.nanomuse.focus.FocusStore.get(context)
             val backgrounds=io.github.nanomuse.focus.FocusBackdropStore(context,focusStore.ownerKey,focusStore.ownerEpoch)
@@ -142,7 +144,12 @@ fun NanoMuseHome(
 
     LaunchedEffect(Unit) {
         val main = MainChat.resolve(context, chatRepository)
-        if (chatSessionId == null) chatSessionId = main
+        val shown = chatSessionId
+        // A draft key restored after the process was killed has no chat behind it any more:
+        // the conversation it became is found through the main chat, not through the dead key.
+        val isDeadDraft = shown != null && shown != main && MainChat.isDraftId(shown) &&
+            com.openminis.app.ui.chat.ChatViewModelStore.existingViewModel(shown) == null
+        if (shown == null || isDeadDraft) chatSessionId = main
     }
 
     // contract C10: a sign-in made the open chat another account's — the home is this account's now
@@ -802,3 +809,6 @@ private fun TabHeader(
         },
     )
 }
+
+/** 已检查过专注全屏恢复的账号代次；进程存活期间每个代次只检查一次。 */
+private val focusRestoreChecked: MutableSet<Any?> = java.util.Collections.synchronizedSet(mutableSetOf<Any?>())

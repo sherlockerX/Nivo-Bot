@@ -19,6 +19,9 @@ struct KimiTokenStorage: Codable {
     }
 }
 
+// nanoMuse: 导入与刷新共用访问令牌有效性约束。
+extension KimiTokenStorage: RefreshableOAuthToken {}
+
 // MARK: - Refresh-failure resolution (single-flight backstop)
 
 /// [T-oauth-refresh-race] Pure decision logic for "a refresh attempt failed —

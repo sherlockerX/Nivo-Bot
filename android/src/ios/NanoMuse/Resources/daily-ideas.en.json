@@ -1,0 +1,732 @@
+{
+  "sections": [
+    {
+      "id": "ideas",
+      "title": "Ideas",
+      "ideas": [
+        {
+          "id": "ideas-one-step",
+          "emoji": "👣",
+          "title": "Find one next step",
+          "body": "Choose one stuck task and make its first step small enough for ten minutes.",
+          "prompt": "I would like to work on this: Find one next step. Choose one stuck task and make its first step small enough for ten minutes. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-two-options",
+          "emoji": "⚖️",
+          "title": "Compare two workable choices",
+          "body": "Choose three criteria, compare costs, and identify the information still missing.",
+          "prompt": "I would like to work on this: Compare two workable choices. Choose three criteria, compare costs, and identify the information still missing. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-experiment",
+          "emoji": "🧪",
+          "title": "Test an idea with a small experiment",
+          "body": "Turn a guess into an observable question and a low-cost experiment for this week.",
+          "prompt": "I would like to work on this: Test an idea with a small experiment. Turn a guess into an observable question and a low-cost experiment for this week. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-question",
+          "emoji": "❓",
+          "title": "Ask a more useful question",
+          "body": "Turn a vague concern into three questions you can investigate, then choose one.",
+          "prompt": "I would like to work on this: Ask a more useful question. Turn a vague concern into three questions I can investigate, then choose one. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-constraint",
+          "emoji": "🧩",
+          "title": "Design within your limits",
+          "body": "List time, budget and energy limits, then suggest three realistic options.",
+          "prompt": "I would like to work on this: Design within your limits. List time, budget and energy limits, then suggest three realistic options. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-mini-project",
+          "emoji": "🛠️",
+          "title": "Plan a small weekend project",
+          "body": "Pick a two-hour project from your interests with materials and a clear finish line.",
+          "prompt": "I would like to work on this: Plan a small weekend project. Pick a two-hour project from my interests with materials and a clear finish line. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-before-after",
+          "emoji": "🔍",
+          "title": "Compare two recent outcomes",
+          "body": "Compare something that went well with something that did not; separate facts from explanations.",
+          "prompt": "I would like to work on this: Compare two recent outcomes. Compare something that went well with something that did not; separate facts from explanations. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-decision-note",
+          "emoji": "🗒️",
+          "title": "Write a decision note",
+          "body": "Record your choice, reasons and uncertainties, and choose when to review it.",
+          "prompt": "I would like to work on this: Write a decision note. Record my choice, reasons and uncertainties, and choose when to review it. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-unused",
+          "emoji": "📦",
+          "title": "Reuse something you already own",
+          "body": "Choose an unused object and find three uses that need no new purchases.",
+          "prompt": "I would like to work on this: Reuse something you already own. Choose an unused object and find three uses that need no new purchases. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-tiny-joy",
+          "emoji": "🌿",
+          "title": "Plan something to look forward to",
+          "body": "Choose a small enjoyable activity that fits your energy and available time.",
+          "prompt": "I would like to work on this: Plan something to look forward to. Choose a small enjoyable activity that fits my energy and available time. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-curiosity",
+          "emoji": "🔭",
+          "title": "Follow one real curiosity",
+          "body": "Start with something you did not understand recently and identify questions and sources to check.",
+          "prompt": "I would like to work on this: Follow one real curiosity. Start with something I did not understand recently and identify questions and sources to check. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-perspective",
+          "emoji": "🔄",
+          "title": "View a problem from three angles",
+          "body": "Examine a plan as its maker, its user and an observer.",
+          "prompt": "I would like to work on this: View a problem from three angles. Examine a plan as its maker, its user and an observer. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-stop-list",
+          "emoji": "✂️",
+          "title": "Choose what to stop doing for now",
+          "body": "Find three tasks to postpone or drop, including the consequences and anyone to inform.",
+          "prompt": "I would like to work on this: Choose what to stop doing for now. Find three tasks to postpone or drop, including the consequences and anyone to inform. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "ideas-five-minutes",
+          "emoji": "⏳",
+          "title": "Clear your head in five minutes",
+          "body": "Write down loose thoughts, sort actions from questions and parked ideas, then choose one.",
+          "prompt": "I would like to work on this: Clear your head in five minutes. Write down loose thoughts, sort actions from questions and parked ideas, then choose one. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        }
+      ]
+    },
+    {
+      "id": "work",
+      "title": "Work",
+      "ideas": [
+        {
+          "id": "work-meeting",
+          "emoji": "📝",
+          "title": "Prepare three meeting questions",
+          "body": "Use the agenda you provide to identify the purpose, decisions and three useful questions.",
+          "prompt": "I would like to work on this: Prepare three meeting questions. Use the agenda I provide to identify the purpose, decisions and three useful questions. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-weekly",
+          "emoji": "📊",
+          "title": "Write a concrete weekly update",
+          "body": "Use completed work, evidence and blockers; distinguish activity from results.",
+          "prompt": "I would like to work on this: Write a concrete weekly update. Use completed work, evidence and blockers; distinguish activity from results. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-email",
+          "emoji": "✉️",
+          "title": "Draft an easy-to-answer email",
+          "body": "Make the context, request, deadline and question explicit; keep it as a draft.",
+          "prompt": "I would like to work on this: Draft an easy-to-answer email. Make the context, request, deadline and question explicit; keep it as a draft. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-priority",
+          "emoji": "🎯",
+          "title": "Choose three priorities for today",
+          "body": "Rank work by deadline, impact and dependencies, and identify what can wait.",
+          "prompt": "I would like to work on this: Choose three priorities for today. Rank work by deadline, impact and dependencies, and identify what can wait. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-handoff",
+          "emoji": "🤝",
+          "title": "Prepare a usable handoff",
+          "body": "List the current state, file locations, open questions and the next owner.",
+          "prompt": "I would like to work on this: Prepare a usable handoff. List the current state, file locations, open questions and the next owner. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-feedback",
+          "emoji": "💬",
+          "title": "Make feedback specific",
+          "body": "Describe observed facts, their impact and a request without guessing motives.",
+          "prompt": "I would like to work on this: Make feedback specific. Describe observed facts, their impact and a request without guessing motives. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-risk",
+          "emoji": "🚧",
+          "title": "Spot one project risk early",
+          "body": "Pick a likely timing, resource or dependency risk with warning signs and a response.",
+          "prompt": "I would like to work on this: Spot one project risk early. Pick a likely timing, resource or dependency risk with warning signs and a response. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-document",
+          "emoji": "📄",
+          "title": "Create a one-page document guide",
+          "body": "Extract conclusions, supporting evidence and decisions from a provided document with locations.",
+          "prompt": "I would like to work on this: Create a one-page document guide. Extract conclusions, supporting evidence and decisions from a provided document with locations. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-focus",
+          "emoji": "⏱️",
+          "title": "Plan one focused work session",
+          "body": "Match a task to a real time slot with a starting condition, deliverable and interruption plan.",
+          "prompt": "I would like to work on this: Plan one focused work session. Match a task to a real time slot with a starting condition, deliverable and interruption plan. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-process",
+          "emoji": "🔧",
+          "title": "Reduce one repetitive task",
+          "body": "Map a repeated process, identify a reusable template or automation, and estimate upkeep.",
+          "prompt": "I would like to work on this: Reduce one repetitive task. Map a repeated process, identify a reusable template or automation, and estimate upkeep. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-proposal",
+          "emoji": "💡",
+          "title": "Make a proposal assessable",
+          "body": "State the problem, users, smallest experiment, costs and success criteria.",
+          "prompt": "I would like to work on this: Make a proposal assessable. State the problem, users, smallest experiment, costs and success criteria. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-review",
+          "emoji": "🔎",
+          "title": "Review work before handing it over",
+          "body": "Check gaps, numerical evidence, format and the recipient’s next step without inventing data.",
+          "prompt": "I would like to work on this: Review work before handing it over. Check gaps, numerical evidence, format and the recipient’s next step without inventing data. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-boundary",
+          "emoji": "🛑",
+          "title": "Explain a work boundary clearly",
+          "body": "Use current commitments to explain capacity and offer a sequence or scope adjustment.",
+          "prompt": "I would like to work on this: Explain a work boundary clearly. Use current commitments to explain capacity and offer a sequence or scope adjustment. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "work-retro",
+          "emoji": "🧭",
+          "title": "Review one finished piece of work",
+          "body": "Compare the goal with the result and deviations, then choose one change for next time.",
+          "prompt": "I would like to work on this: Review one finished piece of work. Compare the goal with the result and deviations, then choose one change for next time. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        }
+      ]
+    },
+    {
+      "id": "life",
+      "title": "Life",
+      "ideas": [
+        {
+          "id": "life-meal",
+          "emoji": "🥗",
+          "title": "Plan a meal with what you have",
+          "body": "List ingredients and dietary needs, then suggest a simple meal and a short shopping list.",
+          "prompt": "I would like to work on this: Plan a meal with what you have. List ingredients and dietary needs, then suggest a simple meal and a short shopping list. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-budget",
+          "emoji": "🧾",
+          "title": "Review a week of small expenses",
+          "body": "Categorize the records you provide and find one adjustable expense without assuming income.",
+          "prompt": "I would like to work on this: Review a week of small expenses. Categorize the records I provide and find one adjustable expense without assuming income. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-tidy",
+          "emoji": "🧹",
+          "title": "Tidy one small corner",
+          "body": "Choose a desk or drawer and a fifteen-minute sequence for keeping, returning and deciding.",
+          "prompt": "I would like to work on this: Tidy one small corner. Choose a desk or drawer and a fifteen-minute sequence for keeping, returning and deciding. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-rest",
+          "emoji": "🌙",
+          "title": "Make room to wind down tonight",
+          "body": "Use tomorrow’s schedule to plan a simple evening wind-down without medical diagnosis.",
+          "prompt": "I would like to work on this: Make room to wind down tonight. Use tomorrow’s schedule to plan a simple evening wind-down without medical diagnosis. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-walk",
+          "emoji": "🚶",
+          "title": "Plan a short walk",
+          "body": "Use your location, time and energy to choose route criteria and verify any current details.",
+          "prompt": "I would like to work on this: Plan a short walk. Use my location, time and energy to choose route criteria and verify any current details. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-weekend",
+          "emoji": "☀️",
+          "title": "Leave room in your weekend",
+          "body": "Separate necessities, wishes and rest; choose two priorities and leave free time.",
+          "prompt": "I would like to work on this: Leave room in your weekend. Separate necessities, wishes and rest; choose two priorities and leave free time. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-subscription",
+          "emoji": "🔁",
+          "title": "Review monthly subscriptions",
+          "body": "Use bills to list cost, usage and renewal dates; prepare a review without cancelling anything.",
+          "prompt": "I would like to work on this: Review monthly subscriptions. Use bills to list cost, usage and renewal dates; prepare a review without cancelling anything. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-packing",
+          "emoji": "🎒",
+          "title": "Pack for a specific outing",
+          "body": "Use trip length, activities and verified weather to make a short packing list.",
+          "prompt": "I would like to work on this: Pack for a specific outing. Use trip length, activities and verified weather to make a short packing list. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-maintenance",
+          "emoji": "🪛",
+          "title": "Plan simple household maintenance",
+          "body": "Choose a frequently used item and use its manual for cleaning and inspection steps.",
+          "prompt": "I would like to work on this: Plan simple household maintenance. Choose a frequently used item and use its manual for cleaning and inspection steps. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-purchase",
+          "emoji": "🛒",
+          "title": "Define a purchase before comparing",
+          "body": "List use cases, essential features and budget, then build a comparison checklist.",
+          "prompt": "I would like to work on this: Define a purchase before comparing. List use cases, essential features and budget, then build a comparison checklist. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-energy",
+          "emoji": "🔋",
+          "title": "Match today’s tasks to your energy",
+          "body": "Note your energy and essential tasks, then place demanding work in a suitable time slot.",
+          "prompt": "I would like to work on this: Match today’s tasks to your energy. Note my energy and essential tasks, then place demanding work in a suitable time slot. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-repair",
+          "emoji": "🧵",
+          "title": "Try a small repair",
+          "body": "Describe the damage and tools, then identify low-risk steps and when to stop.",
+          "prompt": "I would like to work on this: Try a small repair. Describe the damage and tools, then identify low-risk steps and when to stop. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-offline",
+          "emoji": "📵",
+          "title": "Try a short offline break",
+          "body": "Choose twenty minutes with an alternative activity and a way for essential contacts to reach you.",
+          "prompt": "I would like to work on this: Try a short offline break. Choose twenty minutes with an alternative activity and a way for essential contacts to reach me. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "life-routine",
+          "emoji": "🌱",
+          "title": "Make a habit easier to start",
+          "body": "Choose a habit with a two-minute version, a consistent cue and a simple way to record it.",
+          "prompt": "I would like to work on this: Make a habit easier to start. Choose a habit with a two-minute version, a consistent cue and a simple way to record it. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        }
+      ]
+    },
+    {
+      "id": "learn",
+      "title": "Learning",
+      "ideas": [
+        {
+          "id": "learn-explain",
+          "emoji": "💡",
+          "title": "Explain one concept in your own words",
+          "body": "Try an explanation first, identify gaps, and test it with an example from your background.",
+          "prompt": "I would like to work on this: Explain one concept in your own words. Try an explanation first, identify gaps, and test it with an example from my background. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-recall",
+          "emoji": "🧠",
+          "title": "Try recall before rereading",
+          "body": "Close the source, write three points, then check omissions and misunderstandings.",
+          "prompt": "I would like to work on this: Try recall before rereading. Close the source, write three points, then check omissions and misunderstandings. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-compare",
+          "emoji": "⚖️",
+          "title": "Separate two similar concepts",
+          "body": "Compare definitions, conditions and counterexamples, then answer two reasoning questions.",
+          "prompt": "I would like to work on this: Separate two similar concepts. Compare definitions, conditions and counterexamples, then answer two reasoning questions. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-paper",
+          "emoji": "📑",
+          "title": "Read one research figure carefully",
+          "body": "Provide the figure and caption to examine axes, controls, uncertainty and supported conclusions.",
+          "prompt": "I would like to work on this: Read one research figure carefully. Provide the figure and caption to examine axes, controls, uncertainty and supported conclusions. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-practice",
+          "emoji": "✍️",
+          "title": "Practice at the right difficulty",
+          "body": "Use your level to choose one problem; try it first, then get hints based on errors.",
+          "prompt": "I would like to work on this: Practice at the right difficulty. Use my level to choose one problem; try it first, then get hints based on errors. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-reading",
+          "emoji": "📚",
+          "title": "Read to answer a question",
+          "body": "Set a question before reading, then collect source evidence and what remains unanswered.",
+          "prompt": "I would like to work on this: Read to answer a question. Set a question before reading, then collect source evidence and what remains unanswered. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-plan",
+          "emoji": "🗓️",
+          "title": "Plan realistic learning time",
+          "body": "Choose a testable goal and divide it into three sessions that fit your schedule.",
+          "prompt": "I would like to work on this: Plan realistic learning time. Choose a testable goal and divide it into three sessions that fit my schedule. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-vocabulary",
+          "emoji": "🔤",
+          "title": "Use three new words in context",
+          "body": "Choose a real setting, learn three words, then write sentences and review corrections.",
+          "prompt": "I would like to work on this: Use three new words in context. Choose a real setting, learn three words, then write sentences and review corrections. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-mistake",
+          "emoji": "🔎",
+          "title": "Turn a mistake into a useful cue",
+          "body": "Use your solution to separate concept, condition and calculation errors and write a checking cue.",
+          "prompt": "I would like to work on this: Turn a mistake into a useful cue. Use my solution to separate concept, condition and calculation errors and write a checking cue. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-transfer",
+          "emoji": "🔄",
+          "title": "Apply an idea in a new setting",
+          "body": "Choose a learned method, try it in a different situation, and check where it applies.",
+          "prompt": "I would like to work on this: Apply an idea in a new setting. Choose a learned method, try it in a different situation, and check where it applies. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-teach",
+          "emoji": "🗣️",
+          "title": "Prepare a two-minute explanation",
+          "body": "Choose an audience, frame a question, explain with an example, and end with a check.",
+          "prompt": "I would like to work on this: Prepare a two-minute explanation. Choose an audience, frame a question, explain with an example, and end with a check. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-evidence",
+          "emoji": "🔗",
+          "title": "Check the evidence for one claim",
+          "body": "Find the original source and separate its conclusion from retellings and your inference.",
+          "prompt": "I would like to work on this: Check the evidence for one claim. Find the original source and separate its conclusion from retellings and my inference. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-notes",
+          "emoji": "🗂️",
+          "title": "Make a note easier to reuse",
+          "body": "Choose a topic from existing notes and organize questions, explanations, examples and checks.",
+          "prompt": "I would like to work on this: Make a note easier to reuse. Choose a topic from existing notes and organize questions, explanations, examples and checks. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "learn-review",
+          "emoji": "⏳",
+          "title": "Check what you remember a day later",
+          "body": "Use material you actually studied yesterday for a short test and plan the next review.",
+          "prompt": "I would like to work on this: Check what you remember a day later. Use material I actually studied yesterday for a short test and plan the next review. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        }
+      ]
+    },
+    {
+      "id": "family",
+      "title": "Family and relationships",
+      "ideas": [
+        {
+          "id": "family-check-in",
+          "emoji": "💬",
+          "title": "Draft a message to reconnect",
+          "body": "Use the real relationship and last interaction to draft an opening for you to review and send.",
+          "prompt": "I would like to work on this: Draft a message to reconnect. Use the real relationship and last interaction to draft an opening for me to review and send. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-listen",
+          "emoji": "👂",
+          "title": "Practice listening before advising",
+          "body": "Practice reflecting what someone said and asking an open question without assuming feelings.",
+          "prompt": "I would like to work on this: Practice listening before advising. Practice reflecting what someone said and asking an open question without assuming feelings. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-shared-plan",
+          "emoji": "📅",
+          "title": "Clarify a shared plan",
+          "body": "List times, people and what each person needs to confirm, then check conflicts.",
+          "prompt": "I would like to work on this: Clarify a shared plan. List times, people and what each person needs to confirm, then check conflicts. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-gift",
+          "emoji": "🎁",
+          "title": "Choose a gift from real preferences",
+          "body": "Use budget, relationship and known interests for three options with missing information noted.",
+          "prompt": "I would like to work on this: Choose a gift from real preferences. Use budget, relationship and known interests for three options with missing information noted. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-thanks",
+          "emoji": "🌷",
+          "title": "Make a thank-you specific",
+          "body": "Name what someone did, its effect on you and your thanks in your own voice.",
+          "prompt": "I would like to work on this: Make a thank-you specific. Name what someone did, its effect on me and my thanks in my own voice. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-boundary",
+          "emoji": "🧭",
+          "title": "Express a boundary kindly",
+          "body": "Describe the situation, your need and an acceptable arrangement without labeling anyone.",
+          "prompt": "I would like to work on this: Express a boundary kindly. Describe the situation, my need and an acceptable arrangement without labeling anyone. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-repair-talk",
+          "emoji": "🤝",
+          "title": "Prepare a repair conversation",
+          "body": "Separate facts, interpretations and your responsibility, then make a discussable request.",
+          "prompt": "I would like to work on this: Prepare a repair conversation. Separate facts, interpretations and my responsibility, then make a discussable request. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-family-meal",
+          "emoji": "🍲",
+          "title": "Plan an easy meal together",
+          "body": "Use the group size, dietary needs and time for a simple menu and shared preparation.",
+          "prompt": "I would like to work on this: Plan an easy meal together. Use the group size, dietary needs and time for a simple menu and shared preparation. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-memory",
+          "emoji": "📖",
+          "title": "Record a story someone wants to share",
+          "body": "Prepare three respectful questions and, with permission, preserve the speaker’s words.",
+          "prompt": "I would like to work on this: Record a story someone wants to share. Prepare three respectful questions and, with permission, preserve the speaker’s words. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-division",
+          "emoji": "🧺",
+          "title": "Discuss sharing one household task",
+          "body": "List frequency, time and each person’s constraints, then propose a one-week trial.",
+          "prompt": "I would like to work on this: Discuss sharing one household task. List frequency, time and each person’s constraints, then propose a one-week trial. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-celebrate",
+          "emoji": "🎂",
+          "title": "Mark an occasion simply",
+          "body": "Plan something small using shared preferences and budget without assuming surprises are welcome.",
+          "prompt": "I would like to work on this: Mark an occasion simply. Plan something small using shared preferences and budget without assuming surprises are welcome. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-invite",
+          "emoji": "✉️",
+          "title": "Draft a low-pressure invitation",
+          "body": "State the activity and time with an easy way to decline; leave sending to you.",
+          "prompt": "I would like to work on this: Draft a low-pressure invitation. State the activity and time with an easy way to decline; leave sending to me. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-expectation",
+          "emoji": "🔍",
+          "title": "Check an unspoken expectation",
+          "body": "Turn an expectation into a question and separate an agreement from your assumption.",
+          "prompt": "I would like to work on this: Check an unspoken expectation. Turn an expectation into a question and separate an agreement from my assumption. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "family-support",
+          "emoji": "🫶",
+          "title": "Ask what support would help",
+          "body": "Ask whether someone wants listening, advice or practical help, then follow their answer.",
+          "prompt": "I would like to work on this: Ask what support would help. Ask whether someone wants listening, advice or practical help, then follow their answer. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        }
+      ]
+    },
+    {
+      "id": "media",
+      "title": "Content creation",
+      "ideas": [
+        {
+          "id": "media-research-figure",
+          "emoji": "🔬",
+          "title": "Film how to read a research figure",
+          "body": "Show the caption, axes and controls in order, then explain one supported conclusion.",
+          "prompt": "I would like to work on this: Film how to read a research figure. Show the caption, axes and controls in order, then explain one supported conclusion. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-research-mistake",
+          "emoji": "🧪",
+          "title": "Film a clearer experiment log",
+          "body": "Use a blank example to show before and after with three required fields and no private data.",
+          "prompt": "I would like to work on this: Film a clearer experiment log. Use a blank example to show before and after with three required fields and no private data. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-desk-reset",
+          "emoji": "🧹",
+          "title": "Film a fifteen-minute desk reset",
+          "body": "Use one camera position for the start, sorting and finish, with real timing and one unresolved issue.",
+          "prompt": "I would like to work on this: Film a fifteen-minute desk reset. Use one camera position for the start, sorting and finish, with real timing and one unresolved issue. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-tool-three",
+          "emoji": "🛠️",
+          "title": "Film three small uses for one tool",
+          "body": "Record three ways to handle a real task with the conditions and limits of each.",
+          "prompt": "I would like to work on this: Film three small uses for one tool. Record three ways to handle a real task with the conditions and limits of each. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-method-test",
+          "emoji": "⏱️",
+          "title": "Film a small learning-method test",
+          "body": "Try rereading and recall on a short source; document the process without generalizing from one trial.",
+          "prompt": "I would like to work on this: Film a small learning-method test. Try rereading and recall on a short source; document the process without generalizing from one trial. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-meal-prep",
+          "emoji": "🥗",
+          "title": "Film a meal from available ingredients",
+          "body": "Show ingredients, three steps and the result with real cost and time; label nutrition estimates.",
+          "prompt": "I would like to work on this: Film a meal from available ingredients. Show ingredients, three steps and the result with real cost and time; label nutrition estimates. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-before-after",
+          "emoji": "📄",
+          "title": "Film a clearer page of notes",
+          "body": "Use your own example to show the draft, reorganization and a check with one repeatable step.",
+          "prompt": "I would like to work on this: Film a clearer page of notes. Use my own example to show the draft, reorganization and a check with one repeatable step. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-myth-check",
+          "emoji": "🔎",
+          "title": "Film how you check a common claim",
+          "body": "Record the search for an original source, compare wording, and keep uncertainty visible.",
+          "prompt": "I would like to work on this: Film how you check a common claim. Record the search for an original source, compare wording, and keep uncertainty visible. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-one-problem",
+          "emoji": "🧩",
+          "title": "Film one solution to a small problem",
+          "body": "Show the problem, attempt and result, using real failed attempts to explain limits.",
+          "prompt": "I would like to work on this: Film one solution to a small problem. Show the problem, attempt and result, using real failed attempts to explain limits. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-workflow",
+          "emoji": "🔄",
+          "title": "Film one step removed from a routine",
+          "body": "Record the original and shorter process, count actions or time, and state the test conditions.",
+          "prompt": "I would like to work on this: Film one step removed from a routine. Record the original and shorter process, count actions or time, and state the test conditions. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-book-question",
+          "emoji": "📚",
+          "title": "Film one question from a book",
+          "body": "Explain a question and the author’s view in your own words, with accurate short quotes and page or edition.",
+          "prompt": "I would like to work on this: Film one question from a book. Explain a question and the author’s view in my own words, with accurate short quotes and page or edition. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-compare",
+          "emoji": "⚖️",
+          "title": "Film who two methods are useful for",
+          "body": "Compare two methods you have used against the same criteria with conditions and tradeoffs.",
+          "prompt": "I would like to work on this: Film who two methods are useful for. Compare two methods I have used against the same criteria with conditions and tradeoffs. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-script",
+          "emoji": "🎬",
+          "title": "Film a real experience in three parts",
+          "body": "Make a thirty-second script and shot list around the problem, your action and the actual result.",
+          "prompt": "I would like to work on this: Film a real experience in three parts. Make a thirty-second script and shot list around the problem, my action and the actual result. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show."
+        },
+        {
+          "id": "media-verify-news",
+          "emoji": "📰",
+          "title": "Verify a current story before filming",
+          "body": "Actively search recent events and check original sources, publication times and local dates; use an evergreen topic if verification fails.",
+          "prompt": "I would like to work on this: Verify a current story before filming. Actively search recent events and check original sources, publication times and local dates; use an evergreen topic if verification fails. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources. Give an angle, a 30 to 60 second script, three to five practical shots, and the materials needed. Separate facts from presentation suggestions and use material I have permission to show. Actively verify online for this request: confirm my topic and device-local date, find at least two independently checkable sources, prioritize the original publisher, and give working https links, publishers, publication and verification times, plus the event date. Call it a current story only after checking; do not present old news as happening today. If browsing fails or dates or sources are unclear, say so and offer a related evergreen topic."
+        }
+      ]
+    },
+    {
+      "id": "more",
+      "title": "More ideas",
+      "ideas": [
+        {
+          "id": "more-files",
+          "emoji": "🗂️",
+          "title": "Make files easier to find",
+          "body": "Use examples to design a naming rule and a rename preview without changing files.",
+          "prompt": "I would like to work on this: Make files easier to find. Use examples to design a naming rule and a rename preview without changing files. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-backup",
+          "emoji": "💾",
+          "title": "Check your backup coverage",
+          "body": "List important files, backup locations and the last verification time for a read-only review.",
+          "prompt": "I would like to work on this: Check your backup coverage. List important files, backup locations and the last verification time for a read-only review. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-travel",
+          "emoji": "🗺️",
+          "title": "Plan a short trip with room to spare",
+          "body": "Use the destination, budget and dates for an outline and a list of current details to verify.",
+          "prompt": "I would like to work on this: Plan a short trip with room to spare. Use the destination, budget and dates for an outline and a list of current details to verify. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-event",
+          "emoji": "🎉",
+          "title": "Make a timeline for a small event",
+          "body": "Use the occasion, group size and budget for preparation, the event and cleanup.",
+          "prompt": "I would like to work on this: Make a timeline for a small event. Use the occasion, group size and budget for preparation, the event and cleanup. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-digital",
+          "emoji": "🔐",
+          "title": "Review one account’s security settings",
+          "body": "Use official help to list verification, recovery and device checks without sharing passwords.",
+          "prompt": "I would like to work on this: Review one account’s security settings. Use official help to list verification, recovery and device checks without sharing passwords. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-questionnaire",
+          "emoji": "📝",
+          "title": "Write better questions",
+          "body": "Draft five neutral questions for a clear purpose without leading people or collecting unnecessary personal data.",
+          "prompt": "I would like to work on this: Write better questions. Draft five neutral questions for a clear purpose without leading people or collecting unnecessary personal data. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-compare-service",
+          "emoji": "📋",
+          "title": "Compare the real terms of a service",
+          "body": "List total costs, limits, cancellation terms and sources, leaving unverified figures blank.",
+          "prompt": "I would like to work on this: Compare the real terms of a service. List total costs, limits, cancellation terms and sources, leaving unverified figures blank. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-portfolio",
+          "emoji": "🖼️",
+          "title": "Document one piece of work",
+          "body": "Choose a real outcome and describe context, your contribution, evidence and reflection without exaggeration.",
+          "prompt": "I would like to work on this: Document one piece of work. Choose a real outcome and describe context, my contribution, evidence and reflection without exaggeration. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-instruction",
+          "emoji": "🛠️",
+          "title": "Write instructions someone can follow",
+          "body": "Choose a familiar task and document preparation, steps, expected results and common failures.",
+          "prompt": "I would like to work on this: Write instructions someone can follow. Choose a familiar task and document preparation, steps, expected results and common failures. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-local-place",
+          "emoji": "🏡",
+          "title": "Find a nearby place to unwind",
+          "body": "Use your location and preferences for selection criteria and verify hours and transport.",
+          "prompt": "I would like to work on this: Find a nearby place to unwind. Use my location and preferences for selection criteria and verify hours and transport. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-appointment",
+          "emoji": "📞",
+          "title": "Prepare questions before an appointment",
+          "body": "List materials, costs, timing and cancellation questions for the service you need.",
+          "prompt": "I would like to work on this: Prepare questions before an appointment. List materials, costs, timing and cancellation questions for the service I need. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-accessibility",
+          "emoji": "♿",
+          "title": "Make a piece of content easier to understand",
+          "body": "Review type size, contrast, terminology and alternative descriptions for the intended audience.",
+          "prompt": "I would like to work on this: Make a piece of content easier to understand. Review type size, contrast, terminology and alternative descriptions for the intended audience. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-volunteer",
+          "emoji": "🌍",
+          "title": "Choose a small way to contribute",
+          "body": "Match interests and available time to options, verifying organizations before making contact.",
+          "prompt": "I would like to work on this: Choose a small way to contribute. Match interests and available time to options, verifying organizations before making contact. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        },
+        {
+          "id": "more-month-note",
+          "emoji": "🧭",
+          "title": "Write an honest note about this month",
+          "body": "Use events you provide to record progress, difficulties and next steps while labeling inference.",
+          "prompt": "I would like to work on this: Write an honest note about this month. Use events I provide to record progress, difficulties and next steps while labeling inference. Ask for the minimum background needed, then suggest a small actionable plan. Use information I provide or you actually verify; do not invent experiences, data or sources."
+        }
+      ]
+    }
+  ]
+}

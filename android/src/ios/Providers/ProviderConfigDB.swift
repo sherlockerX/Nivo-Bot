@@ -33,17 +33,12 @@ actor ProviderConfigDB {
         return base.appendingPathComponent("provider-config.db")
     }
 
-    static let schemaVersion: Int32 = 2
+    static let schemaVersion: Int32 = NivoProviderSchema.version
 
     private let dbURL: URL
     private var db: OpaquePointer?
 
-    /// [T-icloud-agentloop-wipe] Set by the most recent `dumpProviderConfig()`
-    /// when the local-only agent-loop table could not be READ. The dumped
-    /// config then carries `[]` for those fields, which is indistinguishable
-    /// from a genuine empty selection — so any caller about to write that
-    /// config back (notably the inbound-sync replace path) must check this and
-    /// skip, or it will erase the user's agent-loop choice. (OpenMinis#98.)
+    // nanoMuse: 保留旧只读接口的诊断标志；严格快照直接抛出读取错误，不再返回空选择。
     private(set) var agentLoopReadFailed = false
 
     // MARK: - Init / schema
@@ -76,234 +71,26 @@ actor ProviderConfigDB {
         if let db { sqlite3_close(db) }
     }
 
-    // MARK: - Schema (DDL)
+    // nanoMuse: 备份恢复覆盖V3权威存储，禁止把活动WAL数据库当普通文件复制或替换。
+    /// 在仓库actor内创建完整SQLite快照，返回真实数据库位置供持久日志绑定。
+    func nmSnapshotForRollback(to saved: URL) throws -> URL {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        try NivoSQLiteSnapshot.capture(from: db, to: saved)
+        return dbURL
+    }
 
-    /// Applies any pending schema migrations up to `schemaVersion`. Idempotent.
-    /// Tracks current version via `PRAGMA user_version`. Each upgrade step is
-    /// a single TRANSACTION so a crash partway leaves the DB at the previous
-    /// version (which the next launch re-attempts cleanly).
+    /// 对现有数据库连接执行恢复，后续读取不会继续指向已经被文件替换孤立的旧句柄。
+    func nmRestoreSnapshot(from saved: URL, expectedURL: URL) throws {
+        guard let db, expectedURL.standardizedFileURL == dbURL.standardizedFileURL else {
+            throw NivoSQLiteSnapshotError.invalidPath
+        }
+        try NivoSQLiteSnapshot.restore(from: saved, into: db)
+    }
+
+    // nanoMuse: 首次建库和升级使用同一可测试事务，缺列或SQL失败不能被记录为迁移完成。
+    /// 数据结构版本保持上游协议值，错误向初始化调用者传播。
     private static func runMigrations(db: OpaquePointer) throws {
-        var current: Int32 = 0
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &stmt, nil) == SQLITE_OK,
-           sqlite3_step(stmt) == SQLITE_ROW {
-            current = sqlite3_column_int(stmt, 0)
-        }
-        sqlite3_finalize(stmt)
-
-        // [T-provider-custom-user-agent-persist] Idempotent column backstops MUST
-        // run on EVERY open, BEFORE the version-gated early return below. The
-        // `custom_user_agent` column was added WITHOUT a schemaVersion bump, so a
-        // DB already at the current user_version (the common case for existing
-        // installs) would hit the early return and never gain the column — then
-        // the SELECT/INSERT that reference it fail to prepare, loadAllInstanceRows
-        // returns [], and EVERY provider silently disappears. Running the ensure
-        // here repairs any DB regardless of user_version. (The group-tombstone
-        // backstop also belongs here for the same reason; kept idempotent.)
-        Self.ensureInstanceCustomUAColumn(db: db)
-        Self.ensureGroupTombstoneColumns(db: db)
-        // [T-icloud-agentloop-wipe] Same reasoning: provider_agent_loop_ids was
-        // created ONLY inside the `current < 1` block, so a DB that reached this
-        // version by another route has no such table and every agent-loop
-        // read/write against it fails silently.
-        Self.ensureAgentLoopTable(db: db)
-        // [T-thinking-rules-phase2] Same unconditional placement and same reason: a DB
-        // already at the current user_version must still gain this table.
-        Self.ensureThinkingRulesTable(db: db)
-
-        if current >= schemaVersion {
-            logger.info("[v3] schema up-to-date at version \(current)")
-            return
-        }
-
-        logger.info("[v3] migrating schema \(current) → \(schemaVersion)")
-        exec(db: db, "BEGIN IMMEDIATE")
-
-        if current < 1 {
-            // ── v1: initial schema ──
-            //
-            // Sync-domain tables: one row per CloudKit V3 record. updated_at
-            // drives LWW. extras_json carries unknown fields from newer
-            // builds so we don't round-trip-strip them (the exact failure
-            // mode that pinned v2 into a ping-pong loop when a stale build
-            // dropped the deletedInstances field).
-
-            exec(db: db, """
-                CREATE TABLE provider_instances (
-                    id                       TEXT PRIMARY KEY,
-                    label                    TEXT NOT NULL,
-                    provider_type            TEXT NOT NULL,
-                    credential_type          TEXT,
-                    custom_base_url          TEXT,
-                    append_v1_suffix         INTEGER NOT NULL DEFAULT 1,
-                    image_endpoint_mode      TEXT,
-                    image_endpoint_resolved  TEXT,
-                    custom_user_agent        TEXT,
-                    azure_mode               INTEGER NOT NULL DEFAULT 0,
-                    is_enabled               INTEGER NOT NULL DEFAULT 1,
-                    sort_order               INTEGER NOT NULL DEFAULT 0,
-                    secret_blob              TEXT,
-                    secret_kind              TEXT,
-                    secret_updated_at        REAL,
-                    created_at               REAL NOT NULL,
-                    updated_at               REAL NOT NULL,
-                    extras_json              TEXT
-                )
-            """)
-
-            exec(db: db, """
-                CREATE TABLE provider_model_entries (
-                    id                       TEXT PRIMARY KEY,
-                    provider_instance_id     TEXT NOT NULL,
-                    base_model_json          TEXT NOT NULL,
-                    overrides_json           TEXT,
-                    is_custom                INTEGER NOT NULL DEFAULT 0,
-                    is_hidden                INTEGER NOT NULL DEFAULT 0,
-                    user_modified_at         REAL,
-                    sort_order               INTEGER NOT NULL DEFAULT 0,
-                    updated_at               REAL NOT NULL,
-                    extras_json              TEXT,
-                    FOREIGN KEY(provider_instance_id) REFERENCES provider_instances(id) ON DELETE CASCADE
-                )
-            """)
-            exec(db: db, "CREATE INDEX idx_entries_instance ON provider_model_entries(provider_instance_id)")
-
-            exec(db: db, """
-                CREATE TABLE provider_model_groups (
-                    id                       TEXT PRIMARY KEY,
-                    name                     TEXT NOT NULL,
-                    strategy                 TEXT NOT NULL,
-                    fallback_strategy        TEXT NOT NULL,
-                    default_thinking_level   TEXT,
-                    context_limit_tokens     INTEGER,
-                    context_limit_remembered INTEGER,
-                    member_entry_ids_json    TEXT NOT NULL,
-                    sort_order               INTEGER NOT NULL DEFAULT 0,
-                    updated_at               REAL NOT NULL,
-                    extras_json              TEXT
-                )
-            """)
-
-            // ── local-only tables (NOT synced, per-device state) ──
-
-            exec(db: db, """
-                CREATE TABLE provider_local_kv (
-                    key   TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            """)
-
-            exec(db: db, """
-                CREATE TABLE provider_session_bindings (
-                    session_id    TEXT PRIMARY KEY,
-                    binding_json  TEXT NOT NULL,
-                    updated_at    REAL NOT NULL
-                )
-            """)
-
-            exec(db: db, """
-                CREATE TABLE provider_session_inference_configs (
-                    session_id    TEXT PRIMARY KEY,
-                    config_json   TEXT NOT NULL,
-                    updated_at    REAL NOT NULL
-                )
-            """)
-
-            exec(db: db, """
-                CREATE TABLE provider_agent_loop_ids (
-                    kind       TEXT NOT NULL,
-                    target_id  TEXT NOT NULL,
-                    sort_order INTEGER NOT NULL,
-                    PRIMARY KEY (kind, target_id)
-                )
-            """)
-        }
-
-        if current < 2 {
-            // ── v2: member-level add/remove tombstones on groups ──
-            //
-            // [T-icloud-provider-sync-consistency] Group memberEntryIds are
-            // merged as a per-member timestamp CRDT on inbound (two devices
-            // each adding a model never clobber each other). added_members_json
-            // / removed_members_json map entryId → epoch seconds. Both columns
-            // are added idempotently below.
-            //
-            // IMPORTANT: these ALTERs run via ensureGroupTombstoneColumns(),
-            // NOT inline, because an earlier build of this migration added ONLY
-            // removed_members_json and then bumped user_version to 2 — on those
-            // DBs `current >= 2` skips this block entirely, leaving
-            // added_members_json missing forever. A SELECT that lists the
-            // missing column then fails to prepare and returns ZERO group rows,
-            // which save() promptly persisted back as "no groups" and pushed to
-            // iCloud — wiping every group. The fix is to make column creation
-            // idempotent AND run it unconditionally on every open (below),
-            // independent of user_version.
-        }
-
-        exec(db: db, "PRAGMA user_version = \(schemaVersion)")
-        exec(db: db, "COMMIT")
-        logger.info("[v3] schema migration complete")
-
-        // Both idempotent column backstops now run UNCONDITIONALLY at the top of
-        // this function (before the version-gated early return), so they are not
-        // repeated here. See the note there.
-    }
-
-    /// Add `custom_user_agent` to provider_instances if absent. Idempotent —
-    /// safe to call on every DB open. The column was introduced after the
-    /// original v1 schema, so any DB created by an earlier build lacks it; a
-    /// SELECT/INSERT that references the missing column would otherwise fail to
-    /// prepare and silently drop the per-provider custom UA (it round-trips
-    /// only through in-memory + JSON mirror, so it looked set until a cold
-    /// start reloaded from this DB and read it back as nil → "UA reverts to
-    /// default after a while"). [T-provider-custom-user-agent-persist]
-    private static func ensureInstanceCustomUAColumn(db: OpaquePointer) {
-        var existing = Set<String>()
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "PRAGMA table_info(provider_instances)", -1, &stmt, nil) == SQLITE_OK {
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                if let c = sqlite3_column_text(stmt, 1) { existing.insert(String(cString: c)) }
-            }
-        }
-        sqlite3_finalize(stmt)
-        // Empty set = table doesn't exist yet (brand-new DB, before the v1
-        // CREATE TABLE runs — which already includes the column). Skip the ALTER
-        // so we don't log a spurious "no such table" error; nothing to repair.
-        guard !existing.isEmpty else { return }
-        if !existing.contains("custom_user_agent") {
-            exec(db: db, "ALTER TABLE provider_instances ADD COLUMN custom_user_agent TEXT")
-            logger.info("[v3] schema repair: added missing column custom_user_agent")
-        }
-        // [T-ios-azure-openai] Same idempotent backstop for the azure_mode column
-        // (added after v1 schema, no schemaVersion bump). Without it, a DB at the
-        // current user_version never gains the column → the instance SELECT/INSERT
-        // that reference it fail to prepare and every provider disappears.
-        if !existing.contains("azure_mode") {
-            exec(db: db, "ALTER TABLE provider_instances ADD COLUMN azure_mode INTEGER NOT NULL DEFAULT 0")
-            logger.info("[v3] schema repair: added missing column azure_mode")
-        }
-    }
-
-    /// Add `removed_members_json` / `added_members_json` to provider_model_groups
-    /// if absent. Idempotent — safe to call on every DB open. Guards against a
-    /// partial earlier migration that left only one of the two columns.
-    private static func ensureGroupTombstoneColumns(db: OpaquePointer) {
-        var existing = Set<String>()
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "PRAGMA table_info(provider_model_groups)", -1, &stmt, nil) == SQLITE_OK {
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                if let c = sqlite3_column_text(stmt, 1) { existing.insert(String(cString: c)) }
-            }
-        }
-        sqlite3_finalize(stmt)
-        if !existing.contains("removed_members_json") {
-            exec(db: db, "ALTER TABLE provider_model_groups ADD COLUMN removed_members_json TEXT NOT NULL DEFAULT '{}'")
-            logger.info("[v3] schema repair: added missing column removed_members_json")
-        }
-        if !existing.contains("added_members_json") {
-            exec(db: db, "ALTER TABLE provider_model_groups ADD COLUMN added_members_json TEXT NOT NULL DEFAULT '{}'")
-            logger.info("[v3] schema repair: added missing column added_members_json")
-        }
+        try NivoProviderSchema.migrate(db)
     }
 
     // MARK: - Member-timestamp map JSON codec
@@ -320,6 +107,11 @@ actor ProviderConfigDB {
         var out: [String: Date] = [:]
         for (k, v) in raw { out[k] = Date(timeIntervalSince1970: v) }
         return out
+    }
+
+    // nanoMuse: 严格快照不能将损坏的成员历史当成没有增删记录。
+    private static func nmDecodeMemberTimestamps(_ json: String?) throws -> [String: Date] {
+        try NivoProviderMemberHistory.decodeMap(json)
     }
 
     static func encodeMemberTimestamps(_ map: [String: Date]) -> String {
@@ -349,14 +141,18 @@ actor ProviderConfigDB {
     /// Whether the DB has been populated. False = newly created, expects
     /// migration from `provider-config.json` next (Stage S2).
     func isEmpty() -> Bool {
-        guard let db else { return true }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM provider_instances", -1, &stmt, nil) == SQLITE_OK else {
-            return true
+        // nanoMuse: 旧查询保留接口，迁移和恢复使用严格入口防止误判空库。
+        (try? nmIsEmpty()) ?? true
+    }
+
+    /// 初始化不能将数据库读取失败误认为首次安装。
+    func nmIsEmpty() throws -> Bool {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        guard let count = try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT COUNT(*) FROM provider_instances", decode: { sqlite3_column_int64($0, 0) }) else {
+            throw NivoSQLiteSnapshotError.invalidDatabase
         }
-        guard sqlite3_step(stmt) == SQLITE_ROW else { return true }
-        return sqlite3_column_int(stmt, 0) == 0
+        return count == 0
     }
 
     /// Fetch every row in `provider_instances` ordered by `sort_order`,
@@ -364,10 +160,14 @@ actor ProviderConfigDB {
     /// S3) maps these into `ProviderInstance` values. Returning dicts here
     /// rather than typed structs lets the read-only API stay decoupled
     /// from the model layer for now — S3 wires the mapping.
+    // nanoMuse: 旧只读查询保留返回值接口，关键快照使用下面的严格入口。
     func loadAllInstanceRows() -> [[String: Any]] {
-        guard let db else { return [] }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+        (try? nmLoadAllInstanceRows()) ?? []
+    }
+
+    /// 严格读取全部记录，SQL失败不能返回空集合。
+    private func nmLoadAllInstanceRows() throws -> [[String: Any]] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
         let sql = """
             SELECT id, label, provider_type, credential_type, custom_base_url,
                    append_v1_suffix, image_endpoint_mode, image_endpoint_resolved,
@@ -377,10 +177,8 @@ actor ProviderConfigDB {
             FROM provider_instances
             ORDER BY sort_order ASC, created_at ASC
         """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        var rows: [[String: Any]] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            rows.append([
+        return try NivoSQLiteWrite.readRows(db, sql: sql) { stmt in
+            [
                 "id": Self.text(stmt, 0),
                 "label": Self.text(stmt, 1),
                 "provider_type": Self.text(stmt, 2),
@@ -399,25 +197,26 @@ actor ProviderConfigDB {
                 "extras_json": Self.optText(stmt, 15) as Any,
                 "custom_user_agent": Self.optText(stmt, 16) as Any,
                 "azure_mode": sqlite3_column_int(stmt, 17) != 0,
-            ])
+            ]
         }
-        return rows
     }
 
+    // nanoMuse: 旧只读查询保留返回值接口，关键快照使用下面的严格入口。
     func loadAllEntryRows() -> [[String: Any]] {
-        guard let db else { return [] }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+        (try? nmLoadAllEntryRows()) ?? []
+    }
+
+    /// 严格读取全部记录，SQL失败不能返回空集合。
+    private func nmLoadAllEntryRows() throws -> [[String: Any]] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
         let sql = """
             SELECT id, provider_instance_id, base_model_json, overrides_json,
                    is_custom, is_hidden, user_modified_at, sort_order, updated_at, extras_json
             FROM provider_model_entries
             ORDER BY provider_instance_id, sort_order ASC
         """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        var rows: [[String: Any]] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            rows.append([
+        return try NivoSQLiteWrite.readRows(db, sql: sql) { stmt in
+            [
                 "id": Self.text(stmt, 0),
                 "provider_instance_id": Self.text(stmt, 1),
                 "base_model_json": Self.text(stmt, 2),
@@ -428,23 +227,18 @@ actor ProviderConfigDB {
                 "sort_order": Int(sqlite3_column_int(stmt, 7)),
                 "updated_at": sqlite3_column_double(stmt, 8),
                 "extras_json": Self.optText(stmt, 9) as Any,
-            ])
+            ]
         }
-        return rows
     }
 
+    // nanoMuse: 旧只读查询保留返回值接口，关键快照使用下面的严格入口。
     func loadAllGroupRows() -> [[String: Any]] {
-        guard let db else { return [] }
-        // [T-icloud-provider-sync-consistency] Self-heal: guarantee the two
-        // member-tombstone columns exist before SELECTing them. A DB left by a
-        // partial earlier migration (removed_members_json present,
-        // added_members_json missing) would otherwise fail to prepare the SELECT
-        // below — returning ZERO rows, which dumpProviderConfig + save() then
-        // persisted as "no groups" and pushed to iCloud, wiping every group.
-        Self.ensureGroupTombstoneColumns(db: db)
+        (try? nmLoadAllGroupRows()) ?? []
+    }
 
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+    /// 严格读取全部记录，SQL失败不能返回空集合。
+    private func nmLoadAllGroupRows() throws -> [[String: Any]] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
         let sql = """
             SELECT id, name, strategy, fallback_strategy, default_thinking_level,
                    context_limit_tokens, context_limit_remembered, member_entry_ids_json,
@@ -453,15 +247,8 @@ actor ProviderConfigDB {
             FROM provider_model_groups
             ORDER BY sort_order ASC
         """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            // Hard defensive fallback: if the full SELECT still won't prepare,
-            // read the core columns only so groups are NEVER silently dropped.
-            logger.error("[v3] loadAllGroupRows: full SELECT failed to prepare — falling back to core columns to avoid dropping groups")
-            return loadAllGroupRowsCore()
-        }
-        var rows: [[String: Any]] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            rows.append([
+        return try NivoSQLiteWrite.readRows(db, sql: sql) { stmt in
+            [
                 "id": Self.text(stmt, 0),
                 "name": Self.text(stmt, 1),
                 "strategy": Self.text(stmt, 2),
@@ -475,58 +262,21 @@ actor ProviderConfigDB {
                 "extras_json": Self.optText(stmt, 10) as Any,
                 "removed_members_json": Self.text(stmt, 11),
                 "added_members_json": Self.text(stmt, 12),
-            ])
+            ]
         }
-        return rows
-    }
-
-    /// Minimal group read using only columns present since schema v1. Used as a
-    /// last-resort fallback so a schema anomaly can never cause groups to vanish.
-    private func loadAllGroupRowsCore() -> [[String: Any]] {
-        guard let db else { return [] }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        let sql = """
-            SELECT id, name, strategy, fallback_strategy, default_thinking_level,
-                   context_limit_tokens, context_limit_remembered, member_entry_ids_json,
-                   sort_order, updated_at, extras_json
-            FROM provider_model_groups
-            ORDER BY sort_order ASC
-        """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        var rows: [[String: Any]] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            rows.append([
-                "id": Self.text(stmt, 0),
-                "name": Self.text(stmt, 1),
-                "strategy": Self.text(stmt, 2),
-                "fallback_strategy": Self.text(stmt, 3),
-                "default_thinking_level": Self.optText(stmt, 4) as Any,
-                "context_limit_tokens": Self.optInt(stmt, 5) as Any,
-                "context_limit_remembered": Self.optInt(stmt, 6) as Any,
-                "member_entry_ids_json": Self.text(stmt, 7),
-                "sort_order": Int(sqlite3_column_int(stmt, 8)),
-                "updated_at": sqlite3_column_double(stmt, 9),
-                "extras_json": Self.optText(stmt, 10) as Any,
-                "removed_members_json": "{}",
-                "added_members_json": "{}",
-            ])
-        }
-        return rows
     }
 
     /// Returns the value previously set via `setLocalKV` for the given key,
     /// or nil if no row exists. Used for `defaultPrimaryGroupId` etc.
-    func localKV(_ key: String) -> String? {
-        guard let db else { return nil }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "SELECT value FROM provider_local_kv WHERE key = ?", -1, &stmt, nil) == SQLITE_OK else {
-            return nil
-        }
-        sqlite3_bind_text(stmt, 1, key, -1, Self.SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
-        return Self.optText(stmt, 0)
+    // nanoMuse: 严格快照必须区分空值和查询失败。
+    func localKV(_ key: String) -> String? { try? nmLocalKV(key) }
+
+    private func nmLocalKV(_ key: String) throws -> String? {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        return try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT value FROM provider_local_kv WHERE key = ?", values: [.text(key)]) {
+                sqlite3_column_type($0, 0) == SQLITE_NULL ? nil : Self.text($0, 0)
+            } ?? nil
     }
 
     // MARK: - Write API (used by migration + S3 mutate-path redirects)
@@ -545,16 +295,53 @@ actor ProviderConfigDB {
     ///   for a user-initiated save, because clearing every agent-loop model is a
     ///   legitimate action that also funnels through here via `save()`.
     func bulkReplace(from config: ProviderConfig, preserveLocalOnlyStateIfEmpty: Bool = false) {
-        guard let db else { return }
-        let now = Date().timeIntervalSince1970
+        // nanoMuse: 旧入口保留日志兼容，账户与恢复必须调用下面的throwing入口。
+        do { try nmBulkReplace(from: config, preserveLocalOnlyStateIfEmpty: preserveLocalOnlyStateIfEmpty) }
+        catch { logger.error("[Nivo] provider bulk replace failed: \(error.localizedDescription)") }
+    }
 
-        Self.exec(db: db, "BEGIN IMMEDIATE")
-        Self.exec(db: db, "DELETE FROM provider_model_groups")
-        Self.exec(db: db, "DELETE FROM provider_model_entries")
-        Self.exec(db: db, "DELETE FROM provider_instances")
-        Self.exec(db: db, "DELETE FROM provider_local_kv")
-        Self.exec(db: db, "DELETE FROM provider_session_bindings")
-        Self.exec(db: db, "DELETE FROM provider_session_inference_configs")
+    /// 完整快照写入逐步检查SQL与JSON编码，任一步失败都撤销整个事务。
+    func nmBulkReplace(from config: ProviderConfig, preserveLocalOnlyStateIfEmpty: Bool = false) throws {
+        guard let db else { throw NivoSQLiteWriteError.sqlite(operation: "closed", code: SQLITE_MISUSE) }
+        try NivoSQLiteWrite.transaction(db) {
+            try nmReplaceRows(from: config, preserveLocalOnlyStateIfEmpty: preserveLocalOnlyStateIfEmpty)
+        }
+    }
+
+    // nanoMuse: 普通编辑按实际差异写入，避免旧页面快照清除尚未发布的V3入站记录。
+    /// 在一个actor事务内应用本机改动并读回完整配置，JSON镜像使用提交后的真实内容。
+    func nmApplyConfigurationChanges(from prior: ProviderConfig, to proposed: ProviderConfig,
+                                     preserveLocalOnlyStateIfEmpty: Bool = false) throws -> ProviderConfig {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        return try NivoSQLiteWrite.transaction(db) {
+            var candidate = proposed
+            if preserveLocalOnlyStateIfEmpty,
+               candidate.agentLoopModelEntryIds.isEmpty, candidate.agentLoopGroupIds.isEmpty {
+                candidate.agentLoopModelEntryIds = try nmLoadAgentLoopIds(kind: "entry")
+                candidate.agentLoopGroupIds = try nmLoadAgentLoopIds(kind: "group")
+            }
+            try NivoProviderSQLPatch.apply(db, before: NivoProviderConfigurationRows.snapshot(prior),
+                after: NivoProviderConfigurationRows.snapshot(candidate), timestamp: Date().timeIntervalSince1970)
+            var persisted = try nmDumpProviderConfig()
+            persisted.deletedInstances = proposed.deletedInstances
+            persisted.deletedModelEntries = proposed.deletedModelEntries
+            persisted.deletedModelGroups = proposed.deletedModelGroups
+            return persisted
+        }
+    }
+
+    /// 同步事务内的各表替换，思考规则由独立合并协议管理，不在此处删除。
+    private func nmReplaceRows(from config: ProviderConfig, preserveLocalOnlyStateIfEmpty: Bool) throws {
+        guard let db else { throw NivoSQLiteWriteError.sqlite(operation: "closed", code: SQLITE_MISUSE) }
+        let now = Date().timeIntervalSince1970
+        // nanoMuse: 旧ID映射不属于配置快照；全量保存必须保留已学习的跨版本引用。
+        let legacyMap = try nmLocalKV("legacyUuidMap")
+
+        for table in ["provider_model_groups", "provider_model_entries", "provider_instances",
+                      "provider_local_kv", "provider_session_bindings", "provider_session_inference_configs"] {
+            try NivoSQLiteWrite.execute(db, sql: "DELETE FROM \(table)")
+        }
+        if let legacyMap { try nmRequireRow(setLocalKVRow("legacyUuidMap", value: legacyMap)) }
 
         // [T-icloud-agentloop-wipe] `provider_agent_loop_ids` is LOCAL-ONLY
         // state, but it rides along in ProviderConfig and therefore gets
@@ -570,12 +357,12 @@ actor ProviderConfigDB {
         // silently undo it, turning this fix into a worse bug than the one it
         // repairs.
         let incomingAgentLoop = config.agentLoopModelEntryIds.count + config.agentLoopGroupIds.count
-        let existingAgentLoop = preserveLocalOnlyStateIfEmpty ? agentLoopRowCount() : 0
+        let existingAgentLoop = preserveLocalOnlyStateIfEmpty ? try nmAgentLoopRowCount() : 0
         let preserveAgentLoop = preserveLocalOnlyStateIfEmpty && incomingAgentLoop == 0 && existingAgentLoop > 0
         if preserveAgentLoop {
             logger.warning("[v3] bulkReplace PRESERVING agent-loop ids: incoming=0 existing=\(existingAgentLoop) — refusing to wipe local-only state from an empty INBOUND config")
         } else {
-            Self.exec(db: db, "DELETE FROM provider_agent_loop_ids")
+            try NivoSQLiteWrite.execute(db, sql: "DELETE FROM provider_agent_loop_ids")
         }
 
         // Instances (with inline secret_blob — actual secret material
@@ -584,7 +371,7 @@ actor ProviderConfigDB {
         // only seeds the metadata; secret_blob is left NULL until a
         // mutate happens or the v3 builder runs once.).
         for (idx, inst) in config.instances.enumerated() {
-            upsertInstanceRow(
+            try nmRequireRow(upsertInstanceRow(
                 id: inst.id,
                 label: inst.label,
                 // Preserve the original raw type for unsupported (newer-build)
@@ -605,21 +392,21 @@ actor ProviderConfigDB {
                 extrasJson: nil,
                 customUserAgent: inst.customUserAgent,
                 azureMode: inst.azureMode
-            )
+            ))
         }
 
         // Entries. baseModel + overrides go in as JSON columns so the
         // row layout doesn't need to track every LLMModel/Overrides
         // field individually (those evolve independently).
         for (idx, entry) in config.modelEntries.enumerated() {
-            let baseJSON = (try? Self.jsonString(entry.baseModel)) ?? "{}"
+            let baseJSON = try Self.jsonString(entry.baseModel)
             let overridesJSON: String?
             if entry.overrides.isEmpty {
                 overridesJSON = nil
             } else {
-                overridesJSON = try? Self.jsonString(entry.overrides)
+                overridesJSON = try Self.jsonString(entry.overrides)
             }
-            upsertEntryRow(
+            try nmRequireRow(upsertEntryRow(
                 // [T-provider-entry-composite-key] DB primary key stays the
                 // random uuid (NOT entry.id, which is now the composite key).
                 // Keeping the uuid in the id column means old group/binding
@@ -638,13 +425,13 @@ actor ProviderConfigDB {
                 sortOrder: idx,
                 updatedAt: entry.userModifiedAt?.timeIntervalSince1970 ?? now,
                 extrasJson: nil
-            )
+            ))
         }
 
         // Groups. memberEntryIds → JSON array column.
         for (idx, group) in config.modelGroups.enumerated() {
-            let memberJSON = (try? Self.jsonString(group.memberEntryIds)) ?? "[]"
-            upsertGroupRow(
+            let memberJSON = try Self.jsonString(group.memberEntryIds)
+            try nmRequireRow(upsertGroupRow(
                 id: group.id,
                 name: group.name,
                 strategy: group.strategy.rawValue,
@@ -656,75 +443,73 @@ actor ProviderConfigDB {
                 sortOrder: idx,
                 updatedAt: now,
                 extrasJson: nil,
-                removedMembersJson: Self.encodeMemberTimestamps(group.removedMembers),
-                addedMembersJson: Self.encodeMemberTimestamps(group.addedMembers)
-            )
+                removedMembersJson: try Self.jsonString(group.removedMembers.mapValues { $0.timeIntervalSince1970 }),
+                addedMembersJson: try Self.jsonString(group.addedMembers.mapValues { $0.timeIntervalSince1970 })
+            ))
         }
 
         // Per-device fields — never synced.
         if let v = config.defaultPrimaryGroupId {
-            setLocalKVRow("defaultPrimaryGroupId", value: v)
+            try nmRequireRow(setLocalKVRow("defaultPrimaryGroupId", value: v))
         }
         if let v = config.defaultSubGroupId {
-            setLocalKVRow("defaultSubGroupId", value: v)
+            try nmRequireRow(setLocalKVRow("defaultSubGroupId", value: v))
         }
         // Voice group selectors — per-device, like the default group ids.
         if let v = config.voiceInputGroupId {
-            setLocalKVRow("voiceInputGroupId", value: v)
+            try nmRequireRow(setLocalKVRow("voiceInputGroupId", value: v))
         }
         if let v = config.voiceOutputGroupId {
-            setLocalKVRow("voiceOutputGroupId", value: v)
+            try nmRequireRow(setLocalKVRow("voiceOutputGroupId", value: v))
         }
         // Vision group selector — per-device, same as the voice group ids.
         if let v = config.visionGroupId {
-            setLocalKVRow("visionGroupId", value: v)
+            try nmRequireRow(setLocalKVRow("visionGroupId", value: v))
         }
         for (sid, binding) in config.sessionBindings {
-            if let json = try? Self.jsonString(binding) {
-                upsertSessionBindingRow(sessionId: sid, bindingJson: json, updatedAt: now)
-            }
+            let json = try Self.jsonString(binding)
+            try nmRequireRow(upsertSessionBindingRow(sessionId: sid, bindingJson: json, updatedAt: now))
         }
         for (sid, cfg) in config.sessionInferenceConfigs {
-            if let json = try? Self.jsonString(cfg) {
-                upsertSessionInferenceConfigRow(sessionId: sid, configJson: json, updatedAt: now)
-            }
+            let json = try Self.jsonString(cfg)
+            try nmRequireRow(upsertSessionInferenceConfigRow(sessionId: sid, configJson: json, updatedAt: now))
         }
         // Skipped entirely when the guard above kept the existing rows —
         // re-inserting an empty list would be a no-op, but stepping over it
         // keeps the "preserve" branch obviously side-effect-free.
         if !preserveAgentLoop {
             for (idx, eid) in config.agentLoopModelEntryIds.enumerated() {
-                insertAgentLoopIdRow(kind: "entry", targetId: eid, sortOrder: idx)
+                try nmRequireRow(insertAgentLoopIdRow(kind: "entry", targetId: eid, sortOrder: idx))
             }
             for (idx, gid) in config.agentLoopGroupIds.enumerated() {
-                insertAgentLoopIdRow(kind: "group", targetId: gid, sortOrder: idx)
+                try nmRequireRow(insertAgentLoopIdRow(kind: "group", targetId: gid, sortOrder: idx))
             }
         }
 
-        Self.exec(db: db, "COMMIT")
-        let c = counts()
-        logger.info("[v3] bulkReplace done: instances=\(c.instances) entries=\(c.entries) groups=\(c.groups)")
+        // nanoMuse: COMMIT由外层严格事务执行，此处只准备全部行。
     }
 
     /// Build a `ProviderConfig` value from the current DB contents.
     /// Used by ProviderConfigStore (S3) to (a) hydrate its in-memory
     /// cache after launch and (b) re-serialize provider-config.json as
     /// the downgrade safety mirror after every mutate.
-    func dumpProviderConfig() -> ProviderConfig {
-        let instanceRows = loadAllInstanceRows()
-        let entryRows = loadAllEntryRows()
-        let groupRows = loadAllGroupRows()
+    // nanoMuse: 旧只读接口保留兼容，发布和恢复必须使用严格快照。
+    func dumpProviderConfig() -> ProviderConfig { (try? nmDumpProviderConfig()) ?? .empty }
+
+    /// 读取和解码完整权威配置，任何缺失表、半份结果或损坏记录都中止发布。
+    func nmDumpProviderConfig() throws -> ProviderConfig {
+        let instanceRows = try nmLoadAllInstanceRows()
+        let entryRows = try nmLoadAllEntryRows()
+        let groupRows = try nmLoadAllGroupRows()
 
         var instances: [ProviderInstance] = []
         for row in instanceRows {
             guard let id = row["id"] as? String,
                   let label = row["label"] as? String,
                   let typeRaw = row["provider_type"] as? String else {
-                // Missing the absolute primary keys (id/label/type string) —
-                // an unwritable row, nothing we can salvage. Still log it so a
-                // disappearance is never silent.
-                logger.error("[v3] dumpProviderConfig: instance row missing id/label/provider_type — skipping (id=\((row["id"] as? String)?.prefix(8) ?? "nil"))")
-                continue
+                // nanoMuse: 必需字段缺失时拒绝整份快照，避免部分配置被再次写回数据库。
+                logger.error("[v3] dumpProviderConfig: instance row missing id/label/provider_type — rejecting snapshot (id=\((row["id"] as? String)?.prefix(8) ?? "nil"))")
+                throw NivoPersonalBackupError.invalidPackage
             }
             // [T-icloud-provider-sync-consistency] If the provider_type string
             // is from a NEWER build this enum can't decode, do NOT drop the
@@ -786,20 +571,14 @@ actor ProviderConfigDB {
                   let baseJSON = row["base_model_json"] as? String,
                   let baseData = baseJSON.data(using: .utf8),
                   let baseModel = try? decoder.decode(LLMModel.self, from: baseData) else {
-                // [T-icloud-provider-sync-consistency] Never let an
-                // unparseable base_model_json silently drop an entry without a
-                // trace. The entry stays in the DB (we don't delete it here);
-                // it just isn't surfaced this dump. emitV3MarkDirty no longer
-                // diff-infers entry deletes, so this does NOT propagate a
-                // removal — the row and its cloud record survive.
-                logger.error("[v3] dumpProviderConfig: entry \((row["id"] as? String)?.prefix(8) ?? "nil") has unparseable base_model_json — preserved in DB, skipped this dump")
-                continue
+                // nanoMuse: 解码失败时保留全部旧缓存，不把跳过损坏模型后的半份配置返回给写入方。
+                logger.error("[v3] dumpProviderConfig: entry \((row["id"] as? String)?.prefix(8) ?? "nil") has unparseable base_model_json — snapshot rejected; database preserved")
+                throw NivoPersonalBackupError.invalidPackage
             }
             var overrides = ModelOverrides()
-            if let ovJSON = row["overrides_json"] as? String,
-               let ovData = ovJSON.data(using: .utf8),
-               let ov = try? decoder.decode(ModelOverrides.self, from: ovData) {
-                overrides = ov
+            // nanoMuse: 损坏的用户覆盖值不能被默认值替代后写回。
+            if let overrideJSON = row["overrides_json"] as? String {
+                overrides = try decoder.decode(ModelOverrides.self, from: Data(overrideJSON.utf8))
             }
             let userModAt: Date? = {
                 if let d = row["user_modified_at"] as? Double { return Date(timeIntervalSince1970: d) }
@@ -827,7 +606,9 @@ actor ProviderConfigDB {
                   let fb = FallbackStrategy(rawValue: fbRaw),
                   let memberJSON = row["member_entry_ids_json"] as? String,
                   let memberData = memberJSON.data(using: .utf8),
-                  let memberIds = try? decoder.decode([String].self, from: memberData) else { continue }
+                  let memberIds = try? decoder.decode([String].self, from: memberData) else {
+                throw NivoPersonalBackupError.invalidPackage
+            }
             let thinkingLevel: ThinkingLevel? = {
                 if let s = row["default_thinking_level"] as? String {
                     return ThinkingLevel.decoded(s)
@@ -843,35 +624,26 @@ actor ProviderConfigDB {
                 defaultThinkingLevel: thinkingLevel,
                 contextLimitTokens: row["context_limit_tokens"] as? Int,
                 lastContextLimitTokens: row["context_limit_remembered"] as? Int,
-                addedMembers: Self.decodeMemberTimestamps(row["added_members_json"] as? String),
-                removedMembers: Self.decodeMemberTimestamps(row["removed_members_json"] as? String)
+                addedMembers: try Self.nmDecodeMemberTimestamps(row["added_members_json"] as? String),
+                removedMembers: try Self.nmDecodeMemberTimestamps(row["removed_members_json"] as? String)
             )
             groups.append(group)
         }
 
         // Local-only fields.
-        let defaultPrimary = localKV("defaultPrimaryGroupId")
-        let defaultSub = localKV("defaultSubGroupId")
-        let bindings = loadAllSessionBindings()
-        let inferCfgs = loadAllSessionInferenceConfigs()
-        // [T-icloud-agentloop-wipe] nil means the READ failed, not "empty".
-        // dumpProviderConfig has no in-memory state to fall back to, so it still
-        // yields `[]` — but it records the failure on `agentLoopReadFailed` so
-        // the condition is observable (and logged by loadAgentLoopIds) rather
-        // than silently indistinguishable from a genuinely empty selection.
-        //
-        // The actual protection against the wipe lives in bulkReplace's
-        // `preserveLocalOnlyStateIfEmpty` guard, which refuses to delete
-        // non-empty on-disk rows for an empty INBOUND config regardless of why
-        // the list came back empty.
-        let agentLoopEntriesRead = loadAgentLoopIds(kind: "entry")
-        let agentLoopGroupsRead = loadAgentLoopIds(kind: "group")
-        agentLoopReadFailed = (agentLoopEntriesRead == nil || agentLoopGroupsRead == nil)
-        let agentLoopEntries = agentLoopEntriesRead ?? []
-        let agentLoopGroups = agentLoopGroupsRead ?? []
-        let voiceInputGroup = localKV("voiceInputGroupId")
-        let voiceOutputGroup = localKV("voiceOutputGroupId")
-        let visionGroup = localKV("visionGroupId")
+        let defaultPrimary = try nmLocalKV("defaultPrimaryGroupId")
+        let defaultSub = try nmLocalKV("defaultSubGroupId")
+        let bindings = try nmLoadAllSessionBindings()
+        let inferCfgs = try nmLoadAllSessionInferenceConfigs()
+        // nanoMuse: 本机选择读取失败直接中止快照，只有成功读取的空集合才表示未选择。
+        let agentLoopEntriesRead = try nmLoadAgentLoopIds(kind: "entry")
+        let agentLoopGroupsRead = try nmLoadAgentLoopIds(kind: "group")
+        agentLoopReadFailed = false
+        let agentLoopEntries = agentLoopEntriesRead
+        let agentLoopGroups = agentLoopGroupsRead
+        let voiceInputGroup = try nmLocalKV("voiceInputGroupId")
+        let voiceOutputGroup = try nmLocalKV("voiceOutputGroupId")
+        let visionGroup = try nmLocalKV("visionGroupId")
 
         return ProviderConfig(
             instances: instances,
@@ -899,8 +671,9 @@ actor ProviderConfigDB {
             return false
         }
         logger.info("[v3] migrateFromLegacyJSON: ingesting \(config.instances.count) instances / \(config.modelEntries.count) entries / \(config.modelGroups.count) groups")
-        bulkReplace(from: config)
-        return true
+        // nanoMuse: 迁移标志只能在完整事务提交成功后设置。
+        do { try nmBulkReplace(from: config); return true }
+        catch { logger.error("[Nivo] provider migration failed: \(error.localizedDescription)"); return false }
     }
 
     // MARK: - Per-record API (used by V3 hydrator inbound merges in S5)
@@ -931,23 +704,15 @@ actor ProviderConfigDB {
         createdAt: Double, updatedAt: Double, extrasJson: String?,
         customUserAgent: String?,
         azureMode: Bool = false
-    ) -> Bool {
-        guard let db else { return false }
-        // LWW: skip if local row has updated_at >= incoming.
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT updated_at FROM provider_instances WHERE id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-            if sqlite3_step(stmt) == SQLITE_ROW {
-                let localTs = sqlite3_column_double(stmt, 0)
-                sqlite3_finalize(stmt)
-                if localTs >= updatedAt {
-                    return false
-                }
-            } else {
-                sqlite3_finalize(stmt)
+    ) throws -> Bool {
+        // nanoMuse: 读取失败与本机版本较新不能共用false，否则同步游标会吞掉失败记录。
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        let localTimestamp = try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT updated_at FROM provider_instances WHERE id = ?", values: [.text(id)]) {
+                sqlite3_column_double($0, 0)
             }
-        }
-        upsertInstanceRow(
+        if let localTimestamp, localTimestamp >= updatedAt { return false }
+        try nmRequireRow(upsertInstanceRow(
             id: id, label: label, providerType: providerType,
             credentialType: credentialType, customBaseURL: customBaseURL,
             appendV1Suffix: appendV1Suffix,
@@ -957,7 +722,7 @@ actor ProviderConfigDB {
             createdAt: createdAt, updatedAt: updatedAt, extrasJson: extrasJson,
             customUserAgent: customUserAgent,
             azureMode: azureMode
-        )
+        ))
         return true
     }
 
@@ -966,16 +731,16 @@ actor ProviderConfigDB {
         baseModelJson: String, overridesJson: String?,
         isCustom: Bool, isHidden: Bool, userModifiedAt: Double?,
         sortOrder: Int, updatedAt: Double, extrasJson: String?
-    ) -> Bool {
-        guard let db else { return false }
+    ) throws -> Bool {
+        // nanoMuse: 数据库故障向接收屏障传播，保留后续重放机会。
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
         var localTs: Double?
         var localUserModifiedAt: Double?
         var localIsHidden = false
         var localOverridesJson: String?
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT updated_at, user_modified_at, is_hidden, overrides_json FROM provider_model_entries WHERE id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-            if sqlite3_step(stmt) == SQLITE_ROW {
+        _ = try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT updated_at, user_modified_at, is_hidden, overrides_json FROM provider_model_entries WHERE id = ?",
+            values: [.text(id)]) { stmt in
                 localTs = sqlite3_column_double(stmt, 0)
                 if sqlite3_column_type(stmt, 1) != SQLITE_NULL {
                     localUserModifiedAt = sqlite3_column_double(stmt, 1)
@@ -984,9 +749,7 @@ actor ProviderConfigDB {
                 if sqlite3_column_type(stmt, 3) != SQLITE_NULL {
                     localOverridesJson = Self.text(stmt, 3)
                 }
-            }
         }
-        sqlite3_finalize(stmt)
         if let localTs, localTs >= updatedAt { return false }
 
         // [T-ios-hidden-models-restored] Overlay guard — mirror the V2 merge's
@@ -1015,13 +778,23 @@ actor ProviderConfigDB {
             effUserModifiedAt = localUM
         }
 
-        upsertEntryRow(
+        // nanoMuse: 写入前验证缓存必需字段，不能确认一条随后使整份配置无法读取的记录。
+        let model = try JSONDecoder().decode(LLMModel.self, from: Data(baseModelJson.utf8))
+        guard !id.isEmpty, !providerInstanceId.isEmpty, !model.id.isEmpty,
+              updatedAt.isFinite, effUserModifiedAt?.isFinite != false else {
+            throw NivoPersonalBackupError.invalidPackage
+        }
+        if let effOverridesJson {
+            _ = try JSONDecoder().decode(ModelOverrides.self, from: Data(effOverridesJson.utf8))
+        }
+
+        try nmRequireRow(upsertEntryRow(
             id: id, providerInstanceId: providerInstanceId,
             baseModelJson: baseModelJson, overridesJson: effOverridesJson,
             isCustom: isCustom, isHidden: effIsHidden,
             userModifiedAt: effUserModifiedAt,
             sortOrder: sortOrder, updatedAt: updatedAt, extrasJson: extrasJson
-        )
+        ))
         return true
     }
 
@@ -1050,39 +823,34 @@ actor ProviderConfigDB {
         sortOrder: Int, updatedAt: Double, extrasJson: String?,
         inboundAddedMembers: [String: Date] = [:],
         inboundRemovedMembers: [String: Date] = [:]
-    ) -> Bool {
-        guard let db else { return false }
+    ) throws -> Bool {
+        // nanoMuse: 成员合并使用严格读取，不能把查询失败当作新分组。
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
 
         // Read local row (scalar ts + member state) if present.
         var localTs: Double? = nil
         var localMemberJSON = "[]"
         var localAdded: [String: Date] = [:]
         var localRemoved: [String: Date] = [:]
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT updated_at, member_entry_ids_json, added_members_json, removed_members_json FROM provider_model_groups WHERE id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-            if sqlite3_step(stmt) == SQLITE_ROW {
+        _ = try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT updated_at, member_entry_ids_json, added_members_json, removed_members_json FROM provider_model_groups WHERE id = ?",
+            values: [.text(id)]) { stmt in
                 localTs = sqlite3_column_double(stmt, 0)
                 localMemberJSON = Self.text(stmt, 1)
-                localAdded = Self.decodeMemberTimestamps(Self.text(stmt, 2))
-                localRemoved = Self.decodeMemberTimestamps(Self.text(stmt, 3))
-            }
+                localAdded = try Self.nmDecodeMemberTimestamps(Self.text(stmt, 2))
+                localRemoved = try Self.nmDecodeMemberTimestamps(Self.text(stmt, 3))
         }
-        sqlite3_finalize(stmt)
 
         let scalarIsNewer = (localTs == nil) || (updatedAt > localTs!)
 
-        // Parse inbound member order.
-        let inboundMembers: [String] = {
-            guard let d = memberEntryIdsJson.data(using: .utf8),
-                  let a = try? JSONDecoder().decode([String].self, from: d) else { return [] }
-            return a
-        }()
-        let localMembers: [String] = {
-            guard let d = localMemberJSON.data(using: .utf8),
-                  let a = try? JSONDecoder().decode([String].self, from: d) else { return [] }
-            return a
-        }()
+        // nanoMuse: 本机或远端损坏列表都保留原件，不能被一次成员合并固化为空集合。
+        let inboundMembers = try JSONDecoder().decode([String].self, from: Data(memberEntryIdsJson.utf8))
+        let localMembers = try JSONDecoder().decode([String].self, from: Data(localMemberJSON.utf8))
+        guard !id.isEmpty, updatedAt.isFinite,
+              inboundAddedMembers.values.allSatisfy({ $0.timeIntervalSince1970.isFinite }),
+              inboundRemovedMembers.values.allSatisfy({ $0.timeIntervalSince1970.isFinite }) else {
+            throw NivoPersonalBackupError.invalidPackage
+        }
 
         // Backfill add timestamps for members that predate the v2 schema:
         // any member currently listed with no addedMembers entry is treated as
@@ -1128,7 +896,8 @@ actor ProviderConfigDB {
         for m in secondaryOrder where isPresent(m) && !seen.contains(m) { finalMembers.append(m); seen.insert(m) }
         // Defensive: any present member only in addedMerged keys (order entry
         // dropped somewhere) — appended last.
-        for m in addedMerged.keys where isPresent(m) && !seen.contains(m) { finalMembers.append(m); seen.insert(m) }
+        // nanoMuse: 未列入顺序的成员按ID稳定追加，避免字典枚举使重复同步不断改变顺序。
+        for m in addedMerged.keys.sorted() where isPresent(m) && !seen.contains(m) { finalMembers.append(m); seen.insert(m) }
 
         // Prune tombstones for members that are no longer referenced anywhere
         // (keeps the maps from growing unbounded). A removed member with no
@@ -1159,10 +928,9 @@ actor ProviderConfigDB {
         var useUpdatedAt = updatedAt, useExtras = extrasJson
         if !scalarIsNewer {
             // Local scalars win; re-read them.
-            var s2: OpaquePointer?
-            if sqlite3_prepare_v2(db, "SELECT name, strategy, fallback_strategy, default_thinking_level, context_limit_tokens, context_limit_remembered, sort_order, updated_at, extras_json FROM provider_model_groups WHERE id = ?", -1, &s2, nil) == SQLITE_OK {
-                sqlite3_bind_text(s2, 1, id, -1, Self.SQLITE_TRANSIENT)
-                if sqlite3_step(s2) == SQLITE_ROW {
+            _ = try NivoSQLiteWrite.readRow(db,
+                sql: "SELECT name, strategy, fallback_strategy, default_thinking_level, context_limit_tokens, context_limit_remembered, sort_order, updated_at, extras_json FROM provider_model_groups WHERE id = ?",
+                values: [.text(id)]) { s2 in
                     useName = Self.text(s2, 0)
                     useStrategy = Self.text(s2, 1)
                     useFallback = Self.text(s2, 2)
@@ -1172,13 +940,15 @@ actor ProviderConfigDB {
                     useSort = Int(sqlite3_column_int(s2, 6))
                     useUpdatedAt = sqlite3_column_double(s2, 7)
                     useExtras = Self.optText(s2, 8)
-                }
             }
-            sqlite3_finalize(s2)
         }
 
-        let finalMemberJSON = (try? Self.jsonString(finalMembers)) ?? "[]"
-        upsertGroupRow(
+        // nanoMuse: 未识别的新策略不能写进当前严格缓存；抛出后由同步宿主保留记录，等待升级或重放。
+        guard RoutingStrategy(rawValue: useStrategy) != nil, FallbackStrategy(rawValue: useFallback) != nil else {
+            throw NivoPersonalBackupError.invalidPackage
+        }
+        let finalMemberJSON = try Self.jsonString(finalMembers)
+        try nmRequireRow(upsertGroupRow(
             id: id, name: useName, strategy: useStrategy, fallbackStrategy: useFallback,
             defaultThinkingLevel: useThinking,
             contextLimitTokens: useCtx,
@@ -1187,42 +957,39 @@ actor ProviderConfigDB {
             sortOrder: useSort, updatedAt: useUpdatedAt, extrasJson: useExtras,
             removedMembersJson: Self.encodeMemberTimestamps(finalRemoved),
             addedMembersJson: Self.encodeMemberTimestamps(finalAdded)
-        )
+        ))
         return true
     }
 
     /// Delete a row by id. Used by V3 deletionApplier paths. Cascading FK
     /// on provider_model_entries.provider_instance_id removes dependent
     /// entries when an instance is deleted.
-    func deleteInstanceRow(id: String) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "DELETE FROM provider_instances WHERE id = ?", -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+    // nanoMuse: 删除失败不得确认远端墓碑已应用。
+    func deleteInstanceRow(id: String) throws {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        try NivoSQLiteWrite.execute(db, sql: "DELETE FROM provider_instances WHERE id = ?", values: [.text(id)])
     }
 
-    func deleteEntryRow(id: String) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "DELETE FROM provider_model_entries WHERE id = ?", -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+    // nanoMuse: 原始ID与规范ID在同一事务内删除，避免只成功一半。
+    func deleteEntryRows(ids: Set<String>) throws {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        try NivoSQLiteWrite.transaction(db) {
+            for identifier in ids.sorted() {
+                try NivoSQLiteWrite.execute(db, sql: "DELETE FROM provider_model_entries WHERE id = ?", values: [.text(identifier)])
+            }
+        }
     }
 
-    func deleteGroupRow(id: String) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "DELETE FROM provider_model_groups WHERE id = ?", -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+    // nanoMuse: SQL错误交给同步宿主保留游标。
+    func deleteGroupRow(id: String) throws {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        try NivoSQLiteWrite.execute(db, sql: "DELETE FROM provider_model_groups WHERE id = ?", values: [.text(id)])
     }
 
     // MARK: - Per-table upsert helpers (private; used by bulkReplace + S3 mutates)
 
+    // nanoMuse: 行写入返回真实状态，严格事务逐步检查，旧调用方保留兼容返回值。
+    @discardableResult
     private func upsertInstanceRow(
         id: String, label: String, providerType: String,
         credentialType: String?, customBaseURL: String?, appendV1Suffix: Bool,
@@ -1232,69 +999,64 @@ actor ProviderConfigDB {
         createdAt: Double, updatedAt: Double, extrasJson: String?,
         customUserAgent: String?,
         azureMode: Bool = false
-    ) {
-        guard let db else { return }
+    ) -> Int32 {
+        // nanoMuse: REPLACE会先删除旧行并级联清空模型，更新必须保留提供商行的身份。
         let sql = """
-            INSERT OR REPLACE INTO provider_instances
+            INSERT INTO provider_instances
             (id, label, provider_type, credential_type, custom_base_url,
              append_v1_suffix, image_endpoint_mode, image_endpoint_resolved,
              is_enabled, sort_order, secret_blob, secret_kind, secret_updated_at,
              created_at, updated_at, extras_json, custom_user_agent, azure_mode)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                label = excluded.label,
+                provider_type = excluded.provider_type,
+                credential_type = excluded.credential_type,
+                custom_base_url = excluded.custom_base_url,
+                append_v1_suffix = excluded.append_v1_suffix,
+                image_endpoint_mode = excluded.image_endpoint_mode,
+                image_endpoint_resolved = excluded.image_endpoint_resolved,
+                is_enabled = excluded.is_enabled,
+                sort_order = excluded.sort_order,
+                secret_blob = excluded.secret_blob,
+                secret_kind = excluded.secret_kind,
+                secret_updated_at = excluded.secret_updated_at,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at,
+                extras_json = excluded.extras_json,
+                custom_user_agent = excluded.custom_user_agent,
+                azure_mode = excluded.azure_mode
         """
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, label, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 3, providerType, -1, Self.SQLITE_TRANSIENT)
-        Self.bindOpt(stmt, 4, credentialType)
-        Self.bindOpt(stmt, 5, customBaseURL)
-        sqlite3_bind_int(stmt, 6, appendV1Suffix ? 1 : 0)
-        Self.bindOpt(stmt, 7, imageEndpointMode)
-        Self.bindOpt(stmt, 8, imageEndpointResolved)
-        sqlite3_bind_int(stmt, 9, isEnabled ? 1 : 0)
-        sqlite3_bind_int(stmt, 10, Int32(sortOrder))
-        Self.bindOpt(stmt, 11, secretBlob)
-        Self.bindOpt(stmt, 12, secretKind)
-        Self.bindOptDouble(stmt, 13, secretUpdatedAt)
-        sqlite3_bind_double(stmt, 14, createdAt)
-        sqlite3_bind_double(stmt, 15, updatedAt)
-        Self.bindOpt(stmt, 16, extrasJson)
-        Self.bindOpt(stmt, 17, customUserAgent)
-        sqlite3_bind_int(stmt, 18, azureMode ? 1 : 0)
-        sqlite3_step(stmt)
+        return nmExecuteRow(sql, values: [
+            .text(id), .text(label), .text(providerType), .text(credentialType), .text(customBaseURL),
+            .integer(appendV1Suffix ? 1 : 0), .text(imageEndpointMode), .text(imageEndpointResolved),
+            .integer(isEnabled ? 1 : 0), .integer(Int64(sortOrder)), .text(secretBlob), .text(secretKind),
+            .real(secretUpdatedAt), .real(createdAt), .real(updatedAt), .text(extrasJson),
+            .text(customUserAgent), .integer(azureMode ? 1 : 0)
+        ])
     }
 
+    // nanoMuse: prepare、bind和step任一失败都保留返回码。
+    @discardableResult
     private func upsertEntryRow(
         id: String, providerInstanceId: String,
         baseModelJson: String, overridesJson: String?,
         isCustom: Bool, isHidden: Bool, userModifiedAt: Double?,
         sortOrder: Int, updatedAt: Double, extrasJson: String?
-    ) {
-        guard let db else { return }
+    ) -> Int32 {
         let sql = """
             INSERT OR REPLACE INTO provider_model_entries
             (id, provider_instance_id, base_model_json, overrides_json,
              is_custom, is_hidden, user_modified_at, sort_order, updated_at, extras_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, providerInstanceId, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 3, baseModelJson, -1, Self.SQLITE_TRANSIENT)
-        Self.bindOpt(stmt, 4, overridesJson)
-        sqlite3_bind_int(stmt, 5, isCustom ? 1 : 0)
-        sqlite3_bind_int(stmt, 6, isHidden ? 1 : 0)
-        Self.bindOptDouble(stmt, 7, userModifiedAt)
-        sqlite3_bind_int(stmt, 8, Int32(sortOrder))
-        sqlite3_bind_double(stmt, 9, updatedAt)
-        Self.bindOpt(stmt, 10, extrasJson)
-        sqlite3_step(stmt)
+        return nmExecuteRow(sql, values: [.text(id), .text(providerInstanceId), .text(baseModelJson),
+            .text(overridesJson), .integer(isCustom ? 1 : 0), .integer(isHidden ? 1 : 0),
+            .real(userModifiedAt), .integer(Int64(sortOrder)), .real(updatedAt), .text(extrasJson)])
     }
 
+    // nanoMuse: 分组与成员时间戳必须完整落盘才能提交事务。
+    @discardableResult
     private func upsertGroupRow(
         id: String, name: String, strategy: String, fallbackStrategy: String,
         defaultThinkingLevel: String?, contextLimitTokens: Int?,
@@ -1302,8 +1064,7 @@ actor ProviderConfigDB {
         sortOrder: Int, updatedAt: Double, extrasJson: String?,
         removedMembersJson: String = "{}",
         addedMembersJson: String = "{}"
-    ) {
-        guard let db else { return }
+    ) -> Int32 {
         let sql = """
             INSERT OR REPLACE INTO provider_model_groups
             (id, name, strategy, fallback_strategy, default_thinking_level,
@@ -1311,111 +1072,97 @@ actor ProviderConfigDB {
              sort_order, updated_at, extras_json, removed_members_json, added_members_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, name, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 3, strategy, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 4, fallbackStrategy, -1, Self.SQLITE_TRANSIENT)
-        Self.bindOpt(stmt, 5, defaultThinkingLevel)
-        Self.bindOptInt(stmt, 6, contextLimitTokens)
-        Self.bindOptInt(stmt, 7, contextLimitRemembered)
-        sqlite3_bind_text(stmt, 8, memberEntryIdsJson, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 9, Int32(sortOrder))
-        sqlite3_bind_double(stmt, 10, updatedAt)
-        Self.bindOpt(stmt, 11, extrasJson)
-        sqlite3_bind_text(stmt, 12, removedMembersJson, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 13, addedMembersJson, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+        return nmExecuteRow(sql, values: [.text(id), .text(name), .text(strategy), .text(fallbackStrategy),
+            .text(defaultThinkingLevel), .integer(contextLimitTokens.map(Int64.init)),
+            .integer(contextLimitRemembered.map(Int64.init)), .text(memberEntryIdsJson),
+            .integer(Int64(sortOrder)), .real(updatedAt), .text(extrasJson),
+            .text(removedMembersJson), .text(addedMembersJson)])
     }
 
-    private func setLocalKVRow(_ key: String, value: String) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO provider_local_kv (key, value) VALUES (?, ?)", -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, key, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, value, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
+    // nanoMuse: 本机指针参与同一严格事务，不能在模型写入成功后静默丢失。
+    @discardableResult
+    private func setLocalKVRow(_ key: String, value: String) -> Int32 {
+        nmExecuteRow("INSERT OR REPLACE INTO provider_local_kv (key, value) VALUES (?, ?)", values: [.text(key), .text(value)])
     }
 
-    /// [T-provider-entry-composite-key] Persist the legacyUuid→compositeKey map
-    /// (JSON) into provider_local_kv so deferred normalization survives restarts.
-    func setLegacyUuidMapKV(_ json: String) {
-        setLocalKVRow("legacyUuidMap", value: json)
+    // nanoMuse: ID学习直接更新独立元数据，不从尚未刷新的页面缓存重写配置。
+    /// 合并并持久化旧ID映射，返回数据库中的完整结果供内存同步使用。
+    func nmLearnLegacyUuids(_ pairs: [String: String]) throws -> [String: String] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        guard !pairs.isEmpty else { return try nmLegacyUuidMap() }
+        return try NivoSQLiteWrite.transaction(db) {
+            let persisted = try nmLegacyUuidMap()
+            var mapping = persisted
+            for (legacy, canonical) in pairs { mapping[legacy] = canonical }
+            // nanoMuse: 周期性重复入站不重写未变化的大映射，避免每条模型记录产生磁盘写入。
+            if mapping != persisted {
+                try nmRequireRow(setLocalKVRow("legacyUuidMap", value: try Self.jsonString(mapping)))
+            }
+            return mapping
+        }
     }
 
-    private func upsertSessionBindingRow(sessionId: String, bindingJson: String, updatedAt: Double) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+    /// 缺少映射属于首次使用，损坏映射必须保留并报告，不能清空后覆盖。
+    func nmLegacyUuidMap() throws -> [String: String] {
+        guard let encoded = try nmLocalKV("legacyUuidMap") else { return [:] }
+        return try JSONDecoder().decode([String: String].self, from: Data(encoded.utf8))
+    }
+
+    // nanoMuse: 会话模型绑定失败需要阻止恢复报告成功。
+    @discardableResult
+    private func upsertSessionBindingRow(sessionId: String, bindingJson: String, updatedAt: Double) -> Int32 {
         let sql = "INSERT OR REPLACE INTO provider_session_bindings (session_id, binding_json, updated_at) VALUES (?, ?, ?)"
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, sessionId, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, bindingJson, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_double(stmt, 3, updatedAt)
-        sqlite3_step(stmt)
+        return nmExecuteRow(sql, values: [.text(sessionId), .text(bindingJson), .real(updatedAt)])
     }
 
-    private func upsertSessionInferenceConfigRow(sessionId: String, configJson: String, updatedAt: Double) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+    // nanoMuse: 推理设置与绑定一起返回真实写入状态。
+    @discardableResult
+    private func upsertSessionInferenceConfigRow(sessionId: String, configJson: String, updatedAt: Double) -> Int32 {
         let sql = "INSERT OR REPLACE INTO provider_session_inference_configs (session_id, config_json, updated_at) VALUES (?, ?, ?)"
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, sessionId, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, configJson, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_double(stmt, 3, updatedAt)
-        sqlite3_step(stmt)
+        return nmExecuteRow(sql, values: [.text(sessionId), .text(configJson), .real(updatedAt)])
     }
 
-    private func insertAgentLoopIdRow(kind: String, targetId: String, sortOrder: Int) {
-        guard let db else { return }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+    // nanoMuse: 本机智能体模型选择不能在部分写入时被判定为成功。
+    @discardableResult
+    private func insertAgentLoopIdRow(kind: String, targetId: String, sortOrder: Int) -> Int32 {
         let sql = "INSERT OR REPLACE INTO provider_agent_loop_ids (kind, target_id, sort_order) VALUES (?, ?, ?)"
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        sqlite3_bind_text(stmt, 1, kind, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, targetId, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 3, Int32(sortOrder))
-        sqlite3_step(stmt)
+        return nmExecuteRow(sql, values: [.text(kind), .text(targetId), .integer(Int64(sortOrder))])
     }
 
-    private func loadAllSessionBindings() -> [String: SessionModelBinding] {
-        guard let db else { return [:] }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "SELECT session_id, binding_json FROM provider_session_bindings", -1, &stmt, nil) == SQLITE_OK else { return [:] }
-        var result: [String: SessionModelBinding] = [:]
-        let decoder = JSONDecoder()
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let sid = Self.text(stmt, 0)
-            let json = Self.text(stmt, 1)
-            if let data = json.data(using: .utf8),
-               let binding = try? decoder.decode(SessionModelBinding.self, from: data) {
-                result[sid] = binding
-            }
-        }
-        return result
+    /// 兼容旧行调用方的状态码接口，严格恢复使用nmRequireRow将失败向上传递。
+    private func nmExecuteRow(_ sql: String, values: [NivoSQLiteWrite.Value]) -> Int32 {
+        guard let db else { return SQLITE_MISUSE }
+        do {
+            try NivoSQLiteWrite.execute(db, sql: sql, values: values)
+            return SQLITE_DONE
+        } catch NivoSQLiteWriteError.sqlite(_, let code) { return code }
+        catch { return SQLITE_ERROR }
     }
 
-    private func loadAllSessionInferenceConfigs() -> [String: SessionInferenceConfig] {
-        guard let db else { return [:] }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "SELECT session_id, config_json FROM provider_session_inference_configs", -1, &stmt, nil) == SQLITE_OK else { return [:] }
-        var result: [String: SessionInferenceConfig] = [:]
-        let decoder = JSONDecoder()
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let sid = Self.text(stmt, 0)
-            let json = Self.text(stmt, 1)
-            if let data = json.data(using: .utf8),
-               let cfg = try? decoder.decode(SessionInferenceConfig.self, from: data) {
-                result[sid] = cfg
+    private func nmRequireRow(_ code: Int32) throws {
+        guard code == SQLITE_DONE else { throw NivoSQLiteWriteError.sqlite(operation: "provider_row", code: code) }
+    }
+
+    // nanoMuse: 本机绑定和推理配置解码失败时保留原配置，不能静默省略。
+    private func nmLoadAllSessionBindings() throws -> [String: SessionModelBinding] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        let rows = try NivoSQLiteWrite.readRows(db,
+            sql: "SELECT session_id, binding_json FROM provider_session_bindings") { stmt in
+                (Self.text(stmt, 0), try JSONDecoder().decode(SessionModelBinding.self,
+                    from: Data(Self.text(stmt, 1).utf8)))
             }
-        }
-        return result
+        return Dictionary(rows, uniquingKeysWith: { _, latest in latest })
+    }
+
+    // nanoMuse: 本机绑定和推理配置解码失败时保留原配置，不能静默省略。
+    private func nmLoadAllSessionInferenceConfigs() throws -> [String: SessionInferenceConfig] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        let rows = try NivoSQLiteWrite.readRows(db,
+            sql: "SELECT session_id, config_json FROM provider_session_inference_configs") { stmt in
+                (Self.text(stmt, 0), try JSONDecoder().decode(SessionInferenceConfig.self,
+                    from: Data(Self.text(stmt, 1).utf8)))
+            }
+        return Dictionary(rows, uniquingKeysWith: { _, latest in latest })
     }
 
     /// [T-icloud-agentloop-wipe] Row count of the local-only agent-loop table.
@@ -1432,102 +1179,29 @@ actor ProviderConfigDB {
         return Int(sqlite3_column_int(stmt, 0))
     }
 
-    /// [T-icloud-agentloop-wipe] Idempotent creation backstop.
-    ///
-    /// `provider_agent_loop_ids` was only ever created inside the `if current < 1`
-    /// migration block, with no `ensure…` counterpart — the exact shape of the
-    /// documented add-column trap in this file, where a table that exists only
-    /// in a version-gated branch goes missing on a DB that skipped that branch
-    /// and every read/write against it then fails silently. Called on open so
-    /// the table is guaranteed present regardless of migration history.
-    static func ensureAgentLoopTable(db: OpaquePointer) {
-        exec(db: db, """
-            CREATE TABLE IF NOT EXISTS provider_agent_loop_ids (
-                kind       TEXT NOT NULL,
-                target_id  TEXT NOT NULL,
-                sort_order INTEGER NOT NULL,
-                PRIMARY KEY (kind, target_id)
-            )
-        """)
+    // nanoMuse: 读取失败不能被当成本机选择为空，从而绕过保留规则。
+    private func nmAgentLoopRowCount() throws -> Int {
+        guard let db else { throw NivoSQLiteWriteError.sqlite(operation: "closed", code: SQLITE_MISUSE) }
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        let prepared = sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM provider_agent_loop_ids", -1, &statement, nil)
+        guard prepared == SQLITE_OK else { throw NivoSQLiteWriteError.sqlite(operation: "count_prepare", code: prepared) }
+        let step = sqlite3_step(statement)
+        guard step == SQLITE_ROW else { throw NivoSQLiteWriteError.sqlite(operation: "count_step", code: step) }
+        return Int(sqlite3_column_int64(statement, 0))
     }
 
-    /// [T-thinking-rules-phase2] User-authored thinking rules, one row per rule.
-    ///
-    /// A SEPARATE TABLE rather than a column on `provider_instances`, for three reasons:
-    ///   1. It is a one-to-many relation with an explicit order — exactly what the other
-    ///      ordered local-only state (`provider_agent_loop_ids`) already models this way.
-    ///   2. `bulkReplace` DELETEs the seven config tables and rewrites them from an
-    ///      inbound sync payload. This table is deliberately NOT in that list, so a
-    ///      provider-config sync from another device cannot wipe rules the peer's build
-    ///      does not know about — the failure mode that erased agent-loop selections in
-    ///      OpenMinis#98 and cost days to characterise.
-    ///   3. Adding a column would have to be written into BOTH the `CREATE TABLE` DDL and
-    ///      an idempotent ensure*, and forgetting either half is precisely how
-    ///      `custom_user_agent` made every provider vanish. A new table has one
-    ///      creation site and no such asymmetry.
-    ///
-    /// Called unconditionally on every open, BEFORE the version-gated early return, for
-    /// the same reason the three ensures above it are: a DB already at the current
-    /// user_version would otherwise skip creation entirely and every read/write against
-    /// this table would fail silently.
-    ///
-    /// `wire_format_json` stores the encoded `ThinkingWireFormat`; keeping it as JSON
-    /// rather than exploding it into typed columns means adding a wire-format case later
-    /// is a pure code change with no migration.
-    static func ensureThinkingRulesTable(db: OpaquePointer) {
-        exec(db: db, """
-            CREATE TABLE IF NOT EXISTS provider_thinking_rules (
-                id                TEXT PRIMARY KEY,
-                instance_id       TEXT NOT NULL,
-                sort_order        INTEGER NOT NULL,
-                scope_kind        TEXT NOT NULL,
-                scope_pattern     TEXT,
-                wire_format_json  TEXT NOT NULL,
-                echo_field        TEXT,
-                echo_timing       TEXT,
-                label             TEXT NOT NULL DEFAULT '',
-                is_builtin        INTEGER NOT NULL DEFAULT 0,
-                created_at        REAL NOT NULL DEFAULT 0,
-                updated_at        REAL NOT NULL DEFAULT 0
-            )
-        """)
-        // Ordered reads are the hot path (every request resolves rules for one instance).
-        exec(db: db, """
-            CREATE INDEX IF NOT EXISTS idx_thinking_rules_instance
-            ON provider_thinking_rules (instance_id, sort_order)
-        """)
-    }
-
-    /// [T-icloud-agentloop-wipe] Returns nil when the READ ITSELF failed, and
-    /// `[]` only for a successful scan that found no rows.
-    ///
-    /// This distinction is load-bearing. `provider_agent_loop_ids` is local-only
-    /// state, but every inbound V3 provider record triggers a whole-config
-    /// replace (`dumpProviderConfig` → `applyMergedConfigFromSync` →
-    /// `bulkReplace`), and `bulkReplace` DELETEs this table before rewriting it
-    /// from `config.agentLoopModelEntryIds`. When this function swallowed a
-    /// prepare failure as `[]`, that empty list round-tripped into the DELETE
-    /// and silently erased the user's agent-loop selection — indistinguishable
-    /// from "the user really had none". Callers now preserve their in-memory
-    /// state on nil instead. (OpenMinis#98 defect 2.)
-    private func loadAgentLoopIds(kind: String) -> [String]? {
-        guard let db else {
-            logger.error("[AgentLoopIds] read FAILED (db not open) kind=\(kind) — preserving in-memory state")
-            return nil
+    // nanoMuse: 智能体选择同样严格读取，失败不能被清空后保存。
+    private func nmLoadAgentLoopIds(kind: String) throws -> [String] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        do {
+            return try NivoSQLiteWrite.readRows(db,
+                sql: "SELECT target_id FROM provider_agent_loop_ids WHERE kind = ? ORDER BY sort_order ASC",
+                values: [.text(kind)]) { Self.text($0, 0) }
+        } catch {
+            agentLoopReadFailed = true
+            throw error
         }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "SELECT target_id FROM provider_agent_loop_ids WHERE kind = ? ORDER BY sort_order ASC", -1, &stmt, nil) == SQLITE_OK else {
-            let msg = String(cString: sqlite3_errmsg(db))
-            logger.error("[AgentLoopIds] read FAILED (prepare) kind=\(kind) err=\(msg) — preserving in-memory state")
-            return nil
-        }
-        sqlite3_bind_text(stmt, 1, kind, -1, Self.SQLITE_TRANSIENT)
-        var result: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            result.append(Self.text(stmt, 0))
-        }
-        return result
     }
 
     // MARK: - Bind helpers
@@ -1614,55 +1288,72 @@ enum ProviderConfigDBError: Error {
 
 extension ProviderConfigDB {
 
-    /// User-authored rules for one provider instance, in evaluation order.
-    ///
-    /// Returns `[]` for "this instance has no custom rules" — the default state for every
-    /// existing user. Unlike `loadAgentLoopIds`, a read failure ALSO returns `[]` rather
-    /// than nil, and that is safe here for a specific reason: this list is only ever
-    /// PREPENDED to the built-in registry. An empty result degrades to "built-in
-    /// behaviour", which is exactly the pre-Phase-2 behaviour, so a failed read can
-    /// never erase anything or change a request shape. Nothing writes back what it read,
-    /// so there is no round-trip that could turn an empty read into a deletion — the
-    /// mechanism behind OpenMinis#98.
+    // nanoMuse: 页面保留旧查询接口，恢复与缓存发布走严格读取。
     func loadThinkingRules(instanceId: String) -> [ThinkingRule] {
-        guard let db else { return [] }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
+        (try? nmLoadThinkingRules(instanceId: instanceId)) ?? []
+    }
+
+    /// SQL读取失败必须抛出；无法解释的较新规则保留原行，只跳过执行。
+    func nmLoadThinkingRules(instanceId: String) throws -> [ThinkingRule] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
         let sql = """
             SELECT id, scope_kind, scope_pattern, wire_format_json, echo_field, echo_timing, label
             FROM provider_thinking_rules
             WHERE instance_id = ? AND is_builtin = 0
             ORDER BY sort_order ASC
         """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            logger.error("[ThinkingRules] read FAILED (prepare) instance=\(instanceId) — falling back to built-ins only")
-            return []
+        let rows = try NivoSQLiteWrite.readRows(db, sql: sql, values: [.text(instanceId)], decode: Self.nmDecodeThinkingRule)
+        return rows.compactMap { $0 }
+    }
+
+    // nanoMuse: 删除必须保留全部规则ID，包括本版本不能解释正文的较新规则。
+    /// 一次读取删除涉及的规则和数据库已见版本，设备时间回拨不产生较旧墓碑。
+    func nmProviderDeletionInventory(instanceID: String, groupIDs: [String] = []) throws -> (ruleIDs: [String], lastModified: Date) {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        return try NivoProviderDeletionInventory.read(database: db, instanceID: instanceID, groupIDs: groupIDs)
+    }
+
+    // nanoMuse: 规则没有数据库级联约束，配置确认后由删除日志重试清理。
+    /// 按父提供商清除规则，保留其他提供商的规则及其版本。
+    func nmDeleteProviderRules(instanceID: String) throws {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        try NivoSQLiteWrite.execute(db, sql: "DELETE FROM provider_thinking_rules WHERE instance_id = ?", values: [.text(instanceID)])
+    }
+
+    // nanoMuse: 在数据库actor内一次读取完整规则，避免旧页面缺少父提供商或多次await混合新旧规则。
+    /// 只缓存仍有父提供商的自定义规则；缺表与中途读取失败必须抛出。
+    func nmThinkingRuleCacheSnapshot() throws -> [String: [ThinkingRule]] {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        let sql = """
+            SELECT r.id, r.scope_kind, r.scope_pattern, r.wire_format_json,
+                   r.echo_field, r.echo_timing, r.label, r.instance_id
+            FROM provider_thinking_rules r
+            JOIN provider_instances p ON p.id = r.instance_id
+            WHERE r.is_builtin = 0 ORDER BY r.instance_id, r.sort_order, r.id
+        """
+        let rows = try NivoSQLiteWrite.readRows(db, sql: sql) { statement in
+            (Self.text(statement, 7), Self.nmDecodeThinkingRule(statement))
         }
-        sqlite3_bind_text(stmt, 1, instanceId, -1, Self.SQLITE_TRANSIENT)
-        var out: [ThinkingRule] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            let id = Self.text(stmt, 0)
-            let scope = ThinkingRule.Scope.fromPersisted(
-                kind: Self.text(stmt, 1),
-                pattern: sqlite3_column_type(stmt, 2) == SQLITE_NULL ? nil : Self.text(stmt, 2)
-            )
-            let json = Self.text(stmt, 3)
-            guard let data = json.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let fmt = ThinkingWireFormat.fromPersistedJSON(obj) else {
-                // A rule written by a NEWER build, or corrupted. Skip this ROW only —
-                // never fail the whole read, or one bad row would disable every rule.
-                logger.warning("[ThinkingRules] skipping unreadable rule id=\(id) json=\(json.prefix(120))")
-                continue
-            }
-            let echo = ReasoningEchoPolicy.fromPersisted(
-                field: sqlite3_column_type(stmt, 4) == SQLITE_NULL ? nil : Self.text(stmt, 4),
-                timing: sqlite3_column_type(stmt, 5) == SQLITE_NULL ? nil : Self.text(stmt, 5)
-            )
-            out.append(ThinkingRule(kind: .custom, scope: scope, wireFormat: fmt,
-                                    reasoningEcho: echo, label: Self.text(stmt, 6), id: id))
+        var snapshot: [String: [ThinkingRule]] = [:]
+        for (instanceID, rule) in rows {
+            if let rule { snapshot[instanceID, default: []].append(rule) }
         }
-        return out
+        return snapshot
+    }
+
+    private static func nmDecodeThinkingRule(_ statement: OpaquePointer) -> ThinkingRule? {
+        let id = text(statement, 0)
+        let scope = ThinkingRule.Scope.fromPersisted(kind: text(statement, 1), pattern: optText(statement, 2))
+        let json = text(statement, 3)
+        guard let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+              let format = ThinkingWireFormat.fromPersistedJSON(object) else {
+            // 新版本规则保留原行，只跳过执行，日志不能泄漏用户规则正文。
+            logger.warning("[ThinkingRules] skipping unsupported rule id=\(id)")
+            return nil
+        }
+        let echo = ReasoningEchoPolicy.fromPersisted(field: optText(statement, 4), timing: optText(statement, 5))
+        return ThinkingRule(kind: .custom, scope: scope, wireFormat: format,
+                            reasoningEcho: echo, label: text(statement, 6), id: id)
     }
 
     /// Insert or update one rule. `sortOrder` is the caller's position in the list.
@@ -1725,12 +1416,15 @@ extension ProviderConfigDB {
 
     @discardableResult
     func deleteThinkingRule(id: String) -> Bool {
-        guard let db else { return false }
-        var stmt: OpaquePointer?
-        defer { sqlite3_finalize(stmt) }
-        guard sqlite3_prepare_v2(db, "DELETE FROM provider_thinking_rules WHERE id = ?", -1, &stmt, nil) == SQLITE_OK else { return false }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        return sqlite3_step(stmt) == SQLITE_DONE
+        // nanoMuse: 页面保留Bool接口，云同步通过严格入口取得实际错误。
+        do { try nmDeleteThinkingRule(id: id); return true }
+        catch { return false }
+    }
+
+    /// 删除思考规则，失败交给同步游标或恢复事务处理。
+    func nmDeleteThinkingRule(id: String) throws {
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        try NivoSQLiteWrite.execute(db, sql: "DELETE FROM provider_thinking_rules WHERE id = ?", values: [.text(id)])
     }
 
     // MARK: - V3 sync support (T-icloud-thinking-rules-sync)
@@ -1798,21 +1492,27 @@ extension ProviderConfigDB {
         scopeKind: String, scopePattern: String?, wireFormatJson: String,
         echoField: String?, echoTiming: String?, label: String,
         createdAt: Double, updatedAt: Double
-    ) -> Bool {
-        guard let db else { return false }
-        var stmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, "SELECT updated_at FROM provider_thinking_rules WHERE id = ?", -1, &stmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-            if sqlite3_step(stmt) == SQLITE_ROW {
-                let localTs = sqlite3_column_double(stmt, 0)
-                sqlite3_finalize(stmt)
-                if localTs >= updatedAt { return false }
-            } else {
-                sqlite3_finalize(stmt)
-            }
+    ) throws -> Bool {
+        // nanoMuse: 入站与恢复都区分版本跳过和SQL失败，不能提前确认游标。
+        guard let db else { throw NivoSQLiteSnapshotError.invalidDatabase }
+        let hasOwner = try NivoSQLiteWrite.readRow(db,
+            sql: "SELECT 1 FROM provider_instances WHERE id = ?", values: [.text(instanceId)]) { _ in true }
+        guard hasOwner == true else {
+            throw NivoSQLiteWriteError.sqlite(operation: "thinking_rule_owner", code: SQLITE_CONSTRAINT)
         }
-        stmt = nil
-        defer { sqlite3_finalize(stmt) }
+        return try nmUpsertThinkingRule(id: id, instanceId: instanceId, sortOrder: sortOrder,
+            scopeKind: scopeKind, scopePattern: scopePattern, wireFormatJson: wireFormatJson,
+            echoField: echoField, echoTiming: echoTiming, label: label, createdAt: createdAt, updatedAt: updatedAt)
+    }
+
+    /// 同一SQL语句完成时间戳比较和写入；false仅表示本机版本较新，磁盘错误抛出。
+    func nmUpsertThinkingRule(
+        id: String, instanceId: String, sortOrder: Int,
+        scopeKind: String, scopePattern: String?, wireFormatJson: String,
+        echoField: String?, echoTiming: String?, label: String,
+        createdAt: Double, updatedAt: Double
+    ) throws -> Bool {
+        guard let db else { throw NivoSQLiteWriteError.sqlite(operation: "closed", code: SQLITE_MISUSE) }
         let sql = """
             INSERT INTO provider_thinking_rules
                 (id, instance_id, sort_order, scope_kind, scope_pattern, wire_format_json,
@@ -1828,25 +1528,12 @@ extension ProviderConfigDB {
                 echo_timing = excluded.echo_timing,
                 label = excluded.label,
                 updated_at = excluded.updated_at
+            WHERE excluded.updated_at > provider_thinking_rules.updated_at
         """
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            logger.error("[ThinkingRules] inbound upsert FAILED (prepare) id=\(id)")
-            return false
-        }
-        sqlite3_bind_text(stmt, 1, id, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, instanceId, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_int(stmt, 3, Int32(sortOrder))
-        sqlite3_bind_text(stmt, 4, scopeKind, -1, Self.SQLITE_TRANSIENT)
-        if let p = scopePattern { sqlite3_bind_text(stmt, 5, p, -1, Self.SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 5) }
-        sqlite3_bind_text(stmt, 6, wireFormatJson, -1, Self.SQLITE_TRANSIENT)
-        if let e = echoField { sqlite3_bind_text(stmt, 7, e, -1, Self.SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 7) }
-        if let t = echoTiming { sqlite3_bind_text(stmt, 8, t, -1, Self.SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 8) }
-        sqlite3_bind_text(stmt, 9, label, -1, Self.SQLITE_TRANSIENT)
-        sqlite3_bind_double(stmt, 10, createdAt)
-        sqlite3_bind_double(stmt, 11, updatedAt)
-        let ok = sqlite3_step(stmt) == SQLITE_DONE
-        if !ok { logger.error("[ThinkingRules] inbound upsert FAILED (step) id=\(id)") }
-        return ok
+        try NivoSQLiteWrite.execute(db, sql: sql, values: [.text(id), .text(instanceId), .integer(Int64(sortOrder)),
+            .text(scopeKind), .text(scopePattern), .text(wireFormatJson), .text(echoField), .text(echoTiming),
+            .text(label), .real(createdAt), .real(updatedAt)])
+        return sqlite3_changes(db) > 0
     }
 
     /// Every custom rule id across all instances — used to enumerate what needs

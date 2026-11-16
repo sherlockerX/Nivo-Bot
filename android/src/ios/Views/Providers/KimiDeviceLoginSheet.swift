@@ -13,7 +13,9 @@ import SafariServices
 @available(iOS 16.0, *)
 struct KimiDeviceLoginSheet: View {
     let instanceId: String
-    /// Called on dismiss with whether authentication succeeded.
+    // nanoMuse: 详情页和新增页的来源随设备码表单传入，呈现等待不能跨账户。
+    var sourceScope: NivoOAuthScope? = nil
+    /// nanoMuse: 关闭时报告实际写入结果，成功提示期间取消也不能把已存凭证当作失败。
     var onFinish: (Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -28,6 +30,9 @@ struct KimiDeviceLoginSheet: View {
     @State private var phase: Phase = .starting
     @State private var copied = false
     @State private var loginTask: Task<Void, Never>?
+    // nanoMuse: 延时、取消按钮和系统关闭共享一次性完成状态。
+    @State private var completion = NivoOAuthLoginCompletion()
+    @State private var isClosing = false
 
     var body: some View {
         NavigationStack {
@@ -66,13 +71,16 @@ struct KimiDeviceLoginSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(AppLocalized("Cancel")) { finish(false) }
+                    Button(AppLocalized("Cancel")) { finish() }
                 }
             }
         }
         .interactiveDismissDisabled(phase == .starting)
         .onAppear { start() }
-        .onDisappear { loginTask?.cancel() }
+        // nanoMuse: 下拉关闭也回报实际写入状态，调用方才能接管未保存草稿。
+        .onDisappear {
+            settleCompletion()
+        }
     }
 
     @ViewBuilder
@@ -117,23 +125,29 @@ struct KimiDeviceLoginSheet: View {
     }
 
     private func start() {
+        // nanoMuse: 已完成的页面不重新发起登录或重置已写入状态。
+        guard !isClosing, !completion.hasFinished, !completion.hasPersistedCredential else { return }
         loginTask?.cancel()
         copied = false
         phase = .starting
         loginTask = Task { @MainActor in
             do {
+                if let sourceScope { try NivoOAuthAccess.validateScope(sourceScope) }
                 try await KimiOAuthManager.shared.login(instanceId: instanceId) { presentation in
-                    // Presentation callback fires once the device code is issued.
-                    Task { @MainActor in
-                        phase = .awaitingUser(userCode: presentation.userCode,
-                                              url: presentation.verificationURL)
-                    }
+                    // nanoMuse: 管理器验证取消后直接回写，避免脱离登录任务的迟到UI更新。
+                    guard !Task.isCancelled else { return }
+                    phase = .awaitingUser(userCode: presentation.userCode,
+                                          url: presentation.verificationURL)
                 }
+                // nanoMuse: 管理器返回即已确认写入，必须先记账再检查取消或等待提示。
+                completion.didPersist()
                 if Task.isCancelled { return }
                 phase = .success
-                // Brief success flash, then dismiss.
-                try? await Task.sleep(nanoseconds: 900_000_000)
-                finish(true)
+                // nanoMuse: 成功短暂提示后关闭；期间取消仍由结算回调报告实际写入结果。
+                try await Task.sleep(nanoseconds: 900_000_000)
+                try Task.checkCancellation()
+                if let sourceScope { try NivoOAuthAccess.validateScope(sourceScope) }
+                finish()
             } catch is CancellationError {
                 // user cancelled — no error surface
             } catch {
@@ -143,10 +157,27 @@ struct KimiDeviceLoginSheet: View {
         }
     }
 
-    private func finish(_ success: Bool) {
-        loginTask?.cancel()
-        onFinish(success)
+    // nanoMuse: 所有关闭路径只通知一次，成功后的取消保留成功结果。
+    private func finish() {
+        settleCompletion()
         dismiss()
+    }
+
+    // nanoMuse: 取消可能恰好发生在Keychain写入与await返回之间，必须等任务结算后报告。
+    private func settleCompletion() {
+        guard !isClosing else { return }
+        isClosing = true
+        let task = loginTask
+        task?.cancel()
+        Task { @MainActor in
+            await task?.value
+            reportCompletion()
+        }
+    }
+
+    // nanoMuse: 生命周期关闭只回报结果，不再次调用dismiss。
+    private func reportCompletion() {
+        if let success = completion.finish() { onFinish(success) }
     }
 
     /// Open the verification page in an in-app SFSafariViewController — matching

@@ -148,6 +148,8 @@ extension AIChatViewModel {
                 sessionId: sid,
                 command: command,
                 timeout: effectiveTimeout,
+                // nanoMuse: 临时fs_context只属于宿主当前安排的定时回合。
+                scheduledRunID: nmScheduledRunID,
                 // ISHShellExecutor dispatches every line on the main queue
                 // already (ISHShellExecutor.m:780/812), so we're guaranteed to
                 // run on the main thread here. Calling the MainActor-isolated

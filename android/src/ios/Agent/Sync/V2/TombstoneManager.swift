@@ -34,12 +34,10 @@ final class TombstoneManager {
     /// Apply a remote SessionV2 deletion: hard-delete this device's copy.
     /// Returns true if a row was removed (false = already gone, idempotent).
     @discardableResult
-    func applyRemoteSessionDeletion(sessionId: String) async -> Bool {
-        // Probe before we act so the log line accurately reports whether
-        // anything happened — also lets idempotent re-applies stay quiet.
-        let exists = await ChatStore.shared.sessionExists(id: sessionId)
-        guard exists else { return false }
-        await ChatStore.shared.deleteSessionLocalOnly(sessionId)
+    // nanoMuse: 持有会话占位直到SQLite提交，查询失败不当作已删除。
+    func applyRemoteSessionDeletion(sessionId: String) async throws -> Bool {
+        let removed = try await NivoCloudChatAccess.delete(recordType: "SessionV2", id: sessionId)
+        guard removed else { return false }
         logger.info("[SyncConflict] hard delete applied: type=SessionV2 id=\(sessionId.prefix(8)) source=remoteDeletion")
         return true
     }
@@ -63,12 +61,13 @@ final class TombstoneManager {
     /// absent from the cloud are stale local copies → hard-delete them.
     /// Same policy as inbound: don't re-queue any cloud delete (the
     /// cloud authoritative state is "absent", we're catching up to it).
-    func reconcileAfterFullFetch(localSessionIds: Set<String>, cloudSessionIds: Set<String>) async {
+    // nanoMuse: 对账失败向调用方传播，不能静默跳过后确认游标。
+    func reconcileAfterFullFetch(localSessionIds: Set<String>, cloudSessionIds: Set<String>) async throws {
         let localOnly = localSessionIds.subtracting(cloudSessionIds)
         guard !localOnly.isEmpty else { return }
         logger.info("[SyncConflict] reconcileAfterFullFetch: \(localOnly.count) local-only session(s), hard-deleting")
         for sid in localOnly {
-            _ = await applyRemoteSessionDeletion(sessionId: sid)
+            _ = try await applyRemoteSessionDeletion(sessionId: sid)
         }
     }
 }

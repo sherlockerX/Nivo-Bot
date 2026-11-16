@@ -668,7 +668,7 @@ struct AIChatView: View {
         .environment(\.chatSessionId, vm.sessionId)
         // nanoMuse: the Muse header's ••• menu, the composer's expectation around a turn and the C9
         // presence line, as one link (NanoMuseChatHooks) — four links here overflowed the stack in 0.1.38
-        .modifier(NanoMuseChatHooks(vm: vm, processing: vm.isProcessing, composer: nmComposer, readOnly: isReadOnly, perform: { nmPerform($0) }, voice: voiceVM, enterVoice: { nmEnterVoice() })) // nanoMuse:
+        .modifier(NanoMuseChatHooks(vm: vm, sessionKey: vm.sessionId ?? draftId ?? "draft", processing: vm.isProcessing, composer: nmComposer, readOnly: isReadOnly, visible: isChatViewVisible && !hasOverlayPresented && !titleIsVisuallyLocked, perform: { nmPerform($0) }, voice: voiceVM, enterVoice: { nmEnterVoice() })) // nanoMuse: 草稿直接报告模型能力，只在聊天可见且未锁定时登记查看。
         .modifier(NavBarStyleModifier(topSafeAreaInset: $topSafeAreaInset, scrolledUp: !vm.messages.isEmpty && !vm.isNearBottom)) // nanoMuse: the side chat's scrim follows the list
         .navigationBarTitleDisplayMode(.inline)
         // [T-ios-navbar-toolbar-host] The ENTIRE toolbar now lives inside an
@@ -721,7 +721,8 @@ struct AIChatView: View {
         .modifier(ProviderImportPromptModifier(
             pending: $pendingProviderImport,
             result: $providerImportResult,
-            onImport: { json in configStore.importInstanceJSON(json) },
+            // nanoMuse: 分享导入等待持久化和回滚协议完成，失败保留分享文件。
+            onImport: { json, scope in try await configStore.importInstanceJSON(json, sourceScope: scope) },
             onAttach: { url in vm.addFileAttachment(from: url) }
         ))
         .overlay(alignment: .top) {
@@ -1859,6 +1860,8 @@ struct AIChatView: View {
             onSkills: { showSessionSkills = true },
             onMCPs: { showSessionMCPs = true },
             onMemories: { showSessionMemory = true },
+            onVoiceCall: { NanoMuseChatAction.post(.voiceCall, session: vm.nmSessionKey) }, // nanoMuse: 旁聊通话入口。
+            onAnchors: { NanoMuseChatAction.post(.anchors, session: vm.nmSessionKey) }, // nanoMuse: 旁聊和每日练习共用锚点目录。
             setSpeakEnabled: { enabled in
                 cached.vm.speakEnabled = enabled
                 // Keep the persisted "Read replies" preference in lockstep.
@@ -1920,7 +1923,7 @@ struct AIChatView: View {
         case .skills: showSessionSkills = true // nanoMuse:
         case .mcps: showSessionMCPs = true // nanoMuse:
         case .memories: showSessionMemory = true // nanoMuse:
-        case .anchors: break // nanoMuse: NanoMuseChatHooks opens the anchors sheet itself
+        case .anchors, .thinking, .voiceCall: break // nanoMuse: 独立修饰器负责锚点、思考强度和通话弹层。
         } // nanoMuse:
     } // nanoMuse:
 
@@ -3529,6 +3532,12 @@ struct AIChatView: View {
 
     @ViewBuilder private var nmComposerColumn: some View { // nanoMuse:
         VStack(spacing: 0) {
+            // nanoMuse: 写盘期间保留原历史并显示进度，避免用户误以为重试没有响应。
+            if vm.isTruncatingForRetry {
+                ProgressView(AppLocalized("Saving…"))
+                    .font(.caption)
+                    .padding(.vertical, 6)
+            }
             // nanoMuse: virtual cards for this chat (avatar price/takes/share, the name chooser).
             NanoMuseChatCardsHost(vm: vm)
                 .frame(maxWidth: maxContentWidth)
@@ -3544,6 +3553,7 @@ struct AIChatView: View {
             inputBar
             #endif
         }
+        .disabled(vm.isTruncatingForRetry) // nanoMuse: 提交期间冻结草稿与附件选择。
         // nanoMuse: the probe tells the watch whether this column is really in a window and how
         // tall it is; a tick on `.id` rebuilds the whole column when it is not (NanoMuseComposerWatch).
         .background(NanoMuseComposerProbe(watch: nmComposer)) // nanoMuse:
@@ -4695,6 +4705,8 @@ struct AIChatView: View {
     }
 
     private var canSend: Bool {
+        // nanoMuse: 数据库编辑尚未完成时，按钮和键盘快捷键遵循同一边界。
+        guard !vm.isTruncatingForRetry else { return false }
         let hasText = !vm.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let ready = vm.isReady
         // [T-ios-photo-pick-placeholder] Block sending while any picked photo is
@@ -4854,7 +4866,8 @@ private struct ProviderImportPromptModifier: ViewModifier {
     @Binding var pending: AIChatView.PendingProviderImport?
     @Binding var result: String?
     /// Import the provider from JSON; returns the new instance label on success.
-    let onImport: (String) -> String?
+    // nanoMuse: 成功返回名称，存储或解析错误保留表单供重试。
+    let onImport: @MainActor (String, NivoOAuthScope) async throws -> String
     /// Add the (temp-copied) file to the chat as an attachment.
     let onAttach: (URL) -> Void
 
@@ -4869,13 +4882,10 @@ private struct ProviderImportPromptModifier: ViewModifier {
             // bottom-pinned sheet on BOTH iPhone and iPad.
             .sheet(item: $pending) { item in
                 ProviderImportSheet(
-                    onImport: {
+                    onImport: { scope in
+                        let label = try await onImport(item.json, scope)
                         pending = nil
-                        if let label = onImport(item.json) {
-                            result = AppLocalized("Imported provider \"\(label)\".")
-                        } else {
-                            result = AppLocalized("Could not import this provider configuration.")
-                        }
+                        result = AppLocalized("Imported provider \"\(label)\".")
                         try? FileManager.default.removeItem(at: item.fileURL)
                     },
                     onAttach: {
@@ -4909,13 +4919,16 @@ private struct ProviderImportPromptModifier: ViewModifier {
 /// so it pins to the bottom on iPad too, instead of floating a centered popover
 /// card. [T-ios-provider-import-prompt-bottom-sheet]
 private struct ProviderImportSheet: View {
-    let onImport: () -> Void
+    // nanoMuse: 导入按钮保持在本页等待，失败不丢失重试材料。
+    let onImport: @MainActor (NivoOAuthScope) async throws -> Void
     let onAttach: () -> Void
     let onCancel: () -> Void
 
     /// Set once the user taps any explicit button, so the `.onDisappear`
     /// safety-cleanup only fires for a genuine swipe-to-dismiss (no choice).
     @State private var chose = false
+    @State private var nmIsImporting = false
+    @State private var nmImportError: String?
 
     var body: some View {
         VStack(spacing: 20) {
@@ -4935,12 +4948,29 @@ private struct ProviderImportSheet: View {
             }
 
             VStack(spacing: 10) {
-                Button(action: { chose = true; onImport() }) {
+                Button(action: {
+                    guard !nmIsImporting else { return }
+                    nmIsImporting = true
+                    nmImportError = nil
+                    let scope = NivoOAuthAccess.captureScope()
+                    Task {
+                        defer { nmIsImporting = false }
+                        do {
+                            try await onImport(scope)
+                            chose = true
+                        } catch {
+                            nmImportError = AppLocalized("Could not import this provider configuration.")
+                        }
+                    }
+                }) {
                     Text(AppLocalized("Import as Provider"))
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+
+                if nmIsImporting { ProgressView(AppLocalized("Importing…")) }
+                if let nmImportError { Text(nmImportError).font(.footnote).foregroundStyle(.red) }
 
                 Button(action: { chose = true; onAttach() }) {
                     Text(AppLocalized("Add as Chat Attachment"))
@@ -4955,12 +4985,14 @@ private struct ProviderImportSheet: View {
                 }
                 .controlSize(.large)
             }
+            .disabled(nmIsImporting)
         }
         .padding(24)
         .presentationDetents([.height(360), .medium])
         .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(nmIsImporting)
         // Swipe-to-dismiss without tapping a button still needs cleanup.
-        .onDisappear { if !chose { onCancel() } }
+        .onDisappear { if !chose && !nmIsImporting { onCancel() } }
     }
 }
 
@@ -5484,6 +5516,8 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let onSkills: () -> Void
     let onMCPs: () -> Void
     let onMemories: () -> Void
+    let onVoiceCall: () -> Void // nanoMuse: 旁聊通话入口。
+    let onAnchors: () -> Void // nanoMuse: 旁聊锚点入口。
     let setSpeakEnabled: (Bool) -> Void
     let setEnhancedCache: (Bool) -> Void
     let setFastMode: (Bool) -> Void
@@ -5602,6 +5636,8 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         ]))
 
         var sessionGroup: [UIMenuElement] = [
+            // nanoMuse: 使用当前菜单协调器的回调，切换聊天后不会跳往上一条会话。
+            UIAction(title: AppLocalized("Conversation anchors"), image: UIImage(systemName: "bookmark")) { _ in coordinator.parent.onAnchors() },
             UIAction(title: AppLocalized("Skills in Session"),
                      image: UIImage(systemName: "puzzlepiece.extension")) { _ in coordinator.parent.onSkills() },
             UIAction(title: AppLocalized("MCPs in Session"),
@@ -5611,6 +5647,11 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
             sessionGroup.append(UIAction(title: AppLocalized("Memories in Session"),
                                          image: UIImage(systemName: "brain.head.profile")) { _ in coordinator.parent.onMemories() })
         }
+        // nanoMuse: 通话复用当前聊天和主聊的呈现路径。
+        sessionGroup.append(UIAction(title: AppLocalized("Voice call"),
+                                     image: UIImage(systemName: "phone")) { _ in
+            coordinator.parent.onVoiceCall()
+        })
         sessionGroup.append(UIAction(title: AppLocalized("Speak Responses"),
                                      image: UIImage(systemName: "speaker.wave.2"),
                                      state: key.speakEnabled ? .on : .off) { _ in

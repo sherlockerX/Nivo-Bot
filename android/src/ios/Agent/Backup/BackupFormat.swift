@@ -49,6 +49,8 @@ enum BackupCategory: String, Codable, CaseIterable, Sendable {
     /// either. iCloud sync covered this all along, which is why it went
     /// unnoticed by anyone who had sync switched on.
     case environmentVariables = "environment_variables"
+    // nanoMuse: 当前账户的待办、专注、碎片、教练及本机照片。
+    case personalData = "personal_data"
 
     /// Default checkbox state on the backup screen (§3 table).
     var defaultsOn: Bool { true }
@@ -70,7 +72,7 @@ enum BackupCategory: String, Codable, CaseIterable, Sendable {
     /// the §3.4 size cap applies to.
     var carriesFileTree: Bool {
         switch self {
-        case .chats, .sharedFiles, .skills: return true
+        case .chats, .sharedFiles, .skills, .personalData: return true
         case .memory, .providers, .mcpServers, .voiceCorrections,
              .environmentVariables: return false
         }

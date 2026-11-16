@@ -42,6 +42,12 @@ struct SendPromptIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<SendPromptResult> & ProvidesDialog {
+        // nanoMuse: 快捷指令冷启动同样先恢复账户，在消息准备完成前阻止身份切换。
+        await NanoMuseAccountData.shared.start()
+        await NivoPersonalBackupAccess.beginAccountChange()
+        var nmHoldsAccountAccess = true
+        defer { if nmHoldsAccountAccess { NivoPersonalBackupAccess.endAccountChange() } }
+        try NivoChatAccountAccess.require(sessionID: session?.id)
         // Ensure BackgroundKeepAliveManager is set up
         BackgroundKeepAliveManager.shared.setup()
 
@@ -150,6 +156,9 @@ struct SendPromptIntent: AppIntent {
         // Send the prompt
         vm.inputText = prompt
         vm.send()
+        // nanoMuse: 消息启动后由活动会话边界保护，不让等待结果一直占用切换队列。
+        nmHoldsAccountAccess = false
+        NivoPersonalBackupAccess.endAccountChange()
 
         let sid = vm.sessionId ?? "unknown"
 
@@ -439,6 +448,11 @@ final class ShortcutNotificationDelegate: NSObject, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let userInfo = response.notification.request.content.userInfo
+        // nanoMuse: 专注提醒跳转本地页面，不把专注ID当作聊天ID。
+        if let room = userInfo["nivoRoom"] as? String {
+            let focusID = userInfo["nivoFocusID"] as? String
+            DispatchQueue.main.async { NivoLifeNavigation.shared.open(room, focusID: focusID) }
+        }
         if let sessionId = userInfo["sessionId"] as? String {
             DispatchQueue.main.async {
                 // Buffer first (cold-launch consumer), then post (warm-path

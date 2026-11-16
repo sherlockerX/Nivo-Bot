@@ -65,7 +65,7 @@ internal fun TodoStatisticsView(tasks: List<TodoTask>, onOpen: (TodoTask) -> Uni
         else -> start.plusMonths(1)
     }
     val calculation by produceState<TodoStatisticsResult?>(null, tasks, start, end) {
-        value = null
+        // 保留上一份结果直到新结果算好，任务变化时不闪回进度条。
         value = withContext(Dispatchers.Default) { TodoStatistics.calculate(tasks, start.toEpochDay(), end.toEpochDay()) }
     }
     val result = calculation

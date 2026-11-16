@@ -163,6 +163,8 @@ final class SyncCore {
     // MARK: - State
 
     private var pendingSendTask: Task<Void, Never>?
+    // nanoMuse: 保持接收批次顺序，避免后一个删除与前一个插入交错后复活记录。
+    private var nmInboundTail: Task<Void, Never>?
     private var inboundHandlers: [(SyncInboundBatch) -> Void] = []
     private var isSending = false
 
@@ -209,9 +211,8 @@ final class SyncCore {
         // boot sequence are not dropped.
         for t in transports {
             t.observe { [weak self] batch in
-                Task { @MainActor [weak self] in
-                    self?.processInbound(batch, from: t.name)
-                }
+                // nanoMuse: 回调本身已在主隔离域，直接登记以保留CloudKit的原始事件顺序。
+                self?.processInbound(batch, from: t.name)
             }
         }
         logger.info("[SyncCore] start STEP=observersHooked")
@@ -350,6 +351,12 @@ final class SyncCore {
             logger.debug("[SyncCore] sendNow skipped — already sending")
             return
         }
+        // nanoMuse: 恢复中的脏记录保留到下一轮，禁止发送部分导入内容。
+        guard let exportToken = NivoCloudExportAccess.begin() else {
+            scheduleSend(delay: 2)
+            return
+        }
+        defer { NivoCloudExportAccess.end(exportToken) }
         isSending = true; defer { isSending = false }
 
         // Drain any pending file changes recorded by the iSH fakefs
@@ -395,9 +402,16 @@ final class SyncCore {
             // hydrate a SyncedX from local SQLite (that's per-type
             // ChatStore work). We delegate to a hydrator registered per
             // recordType (see `SyncCoreHydrators`).
-            if let portable = await SyncCoreHydrators.shared.buildPortable(
-                recordType: row.recordType, id: row.recordId
-            ) {
+            // nanoMuse: 锁屏凭证/文件读取失败保留脏记录，不能当作本机已删除。
+            let portable: PortableRecord?
+            do {
+                portable = try await SyncCoreHydrators.shared.buildPortable(recordType: row.recordType, id: row.recordId)
+            } catch {
+                logger.error("[SyncCore] record preparation failed, keeping pending upload")
+                scheduleSend(delay: 30)
+                continue
+            }
+            if let portable {
                 batchRecords.append(portable)
             }
             // If buildPortable returned nil there are two distinct cases:
@@ -603,7 +617,15 @@ final class SyncCore {
         // thrashes ChatStore + UI for tens of seconds, and ARC has no
         // chance to release intermediate Codable structs. Observed:
         // 3+GB resident before OOM crash on a 1196-session migration.
-        Task { @MainActor [weak self] in
+        // nanoMuse: 先占位再排队；失败保留旧游标，重启后由云端重放。
+        let checkpoint = NivoCloudInboundCheckpoint.shared.begin()
+        let previous = nmInboundTail
+        nmInboundTail = Task { @MainActor [weak self] in
+            await previous?.value
+            var succeeded = false
+            defer { NivoCloudInboundCheckpoint.shared.finish(checkpoint, succeeded: succeeded) }
+            guard self != nil else { return }
+            succeeded = true
             var applied = 0, skipped = 0, blocked = 0, ownEcho = 0
             let allRecords = batch.records
             let allDeletes = batch.deletes
@@ -656,8 +678,14 @@ final class SyncCore {
                             logger.debug("[SyncSchema] unknownFields (first-seen, further occurrences suppressed): type=\(record.id.type) keys=\(record.unknownFields.keys.sorted())")
                         }
                     }
-                    await SyncCoreHydrators.shared.mergeRemote(record)
-                    applied += 1
+                    // nanoMuse: 取消与写入失败不计入已应用，也不推进持久游标。
+                    do {
+                        try await SyncCoreHydrators.shared.mergeRemote(record)
+                        applied += 1
+                    } catch {
+                        succeeded = false
+                        logger.error("[Nivo] inbound merge retained for replay: \(error.localizedDescription)")
+                    }
                 }
                 i = end
                 // Yield so the main thread can run UI / scrolling / SwiftUI
@@ -677,8 +705,14 @@ final class SyncCore {
                 if deleteId.type == "Message" {
                     logger.warning("[EditSync] applying inbound delete Message id=\(deleteId.id.prefix(8)) — calling hydrator.applyRemoteDeletion")
                 }
-                await SyncCoreHydrators.shared.applyRemoteDeletion(deleteId)
-                applied += 1
+                // nanoMuse: 删除失败必须在下次启动重放，不能被进度统计冒充成功。
+                do {
+                    try await SyncCoreHydrators.shared.applyRemoteDeletion(deleteId)
+                    applied += 1
+                } catch {
+                    succeeded = false
+                    logger.error("[Nivo] inbound deletion retained for replay: \(error.localizedDescription)")
+                }
             }
             logger.info("[SyncCore] inbound from \(transport): applied=\(applied) skipped=\(skipped) blocked=\(blocked) ownEcho=\(ownEcho)")
             // Wake up any AIChatViewModel currently rendering an affected
@@ -781,8 +815,15 @@ final class SyncCore {
                 }
             }
         }
-        logger.warning("[ForcePull] no ICloudSharedZoneTransport found in transports list — returning empty")
-        return ([], nil)
+        // nanoMuse: 未启动传输不是云端没有记录，应返回失败并保留本机内容。
+        logger.warning("[ForcePull] iCloud transport unavailable")
+        return ([], SyncTransportError.notStarted)
+    }
+
+    // nanoMuse: 身份事件须等待已经接收的批次结束，避免旧账户工作跨越重置边界。
+    /// 等待当前接收队列落库；不进入CloudKit的发送或拉取接口。
+    func nmWaitForInbound() async {
+        await nmInboundTail?.value
     }
 
     /// Apply a pre-fetched portable batch through the standard inbound

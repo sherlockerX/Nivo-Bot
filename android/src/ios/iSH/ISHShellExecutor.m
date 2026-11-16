@@ -7,6 +7,8 @@
 
 #import "ISHShellExecutor.h"
 #import "ISHKernel.h"
+// nanoMuse: UTF-8边界处理与字节捕获供普通命令和定时脚本共用。
+#include "../NanoMuse/NivoShellBytes.h"
 
 #include <poll.h>
 #include <libkern/OSAtomic.h>
@@ -15,6 +17,7 @@
 #include "ish/kernel/task.h"
 #include "ish/kernel/signal.h"
 #include "ish/kernel/fs.h"
+#include "ish/kernel/mm.h"
 #include "ish/fs/devices.h"
 #include "ish/fs/real.h"
 
@@ -46,9 +49,21 @@ static const NSTimeInterval ISHShellExecutorStaleContextAge = 7200.0; // 2h
 @property (nonatomic, readwrite, copy) NSString *output;
 @property (nonatomic, readwrite, copy) NSString *errorOutput;
 @property (nonatomic, readwrite) NSTimeInterval duration;
+// nanoMuse: 读取计数和完整性信息随真实进程结果返回。
+@property (nonatomic, readwrite) uint64_t stdoutBytes;
+@property (nonatomic, readwrite) uint64_t errorOutputBytes;
+@property (nonatomic, readwrite) BOOL outputTruncated;
+@property (nonatomic, readwrite) BOOL errorOutputTruncated;
+@property (nonatomic, readwrite, copy, nullable) NSString *captureError;
 @end
 
 @implementation ISHShellExecutionResult
+// nanoMuse: 启动失败也提供非nil文本，Swift调用方无需猜测未初始化字段。
+- (instancetype)init {
+    self = [super init];
+    if (self) { _output = @""; _errorOutput = @""; _exitCode = -1; }
+    return self;
+}
 @end
 
 #pragma mark - Execution Context
@@ -68,8 +83,14 @@ static const NSTimeInterval ISHShellExecutorStaleContextAge = 7200.0; // 2h
 @property (nonatomic) NSDate *startTime;
 @property (nonatomic, copy) ISHShellLineCallback lineCallback;
 @property (nonatomic, copy) ISHShellCompletionCallback completion;
-@property (nonatomic) NSMutableString *stdoutBuffer;
-@property (nonatomic) NSMutableString *stderrBuffer;
+// nanoMuse: 先保留原始字节再解码，不按换行数或UTF-16长度截断。
+@property (nonatomic) NivoShellCapture *stdoutCapture;
+@property (nonatomic) NivoShellCapture *stderrCapture;
+@property (nonatomic) uint64_t managedFsContext;
+@property (nonatomic) BOOL isFinishing;
+@property (nonatomic) NSTimeInterval finishStartedAt;
+@property (nonatomic) int pendingExitCode;
+@property (nonatomic) ISHShellExecutorError pendingError;
 @property (nonatomic) dispatch_semaphore_t waitSemaphore;
 @property (nonatomic) ISHShellExecutionResult *result;
 @property (atomic) BOOL isCompleted;
@@ -102,8 +123,9 @@ static const NSTimeInterval ISHShellExecutorStaleContextAge = 7200.0; // 2h
 
 - (instancetype)init {
     if (self = [super init]) {
-        _stdoutBuffer = [NSMutableString string];
-        _stderrBuffer = [NSMutableString string];
+        // nanoMuse: 旧调用保持完整保存，新的定时接口在启动前替换成指定上限。
+        _stdoutCapture = [[NivoShellCapture alloc] initWithMaximumBytes:NSUIntegerMax];
+        _stderrCapture = [[NivoShellCapture alloc] initWithMaximumBytes:NSUIntegerMax];
         _stdoutPipe[0] = -1;
         _stdoutPipe[1] = -1;
         _stderrPipe[0] = -1;
@@ -178,9 +200,24 @@ static const NSTimeInterval ISHShellExecutorStaleContextAge = 7200.0; // 2h
 
 #pragma mark - Executor Implementation
 
+// nanoMuse: 显式声明新增原生私有入口，保留准确的指针返回类型。
+@interface ISHShellExecutor ()
++ (int)launchExecutable:(NSString *)executable arguments:(NSArray<NSString *> *)arguments
+            environment:(NSDictionary<NSString *, NSString *> *)environment stdinData:(NSData *)stdinData
+              fsContext:(uint64_t)fsContext maximumCaptureBytes:(NSUInteger)maximumCaptureBytes
+       managedExecution:(BOOL)managedExecution lineCallback:(ISHShellLineCallback)lineCallback
+             completion:(ISHShellCompletionCallback)completion;
++ (struct fd *)guestDescriptor:(int)hostDescriptor flags:(unsigned)flags;
++ (void)discardUnstartedTask:(struct task *)task;
++ (BOOL)terminateManagedTasks:(uint64_t)context;
++ (void)drainAndFinalizeContext:(ISHShellExecutionContext *)ctx;
+@end
+
 @implementation ISHShellExecutor
 
 static NSMutableDictionary<NSNumber *, ISHShellExecutionContext *> *_activeExecutions;
+// nanoMuse: 根PID提前回收后仍以不可复用的运行上下文保持结算和取消身份。
+static NSMutableDictionary<NSNumber *, ISHShellExecutionContext *> *_managedExecutions;
 static dispatch_queue_t _readerQueue;
 static dispatch_once_t _onceToken;
 static dispatch_source_t _sweepTimer;
@@ -198,6 +235,7 @@ static int32_t _sweptContexts = 0;
 + (void)initialize {
     if (self == [ISHShellExecutor class]) {
         _activeExecutions = [NSMutableDictionary dictionary];
+        _managedExecutions = [NSMutableDictionary dictionary];
         dispatch_once(&_onceToken, ^{
             _readerQueue = dispatch_queue_create("com.ish.shellexecutor.reader",
                                                  DISPATCH_QUEUE_CONCURRENT);
@@ -248,8 +286,10 @@ static int32_t _sweptContexts = 0;
     // holding the registry lock is how a deadlock gets introduced — that block
     // is free to start another command.
     @synchronized(_activeExecutions) {
-        for (NSNumber *key in _activeExecutions) {
-            ISHShellExecutionContext *ctx = _activeExecutions[key];
+        // nanoMuse: 根PID槽已被复用时，独立上下文仍需要被扫描和收尾。
+        NSMutableSet *contexts = [NSMutableSet setWithArray:_activeExecutions.allValues];
+        [contexts addObjectsFromArray:_managedExecutions.allValues];
+        for (ISHShellExecutionContext *ctx in contexts) {
             NSTimeInterval age = -[ctx.startTime timeIntervalSinceNow];
             if (age > ISHShellExecutorStaleContextAge) {
                 [stale addObject:ctx];
@@ -338,6 +378,37 @@ static int32_t _sweptContexts = 0;
                fsContext:(uint64_t)fsContext
             lineCallback:(ISHShellLineCallback)lineCallback
               completion:(ISHShellCompletionCallback)completion {
+    // nanoMuse: 保留旧入口，普通聊天命令不取得定时脚本的进程组独占语义。
+    return [self launchExecutable:executable arguments:arguments environment:environment stdinData:stdinData
+                       fsContext:fsContext maximumCaptureBytes:NSUIntegerMax managedExecution:NO
+                    lineCallback:lineCallback completion:completion];
+}
+
+// nanoMuse: 新入口限制保存量，并清理使用独立上下文的后台子进程。
++ (int)executeExecutable:(NSString *)executable
+               arguments:(NSArray<NSString *> *)arguments
+             environment:(NSDictionary<NSString *, NSString *> *)environment
+               stdinData:(NSData *)stdinData
+               fsContext:(uint64_t)fsContext
+     maximumCaptureBytes:(NSUInteger)maximumCaptureBytes
+            lineCallback:(ISHShellLineCallback)lineCallback
+              completion:(ISHShellCompletionCallback)completion {
+    if (fsContext == 0) return ISHShellExecutorErrorExecFailed;
+    return [self launchExecutable:executable arguments:arguments environment:environment stdinData:stdinData
+                       fsContext:fsContext maximumCaptureBytes:maximumCaptureBytes managedExecution:YES
+                    lineCallback:lineCallback completion:completion];
+}
+
+/// nanoMuse: 参数与环境验证在创建来宾任务前完成，失败不会遗留半启动任务。
++ (int)launchExecutable:(NSString *)executable
+              arguments:(NSArray<NSString *> *)arguments
+            environment:(NSDictionary<NSString *, NSString *> *)environment
+              stdinData:(NSData *)stdinData
+              fsContext:(uint64_t)fsContext
+    maximumCaptureBytes:(NSUInteger)maximumCaptureBytes
+       managedExecution:(BOOL)managedExecution
+           lineCallback:(ISHShellLineCallback)lineCallback
+             completion:(ISHShellCompletionCallback)completion {
 
     // Bail out if the iSH kernel hasn't booted yet. become_new_init_child()
     // calls pid_get_task(1) and then assert(init != NULL); on a non-booted
@@ -349,10 +420,17 @@ static int32_t _sweptContexts = 0;
         return ISHShellExecutorErrorProcessCreationFailed;
     }
 
+    NivoShellInvocation *invocation = [[NivoShellInvocation alloc] initWithExecutable:executable
+        arguments:arguments environment:environment];
+    if (!invocation) return ISHShellExecutorErrorExecFailed;
+
     ISHShellExecutionContext *ctx = [[ISHShellExecutionContext alloc] init];
     ctx.lineCallback = lineCallback;
     ctx.completion = completion;
     ctx.startTime = [NSDate date];
+    ctx.stdoutCapture = [[NivoShellCapture alloc] initWithMaximumBytes:maximumCaptureBytes];
+    ctx.stderrCapture = [[NivoShellCapture alloc] initWithMaximumBytes:maximumCaptureBytes];
+    ctx.managedFsContext = managedExecution ? fsContext : 0;
 
     // Create pipes for stdout and stderr
     if (pipe([ctx stdoutPipe]) < 0 || pipe([ctx stderrPipe]) < 0) {
@@ -361,91 +439,41 @@ static int32_t _sweptContexts = 0;
         return ISHShellExecutorErrorProcessCreationFailed;
     }
 
-    // Set read ends to non-blocking
-    fcntl([ctx stdoutPipe][0], F_SETFL, O_NONBLOCK);
-    fcntl([ctx stderrPipe][0], F_SETFL, O_NONBLOCK);
-
+    // nanoMuse: 全部管道和来宾fd预先准备，资源失败发生在创建来宾任务之前。
+    if (fcntl([ctx stdoutPipe][0], F_SETFL, O_NONBLOCK) < 0 ||
+        fcntl([ctx stderrPipe][0], F_SETFL, O_NONBLOCK) < 0) {
+        [ctx cleanup];
+        return ISHShellExecutorErrorProcessCreationFailed;
+    }
+    int stdinPipe[2] = {-1, -1};
+    if (stdinData && pipe(stdinPipe) < 0) {
+        [ctx cleanup];
+        return ISHShellExecutorErrorProcessCreationFailed;
+    }
+    struct fd *descriptors[3] = {
+        [self guestDescriptor:stdinData ? dup(stdinPipe[0]) : open("/dev/null", O_RDONLY) flags:O_RDONLY_],
+        [self guestDescriptor:dup([ctx stdoutPipe][1]) flags:O_WRONLY_],
+        [self guestDescriptor:dup([ctx stderrPipe][1]) flags:O_WRONLY_]
+    };
+    if (stdinPipe[0] >= 0) close(stdinPipe[0]);
+    if (!descriptors[0] || !descriptors[1] || !descriptors[2]) {
+        for (int index = 0; index < 3; index++) if (descriptors[index]) fd_close(descriptors[index]);
+        if (stdinPipe[1] >= 0) close(stdinPipe[1]);
+        [ctx cleanup];
+        return ISHShellExecutorErrorProcessCreationFailed;
+    }
     struct task *saved_current = current;
-
-    // Create new process
     int err = become_new_init_child();
     if (err < 0) {
         current = saved_current;
+        for (int index = 0; index < 3; index++) fd_close(descriptors[index]);
+        if (stdinPipe[1] >= 0) close(stdinPipe[1]);
         [ctx cleanup];
-        NSLog(@"ISHShellExecutor: become_new_init_child failed: %d", err);
         return ISHShellExecutorErrorProcessCreationFailed;
     }
-
     struct task *task = current;
-
-    // Stamp the new task group with the caller-provided fs_context so the
-    // fakefs path-translate hook can route this task's file operations
-    // independently of other concurrently-running task groups. Inherited
-    // verbatim by any process this task fork()s.
-    if (fsContext != 0 && task->group != NULL) {
-        task->group->fs_context = fsContext;
-    }
-
-    // Setup stdin: pipe if stdinData provided, /dev/null otherwise
-    int stdinPipe[2] = {-1, -1};
-    if (stdinData) {
-        if (pipe(stdinPipe) < 0) {
-            NSLog(@"ISHShellExecutor[stdin]: pipe() failed: %s", strerror(errno));
-            current = saved_current;
-            [ctx cleanup];
-            return ISHShellExecutorErrorProcessCreationFailed;
-        }
-        NSLog(@"ISHShellExecutor[stdin]: pipe created (read=%d, write=%d), stdinData=%lu bytes",
-              stdinPipe[0], stdinPipe[1], (unsigned long)stdinData.length);
-    } else {
-        NSLog(@"ISHShellExecutor[stdin]: no stdinData, will use /dev/null");
-    }
-    struct fd *stdin_fd = adhoc_fd_create(&realfs_fdops);
-    if (stdin_fd) {
-        int real_fd = stdinData ? dup(stdinPipe[0]) : open("/dev/null", O_RDONLY);
-        if (real_fd < 0) {
-            NSLog(@"ISHShellExecutor[stdin]: fd creation failed: %s", strerror(errno));
-            if (stdinData) { close(stdinPipe[0]); close(stdinPipe[1]); }
-            current = saved_current;
-            [ctx cleanup];
-            return ISHShellExecutorErrorProcessCreationFailed;
-        }
-        stdin_fd->real_fd = real_fd;
-        NSLog(@"ISHShellExecutor[stdin]: fd0 real_fd=%d (source=%s)", stdin_fd->real_fd, stdinData ? "pipe" : "/dev/null");
-        task->files->files[0] = stdin_fd;
-    }
-    if (stdinData) {
-        close(stdinPipe[0]);
-        stdinPipe[0] = -1;
-    }
-
-    // Setup stdout to pipe
-    struct fd *stdout_fd = adhoc_fd_create(&realfs_fdops);
-    if (stdout_fd) {
-        int real_fd = dup([ctx stdoutPipe][1]);
-        if (real_fd < 0) {
-            NSLog(@"ISHShellExecutor[stdout]: dup() failed: %s", strerror(errno));
-            current = saved_current;
-            [ctx cleanup];
-            return ISHShellExecutorErrorProcessCreationFailed;
-        }
-        stdout_fd->real_fd = real_fd;
-        task->files->files[1] = stdout_fd;
-    }
-
-    // Setup stderr to pipe
-    struct fd *stderr_fd = adhoc_fd_create(&realfs_fdops);
-    if (stderr_fd) {
-        int real_fd = dup([ctx stderrPipe][1]);
-        if (real_fd < 0) {
-            NSLog(@"ISHShellExecutor[stderr]: dup() failed: %s", strerror(errno));
-            current = saved_current;
-            [ctx cleanup];
-            return ISHShellExecutorErrorProcessCreationFailed;
-        }
-        stderr_fd->real_fd = real_fd;
-        task->files->files[2] = stderr_fd;
-    }
+    task->group->fs_context = fsContext;
+    for (int index = 0; index < 3; index++) task->files->files[index] = descriptors[index];
 
     // Close write ends in parent
     close([ctx stdoutPipe][1]);
@@ -453,159 +481,30 @@ static int32_t _sweptContexts = 0;
     [ctx stdoutPipe][1] = -1;
     [ctx stderrPipe][1] = -1;
 
-    // Detect if we're launching node (for V8 flags injection)
-    const char *exec_path = executable.UTF8String;
-    const char *base = strrchr(exec_path, '/');
-    base = base ? base + 1 : exec_path;
-    bool is_node = (strcmp(base, "node") == 0);
-
-    // Build argv (NUL-separated string), with V8 flags injection for node
-    char argv_buf[16384];
-    size_t pos = 0;
-    int exec_argc = 0;
-
-    if (is_node) {
-        // Copy argv[0] (executable)
-        size_t len = strlen(exec_path) + 1;
-        memcpy(argv_buf + pos, exec_path, len);
-        pos += len;
-        exec_argc++;
-        // Inject V8 flags
-        static const char *v8_flags[] = {
-            "--jitless",
-            "--no-lazy",
-            "--no-expose-wasm",
-            "--max-old-space-size=512",
-        };
-        for (int fi = 0; fi < (int)(sizeof(v8_flags)/sizeof(v8_flags[0])); fi++) {
-            len = strlen(v8_flags[fi]) + 1;
-            if (pos + len >= sizeof(argv_buf) - 1) break;
-            memcpy(argv_buf + pos, v8_flags[fi], len);
-            pos += len;
-            exec_argc++;
-        }
-        // Copy remaining arguments
-        for (NSString *arg in arguments) {
-            const char *str = arg.UTF8String;
-            len = strlen(str) + 1;
-            if (pos + len >= sizeof(argv_buf) - 1) break;
-            memcpy(argv_buf + pos, str, len);
-            pos += len;
-            exec_argc++;
-        }
-    } else {
-        NSMutableArray<NSString *> *fullArgs = [NSMutableArray arrayWithObject:executable];
-        if (arguments) {
-            [fullArgs addObjectsFromArray:arguments];
-        }
-        for (NSString *arg in fullArgs) {
-            const char *str = arg.UTF8String;
-            size_t len = strlen(str) + 1;
-            if (pos + len >= sizeof(argv_buf) - 1) {
-                current = saved_current;
-                [ctx cleanup];
-                NSLog(@"ISHShellExecutor: argv too long");
-                return ISHShellExecutorErrorExecFailed;
-            }
-            memcpy(argv_buf + pos, str, len);
-            pos += len;
-            exec_argc++;
-        }
-    }
-    argv_buf[pos] = '\0'; // double-NUL terminate
-
-    // Build envp as a C buffer (NUL-separated, double-NUL terminated)
-    // NSString truncates at first NUL so we must use a raw C buffer
-    char envp_buf[8192];
-    size_t envp_pos = 0;
-
-#define ENVP_APPEND(s) do { \
-    const char *_s = (s); \
-    size_t _len = strlen(_s) + 1; \
-    if (envp_pos + _len < sizeof(envp_buf) - 256) { \
-        memcpy(envp_buf + envp_pos, _s, _len); \
-        envp_pos += _len; \
-    } \
-} while(0)
-
-    ENVP_APPEND("TERM=xterm-256color");
-    ENVP_APPEND("HOME=/root");
-    ENVP_APPEND("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin");
-    ENVP_APPEND("LANG=C.UTF-8");
-    ENVP_APPEND("CHARSET=UTF-8");
-    ENVP_APPEND("ENV=/etc/profile");
-    ENVP_APPEND("OPENSSL_armcap=0");
-    // Route browser-opening calls through the in-app WebKit preview.
-    // Python's stdlib `webbrowser` module honours $BROWSER before probing
-    // $DISPLAY, so setting it here lets `python -c "import webbrowser;
-    // webbrowser.open(...)"` and similar non-login shell invocations reach
-    // /usr/local/bin/minis-open which emits an OSC marker parsed by the host.
-    ENVP_APPEND("BROWSER=/usr/local/bin/minis-open");
-
-    // Inject device timezone so iSH userspace sees local time.
-    // Use POSIX TZ format with a fixed name to avoid abbreviations like "GMT+8"
-    // which contain +/- and confuse musl's TZ parser.
-    {
-        NSTimeZone *tz = [NSTimeZone systemTimeZone];
-        NSInteger secs = tz.secondsFromGMT;
-        NSInteger hrs  = secs / 3600;
-        NSInteger mins = labs(secs % 3600) / 60;
-        NSString *posixTZ;
-        if (mins != 0) {
-            posixTZ = [NSString stringWithFormat:@"LCL%+ld:%02ld",
-                       (long)-hrs, (long)mins];
-        } else {
-            posixTZ = [NSString stringWithFormat:@"LCL%+ld",
-                       (long)-hrs];
-        }
-        NSString *tzEnv = [NSString stringWithFormat:@"TZ=%@", posixTZ];
-        ENVP_APPEND(tzEnv.UTF8String);
-    }
-
-    // Runtime compatibility env vars (matches xX_main_Xx.h / kernel/exec.c)
-    ENVP_APPEND("GODEBUG=asyncpreemptoff=1");
-    ENVP_APPEND("GOMAXPROCS=2");
-    ENVP_APPEND("NO_COLOR=1");
-    ENVP_APPEND("PYTHONMALLOC=malloc");
-    ENVP_APPEND("PYTHONDONTWRITEBYTECODE=1");
-
-    // Node-specific: LD_PRELOAD for zero_free.so
-    if (is_node) {
-        ENVP_APPEND("LD_PRELOAD=/lib/zero_free.so");
-    }
-
-    // Custom environment
-    if (environment) {
-        for (NSString *key in environment) {
-            NSString *entry = [NSString stringWithFormat:@"%@=%@", key, environment[key]];
-            ENVP_APPEND(entry.UTF8String);
-        }
-    }
-    envp_buf[envp_pos] = '\0'; // double-NUL terminate
-
-#undef ENVP_APPEND
-
-    const char *envp = envp_buf;
-
-    // Execute
-    err = do_execve(exec_path, exec_argc, argv_buf, envp);
+    // nanoMuse: 动态字节向量已校验并冻结，不再使用16KB数组或静默截断环境。
+    err = do_execve(executable.UTF8String, invocation.argumentCount,
+        invocation.argumentData.bytes, invocation.environmentData.bytes);
     if (err < 0) {
+        // nanoMuse: exec失败也销毁未启动任务及其fd，不能遗留没有读取者的写端。
+        [self discardUnstartedTask:task];
         current = saved_current;
+        if (stdinPipe[1] >= 0) close(stdinPipe[1]);
         [ctx cleanup];
         NSLog(@"ISHShellExecutor: do_execve failed: %d", err);
         return ISHShellExecutorErrorExecFailed;
     }
 
-    // Get guest PID and start task
+    // nanoMuse: 先登记和安装两个读取器，避免短命命令在登记之前退出。
     ctx.guestPid = task->pid;
     ctx.result.pid = ctx.guestPid;
-    task_start(task);
-    current = saved_current;
-
-    // Register context
     @synchronized(_activeExecutions) {
         _activeExecutions[@(ctx.guestPid)] = ctx;
+        if (ctx.managedFsContext != 0) _managedExecutions[@(ctx.managedFsContext)] = ctx;
     }
+    [self startReaderForPipe:[ctx stdoutPipe][0] context:ctx isStdErr:NO];
+    [self startReaderForPipe:[ctx stderrPipe][0] context:ctx isStdErr:YES];
+    task_start(task);
+    current = saved_current;
 
     // Write stdinData to pipe in background, then close write end
     if (stdinData && stdinPipe[1] >= 0) {
@@ -637,100 +536,88 @@ static int32_t _sweptContexts = 0;
         NSLog(@"ISHShellExecutor[stdin]: stdin is /dev/null for pid=%d", ctx.guestPid);
     }
 
-    // Start reader threads
-    [self startReaderForPipe:[ctx stdoutPipe][0] context:ctx isStdErr:NO];
-    [self startReaderForPipe:[ctx stderrPipe][0] context:ctx isStdErr:YES];
-
     return ctx.guestPid;
 }
 
+/// nanoMuse: 描述符构建失败时总是归还宿主fd，fstat保留管道的真实类型。
++ (struct fd *)guestDescriptor:(int)hostDescriptor flags:(unsigned)flags {
+    if (hostDescriptor < 0) return NULL;
+    struct fd *descriptor = adhoc_fd_create(&realfs_fdops);
+    if (!descriptor) { close(hostDescriptor); return NULL; }
+    descriptor->real_fd = hostDescriptor;
+    descriptor->flags = flags;
+    struct stat metadata;
+    if (fstat(hostDescriptor, &metadata) == 0) {
+        descriptor->stat.mode = metadata.st_mode;
+        descriptor->stat.size = metadata.st_size;
+        descriptor->stat.inode = metadata.st_ino;
+    }
+    return descriptor;
+}
+
+/// nanoMuse: 仅处理未task_start的任务，按内核退出顺序释放其独占资源。
++ (void)discardUnstartedTask:(struct task *)task {
+    if (task->files) fdtable_release(task->files);
+    if (task->fs) fs_info_release(task->fs);
+    if (task->mm) mm_release(task->mm);
+    lock(&pids_lock);
+    if (task->sighand) sighand_release(task->sighand);
+    struct sigqueue *entry, *next;
+    list_for_each_entry_safe(&task->queue, entry, next, queue) {
+        list_remove(&entry->queue);
+        free(entry);
+    }
+    cond_destroy(&task->group->child_exit);
+    cond_destroy(&task->group->stopped_cond);
+    task_leave_session(task);
+    list_remove(&task->group->pgroup);
+    free(task->group);
+    task_destroy(task);
+    unlock(&pids_lock);
+}
+
+// nanoMuse: 同步入口的超时结果也等待读取结束，未完成的捕获明确标记为不完整。
 + (ISHShellExecutionResult *)executeCommandSync:(NSString *)command
                                         timeout:(NSTimeInterval)timeout
                                    lineCallback:(ISHShellLineCallback)lineCallback {
-
-    ISHShellExecutionContext *ctx = [[ISHShellExecutionContext alloc] init];
-    ctx.lineCallback = lineCallback;
-    ctx.waitSemaphore = dispatch_semaphore_create(0);
-    ctx.startTime = [NSDate date];
-
-    __block ISHShellExecutionResult *result = nil;
-
-    int pid = [self executeCommand:command
-                      lineCallback:lineCallback
-                        completion:^(ISHShellExecutionResult *execResult) {
-        result = execResult;
-        dispatch_semaphore_signal(ctx.waitSemaphore);
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    NSLock *resultLock = [[NSLock alloc] init];
+    __block ISHShellExecutionResult *received = nil;
+    int pid = [self executeCommand:command lineCallback:lineCallback completion:^(ISHShellExecutionResult *result) {
+        [resultLock lock];
+        received = result;
+        [resultLock unlock];
+        dispatch_semaphore_signal(semaphore);
     }];
-
     if (pid < 0) {
-        // Execution failed
-        result = [[ISHShellExecutionResult alloc] init];
-        result.error = (ISHShellExecutorError)pid;
-        result.exitCode = -1;
-        return result;
+        ISHShellExecutionResult *failed = [[ISHShellExecutionResult alloc] init];
+        failed.error = (ISHShellExecutorError)pid;
+        return failed;
     }
-
-    // Wait for completion or timeout
-    dispatch_time_t waitTime = timeout > 0
-        ? dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC))
-        : DISPATCH_TIME_FOREVER;
-
-    long waitResult = dispatch_semaphore_wait(ctx.waitSemaphore, waitTime);
-
-    if (waitResult != 0) {
-        // Timeout - kill the whole process group, not just the root pid.
-        // [T-ish-thread-leak] SIGKILL to root alone leaves children + their
-        // emu task threads spinning (gh-NNN leak). killProcessGroup sweeps the
-        // pgid + descendants and escalates SIGTERM→SIGKILL.
+    dispatch_time_t deadline = timeout > 0
+        ? dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC)) : DISPATCH_TIME_FOREVER;
+    BOOL timedOut = dispatch_semaphore_wait(semaphore, deadline) != 0;
+    if (timedOut) {
         [self killProcessGroup:pid];
-
-        // Clean up HERE rather than waiting to be told the process died.
-        //
-        // [T-ish-shell-timeout-leak] This is the leak. The timeout path used
-        // to kill and return, leaving every teardown step to the
-        // ISHProcessExitedNotification that killProcessGroup was expected to
-        // provoke. When that notification does not arrive — a task already
-        // reaped as a zombie is skipped by the exit hook — nothing ever ran:
-        // the context stayed in _activeExecutions, isCompleted stayed NO, and
-        // both reader threads polled a dead pipe forever. Each timeout burned
-        // two threads of a DISPATCH_QUEUE_CONCURRENT pool permanently, and
-        // after roughly thirty of them no shell command could start at all,
-        // with a device restart the only way back.
-        //
-        // Waiting on the notification was always the wrong shape: it makes
-        // cleanup conditional on the cooperation of a process we have just
-        // decided to kill. Now the timeout owns its own teardown, and the
-        // notification (if it does arrive) is a no-op thanks to didFinalize.
-        //
-        // Killing first, finalising second is deliberate: the signals go out
-        // while the pipes are still open, so anything the command wrote before
-        // dying is still readable and lands in the result rather than being
-        // discarded with the fds.
-        NSLog(@"ISHShellExecutor[timeout]: pid=%d exceeded %.1fs — killed and cleaning up",
-              pid, timeout);
-
-        ISHShellExecutionContext *timedOutCtx;
-        @synchronized(_activeExecutions) {
-            timedOutCtx = _activeExecutions[@(pid)];
-        }
         [self finalizeTimedOutPid:pid];
-
-        // Prefer the finalised result: it carries whatever output the command
-        // produced before the deadline. Only synthesise one if the context had
-        // already gone (a normal exit that raced this timeout by microseconds).
-        if (timedOutCtx.result) {
-            result = timedOutCtx.result;
-        } else {
-            result = [[ISHShellExecutionResult alloc] init];
-            result.error = ISHShellExecutorErrorTimeout;
-            result.pid = pid;
-            result.exitCode = -1;
-            result.output = @"";
-            result.errorOutput = @"";
-        }
+        dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 4 * NSEC_PER_SEC));
     }
-
-    return result;
+    [resultLock lock];
+    ISHShellExecutionResult *result = received;
+    [resultLock unlock];
+    if (!timedOut && result) return result;
+    ISHShellExecutionResult *failure = [[ISHShellExecutionResult alloc] init];
+    failure.pid = pid;
+    failure.error = ISHShellExecutorErrorTimeout;
+    failure.output = result.output ?: @"";
+    failure.errorOutput = result.errorOutput ?: @"";
+    failure.stdoutBytes = result.stdoutBytes;
+    failure.errorOutputBytes = result.errorOutputBytes;
+    failure.outputTruncated = result.outputTruncated;
+    failure.errorOutputTruncated = result.errorOutputTruncated;
+    failure.duration = result ? result.duration : MAX(timeout, 0);
+    failure.captureError = result ? result.captureError : @"SCRIPT_OUTPUT_DRAIN_INCOMPLETE";
+    return failure;
 }
 
 + (BOOL)killProcess:(int)pid withSignal:(int)signal {
@@ -758,6 +645,13 @@ static BOOL ISHTaskIsDescendantOf(struct task *t, pid_t_ rootPid) {
 }
 
 + (void)killProcessGroup:(int)pid {
+    // nanoMuse: 定时脚本不能依赖根进程继续存在，孤儿及新进程组仍属于同一独立context。
+    ISHShellExecutionContext *managed;
+    @synchronized(_activeExecutions) { managed = _activeExecutions[@(pid)]; }
+    if (managed.managedFsContext != 0) {
+        [self terminateManagedTasks:managed.managedFsContext];
+        return;
+    }
     // Signal every task belonging to this shell_execute command — matched
     // either by pgid OR by being a descendant of the root pid. The ancestry
     // arm is needed because busybox ash sometimes puts subshells into a
@@ -834,362 +728,188 @@ static BOOL ISHTaskIsDescendantOf(struct task *t, pid_t_ rootPid) {
 
 #pragma mark - Finalisation
 
-/// Finish a run exactly once: capture output, stop readers, release the
-/// registry entry, fire the completion callback and wake any sync waiter.
-///
-/// Both completion paths funnel through here — the normal exit notification
-/// and the timeout self-heal — because they genuinely race. A command that
-/// exits microseconds before its deadline delivers ISHProcessExitedNotification
-/// while executeCommandSync is already returning from a timed-out semaphore
-/// wait. Before this, the timeout path did none of this work (that was the
-/// leak); doing it in both places without a guard would instead double-invoke
-/// the completion callback and double-signal the semaphore.
-///
-/// `didFinalize` is the guard, swapped under @synchronized(ctx) so only one
-/// caller can ever proceed. It is deliberately NOT `isCompleted`: that flag
-/// means "readers should stop" and is set at other times too.
+/// nanoMuse: 取消的寻址不依赖根进程还活着，也不会误杀复用了相同PID的新运行。
++ (void)cancelExecutionContext:(uint64_t)fsContext {
+    ISHShellExecutionContext *ctx;
+    @synchronized(_activeExecutions) { ctx = _managedExecutions[@(fsContext)]; }
+    if (!ctx) return;
+    [self terminateManagedTasks:fsContext];
+    [self finalizeContext:ctx exitCode:-1 error:ISHShellExecutorErrorCancelled];
+}
+
+/// nanoMuse: 先记录唯一终态请求，再等待子进程停止和两个管道读取完成。
 + (void)finalizeContext:(ISHShellExecutionContext *)ctx
                exitCode:(int)exitCode
                   error:(ISHShellExecutorError)error {
     if (!ctx) return;
+    @synchronized(ctx) {
+        if (ctx.didFinalize) return;
+        if (ctx.isFinishing) {
+            if (error != ISHShellExecutorErrorNone && ctx.pendingError == ISHShellExecutorErrorNone) {
+                ctx.pendingError = error;
+                ctx.pendingExitCode = exitCode;
+            }
+            return;
+        }
+        ctx.isFinishing = YES;
+        ctx.pendingExitCode = exitCode;
+        ctx.pendingError = error;
+        ctx.finishStartedAt = NSProcessInfo.processInfo.systemUptime;
+        ctx.result.duration = -[ctx.startTime timeIntervalSinceNow];
+    }
+    [self drainAndFinalizeContext:ctx];
+}
 
+/// nanoMuse: 独立上下文可跨fork、setsid和孤儿收养识别进程，不依赖已退出的根PID。
++ (BOOL)terminateManagedTasks:(uint64_t)context {
+    if (context == 0) return NO;
+    BOOL hasLiveTasks = NO;
+    lock(&pids_lock);
+    for (int identifier = 2; identifier < MAX_PID; identifier++) {
+        struct task *task = pid_get_task(identifier);
+        if (!task || !task->group || task->group->fs_context != context) continue;
+        if (task->exiting || task->zombie) continue;
+        hasLiveTasks = YES;
+        send_signal(task, SIGKILL_, SIGINFO_NIL);
+    }
+    unlock(&pids_lock);
+    return hasLiveTasks;
+}
+
+/// nanoMuse: 超限输出继续排空；读取等待有界，仍活着的子进程保持占位直至实际退出。
++ (void)drainAndFinalizeContext:(ISHShellExecutionContext *)ctx {
+    BOOL hasLiveTasks = [self terminateManagedTasks:ctx.managedFsContext];
+    if (NSProcessInfo.processInfo.systemUptime - ctx.finishStartedAt > 3.0) {
+        // reader在下一轮poll醒来时记录缺少EOF；不可把强制停止当成完整输出。
+        ctx.isCompleted = YES;
+    }
+    if (hasLiveTasks || ctx.liveReaders > 0) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 50 * NSEC_PER_MSEC),
+                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            [self drainAndFinalizeContext:ctx];
+        });
+        return;
+    }
     @synchronized(ctx) {
         if (ctx.didFinalize) return;
         ctx.didFinalize = YES;
+        ctx.isCompleted = YES;
+        ctx.result.exitCode = ctx.pendingExitCode;
+        ctx.result.error = ctx.pendingError;
+        ctx.result.output = ctx.stdoutCapture.output;
+        ctx.result.errorOutput = ctx.stderrCapture.output;
+        ctx.result.stdoutBytes = ctx.stdoutCapture.totalBytes;
+        ctx.result.errorOutputBytes = ctx.stderrCapture.totalBytes;
+        ctx.result.outputTruncated = ctx.stdoutCapture.isTruncated;
+        ctx.result.errorOutputTruncated = ctx.stderrCapture.isTruncated;
+        ctx.result.captureError = ctx.stdoutCapture.captureError ?: ctx.stderrCapture.captureError;
     }
-
-    // Tell readers to stop. Any that are mid-poll return within 500ms (the
-    // poll timeout) and the last one out closes the pipes.
-    ctx.isCompleted = YES;
-
-    ctx.result.exitCode = exitCode;
-    ctx.result.error = error;
-    if (ctx.result.duration == 0) {
-        ctx.result.duration = -[ctx.startTime timeIntervalSinceNow];
+    @synchronized(_activeExecutions) {
+        // 迟到的完成事件不能删除PID槽中后来登记的命令。
+        if (_activeExecutions[@(ctx.guestPid)] == ctx) [_activeExecutions removeObjectForKey:@(ctx.guestPid)];
+        if (ctx.managedFsContext != 0 && _managedExecutions[@(ctx.managedFsContext)] == ctx) {
+            [_managedExecutions removeObjectForKey:@(ctx.managedFsContext)];
+        }
     }
-
-    // Same lock the readers append under — see the heap-corruption note in
-    // processDidExit. Taking it here keeps -copy from tearing NSMutableString's
-    // storage against a concurrent appendString.
-    NSString *outCopy;
-    NSString *errCopy;
-    @synchronized(ctx.stdoutBuffer) { outCopy = [ctx.stdoutBuffer copy]; }
-    @synchronized(ctx.stderrBuffer) { errCopy = [ctx.stderrBuffer copy]; }
-    ctx.result.output = outCopy ?: @"";
-    ctx.result.errorOutput = errCopy ?: @"";
-
-    [self unregisterContextForPid:ctx.guestPid];
-
-    // Closes now only if the readers have already gone; otherwise the last
-    // reader out does it. Never closes an fd that is still being polled.
     [ctx closePipesIfNoReaders];
-
-    if (ctx.completion) {
-        ctx.completion(ctx.result);
-    }
-    if (ctx.waitSemaphore) {
-        dispatch_semaphore_signal(ctx.waitSemaphore);
-    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (ctx.completion) ctx.completion(ctx.result);
+        if (ctx.waitSemaphore) dispatch_semaphore_signal(ctx.waitSemaphore);
+    });
 }
 
 + (void)finalizeTimedOutPid:(int)pid {
     ISHShellExecutionContext *ctx;
-    @synchronized(_activeExecutions) {
-        ctx = _activeExecutions[@(pid)];
-    }
-    if (!ctx) {
-        // Already finalised — the command exited normally just before the
-        // deadline, or this is a second call. Nothing to do.
-        return;
-    }
-    NSLog(@"ISHShellExecutor[timeout]: finalising pid=%d after kill (readers=%d)",
-          pid, ctx.liveReaders);
+    @synchronized(_activeExecutions) { ctx = _activeExecutions[@(pid)]; }
     [self finalizeContext:ctx exitCode:-1 error:ISHShellExecutorErrorTimeout];
-}
-
-/// Drop a context from the registry. Safe to call for a pid that is not there.
-+ (void)unregisterContextForPid:(int)pid {
-    @synchronized(_activeExecutions) {
-        [_activeExecutions removeObjectForKey:@(pid)];
-    }
 }
 
 #pragma mark - Process Exit Handling
 
 + (void)processDidExit:(NSNotification *)notification {
     int pid = [notification.userInfo[@"pid"] intValue];
-    int exitCode = [notification.userInfo[@"code"] intValue];
-
+    int status = [notification.userInfo[@"code"] intValue];
+    uint64_t context = [notification.userInfo[@"fsContext"] unsignedLongLongValue];
     ISHShellExecutionContext *ctx;
-    @synchronized(_activeExecutions) {
-        ctx = _activeExecutions[@(pid)];
-        if (!ctx) return;
-        // NOTE: intentionally NOT removed here. The removal now happens in
-        // +finalizeContext:, after the drain window below. Removing it up
-        // front left a ~200ms hole in which the sweeper could see no entry
-        // for a run that had not finished, and in which a timeout could not
-        // find the context it needed to finalise.
-    }
-
-    if (ctx.didFinalize) return;
-
-    // Record duration immediately — the drain delay below must not be counted
-    // as part of the command's runtime.
-    ctx.result.duration = -[ctx.startTime timeIntervalSinceNow];
-    NSUInteger outLen, errLen;
-    @synchronized(ctx.stdoutBuffer) { outLen = ctx.stdoutBuffer.length; }
-    @synchronized(ctx.stderrBuffer) { errLen = ctx.stderrBuffer.length; }
-    NSLog(@"ISHShellExecutor[exit]: pid=%d exitCode=%d duration=%.2fs stdout=%lu stderr=%lu chars",
-          pid, exitCode, ctx.result.duration,
-          (unsigned long)outLen,
-          (unsigned long)errLen);
-
-    // DO NOT set isCompleted yet — let reader threads drain remaining pipe data.
-    // Give readers 200ms to flush, then finalize.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC),
-                   dispatch_get_main_queue(), ^{
-        [self finalizeContext:ctx
-                     exitCode:exitCode
-                        error:ISHShellExecutorErrorNone];
-    });
+    @synchronized(_activeExecutions) { ctx = _managedExecutions[@(context)] ?: _activeExecutions[@(pid)]; }
+    if (!ctx) return;
+    // nanoMuse: 脚本的内核context每次唯一，拒绝迟到通知结算已经复用的PID。
+    if (ctx.guestPid != pid || (ctx.managedFsContext != 0 && ctx.managedFsContext != context)) return;
+    int exitCode = nivo_shell_exit_code(status);
+    [self finalizeContext:ctx exitCode:exitCode error:ISHShellExecutorErrorNone];
 }
 
 #pragma mark - Pipe Reading
 
 + (void)startReaderForPipe:(int)fd context:(ISHShellExecutionContext *)ctx isStdErr:(BOOL)isStdErr {
-    // Counted BEFORE the dispatch, not inside the block: between the two the
-    // reader is already committed but has not started, and a cleanup landing
-    // in that window would otherwise see zero readers and close the fd out
-    // from under the one about to poll it.
     [ctx retainReader];
     OSAtomicIncrement32(&_globalLiveReaders);
-
     dispatch_async(_readerQueue, ^{
         @try {
             [self readPipe:fd context:ctx isStdErr:isStdErr];
         } @finally {
-            // @finally so the count is right even if something above throws;
-            // a reader that "leaked" only in the bookkeeping would keep the
-            // pipes open forever, which is the bug being fixed here.
-            int32_t remaining = OSAtomicDecrement32(&_globalLiveReaders);
-            int32_t ctxRemaining = [ctx releaseReader];
-            // Whoever leaves last closes the fds — by then nobody can poll
-            // them. If the run was already finalised this is the close that
-            // actually releases the descriptors. Using this reader's own
-            // decrement result, so exactly one reader sees zero.
-            if (ctxRemaining <= 0 && ctx.isCompleted) {
-                [ctx closePipesIfNoReaders];
-            }
-            if (remaining < 0) {
-                NSLog(@"ISHShellExecutor[reader]: BUG — global reader count went negative (%d)", remaining);
-            }
+            OSAtomicDecrement32(&_globalLiveReaders);
+            int32_t remaining = [ctx releaseReader];
+            if (remaining == 0 && ctx.isCompleted) [ctx closePipesIfNoReaders];
         }
     });
 }
 
-/// Return the length of the longest prefix that is valid UTF-8.
-/// If trailing bytes form an incomplete multi-byte sequence, they are excluded.
-+ (NSUInteger)lastCompleteUTF8Length:(const uint8_t *)bytes length:(NSUInteger)len {
-    if (len == 0) return 0;
-    // Walk backwards from the end to find an incomplete UTF-8 sequence.
-    // UTF-8 continuation bytes are 10xxxxxx (0x80-0xBF).
-    NSUInteger i = len;
-    // Skip trailing continuation bytes
-    while (i > 0 && (bytes[i - 1] & 0xC0) == 0x80) {
-        i--;
+/// nanoMuse: 回调仅消费完整UTF-8；单字节分包也不回退成乱码。
++ (void)emitAvailableLines:(NSMutableData *)pending lineBuffer:(NSMutableString *)lineBuffer
+                  context:(ISHShellExecutionContext *)ctx isStdErr:(BOOL)isStdErr {
+    while (pending.length > 0) {
+        bool isInvalid = false;
+        NSUInteger length = nivo_shell_utf8_prefix(pending.bytes, pending.length, &isInvalid);
+        if (length > 0) {
+            NSString *chunk = [[NSString alloc] initWithBytes:pending.bytes length:length encoding:NSUTF8StringEncoding];
+            if (chunk) [lineBuffer appendString:chunk];
+            [pending replaceBytesInRange:NSMakeRange(0, length) withBytes:NULL length:0];
+        }
+        if (!isInvalid) break;
+        [lineBuffer appendString:@"\uFFFD"];
+        [pending replaceBytesInRange:NSMakeRange(0, 1) withBytes:NULL length:0];
     }
-    if (i == 0) {
-        // All continuation bytes with no leading byte — not valid UTF-8
-        return 0;
-    }
-    // bytes[i-1] is either ASCII (0x00-0x7F) or a leading byte (0xC0-0xFF)
-    uint8_t lead = bytes[i - 1];
-    if ((lead & 0x80) == 0) {
-        // ASCII byte — sequence is complete
-        return len;
-    }
-    // Determine expected sequence length from the leading byte
-    NSUInteger seqLen;
-    if ((lead & 0xE0) == 0xC0) seqLen = 2;
-    else if ((lead & 0xF0) == 0xE0) seqLen = 3;
-    else if ((lead & 0xF8) == 0xF0) seqLen = 4;
-    else return i - 1; // Invalid leading byte — exclude it
-    // Count actual bytes in this sequence: leading byte + continuation bytes after it
-    NSUInteger actualLen = len - (i - 1);
-    if (actualLen >= seqLen) {
-        // Sequence is complete
-        return len;
-    }
-    // Incomplete sequence — exclude it
-    return i - 1;
-}
-
-+ (void)readPipe:(int)fd context:(ISHShellExecutionContext *)ctx isStdErr:(BOOL)isStdErr {
-    char buffer[4096];
-    NSMutableString *lineBuffer = [NSMutableString string];
-    NSMutableString *outputBuffer = isStdErr ? ctx.stderrBuffer : ctx.stdoutBuffer;
-    NSMutableData *pendingBytes = [NSMutableData data];
-    const char *streamName = isStdErr ? "stderr" : "stdout";
-    int idlePollCount = 0; // consecutive poll timeouts with no data
-
-    // Use poll() instead of non-blocking read + usleep for reliable EOF detection
-    struct pollfd pfd = { .fd = fd, .events = POLLIN };
-
-    // Backstop against a reader outliving every other mechanism.
-    //
-    // The loop below exits on isCompleted, EOF, or a poll/read error, which
-    // covers every path we know of. This deadline exists for the ones we do
-    // not: a thread stuck here is not merely idle, it holds a slot in a
-    // concurrent GCD queue, and enough of them stop the app from running any
-    // command at all. Bounding the loop turns "device needs a restart" into
-    // "one command's tail output was truncated".
-    //
-    // Deliberately generous — this must never cut a legitimately long-running
-    // command short. A build or a package install can quietly produce nothing
-    // for a long time; ISHShellExecutorReaderMaxLifetime is far beyond any
-    // timeout a caller passes, so in practice only a stranded reader reaches
-    // it. Hitting it at all is a bug, so it logs loudly.
-    NSDate *readerDeadline = [NSDate dateWithTimeIntervalSinceNow:
-                              ISHShellExecutorReaderMaxLifetime];
-
-    while (!ctx.isCompleted) {
-        if ([readerDeadline timeIntervalSinceNow] <= 0) {
-            NSLog(@"ISHShellExecutor[reader]: %s hit the %.0fs lifetime cap for pid=%d "
-                  @"(isCompleted=%d) — abandoning to protect the thread pool",
-                  streamName, (double)ISHShellExecutorReaderMaxLifetime,
-                  ctx.guestPid, ctx.isCompleted);
-            break;
-        }
-
-        // poll with 500ms timeout so we periodically check isCompleted
-        int pr = poll(&pfd, 1, 500);
-
-        if (pr < 0) {
-            if (errno == EINTR) continue;
-            NSLog(@"ISHShellExecutor[reader]: %s poll error (errno=%d) for pid=%d", streamName, errno, ctx.guestPid);
-            break; // poll error
-        }
-
-        if (pr == 0) {
-            // Timeout — just loop back to check isCompleted
-            idlePollCount++;
-            // Log every 10s (20 x 500ms) of idle
-            if (idlePollCount % 20 == 0) {
-                NSLog(@"ISHShellExecutor[reader]: %s idle for %ds, pid=%d still running (no output, no exit)",
-                      streamName, idlePollCount / 2, ctx.guestPid);
-            }
-            continue;
-        }
-
-        idlePollCount = 0; // reset on any activity
-
-        // POLLHUP/POLLERR without POLLIN means pipe closed
-        if ((pfd.revents & (POLLHUP | POLLERR)) && !(pfd.revents & POLLIN)) {
-            NSLog(@"ISHShellExecutor[reader]: %s pipe closed (revents=0x%x) for pid=%d", streamName, pfd.revents, ctx.guestPid);
-            break;
-        }
-
-        ssize_t bytesRead = read(fd, buffer, sizeof(buffer) - 1);
-
-        if (bytesRead > 0) {
-            [pendingBytes appendBytes:buffer length:bytesRead];
-
-            NSUInteger safeLen = [self lastCompleteUTF8Length:(const uint8_t *)pendingBytes.bytes
-                                                      length:pendingBytes.length];
-            if (safeLen == 0 && pendingBytes.length > 0) {
-                // No valid UTF-8 at all — fallback to Latin1 for the entire buffer
-                NSString *chunk = [[NSString alloc] initWithBytes:pendingBytes.bytes
-                                                           length:pendingBytes.length
-                                                         encoding:NSISOLatin1StringEncoding];
-                if (chunk) [lineBuffer appendString:chunk];
-                [pendingBytes setLength:0];
-            } else if (safeLen > 0) {
-                NSString *chunk = [[NSString alloc] initWithBytes:pendingBytes.bytes
-                                                           length:safeLen
-                                                         encoding:NSUTF8StringEncoding];
-                if (!chunk) {
-                    // UTF-8 decode still failed — fallback to Latin1
-                    chunk = [[NSString alloc] initWithBytes:pendingBytes.bytes
-                                                     length:safeLen
-                                                   encoding:NSISOLatin1StringEncoding];
-                }
-                if (chunk) [lineBuffer appendString:chunk];
-                // Remove consumed bytes, keep incomplete trailing sequence
-                [pendingBytes replaceBytesInRange:NSMakeRange(0, safeLen) withBytes:NULL length:0];
-            }
-
-            // Process complete lines
-            [self processLines:lineBuffer
-                       context:ctx
-                  outputBuffer:outputBuffer
-                      isStdErr:isStdErr];
-
-        } else if (bytesRead == 0) {
-            // EOF - pipe closed
-            NSLog(@"ISHShellExecutor[reader]: %s EOF for pid=%d", streamName, ctx.guestPid);
-            break;
-        } else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                continue; // spurious wakeup, poll again
-            }
-            NSLog(@"ISHShellExecutor[reader]: %s read error (errno=%d) for pid=%d", streamName, errno, ctx.guestPid);
-            break;
-        }
-    }
-
-    // Flush any remaining pending bytes (incomplete UTF-8 at EOF)
-    if (pendingBytes.length > 0) {
-        NSString *remaining = [[NSString alloc] initWithData:pendingBytes encoding:NSUTF8StringEncoding];
-        if (!remaining) {
-            remaining = [[NSString alloc] initWithData:pendingBytes encoding:NSISOLatin1StringEncoding];
-        }
-        if (remaining) [lineBuffer appendString:remaining];
-        [pendingBytes setLength:0];
-    }
-
-    // Process any remaining partial line
-    if (lineBuffer.length > 0) {
-        @synchronized(outputBuffer) {
-            [outputBuffer appendString:lineBuffer];
-        }
-
-        if (ctx.lineCallback) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                ctx.lineCallback([lineBuffer copy], isStdErr);
-            });
-        }
-    }
-}
-
-+ (void)processLines:(NSMutableString *)lineBuffer
-             context:(ISHShellExecutionContext *)ctx
-        outputBuffer:(NSMutableString *)outputBuffer
-            isStdErr:(BOOL)isStdErr {
-
     while (YES) {
-        NSRange newlineRange = [lineBuffer rangeOfString:@"\n"];
-        if (newlineRange.location == NSNotFound) {
-            break;
+        NSRange newline = [lineBuffer rangeOfString:@"\n"];
+        if (newline.location == NSNotFound) break;
+        NSString *line = [lineBuffer substringToIndex:newline.location];
+        [lineBuffer deleteCharactersInRange:NSMakeRange(0, newline.location + 1)];
+        dispatch_async(dispatch_get_main_queue(), ^{ ctx.lineCallback(line, isStdErr); });
+    }
+}
+
+/// nanoMuse: poll错误、read错误、强制停止与真正EOF分别处理，读取全程按字节计数。
++ (void)readPipe:(int)fd context:(ISHShellExecutionContext *)ctx isStdErr:(BOOL)isStdErr {
+    uint8_t buffer[4096];
+    NivoShellCapture *capture = isStdErr ? ctx.stderrCapture : ctx.stdoutCapture;
+    NSMutableData *pending = [NSMutableData data];
+    NSMutableString *lineBuffer = [NSMutableString string];
+    struct pollfd descriptor = { .fd = fd, .events = POLLIN };
+    NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + ISHShellExecutorReaderMaxLifetime;
+    BOOL reachedEOF = NO;
+    while (!ctx.isCompleted && NSProcessInfo.processInfo.systemUptime < deadline) {
+        int ready = poll(&descriptor, 1, 100);
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready < 0 || (descriptor.revents & (POLLERR | POLLNVAL))) break;
+        if (ready == 0) continue;
+        // POLLHUP仍必须read，缓冲区可能还有最后一批数据。
+        ssize_t count = read(fd, buffer, sizeof(buffer));
+        if (count == 0) { reachedEOF = YES; break; }
+        if (count < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)) continue;
+        if (count < 0) break;
+        @autoreleasepool {
+            NSData *kept = [capture appendData:[NSData dataWithBytes:buffer length:(NSUInteger)count]];
+            if (ctx.lineCallback) {
+                [pending appendData:kept];
+                [self emitAvailableLines:pending lineBuffer:lineBuffer context:ctx isStdErr:isStdErr];
+            }
         }
-
-        // Extract line without newline
-        NSString *line = [lineBuffer substringToIndex:newlineRange.location];
-
-        // Remove processed line from buffer
-        [lineBuffer deleteCharactersInRange:NSMakeRange(0, newlineRange.location + 1)];
-
-        // Add to output buffer
-        @synchronized(outputBuffer) {
-            [outputBuffer appendString:line];
-            [outputBuffer appendString:@"\n"];
-        }
-
-        // Call line callback
-        if (ctx.lineCallback) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                ctx.lineCallback(line, isStdErr);
-            });
-        }
+    }
+    [capture finishReachedEOF:reachedEOF];
+    if (ctx.lineCallback && lineBuffer.length > 0) {
+        NSString *remaining = [lineBuffer copy];
+        dispatch_async(dispatch_get_main_queue(), ^{ ctx.lineCallback(remaining, isStdErr); });
     }
 }
 

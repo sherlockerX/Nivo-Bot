@@ -71,40 +71,48 @@ enum NanoMuseTurnTimes {
 /// "Branch from here": a new chat holding the conversation up to the end of a reply's turn, so a
 /// side topic can be followed without touching the original. The stored rows are copied as they
 /// are, tool calls and results included, so the model sees the same history.
+@MainActor
 enum NanoMuseChatBranch {
-    /// The new chat's id; nil when the chat is not saved yet or there is nothing to copy.
+    /// 分支保留原模型绑定、记忆与推理设置，写入完成后才允许打开。
     static func create(session: String, messages: [ChatMessage], reply: ChatMessage, title: String) async -> String? {
-        let store = ChatStore.shared
-        guard let source = await store.getSession(session),
+        guard !NivoPersonalBackupAccess.isBusy,
+              NanoMuseAccountData.shared.shows(session),
               let at = messages.firstIndex(where: { $0.id == reply.id }) else { return nil }
-        let turns = messages[...at].filter { $0.role == .user && !$0.isQueued }.count
-        let rows = await store.loadMessages(sessionId: session)
-        var seen = 0
-        var cut = rows.count
-        for (i, row) in rows.enumerated() where row.role == .user && !row.isToolResultOnly {
-            if seen == turns {
-                cut = i
-                break
+        let owner = NanoMuseAccountData.shared.current
+        let config = ProviderConfigStore.shared.inferenceConfig(for: session)
+        let binding = ProviderConfigStore.shared.binding(for: session)
+        let turns = messages[...at].filter { $0.role == .user && !$0.isQueued && $0.nmRoutine == nil }.count
+        let branchID = UUID().uuidString
+        // 分支涉及聊天和配置两份存储，阻止个人备份在两次写入之间截取快照。
+        await NivoPersonalBackupAccess.beginAccountChange()
+        defer { NivoPersonalBackupAccess.endAccountChange() }
+        var hasWrittenConfiguration = false
+        do {
+            guard NanoMuseAccountData.shared.current == owner else { return nil }
+            try NanoMuseAccountData.shared.claim(branchID, owner: owner)
+            let stored = await ChatStore.shared.getSessionExtras(session)
+            guard NanoMuseAccountData.shared.current == owner else { return nil }
+            let sourceBinding = try binding ?? stored.modelBinding.map {
+                try JSONDecoder().decode(SessionModelBinding.self, from: Data($0.utf8))
             }
-            seen += 1
+            let copiedBinding = sourceBinding.map {
+                SessionModelBinding(sessionId: branchID, primarySource: $0.primarySource, subModelSource: $0.subModelSource)
+            }
+            let encodedBinding = try copiedBinding.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
+            try await ProviderConfigStore.shared.nmSetBranchConfiguration(sessionID: branchID, binding: copiedBinding, inference: config)
+            hasWrittenConfiguration = true
+            let made = try await ChatStore.shared.nmCreateBranch(sourceID: session, branchID: branchID,
+                                                               userTurns: turns, title: title, modelBinding: encodedBinding)
+            guard NanoMuseAccountData.shared.current == owner else { return nil }
+            NotificationCenter.default.post(name: .sessionDidUpdate, object: made)
+            return made
+        } catch {
+            // 配置预写失败不会产生空会话；数据库失败后清理预写的孤立配置。
+            if hasWrittenConfiguration {
+                try? await ProviderConfigStore.shared.nmSetBranchConfiguration(sessionID: branchID, binding: nil, inference: nil)
+            }
+            return nil
         }
-        let kept = rows.prefix(cut)
-        guard !kept.isEmpty else { return nil }
-        let branch = await store.createSession(modelId: source.modelId, title: title)
-        for row in kept {
-            await store.appendMessage(RawMessage(
-                id: UUID().uuidString,
-                sessionId: branch.id,
-                role: row.role,
-                parts: row.parts,
-                createdAt: row.createdAt,
-                tokenUsage: nil,
-                reasoningContent: row.reasoningContent,
-                streamInterruptCount: row.streamInterruptCount
-            ))
-        }
-        NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
-        return branch.id
     }
 }
 

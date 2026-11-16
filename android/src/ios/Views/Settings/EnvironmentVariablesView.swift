@@ -37,7 +37,13 @@ struct EnvironmentVariablesView: View {
                 Text("When enabled, any environment variable value that appears in shell-execute output is replaced with a masked form (e.g. `sk-1********ajhks`) before reaching the model. Values shorter than 8 characters become all `*`. The user-visible output in chat is unchanged.")
             }
 
-            if store.entries.isEmpty {
+            // nanoMuse: 损坏或受保护的档案显示错误入口，不能误导为新建空列表。
+            if let error = store.loadError {
+                Section {
+                    Text(error).foregroundStyle(.secondary)
+                    Button(AppLocalized("Retry")) { store.reloadFromDisk() }
+                }
+            } else if store.entries.isEmpty {
                 Section {
                     VStack(spacing: 8) {
                         Image(systemName: "terminal")
@@ -84,6 +90,8 @@ struct EnvironmentVariablesView: View {
             }
         }
         .onAppear {
+            // nanoMuse: 外部恢复和重新解锁后加载最新元数据。
+            store.reloadFromDisk()
             if let pending = deepLink.pendingEnvVarCreate {
                 let normalizedKey = pending.key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
                 deepLink.pendingEnvVarCreate = nil
@@ -211,8 +219,9 @@ private struct EnvVarFormSheet: View {
     var initialKey: String = ""
     var initialValue: String = ""
     var initialNote: String = ""
-    let onSave: (String, String, String) -> Void
-    var onDelete: (() -> Void)? = nil
+    // nanoMuse: 保存或删除失败时保留表单输入。
+    let onSave: (String, String, String) -> Bool
+    var onDelete: (() -> Bool)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var key = ""
@@ -301,8 +310,8 @@ private struct EnvVarFormSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(mode == .add ? "Add" : "Save") {
-                        onSave(key, value, note.trimmingCharacters(in: .whitespacesAndNewlines))
-                        dismiss()
+                        // nanoMuse: 系统凭证与元数据保存成功后才关闭。
+                        if onSave(key, value, note.trimmingCharacters(in: .whitespacesAndNewlines)) { dismiss() }
                     }
                     .disabled(!isValid)
                 }
@@ -314,8 +323,8 @@ private struct EnvVarFormSheet: View {
             isPresented: $showingDeleteConfirm
         ) {
             Button(AppLocalized("Delete"), role: .destructive) {
-                onDelete?()
-                dismiss()
+                // nanoMuse: 删除失败保持上下文，允许重试。
+                if onDelete?() == true { dismiss() }
             }
             Button(AppLocalized("Cancel"), role: .cancel) {}
         }

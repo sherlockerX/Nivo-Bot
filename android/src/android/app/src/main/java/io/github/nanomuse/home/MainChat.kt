@@ -49,7 +49,12 @@ object MainChat {
                 return publish(id)
             }
         }
-        chatRepository.dao.listSessions().firstOrNull { it.id !in hidden }?.let { latest ->
+        // An unsent main chat stays the home: a side chat or a practice started meanwhile does not take its place.
+        draft?.let { return publish(it) }
+        // A coach practice conversation is never adopted as the home, however recent it is.
+        chatRepository.dao.listSessions().firstOrNull {
+            it.id !in hidden && it.source != io.github.nanomuse.coach.CoachConversationCoordinator.SESSION_SOURCE
+        }?.let { latest ->
             prefs.edit().putString(KEY_SESSION, latest.id).apply()
             return publish(latest.id)
         }

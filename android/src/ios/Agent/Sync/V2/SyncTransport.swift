@@ -78,7 +78,8 @@ protocol SyncTransport: AnyObject {
     /// Subscribe to remote changes. The handler may be invoked any time
     /// after `start` and before `stop`. Implementations should call it
     /// with non-empty batches only.
-    func observe(handler: @escaping (SyncInboundBatch) -> Void)
+    // nanoMuse: 接收队列在主隔离域同步登记，禁止额外Task打乱批次顺序。
+    func observe(handler: @escaping @MainActor (SyncInboundBatch) -> Void)
 
     /// Full-fetch every record the transport currently has. Used by
     /// fresh installs and forceFullSync. May be expensive.

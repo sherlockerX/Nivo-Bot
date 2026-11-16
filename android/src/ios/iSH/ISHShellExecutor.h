@@ -6,6 +6,8 @@
 //
 
 #import <Foundation/Foundation.h>
+// nanoMuse: 参数封装和有界捕获由可独立验证的原生组件提供。
+#import "../NanoMuse/NivoShellIO.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -33,6 +35,16 @@ typedef NS_ENUM(NSInteger, ISHShellExecutorError) {
 
 /// Complete stderr output (all lines joined)
 @property (nonatomic, readonly, copy) NSString *errorOutput;
+
+// nanoMuse: 总字节数与保存前缀分开，超限或读取失败不会伪装成完整输出。
+/// 已从stdout管道读取的字节数，包含未保存的超限部分。
+@property (nonatomic, readonly) uint64_t stdoutBytes;
+/// 已从stderr管道读取的字节数。
+@property (nonatomic, readonly) uint64_t errorOutputBytes;
+@property (nonatomic, readonly) BOOL outputTruncated;
+@property (nonatomic, readonly) BOOL errorOutputTruncated;
+/// 未收到EOF、读取失败或输出编码错误；没有错误时为nil。
+@property (nonatomic, readonly, copy, nullable) NSString *captureError;
 
 /// Execution duration in seconds
 @property (nonatomic, readonly) NSTimeInterval duration;
@@ -101,6 +113,17 @@ typedef void (^ISHShellCompletionCallback)(ISHShellExecutionResult *result);
             lineCallback:(nullable ISHShellLineCallback)lineCallback
               completion:(nullable ISHShellCompletionCallback)completion;
 
+// nanoMuse: 定时脚本使用独立fsContext，完成前终止同一上下文的所有子进程并读完管道。
+/// 每个输出流独立限制保存字节数，超限后继续读取；不得复用普通会话的稳定fsContext。
++ (int)executeExecutable:(NSString *)executable
+               arguments:(nullable NSArray<NSString *> *)arguments
+             environment:(nullable NSDictionary<NSString *, NSString *> *)environment
+               stdinData:(nullable NSData *)stdinData
+               fsContext:(uint64_t)fsContext
+     maximumCaptureBytes:(NSUInteger)maximumCaptureBytes
+            lineCallback:(nullable ISHShellLineCallback)lineCallback
+              completion:(nullable ISHShellCompletionCallback)completion;
+
 /// Execute a shell command and wait synchronously for completion
 /// @param command Shell command to execute
 /// @param timeout Maximum wait time in seconds (0 = no timeout)
@@ -120,6 +143,10 @@ typedef void (^ISHShellCompletionCallback)(ISHShellExecutionResult *result);
 /// First sends SIGTERM to the group, waits briefly, then sends SIGKILL.
 /// @param pid Guest process PID — its pgid is used to find the group
 + (void)killProcessGroup:(int)pid;
+
+// nanoMuse: 调用方持有独立上下文而非可能复用的PID，停止后仍由原完成回调交付结果。
+/// 请求停止一个定时脚本及其全部子进程；未知或已结算的上下文不影响其他进程。
++ (void)cancelExecutionContext:(uint64_t)fsContext;
 
 /// Finish a timed-out command's bookkeeping without waiting to be told the
 /// process died.

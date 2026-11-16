@@ -352,11 +352,14 @@ final class NanoMuseProfileSync: ObservableObject {
 
     func pull() {
         guard NanoMuseCloud.isSignedIn, !pulling else { return }
+        let generation = NanoMuseAccountData.shared.generation
         pulling = true
         Task { @MainActor [self] in
             defer { pulling = false }
             do {
                 let head = try await NanoMuseRelayMedia.profile(withFace: false)
+                guard NanoMuseAccountData.shared.generation == generation,
+                      !NanoMuseAccountData.shared.isChangingAccount else { return }
                 let known = UserDefaults.standard.integer(forKey: Keys.rev)
                 // the other devices' connections come with every read, whatever the rev
                 NanoMuseSharedConnectors.shared.absorb(["connectors": head.connectors])
@@ -386,13 +389,15 @@ final class NanoMuseProfileSync: ObservableObject {
                 if head.avatar == "emoji" {
                     // An emoji on a colour, set on the desktop or in the web console (#435):
                     // worn in place of a drawn face, as a remote dragon takes one off.
-                    store.wear(emoji: NanoMuseEmojiLook(emoji: head.emoji, color: head.color))
+                    try await NivoAvatarWardrobe.shared.replace(emoji: NanoMuseEmojiLook(emoji: head.emoji, color: head.color))
                 } else if head.hasFace {
                     if head.faceId == store.meta.faceId && store.hasCustomFace {
                         UserDefaults.standard.set(head.rev, forKey: Keys.rev)
                         return
                     }
                     let full = try await NanoMuseRelayMedia.profile(withFace: true)
+                    guard NanoMuseAccountData.shared.generation == generation,
+                          !NanoMuseAccountData.shared.isChangingAccount else { return }
                     var stills: [NanoMuseMood: UIImage] = [:]
                     for (key, b64) in full.face ?? [:] {
                         if let mood = NanoMuseMood(rawValue: key), let bytes = Data(base64Encoded: b64), let img = UIImage(data: bytes) {
@@ -400,13 +405,14 @@ final class NanoMuseProfileSync: ObservableObject {
                         }
                     }
                     if stills[.idle] != nil {
-                        store.wear(remote: stills, faceId: full.faceId, description: full.description, style: full.style)
+                        try await NivoAvatarWardrobe.shared.replace(stills: stills, faceID: full.faceId,
+                            description: full.description, style: full.style, sync: false)
                         // nanoMuse: clips are per device — the old ones went with `wear`; new ones when enabled (contract C3)
                         NanoMuseAvatarMotion.shared.animateIfEnabled()
                     }
                 } else if head.rev > 0, store.source != .dragon {
                     // Another device went back to the dragon: the drawn face or the emoji look goes.
-                    store.reset(sync: false)
+                    try await NivoAvatarWardrobe.shared.wear("dragon", sync: false)
                 }
                 UserDefaults.standard.set(head.rev, forKey: Keys.rev)
                 lastError = nil

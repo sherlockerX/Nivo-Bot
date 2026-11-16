@@ -64,7 +64,8 @@ enum BackupBackgroundAssertion {
 actor BackupActivityLock {
     static let shared = BackupActivityLock()
 
-    enum Activity: String {
+    // nanoMuse: 显式租约只跨actor传递活动类型和UUID，不传递提供商配置或页面回调。
+    enum Activity: String, Sendable {
         case export
         case restore
     }
@@ -82,6 +83,24 @@ actor BackupActivityLock {
     }
 
     private var current: Activity?
+    private var leaseID: UUID?
+
+    // nanoMuse: 提供商宿主留在MainActor执行，等待期间仍与整包备份互斥。
+    /// 取得排他租约，调用方在成功及失败后均须释放相同身份。
+    func acquire(_ activity: Activity) throws -> UUID {
+        if let current { throw Busy(current: current) }
+        let identifier = UUID()
+        current = activity
+        leaseID = identifier
+        return identifier
+    }
+
+    /// 旧任务的收尾不能释放后来任务的锁。
+    func release(_ identifier: UUID) {
+        guard leaseID == identifier else { return }
+        current = nil
+        leaseID = nil
+    }
 
     /// Run `body` exclusively, or throw `Busy` if something else holds the lock.
     ///
@@ -90,12 +109,8 @@ actor BackupActivityLock {
     /// multi-hundred-MB export the moment the first ends.
     func withLock<T>(_ activity: Activity,
                      _ body: () async throws -> T) async throws -> T {
-        if let current {
-            logger.warning("[Backup] refusing \(activity.rawValue): \(current.rawValue) already running")
-            throw Busy(current: current)
-        }
-        current = activity
-        defer { current = nil }
+        let identifier = try acquire(activity)
+        defer { release(identifier) }
         return try await body()
     }
 

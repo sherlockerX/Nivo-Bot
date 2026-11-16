@@ -23,7 +23,7 @@
 		</dict>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>nanoMuse Backup</string>
+			<string>Nivo Bot Backup</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
@@ -246,7 +246,7 @@
 				<string>public.archive</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>nanoMuse Backup</string>
+			<string>Nivo Bot Backup</string>
 			<key>UTTypeIdentifier</key>
 			<string>io.github.nanomuse.app.minisbak</string>
 			<key>UTTypeTagSpecification</key>

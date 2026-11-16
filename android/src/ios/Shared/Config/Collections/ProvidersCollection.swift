@@ -124,7 +124,8 @@ struct ProvidersCollection: ConfigCollection {
         // Save credential to Keychain BEFORE addInstance() so the model-refresh
         // it kicks off can authenticate.
         if let key = resolvedKey {
-            ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id)
+            // nanoMuse: AI配置工具只在实际保存密钥后报告创建成功。
+            guard ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id) else { throw CocoaError(.fileWriteUnknown) }
         }
         store.addInstance(instance)
         return instance.id
@@ -146,7 +147,9 @@ struct ProvidersCollection: ConfigCollection {
         guard !name.isEmpty else {
             throw ConfigError.invalidValue("`$$` reference is missing a variable name")
         }
-        guard let value = EnvVarStore.loadValueSync(forKey: name), !value.isEmpty else {
+        // nanoMuse: 引用密钥先确认元数据恢复结束，读取失败不能当作未填写。
+        try NivoEnvVarTransaction(fileURL: EnvVarStore.configFileURLForBackup).requireSettled()
+        guard let value = try NivoCredentialSyncKeychain.environmentValue(key: name), !value.isEmpty else {
             throw ConfigError.invalidValue("Environment variable \"\(name)\" is not set — create it in Settings → Environment Variables first")
         }
         return value
@@ -187,7 +190,8 @@ struct ProvidersCollection: ConfigCollection {
                     throw ConfigError.invalidValue("API key cannot be empty")
                 }
                 let resolved = try Self.resolveSecret(trimmed)
-                ProviderKeychainHelper.saveAPIKey(resolved, instanceId: id)
+                // nanoMuse: 写入失败保留原值并向工具返回错误。
+                guard ProviderKeychainHelper.saveAPIKey(resolved, instanceId: id) else { throw CocoaError(.fileWriteUnknown) }
                 // Keep the instance's credentialType consistent with having a key.
                 try? mutate(id) { _ in }   // touch → updateInstance persists/notifies
             }

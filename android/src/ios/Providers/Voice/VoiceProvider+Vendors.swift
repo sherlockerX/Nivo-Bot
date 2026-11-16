@@ -19,12 +19,35 @@ final class GroqVoiceProvider: VoiceProvider {
     }
 }
 
-// MARK: - Alibaba Bailian (OpenAI-compatible, only default models differ)
+// MARK: - 阿里云百炼语音
 
-final class AlibabaVoiceProvider: VoiceProvider {
+// nanoMuse:百炼语音使用原生协议，不能落到继承的OpenAI音频端点。
+/// 百炼语音适配器，凭据继续由现有Factory从当前服务商的Keychain读取。
+final class AlibabaVoiceProvider: VoiceProvider, @unchecked Sendable {
+    /// 默认实时识别模型。
     override func defaultVoiceInputModel() -> String  { "paraformer-realtime-v2" }
+    /// 默认流式合成模型。
     override func defaultVoiceOutputModel() -> String { "cosyvoice-v2" }
-    override func defaultVoiceOutputVoice() -> String { "longxiaochun" }
+    /// 默认音色必须与CosyVoice模型代际匹配。
+    override func defaultVoiceOutputVoice() -> String { "longxiaochun_v2" }
+
+    /// 录音、模型快速测试和朗读统一使用百炼原生识别入口。
+    override func transcribe(_ request: VoiceInputRequest) async throws -> VoiceInputResponse {
+        let text = try await NanoMuseBailianVoice.transcribe(
+            audio: request.audioData,
+            model: request.model ?? request.resolvedModel?.id ?? defaultVoiceInputModel(),
+            baseURL: baseURL, apiKey: apiKey ?? ""
+        )
+        return VoiceInputResponse(text: text, language: nil, duration: nil)
+    }
+
+    /// 百炼返回的音频统一封装为可播放的WAV，保留调用方明确选择的音色。
+    override func synthesize(_ request: VoiceOutputRequest) async throws -> Data {
+        try await NanoMuseBailianVoice.synthesize(
+            text: request.input, model: request.model ?? defaultVoiceOutputModel(),
+            voice: request.voice, baseURL: baseURL, apiKey: apiKey ?? ""
+        )
+    }
 }
 
 // MARK: - xAI (ASR endpoint path differs: /v1/stt)

@@ -4,6 +4,78 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Routed iOS provider setup and key rotation through confirmed configuration, credential and sync-queue recovery. Preserved complete model candidates, kept failed input available to retry, rejected stale key checks and prevented closed forms from navigating on delayed completion.
+
+- Made iOS sign-out and credential removal wait for cleanup, preserved credentials changed by later writes and ended the old cleanup request with a visible preservation notice. Settled abandoned OAuth draft registrations before releasing deletion recovery journals, preventing restart from deleting the preserved credentials again.
+
+- Passed 598 portable Swift tests with zero failures. The final syntax check covered 821 Swift files; 22 resource tests also passed. The provider, Keychain and ChatStore application suites remain unrun. Prepared branch-triggered GitHub portable tests, unsigned application/test compilation and an unsigned IPA artifact; a successful GitHub build remains required.
+
+- Kept legacy CloudKit automatic sends within their own export scope, serialized receipt settlement with engine rebuilding and prevented late receipts from modifying a new engine's queue or cache. Retained and retried transient cloud deletion failures.
+
+- Made iOS provider removal resumable, confirmed configuration and sync queues before cleaning credentials, retained retry notices after failures and waited for cache reload before releasing recovery. Preserved deletion metadata on startup, included affected group versions and kept transaction receipts across ordinary history pruning. The portable suite passed 548 tests; Apple application and Keychain acceptance remain pending.
+
+- Made single-provider JSON imports wait for a complete configuration save, reused backup snapshots and credential receipts for failure recovery, rejected malformed model lists before mutation and kept failed chat-share imports available to retry. Application and Keychain execution remain pending.
+
+- Bound iOS OAuth replies to their original login, account and restore generation, rejected late saves after sign-out or deletion, and prevented old refreshes from replacing new credentials. Kept shared refreshes available to remaining callers after one caller cancelled. Cancelled provider-form login tasks on exit and removed authentication request and token response bodies from debug logs. Apple login and UI validation remain pending.
+
+- Preserved iOS OAuth credentials on failed writes, confirmed saved values before login success, retained failed manual-token input and rejected malformed OAuth imports. Made legacy provider migration resumable with stable IDs, preserved current settings and waited for configuration persistence before removing old OAuth sources. Added migration retry notices in both settings layouts. The portable suite passed 497 tests; Apple application and Keychain acceptance remain pending.
+
+- Added recoverable iOS environment-variable saves, renames and deletions, kept secret staging in device-only Keychain, and retained cleanup and sync receipts after interruptions. Blocked incomplete configuration reads in scripts and backups, protected duplicate names, and brought legacy environment sync through the same recovery path. Apple Keychain and application validation remain pending.
+
+- Corrected iOS relay uploads for messages written in the same second, rebuilt parent conversation metadata after a relay wipe, and prevented repeated main-chat deletion from clearing later messages. Made single-summary reversion transactional and preserved local chat settings after remote clearing.
+
+- Validated ordinary iOS credential sync, stored provider-key values and versions together, and made provider setup check persistence results. Added environment-variable modification versions, strict incoming decoding, safe rename ordering and visible metadata errors. Failed forms retain input; outbound read failures retain pending uploads. Added 27 portable cases; the 461-case rerun passed after an intermittent Windows fixture-cleanup failure. Apple application, Keychain and UI validation remain pending.
+
+- Kept iOS relay cursors and account mappings at the last saved state after file errors, rejected damaged sync files, and bound delayed replies to their original account and sync generation. Serialized relay operations, reserved conversation IDs before creation, validated response pages, and delayed upload completion until every batch finished. Added 23 portable file, lifecycle, protocol and SQLite tests; relay application and device validation remain pending.
+
+- Made iOS chat clearing, retry truncation and batch conversation deletion transactional, kept history and drafts visible on failed writes, and delayed reruns until persistence succeeds. Preserved saved tool metadata, validated relay deletion ownership and protected scheduled edits until commit. The portable suite passed 411 tests; Apple-platform UI and application integration tests remain pending.
+
+- Made iOS legacy reference backfill commit its data and completion marker together, retry failures, respect deletion markers and retain existing local conversations. Preserved reference-message versions, made reference writes and deletions atomic, and handled both current and historical message record names. Added shared-session reference cleanup and deletion markers to inbound deletion. Apple-platform compilation, CloudKit execution and the new application integration tests remain pending.
+
+- Kept iOS Coach archives current while open, separated evidence and summary sources, added guarded next-unit progression and linked quotations to their exact saved chat messages. Rejected progression for paused or review-required units and fixed reply identity before asynchronous persistence. The portable suite passed 370 tests; Apple-platform compilation and archive navigation remain unverified.
+
+- Moved iOS chat-run indicators to the model lifecycle, preserved draft-to-session identity, separated cancellation from completion and cleared results only when the matching conversation is visible. Made Thinking Intensity available before the first message, removed duplicate image/video model settings and clarified that the personal-build switch disables only star prompts, relay nudges and relay conversation sync. Native interaction validation remains pending.
+
+- Preserved saved task titles and statuses when editing older iOS fragments, displayed retained historical status explicitly, and protected habit-only records and discarded drafts from late autosaves. Twenty-one real fragment-repository tests passed; editor and photo interactions still require iPhone validation.
+
+- Replaced iOS session files through bounded staging and atomic rename, preserved originals on failed imports, retained remote file timestamps and protected newer local edits. Connected V1/V2 error propagation and background file copying with cancellation. Eleven new file tests and the complete 339-test portable suite passed; Apple filesystem and CloudKit validation remain pending.
+
+- Made iOS session metadata and legacy-message import commit in one checked SQLite transaction, preserved the previous conversation on failed imports, and propagated V1/V2 failures for replay. Validated reference message bodies and prevented stale reference-session writes from replacing newer metadata. Nine production SQL regressions passed; two added ChatStore integration cases await an Apple host.
+
+- Made ordinary iOS message and summary synchronization use checked SQLite transactions, rejected cross-conversation IDs, preserved ordering and previous context on failed writes, and stopped incoming summaries from being queued for upload again. Made folder dissolution atomic and kept unreadable message assets eligible for retry. Added production SQLite/file regressions and five application integration cases; Apple-platform host tests remain pending.
+
+- Bound iOS Coach controls, course sheets and delayed navigation to the account generation that opened them, including restores into the same account. Hid mutation controls in read-only practice chats. Added existing task-backup, personal-data merge and AI command tests to the portable production-code suite, plus strict JSON Boolean coverage; 300 portable tests passed. Apple-platform compilation and interaction validation remain pending.
+
+- Added iOS task-calendar day markers, an undated-task section, month navigation and a scrollable date strip for narrow layouts or large text. Built the task-date index off the main actor and covered date deduplication, local week starts, leap years and daylight-saving transitions in portable tests. Apple-platform layout validation remains pending.
+
+- Bound native iOS task editors, category actions and focus controls to the account generation that opened them, so queued UI actions cannot borrow a new account or restored archive. Invalidated old editors on scope changes and kept task-load errors visible. Apple-platform host validation remains pending.
+
+- Corrected the ordinary iOS Focus countdown, shared foreground expiry handling with the immersive view, and avoided republishing unchanged life-data lists on each second. Bound photos to individual focus sessions, kept AI-started sessions on the vector background, isolated restoration and keep-awake preferences by account, and added classic-layout restoration. Added the time-by-group ring and percentages from measured intervals. Portable regression coverage was added; full Apple-platform UI and runtime acceptance remains pending.
+
+- Replaced the iOS daily-idea fallback path and old Ideas-page catalogue with Android's shared seven-category daily content. Matched two-per-day rotation, added the current-story filming request and View all entry, refreshed local dates while visible, and reserved loading rows in the chat strip. Added ten portable content/date/evidence tests and source-parity checks; Apple-platform UI validation remains pending.
+
+- Added classic iOS layout entrances for fragments, Coach, Ideas, Tasks, Focus and routines, deferred conversation/editor navigation until detail sheets close, and preserved existing chat drafts during preparation. Excluded practice and dedicated routine sessions from main-chat restoration and guarded delayed selection across account changes. Recovered pending Coach archives before starting another lesson and rejected unresolved archive queues in the store. The portable suite passed 244 tests; Apple-platform application and UI validation remain pending.
+
+- Changed ordinary iOS provider saves to transactional field updates that preserve unseen remote records and concurrent model settings, retained pending edits for retry, and validated incoming model/group data before acknowledgement. Supported legacy member-removal history, corrected first-install database columns with atomic schema migration, and kept local edit timestamps advancing after clock rollback. The portable suite passed 225 tests; application integration remains unrun.
+
+- Made iOS V3 provider cache refresh read the database without rewriting it, preserved legacy model IDs across saves, and retried cache publication for repeated incoming records. Kept full-save failures visible through mirror retries, restored empty-list model discovery, stopped duplicate display cleanup from sending model deletions, and loaded thinking rules from persisted parents. The earlier 201-test portable run passed; the expanded provider application tests remain unrun.
+
+- Preserved existing models when a synced iOS provider changed, propagated V3 provider row-write failures to checkpoint replay, and made canonical model deletion transactional. Retried unchanged configuration snapshots after disk failure. Production SQL regression and 195 portable Swift tests passed; the added application fault-injection tests still need an Apple host.
+
+- Added iOS provider rollback snapshots for SQLite and JSON, checked ordered configuration writes, and credential insertion receipts that preserve existing values and support interrupted-restore cleanup. Rejected empty database snapshots before replacement and included environment-variable and MCP credentials in restore counts. Whole-configuration sync now awaits persistence and rejects changed merge baselines; thinking-rule edits respect restoration. Portable SQLite, queue and receipt tests passed; the new application provider and Keychain tests remain unrun.
+
+- Added iOS task details with completion-date selection, linked focus history and fragment navigation. Preserved exact focus-notification targets after completion, added course-review drafts in main chat, and kept Coach/fragment loading failures visible with retry actions. Portable navigation and history rules passed; application UI validation remains pending.
+
+- Bound iOS backup recovery to a complete per-run snapshot list and preserved rollback originals on cleanup failures. Made Force Pull validate every cloud page before replacing messages and summaries in one local transaction, and guarded delayed sync work across resets and account changes. Portable storage tests passed; full application validation remains pending.
+
+- Preserved iOS CloudKit event order and cancelled delayed checkpoint writes when sync stopped or reset, so obsolete engine callbacks could not restore an old cursor. Added portable file tests for cancellation, replacement and write failures; Apple-platform event integration still needs validation.
+
+- Added local iOS script routines with persistent home migration, fixed-version approval, authenticated run reports and backup restoration. Kept damaged recovery journals blocking access, added conversation reservations and deferred iCloud checkpoints for remote deletion, unified eligible text-model choices, and added Nivo About links with platform-specific update detection. Native iOS compilation and runtime acceptance remain pending.
+
+- Added recoverable iOS account-file switching, guarded cached chat and voice actions against account changes, and reused a dedicated conversation for each user routine in the Scheduled tasks group. Storage and identity rules have portable regression coverage; Apple-platform integration remains pending.
+
+- Added local iOS implementations for tasks, focus, daily fragments and Coach practice conversations with account-scoped storage, revision checks and personal backups. Added durable routine requests, interrupted-run recovery, result settlements, notification policies and quiet hours. Portable Swift tests cover selected rules and repositories; the full iOS build and phone acceptance remain pending ([local port status](docs/ios-local-port.md)).
+
 - Added persistent Bing Webmaster Tools ownership verification to the product website and its deployment checks.
 
 - Improved product-site text contrast, heading spacing and mobile reading sizes, preserved Google ownership verification files, and added website/application structured data and dated sitemaps with an IndexNow ownership file.

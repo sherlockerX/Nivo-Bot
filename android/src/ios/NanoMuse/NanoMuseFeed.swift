@@ -321,6 +321,12 @@ enum NanoMuseFeedFlow {
     static var routine: NanoMuseRoutine? { routineId.flatMap { NanoMuseScheduler.shared.routine(id: $0) } }
     static func isFeedSession(_ id: String) -> Bool { !id.isEmpty && id == sessionId }
 
+    /// 迁移后的历史页只保留原记录，停止旧系统隐藏的自动出题例程。
+    static func retireLegacyRoutine() {
+        guard let legacy = routine, legacy.hidden, legacy.sessionId == sessionId, legacy.enabled else { return }
+        NanoMuseScheduler.shared.setEnabled(legacy.id, false)
+    }
+
     static var hasModel: Bool {
         ProviderConfigStore.shared.defaultPrimaryGroupId != nil || !ProviderConfigStore.shared.modelEntries.isEmpty
     }

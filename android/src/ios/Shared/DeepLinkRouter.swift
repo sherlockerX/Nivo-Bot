@@ -61,7 +61,9 @@ enum DeepLinkRouter {
             shareCoordinator.raisePendingShare()
 
         case "views":
-            // Only one view route today; future ones land here.
+            // nanoMuse: 待办与专注先排队导航，兼容冷启动时根界面尚未建立。
+            let focusID = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "session" }?.value
+            if NivoLifeNavigation.shared.open(url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")), focusID: focusID) { return }
             if url.path == "/alarm" {
                 coord.showAlarmList = true
             }
@@ -115,6 +117,9 @@ enum DeepLinkRouter {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
 
         switch head {
+        // nanoMuse: 冷启动先保存导航意图，定时任务链接不会降级为设置首页。
+        case "routines", "scheduled-tasks":
+            NivoLifeNavigation.shared.open("routines")
         case "providers":
             coord.pendingSettingsTarget = (arg?.isEmpty == false)
                 ? .providerDetail(instanceId: arg!)

@@ -41,7 +41,8 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
     /// Task here instead. Keyed by instanceId; entry cleared when the task
     /// settles. Safe without a lock: @MainActor serializes the check-and-insert
     /// (both happen before the first `await`).
-    private var inFlightRefreshes: [String: Task<ClaudeTokenStorage, Error>] = [:]
+    // nanoMuse: 登录代次参与单飞身份，退出后的旧刷新不能加入下一次登录。
+    private let nmRefreshFlights = OAuthRefreshSingleFlight<ClaudeTokenStorage>()
 
     private override init() {
         super.init()
@@ -66,6 +67,10 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
     }
 
     func login(instanceId: String) async throws {
+        // nanoMuse: 重复点击不能假报成功，也不能让旧defer关闭另一次浏览器登录。
+        guard !isAuthenticating else { throw CancellationError() }
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId, replacing: true)
+        defer { NivoOAuthAccess.finish(nmOperation) }
         logger.info("=== OAuth login started (instance: \(instanceId)) ===")
         // Defensive cleanup: stop any leftover server from a previous failed attempt
         callbackServer?.stop()
@@ -87,6 +92,8 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
         // 1. Start local HTTP server
         let server = OAuthCallbackServer(port: callbackPort)
         self.callbackServer = server
+        // nanoMuse: 放弃页面或切换账户时结束本次回调等待。
+        try NivoOAuthAccess.registerCancellation(nmOperation) { server.stop() }
         try server.start()
         logger.info("Callback server started on port \(self.callbackPort)")
 
@@ -110,7 +117,13 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
 
         // 4. Wait for callback (5 min timeout)
         logger.info("Waiting for callback...")
-        let result = try await server.waitForCallback(timeout: 300)
+        // nanoMuse: 取消页面任务时释放回调等待，延后取消只作用于原登录。
+        let result = try await withTaskCancellationHandler {
+            try await server.waitForCallback(timeout: 300)
+        } onCancel: {
+            Task { @MainActor in NivoOAuthAccess.invalidate(nmOperation) }
+        }
+        try NivoOAuthAccess.validate(nmOperation)
         logger.info("Callback received — code length: \(result.code.count), state match: \(result.state == state)")
 
         // 5. Validate state
@@ -122,24 +135,29 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
         // 6. Exchange code for token
         logger.info("Exchanging code for token...")
         let token = try await exchangeCode(result.code, verifier: verifier, state: state)
-        #if DEBUG
-        logger.info("Token exchange successful — access_token prefix: \(token.accessToken.prefix(16))...")
-        #else
+        // nanoMuse: 调试日志同样不得输出令牌正文或前缀。
         logger.info("Token exchange successful")
-        #endif
         logger.info("Has refresh_token: \(token.refreshToken != nil), expires: \(String(describing: token.expireDate))")
 
-        ProviderKeychainHelper.saveOAuthToken(token, instanceId: instanceId)
+        // nanoMuse: 保存失败向调用方传播，不能报告登录或刷新成功。
+        try NivoOAuthAccess.validate(nmOperation)
+        try ProviderKeychainHelper.saveOAuthToken(token, instanceId: instanceId)
+        try NivoOAuthAccess.validate(nmOperation)
         logger.info("=== OAuth login complete (instance: \(instanceId)) ===")
     }
 
     func logout(instanceId: String) {
+        // nanoMuse: 先撤销异步写入，网络晚到不能把已退出的凭证重新保存。
+        NivoOAuthAccess.invalidate(instanceID: instanceId)
+        nmRefreshFlights.invalidate(instanceId: instanceId)
         logger.info("Logout — clearing token (instance: \(instanceId))")
         ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId)
     }
 
     func validAccessToken(instanceId: String) async throws -> String {
-        guard var storage = ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: ClaudeTokenStorage.self) else {
+        // nanoMuse: 返回令牌前重核账户与恢复代次，旧请求不得继续调用模型。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId)
+        guard var storage = try ProviderKeychainHelper.loadOAuthTokenStrict(instanceId: instanceId, as: ClaudeTokenStorage.self) else {
             throw LLMError.invalidAPIKey(detail: "Claude: no OAuth token found for instance \(instanceId)")
         }
 
@@ -161,6 +179,7 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
         guard let token = Optional(storage.accessToken), !token.isEmpty else {
             throw LLMError.invalidAPIKey(detail: "Claude: access token is empty for instance \(instanceId)")
         }
+        try NivoOAuthAccess.validate(nmOperation)
         return token
     }
 
@@ -182,39 +201,20 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
         existingStorage: ClaudeTokenStorage,
         perform: @escaping (String) async throws -> ClaudeTokenStorage
     ) async throws -> ClaudeTokenStorage {
-        // Join an existing in-flight refresh for this instance if one is running,
-        // so N concurrent callers only ever fire ONE network refresh. The
-        // check-and-insert below is atomic on the MainActor (no await between).
-        if let existing = inFlightRefreshes[instanceId] {
-            logger.info("Joining in-flight refresh (instance: \(instanceId))")
-            do {
-                return try await existing.value
-            } catch {
-                // The winner failed; fall through to re-evaluate from current
-                // persisted state (it may still have written a usable token, or
-                // the failure may be genuinely fatal — handled uniformly below).
-                return try Self.resolveAfterRefreshFailure(
-                    instanceId: instanceId,
-                    staleRefreshToken: staleRefreshToken,
-                    existingStorage: existingStorage,
-                    error: error,
-                    isFatal: { [weak self] in self?.isRefreshTokenInvalid($0) ?? false }
-                )
-            }
-        }
-
-        logger.info("Refreshing token on-demand (instance: \(instanceId))...")
-        let task = Task<ClaudeTokenStorage, Error> {
-            let refreshed = try await perform(staleRefreshToken)
-            ProviderKeychainHelper.saveOAuthToken(refreshed, instanceId: instanceId)
-            return refreshed
-        }
-        inFlightRefreshes[instanceId] = task
-        defer { inFlightRefreshes[instanceId] = nil }
-
+        // nanoMuse: 保存、返回和错误回退分别验证同一操作，过期请求不能动新凭证。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId)
         do {
-            return try await task.value
+            let result = try await nmRefreshFlights.run(instanceId: instanceId, generation: nmOperation.generation) {
+                let refreshed = try await perform(staleRefreshToken)
+                try NivoOAuthAccess.validateCurrentCredential(existingStorage, operation: nmOperation)
+                try ProviderKeychainHelper.saveOAuthToken(refreshed, instanceId: instanceId)
+                return refreshed
+            }
+            try NivoOAuthAccess.validate(nmOperation)
+            return result
         } catch {
+            try NivoOAuthAccess.validate(nmOperation)
+            if error is CancellationError { throw error }
             return try Self.resolveAfterRefreshFailure(
                 instanceId: instanceId,
                 staleRefreshToken: staleRefreshToken,
@@ -237,12 +237,15 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
         error: Error,
         isFatal: (LLMError) -> Bool
     ) throws -> ClaudeTokenStorage {
-        try ClaudeOAuthRefreshCoordinator.resolveAfterRefreshFailure(
+        // nanoMuse: 未保存的新令牌不能退回旧令牌并伪装成功；读取受限同样上抛。
+        if error is NivoOAuthPersistenceError { throw error }
+        let currentCredential = try ProviderKeychainHelper.loadOAuthTokenStrict(instanceId: instanceId, as: ClaudeTokenStorage.self)
+        return try ClaudeOAuthRefreshCoordinator.resolveAfterRefreshFailure(
             staleRefreshToken: staleRefreshToken,
             existingStorage: existingStorage,
             error: error,
             isFatal: isFatal,
-            loadCurrent: { ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: ClaudeTokenStorage.self) },
+            loadCurrent: { currentCredential },
             deleteCredentials: { ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId) },
             log: { logger.info($0) }
         )
@@ -354,11 +357,7 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
         logger.info("\(context) POST \(self.tokenURL)")
         logger.info("\(context) Content-Type: application/json")
         logger.info("\(context) Body keys: \(body.keys.sorted().joined(separator: ", "))")
-        #if DEBUG
-        if let bodyStr = String(data: jsonData, encoding: .utf8) {
-            logger.debug("\(context) Body: \(bodyStr)")
-        }
-        #endif
+        // nanoMuse: 请求正文含刷新令牌和授权码，调试构建也不记录正文。
 
         let (data, response) = try await URLSession.shared.data(for: request)
         let http = response as? HTTPURLResponse
@@ -367,12 +366,14 @@ final class ClaudeOAuthManager: NSObject, ObservableObject {
 
         logger.info("\(context) Response status: \(statusCode)")
         #if DEBUG
-        logger.info("\(context) Response body: \(responseBody.prefix(500))")
+        // nanoMuse: 认证响应可能含秘密，只保留HTTP状态。
+        logger.info("OAuth HTTP status: \(statusCode)")
         #endif
 
         guard (200..<300).contains(statusCode) else {
             #if DEBUG
-            logger.error("\(context) FAILED — status \(statusCode): \(responseBody)")
+            // nanoMuse: 认证响应可能含秘密，只保留HTTP状态。
+            logger.info("OAuth HTTP status: \(statusCode)")
             #else
             logger.error("\(context) FAILED — status \(statusCode)")
             #endif
@@ -574,7 +575,7 @@ final class OAuthCallbackServer: @unchecked Sendable {
         let requestString = String(bytes: buffer[0..<bytesRead], encoding: .utf8) ?? ""
         let lines = requestString.split(separator: "\r\n", omittingEmptySubsequences: false)
         guard let firstLine = lines.first else { return }
-        logger.info("[Server] Request: \(String(firstLine))")
+        // nanoMuse: 回调URL含授权码和state，不将请求行写入日志。
 
         let parts = firstLine.split(separator: " ")
         guard parts.count >= 2 else { return }

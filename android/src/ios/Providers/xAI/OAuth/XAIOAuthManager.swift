@@ -65,17 +65,10 @@ final class XAIOAuthManager: NSObject, ObservableObject {
     }
 
     func login(instanceId: String) async throws {
-        // Re-entrancy guard. SwiftUI button taps + sheet onAppear / onChange
-        // hooks can fire the same Task twice in rapid succession; without
-        // this guard each concurrent call generates its own PKCE+state,
-        // both bind port 56121 via SO_REUSEPORT, and Safari's eventual GET
-        // is resolved against ONE task's state but the OTHER task's
-        // continuation — manifesting as "state mismatch" even though the
-        // wire-level state values were byte-identical (T-xai-oauth-double-fire).
-        guard !isAuthenticating else {
-            logger.warning("xAI login already in progress — ignoring re-entrant call (instance: \(instanceId))")
-            return
-        }
+        // nanoMuse: 重复点击不能假报成功，也不能让旧defer关闭另一次浏览器登录。
+        guard !isAuthenticating else { throw CancellationError() }
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId, replacing: true)
+        defer { NivoOAuthAccess.finish(nmOperation) }
         logger.info("=== xAI OAuth login started (instance: \(instanceId)) ===")
         callbackServer?.stop()
         callbackServer = nil
@@ -104,6 +97,8 @@ final class XAIOAuthManager: NSObject, ObservableObject {
             optionsCORSAllowedHosts: trustedHosts
         )
         self.callbackServer = server
+        // nanoMuse: 放弃页面或切换账户时结束本次回调等待。
+        try NivoOAuthAccess.registerCancellation(nmOperation) { server.stop() }
         try server.start()
         logger.info("Callback server started on port \(self.callbackPort)")
 
@@ -129,7 +124,13 @@ final class XAIOAuthManager: NSObject, ObservableObject {
 
         // 4. Wait for callback (5 min).
         logger.info("Waiting for callback...")
-        let result = try await server.waitForCallback(timeout: 300)
+        // nanoMuse: 取消页面任务时释放回调等待，延后取消只作用于原登录。
+        let result = try await withTaskCancellationHandler {
+            try await server.waitForCallback(timeout: 300)
+        } onCancel: {
+            Task { @MainActor in NivoOAuthAccess.invalidate(nmOperation) }
+        }
+        try NivoOAuthAccess.validate(nmOperation)
         logger.info("Callback received — code length: \(result.code.count), state match: \(result.state == state)")
 
         // 5. Validate state.
@@ -148,22 +149,30 @@ final class XAIOAuthManager: NSObject, ObservableObject {
         )
         logger.info("Token exchange successful")
 
-        ProviderKeychainHelper.saveOAuthToken(token, instanceId: instanceId)
+        // nanoMuse: 保存失败向调用方传播，不能报告登录或刷新成功。
+        try NivoOAuthAccess.validate(nmOperation)
+        try ProviderKeychainHelper.saveOAuthToken(token, instanceId: instanceId)
         // isAuthenticated(instanceId:) is a plain Keychain read, not @Published —
         // emit objectWillChange so observing views (Provider Detail / AddProvider)
         // refresh their "Signed in" badge immediately on successful login.
         objectWillChange.send()
+        try NivoOAuthAccess.validate(nmOperation)
         logger.info("=== xAI OAuth login complete (instance: \(instanceId)) ===")
     }
 
     func logout(instanceId: String) {
+        // nanoMuse: 先撤销异步写入，网络晚到不能把已退出的凭证重新保存。
+        NivoOAuthAccess.invalidate(instanceID: instanceId)
+        refreshSingleFlight.invalidate(instanceId: instanceId)
         logger.info("Logout — clearing token (instance: \(instanceId))")
         ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId)
         objectWillChange.send()
     }
 
     func validAccessToken(instanceId: String) async throws -> String {
-        guard var storage = ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: XAITokenStorage.self) else {
+        // nanoMuse: 返回令牌前重核账户与恢复代次，旧请求不得继续调用模型。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId)
+        guard var storage = try ProviderKeychainHelper.loadOAuthTokenStrict(instanceId: instanceId, as: XAITokenStorage.self) else {
             throw LLMError.invalidAPIKey(detail: "xAI: no OAuth token found for instance \(instanceId)")
         }
 
@@ -177,6 +186,7 @@ final class XAIOAuthManager: NSObject, ObservableObject {
         guard !storage.accessToken.isEmpty else {
             throw LLMError.invalidAPIKey(detail: "xAI: access token is empty for instance \(instanceId)")
         }
+        try NivoOAuthAccess.validate(nmOperation)
         return storage.accessToken
     }
 
@@ -195,24 +205,35 @@ final class XAIOAuthManager: NSObject, ObservableObject {
     /// compare-before-delete backstop on failure so a stale concurrent refresh
     /// never wipes a token another caller just rotated. Mirrors ClaudeOAuthManager.
     private func refreshTokenGuarded(instanceId: String, existingStorage: XAITokenStorage) async throws -> XAITokenStorage {
+        // nanoMuse: 每代登录独立单飞，旧刷新不得加入新登录。
+        let nmOperation = try NivoOAuthAccess.begin(instanceID: instanceId)
         let staleRefreshToken = existingStorage.refreshToken!
         let cachedEndpoint = existingStorage.tokenEndpoint
         do {
-            return try await refreshSingleFlight.run(instanceId: instanceId) { [weak self] in
+            let result = try await refreshSingleFlight.run(instanceId: instanceId, generation: nmOperation.generation) { [weak self] in
                 guard let self else { throw LLMError.providerError(message: "OAuth manager deallocated") }
                 logger.info("Refreshing xAI token on-demand (instance: \(instanceId))...")
                 let refreshed = try await self.performRefresh(refreshToken: staleRefreshToken, cachedEndpoint: cachedEndpoint)
-                ProviderKeychainHelper.saveOAuthToken(refreshed, instanceId: instanceId)
+                // nanoMuse: 保存失败向调用方传播，不能报告登录或刷新成功。
+                try NivoOAuthAccess.validateCurrentCredential(existingStorage, operation: nmOperation)
+                try ProviderKeychainHelper.saveOAuthToken(refreshed, instanceId: instanceId)
                 return refreshed
             }
+            try NivoOAuthAccess.validate(nmOperation)
+            return result
         } catch {
+            try NivoOAuthAccess.validate(nmOperation)
+            if error is CancellationError { throw error }
+            // nanoMuse: 存储错误直接传播；读取受限时也不能把当前凭证当作丢失。
+            if error is NivoOAuthPersistenceError { throw error }
+            let currentCredential = try ProviderKeychainHelper.loadOAuthTokenStrict(instanceId: instanceId, as: XAITokenStorage.self)
             return try OAuthRefreshCoordinator.resolveAfterRefreshFailure(
                 providerName: "xAI",
                 staleRefreshToken: staleRefreshToken,
                 existingStorage: existingStorage,
                 error: error,
                 isFatal: { [weak self] in self?.isRefreshTokenInvalid($0) ?? false },
-                loadCurrent: { ProviderKeychainHelper.loadOAuthToken(instanceId: instanceId, as: XAITokenStorage.self) },
+                loadCurrent: { currentCredential },
                 deleteCredentials: { ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId) },
                 log: { logger.info($0) }
             )
@@ -345,7 +366,8 @@ final class XAIOAuthManager: NSObject, ObservableObject {
         }
         guard (200..<300).contains(statusCode) else {
             #if DEBUG
-            logger.error("\(context) FAILED — status \(statusCode): \(responseBody)")
+            // nanoMuse: 认证响应可能含秘密，只保留HTTP状态。
+            logger.info("OAuth HTTP status: \(statusCode)")
             #else
             logger.error("\(context) FAILED — status \(statusCode)")
             #endif

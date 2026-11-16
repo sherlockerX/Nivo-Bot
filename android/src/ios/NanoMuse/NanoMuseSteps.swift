@@ -1,11 +1,6 @@
 import SwiftUI
 
-/// "Show the agent's steps": whether a finished reply keeps its thinking and tool capsules (a
-/// command run, a file read, a page opened…) in the chat. Off by default, as in the Android
-/// build: a finished reply folds them into one line, "Thinking and execution (3 tools)", which
-/// opens them in a sheet of their own (NanoMuseStepsSheet). A stored `true` still wins. While a
-/// message is still running its steps show either way, since the phone has no status line under
-/// the face to say what it is on. This device only (`@AppStorage`).
+/// 执行步骤默认收拢为一行；运行中展示当前步骤，点击后在独立面板查看完整过程。
 enum NanoMuseSteps {
     static let key = "nanomuse.show_steps"
     static let defaultValue = false
@@ -16,7 +11,7 @@ enum NanoMuseSteps {
 
     /// Whether to leave this block out of the chat.
     static func hidden(_ kind: AssistantBlockKind, active: Bool, showSteps: Bool) -> Bool {
-        guard !showSteps, !active else { return false }
+        guard !showSteps else { return false }
         switch kind {
         case .shellTool, .fileReadTool, .fileWriteTool, .fileEditTool, .browserTool, .readImageTool, .memoryTool, .thinking:
             return true
@@ -52,6 +47,14 @@ enum NanoMuseSteps {
     static func steps(of blocks: [AssistantBlock]) -> [AssistantBlock] {
         blocks.filter { hidden($0.kind, active: false, showSteps: false) }
     }
+
+    /// 仅取最后一个步骤的简短说明，不在聊天中重复整段工具输出。
+    static func currentStep(_ block: AssistantBlock) -> String? {
+        let source = block.kind == .thinking ? block.content : (block.toolSummary ?? block.toolDescription)
+        let line = source.split(whereSeparator: \.isNewline).last.map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return line.isEmpty ? nil : String(line.prefix(120))
+    }
 }
 
 private struct NanoMuseStepsUnfoldedKey: EnvironmentKey {
@@ -76,7 +79,7 @@ struct NanoMuseStepsSection: View {
         } header: {
             Text(AppLocalized("Steps"))
         } footer: {
-            Text(AppLocalized("On, every step stays in the chat. Off, a finished reply folds its thinking and tools into one line that opens them in a sheet; a reply still running shows its steps either way. This device only."))
+            Text(AppLocalized("Show each step in the chat, or fold them into a summary with the current step. Tap the summary to see the full process. This device only."))
         }
     }
 }
@@ -85,6 +88,7 @@ struct NanoMuseStepsSection: View {
 /// execution (3 tools)". A tap opens them in the steps sheet.
 struct NanoMuseStepsFold: View {
     @ObservedObject var message: ChatMessage
+    var active = false
 
     var body: some View {
         let tools = NanoMuseSteps.steps(of: message.blocks).filter { block in
@@ -95,13 +99,18 @@ struct NanoMuseStepsFold: View {
             // The chat that holds this reply shows its steps (NanoMuseChatHooks); a cell has no view model to ask.
             NanoMuseChatSheets.shared.openSteps(message.id)
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                Text(String(format: AppLocalized("Thinking and execution (%d tools)"), tools))
-                    .font(.footnote)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if active { ProgressView().controlSize(.mini) }
+                    else { Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }
+                    Text(String(format: AppLocalized("Thinking and execution (%d tools)"), tools))
+                        .font(.footnote)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                if active, let latest = NanoMuseSteps.steps(of: message.blocks).last {
+                    NanoMuseCurrentStepLine(block: latest)
+                }
             }
             .foregroundStyle(.secondary)
             .padding(.vertical, 8)
@@ -111,12 +120,23 @@ struct NanoMuseStepsFold: View {
     }
 }
 
+/// 只观察当前步骤的节流发布，避免完整执行记录每次更新都重排聊天列表。
+private struct NanoMuseCurrentStepLine: View {
+    @ObservedObject var block: AssistantBlock
+
+    var body: some View {
+        if let line = NanoMuseSteps.currentStep(block) {
+            Text(line).font(.caption).lineLimit(1).foregroundStyle(.secondary)
+        }
+    }
+}
+
 /// The steps of one reply in a sheet of their own, so a long process never pushes the answer
 /// down the chat: its own scroll, a jump to the first and the latest step, and a tool's detail
 /// on a tap.
 struct NanoMuseStepsSheet: View {
     @ObservedObject var message: ChatMessage
-    let vm: AIChatViewModel
+    @ObservedObject var vm: AIChatViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var detail: AssistantBlock?
     @State private var highlighted: UUID?
@@ -135,7 +155,8 @@ struct NanoMuseStepsSheet: View {
                             AssistantBlockView(
                                 block: block,
                                 message: message,
-                                isActiveMessage: false,
+                                isActiveMessage: vm.isProcessing && vm.messages.last?.id == message.id,
+                                onStop: { vm.cancel() },
                                 browserPool: vm.browserTabPool,
                                 toolSnapshots: vm.toolSnapshots,
                                 highlightedBlockId: $highlighted,

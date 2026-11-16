@@ -11,7 +11,7 @@ name: iOS · build check
 on:
   # Mosaic fork: the iOS port is pushed straight to master, so every push of iOS code is checked.
   push:
-    branches: [master]
+    branches: [master, 'codex/ios-parity-*']
     paths:
       - 'android/src/ios/**'
       - 'android/deps/**'
@@ -57,6 +57,11 @@ jobs:
         working-directory: android/src/ios
         run: cp Configs/ProviderCustomization.xcconfig.example Configs/ProviderCustomization.xcconfig
 
+      # 可移植核心在真实Swift工具链执行，不能以应用编译代替业务回归。
+      - name: Portable Swift regression tests
+        working-directory: android/src/ios
+        run: swift test -Xswiftc -warnings-as-errors
+
       - name: Pinned iSH revision
         id: ish
         run: echo "rev=$(git rev-parse HEAD:android/deps/ish)" >> "$GITHUB_OUTPUT"
@@ -97,20 +102,56 @@ jobs:
             2>&1 | tee build/xcodebuild.log | grep -E "error:|/NanoMuse/.*warning:|BUILD|Compiling|Linking" || true
           grep -q "\*\* BUILD SUCCEEDED \*\*" build/xcodebuild.log
 
+      # 编译真实应用测试目标，系统Keychain及UI运行仍需设备或模拟器的独立验收。
+      - name: Compile application tests, unsigned
+        working-directory: android/src/ios
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project Minis.xcodeproj -scheme Minis -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
+            -skipPackagePluginValidation -skipMacroValidation \
+            2>&1 | tee build/xcodebuild-tests.log | grep -E "error:|/NanoMuse/.*warning:|BUILD|Compiling|Linking" || true
+          grep -q "\*\* TEST BUILD SUCCEEDED \*\*" build/xcodebuild-tests.log
+
       # docs/ios.md: the device build must finish with zero warnings in NanoMuse/. Upstream's
       # files are theirs; ours are held to the bar here, so a warning cannot sit on main unnoticed.
       - name: Zero warnings in NanoMuse/
         working-directory: android/src/ios
         run: |
-          if grep -E "/NanoMuse/[^:]+:[0-9]+:[0-9]+: warning:" build/xcodebuild.log | sort -u | tee build/nanomuse-warnings.txt | grep -q .; then
+          if grep -hE "/NanoMuse/[^:]+:[0-9]+:[0-9]+: warning:" build/xcodebuild.log build/xcodebuild-tests.log | sort -u | tee build/nanomuse-warnings.txt | grep -q .; then
             echo "::error::warnings in NanoMuse/ (see above)"
             exit 1
           fi
+
+      # 仅供个人重新签名，未签名产物不能直接安装或上传App Store。
+      - name: Package unsigned iOS app
+        working-directory: android/src/ios
+        run: |
+          mkdir -p build/unsigned/Payload
+          ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/unsigned/Payload/Minis.app
+          cd build/unsigned
+          zip -qry ../Nivo-Bot-unsigned.ipa Payload
+          cd ..
+          shasum -a 256 Nivo-Bot-unsigned.ipa > Nivo-Bot-unsigned.sha256
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nivo-ios-unsigned-${{ github.run_number }}
+          path: |
+            android/src/ios/build/Nivo-Bot-unsigned.ipa
+            android/src/ios/build/Nivo-Bot-unsigned.sha256
+          retention-days: 14
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: ios-check-log-${{ github.run_number }}
-          path: android/src/ios/build/xcodebuild.log
+          path: |
+            android/src/ios/build/xcodebuild.log
+            android/src/ios/build/xcodebuild-tests.log
           retention-days: 7
           if-no-files-found: warn

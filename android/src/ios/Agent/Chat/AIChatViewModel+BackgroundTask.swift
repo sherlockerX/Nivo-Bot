@@ -663,21 +663,48 @@ extension AIChatViewModel {
         commandStartTime = nil
     }
 
+    // nanoMuse: 原历史、浏览器数据及上下文仅在完整持久化成功后清空。
+    /// 持有编辑占位直到清理结束，数据库失败时保留界面和附件。
     func clearChat() {
-        messages.removeAll()
-        agentHistory.removeAll()
-        toolSnapshots.removeAll()
-        errorMessage = nil
-        cachedLatestMarker = nil
-        toolLoopDetector.reset()
-
-        if let sessionId {
-            Task { await ISHExecutionCoordinator.shared.sessionDidTerminate(sessionId: sessionId) }
-            BrowserTabPool.deletePersistedData(for: sessionId)
-            BrowserUseOffloadBridge.releasePool(forSession: sessionId)
-            Task {
-                await ChatStore.shared.deleteMessages(sessionId: sessionId)
-                await ChatStore.shared.deleteCompactMarkers(sessionId: sessionId)
+        guard !isProcessing, !isTruncatingForRetry, !isLoadingSession, !isCompacting, remoteDeviceId == nil else { return }
+        let capturedSession = sessionId
+        let capturedAccount = NanoMuseAccountData.shared.current
+        let editToken: UUID
+        do {
+            try NivoChatAccountAccess.require(sessionID: capturedSession)
+            editToken = try NivoChatAccountAccess.beginSynchronizedEdit([capturedSession ?? "draft-clear-" + UUID().uuidString])
+        } catch { errorMessage = NivoLifeModel.message(error); return }
+        isTruncatingForRetry = true
+        currentTask = Task { @MainActor in
+            defer {
+                NivoScheduledRunScopes.shared.endConversationEdit(editToken)
+                self.isTruncatingForRetry = false
+            }
+            do {
+                try Task.checkCancellation()
+                if let capturedSession { try await ChatStore.shared.deleteMessages(sessionId: capturedSession) }
+                guard self.sessionId == capturedSession, NanoMuseAccountData.shared.current == capturedAccount else {
+                    throw NivoLifeError.accountChanged
+                }
+                self.messages.removeAll()
+                self.agentHistory.removeAll()
+                self.toolSnapshots.removeAll()
+                self.errorMessage = nil
+                self.cachedLatestMarker = nil
+                self.toolLoopDetector.reset()
+                self.canResume = false
+                self.lastKnownDbCount = 0
+                self.lastKnownDbSortOrder = 0
+                self.lastKnownDbOrderHash = 0
+                if let capturedSession {
+                    BrowserTabPool.deletePersistedData(for: capturedSession)
+                    BrowserUseOffloadBridge.releasePool(forSession: capturedSession)
+                    await ISHExecutionCoordinator.shared.sessionDidTerminate(sessionId: capturedSession)
+                }
+            } catch is CancellationError {
+                // nanoMuse: 用户取消待提交的清空时保留原内容，不改成新的运行错误。
+            } catch {
+                if self.sessionId == capturedSession { self.errorMessage = NivoLifeModel.message(error) }
             }
         }
     }

@@ -60,7 +60,7 @@ internal fun TodoCalendar(tasks: List<TodoTask>, onOpen: (TodoTask) -> Unit) {
     val locale = Locale.getDefault()
     val firstWeekday = WeekFields.of(locale).firstDayOfWeek
     val indexed by produceState<TodoCalendarData?>(null, tasks) {
-        value = null
+        // 保留上一份结果直到新结果算好，任务变化时不闪回进度条、不丢滚动位置。
         value = withContext(Dispatchers.Default) { calendarData(tasks) }
     }
     val current = indexed

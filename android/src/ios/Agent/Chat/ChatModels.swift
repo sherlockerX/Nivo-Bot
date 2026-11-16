@@ -76,6 +76,8 @@ final class ChatMessage: Identifiable, ObservableObject {
     /// landed on a continuation row would fail to resolve and the divider
     /// would slide to the top of the list.
     var lastSourceSortOrder: Int?
+    /// nanoMuse: 原始数据库ID与界面UUID分开保存，续答合并后仍能精确定位教练来源。
+    var nmSourceMessageIDs: Set<String> = []
     /// Links back to the QueuedPrompt so we can withdraw it.
     var queuedPromptId: UUID?
     /// nanoMuse: C8 — the device this row was written on when it came down through account sync

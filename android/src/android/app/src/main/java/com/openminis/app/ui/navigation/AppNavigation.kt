@@ -1691,7 +1691,8 @@ fun AppNavigation(
                     navController.safeNavigate(Routes.scheduledTaskRuns(taskId))
                 },
                 onOpenSession = { sessionId ->
-                    navController.safeNavigate(Routes.chat(sessionId))
+                    // nanoMuse: with the home shell on, a routine's conversation opens inside it (tabs, drawer, header), not on the upstream chat route stacked above it.
+                    if (!io.github.nanomuse.ui.home.HomeShell.openSession(navController, sessionId)) navController.safeNavigate(Routes.chat(sessionId))
                 },
             )
         }
@@ -1705,7 +1706,8 @@ fun AppNavigation(
                 taskId = taskId,
                 onBack = { navController.safePopBackStack() },
                 onOpenSession = { sessionId ->
-                    navController.safeNavigate(Routes.chat(sessionId))
+                    // nanoMuse: with the home shell on, a routine's conversation opens inside it (tabs, drawer, header), not on the upstream chat route stacked above it.
+                    if (!io.github.nanomuse.ui.home.HomeShell.openSession(navController, sessionId)) navController.safeNavigate(Routes.chat(sessionId))
                 },
             )
         }
@@ -1724,7 +1726,8 @@ fun AppNavigation(
                 taskId = taskId,
                 onBack = { navController.safePopBackStack() },
                 onOpenSession = { sessionId ->
-                    navController.safeNavigate(Routes.chat(sessionId))
+                    // nanoMuse: with the home shell on, a routine's conversation opens inside it (tabs, drawer, header), not on the upstream chat route stacked above it.
+                    if (!io.github.nanomuse.ui.home.HomeShell.openSession(navController, sessionId)) navController.safeNavigate(Routes.chat(sessionId))
                 },
             )
         }

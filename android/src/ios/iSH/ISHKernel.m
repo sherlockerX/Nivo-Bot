@@ -65,6 +65,9 @@
 #import "ConfigOffload.h"
 #import "BrowserUseOffload.h"
 #import "DebugOffload.h"
+// nanoMuse: 生活碎片只读CLI实现位于自动编译的NanoMuse目录。
+extern void nivo_jigsaw_offload_register(void);
+extern void nivo_scheduled_offload_register(void); // nanoMuse: 定时任务原生命令。
 
 NSNotificationName const ISHProcessExitedNotification = @"ISHProcessExited";
 NSNotificationName const ISHTerminalOutputNotification = @"ISHTerminalOutput";
@@ -502,15 +505,22 @@ static void handle_process_exit(struct task *task, int code) {
     // Only notify for init (parent == NULL) and direct children of init
     // (parent->parent == NULL). Grandchildren and deeper descendants are
     // ignored to avoid pids_lock contention with sys_wait4/wait_for.
-    if (task->parent != NULL && task->parent->parent != NULL)
+    // nanoMuse: 判断父子关系也用线程组主进程，最后退出的工作线程不能漏发通知。
+    struct task *leader = task->group ? task->group->leader : task;
+    if (leader->parent != NULL && leader->parent->parent != NULL)
         return;
 
-    pid_t pid = task->pid;
+    // nanoMuse: 线程组最后退出的可能是工作线程，用tgid定位宿主运行，携带上下文拒绝迟到PID通知。
+    pid_t pid = task->tgid;
+    uint64_t fsContext = task->group ? task->group->fs_context : 0;
+    // nanoMuse: 非exit_group场景遵循wait4语义，报告主线程状态而非最后退出工作线程的状态。
+    int status = task->group && task->group->doing_group_exit ? task->group->group_exit_code
+        : (leader ? leader->exit_code : code);
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter]
             postNotificationName:ISHProcessExitedNotification
             object:nil
-            userInfo:@{@"pid": @(pid), @"code": @(code)}];
+            userInfo:@{@"pid": @(pid), @"code": @(status), @"fsContext": @(fsContext)}];
     });
 }
 
@@ -677,6 +687,8 @@ static void handle_process_exit(struct task *task, int code) {
     bluetooth_offload_register();
     nfc_offload_register();
     sessions_offload_register();
+    nivo_jigsaw_offload_register(); // nanoMuse: 与安卓复盘使用同一个命令入口。
+    nivo_scheduled_offload_register(); // nanoMuse: AI和界面共享定时任务仓库。
     browser_use_offload_register();
     config_offload_register();
     // Registered in every build: the `minis-debug logs` subcommand reads the
