@@ -39,7 +39,8 @@ struct NivoAccountFileTransaction: Sendable {
     let root: URL
     let slots: [Slot]
     private let fault: Fault
-    private let manager = FileManager.default
+    // 在执行上下文取得管理器，跨actor只传递路径与事务值。
+    private var manager: FileManager { .default }
     private var pending: URL { root.appendingPathComponent("pending-account-switch", isDirectory: true) }
     private var journalURL: URL { pending.appendingPathComponent("journal.json") }
 

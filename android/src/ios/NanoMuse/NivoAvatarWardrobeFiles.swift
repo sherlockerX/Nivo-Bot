@@ -14,7 +14,8 @@ struct NivoAvatarWardrobeFiles: Sendable {
     }
 
     let root: URL
-    private let manager = FileManager.default
+    // 文件管理器不作为Sendable值的一部分保存。
+    private var manager: FileManager { .default }
     private static let names = ["idle.png", "working.png", "waiting.png", "happy.png", "error.png", "meta.json", "emoji.json"]
         + ["idle", "working", "waiting", "happy", "error"].map { "motion/" + $0 + ".mp4" }
     private var pets: URL { root.appendingPathComponent("pets", isDirectory: true) }

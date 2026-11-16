@@ -10,7 +10,7 @@ Windows完整便携回归598项、0失败、退出码0，包含OAuth草稿必须
 
 旧版CloudKit自动发送现在保留自己的导出占位，直到收到对应结束事件。重建引擎会等待正在处理的回执结算；迟到回执不能修改新引擎的队列或缓存。暂时性删除失败保留删除意图并重新排队。CloudKit实际事件顺序和取消行为仍需Apple平台执行验证。
 
-本轮未运行的应用专项包含57项提供商持久化、44项Keychain（恢复27项、删除7项、轮换10项）及39项ChatStore用例。这些文件不在便携包内，不计入598项。Xcode构建、Apple Security执行、真实提供商登录和iPhone交互均未验证。GitHub工作流已支持`codex/ios-parity-*`分支推送，包含便携测试和`build-for-testing`；源码尚未推送，没有该工作流的构建结果。下文保留各阶段历史证据，旧测试总数以本节为准。
+本轮未运行的应用专项包含57项提供商持久化、44项Keychain（恢复27项、删除7项、轮换10项）及39项ChatStore用例。这些文件不在便携包内，不计入598项。Xcode构建、Apple Security执行、真实提供商登录和iPhone交互均未验证。源码已推送到`codex/ios-parity-20261113`；GitHub工作流执行便携回归、无签名应用与测试编译及IPA打包。首轮发现三个Sendable值保存FileManager引用，被Apple Foundation拒绝；这些文件工具已改为在执行上下文取得管理器，仍需后续构建确认修复。下文保留各阶段历史证据，旧测试总数以本节为准。
 
 ## 导航和每日使用 {#navigation-and-daily-work}
 

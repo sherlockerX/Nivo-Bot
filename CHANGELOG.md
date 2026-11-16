@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Removed stored FileManager references from sendable account, wardrobe and script-home file helpers after Apple CI reported Foundation concurrency errors. Preserved file transaction behavior and included portable-test logs in CI artifacts.
+
 - Routed iOS provider setup and key rotation through confirmed configuration, credential and sync-queue recovery. Preserved complete model candidates, kept failed input available to retry, rejected stale key checks and prevented closed forms from navigating on delayed completion.
 
 - Made iOS sign-out and credential removal wait for cleanup, preserved credentials changed by later writes and ended the old cleanup request with a visible preservation notice. Settled abandoned OAuth draft registrations before releasing deletion recovery journals, preventing restart from deleting the preserved credentials again.

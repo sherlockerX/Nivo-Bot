@@ -15,7 +15,8 @@ struct NivoScheduledHomeMigration: Sendable {
     let home: URL
     let legacyHome: URL
     private let fault: Fault
-    private let manager = FileManager.default
+    // 在执行上下文取得管理器，避免跨actor传递Apple平台的非Sendable引用。
+    private var manager: FileManager { .default }
     private var archives: URL { home.appendingPathComponent(".legacy-home-migrations", isDirectory: true) }
 
     /// 路径由宿主提供；只规范化父目录，不提前跟随待检查节点的符号链接。

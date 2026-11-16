@@ -60,7 +60,10 @@ jobs:
       # 可移植核心在真实Swift工具链执行，不能以应用编译代替业务回归。
       - name: Portable Swift regression tests
         working-directory: android/src/ios
-        run: swift test -Xswiftc -warnings-as-errors
+        run: |
+          set -o pipefail
+          mkdir -p build
+          swift test -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-tests.log
 
       - name: Pinned iSH revision
         id: ish
@@ -151,6 +154,7 @@ jobs:
         with:
           name: ios-check-log-${{ github.run_number }}
           path: |
+            android/src/ios/build/swift-tests.log
             android/src/ios/build/xcodebuild.log
             android/src/ios/build/xcodebuild-tests.log
           retention-days: 7
