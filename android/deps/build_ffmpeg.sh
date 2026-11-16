@@ -119,7 +119,10 @@ fetch_ffmpeg_source() {
     tmp="$(mktemp -d)"
 
     log_info "FFmpeg source not present — downloading ${version}..."
-    if ! curl -fL# "$url" -o "$tmp/$tarball"; then
+    # nanoMuse: 官方源DNS或临时故障最多重试4次，限制连接、单次传输与重试窗口；最终失败仍清理暂存并退出。
+    if ! curl -fL# --retry 4 --retry-all-errors --retry-delay 5 \
+        --connect-timeout 30 --max-time 300 --retry-max-time 600 \
+        "$url" -o "$tmp/$tarball"; then
         rm -rf "$tmp"
         log_error "Failed to download $url — check your network, or place the source at $FFMPEG_DIR manually."
     fi

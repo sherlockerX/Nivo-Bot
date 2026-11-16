@@ -10,9 +10,9 @@ Windows完整便携回归598项、0失败、退出码0，包含OAuth草稿必须
 
 旧版CloudKit自动发送现在保留自己的导出占位，直到收到对应结束事件。重建引擎会等待正在处理的回执结算；迟到回执不能修改新引擎的队列或缓存。暂时性删除失败保留删除意图并重新排队。CloudKit实际事件顺序和取消行为仍需Apple平台执行验证。
 
-本轮未运行的应用专项包含57项提供商持久化、44项Keychain（恢复27项、删除7项、轮换10项）及39项ChatStore用例，这些文件不在便携包内。提交`2bc2bcc`已推送到`codex/ios-parity-20261113`。首轮AppleCI因三个Sendable值保存FileManager引用失败；这些引用已移除，相关Windows测试21项通过。第二轮Apple运行已编译Swift便携核心并执行604项测试，但教练待归档与定时结果回执的路径相等校验出现11处失败断言。路径比较现已修正，接受合法的相对路径或别名表示，同时保留符号链接和文件名校验。Windows专项复跑27项通过，包括教练归档6项、教练命令11项及定时结果10项，日志为`swift-core-darwin-file-identity-fix.log`。修正仍待下一轮Apple验证，Apple回归尚未通过。应用Xcode编译尚未运行，Apple Security、真实提供商登录和iPhone交互仍未验证。
+本轮未运行的应用专项包含57项提供商持久化、44项Keychain（恢复27项、删除7项、轮换10项）及39项ChatStore用例，这些文件不在便携包内。提交`1eaa1bb`已推送到`codex/ios-parity-20261113`。首轮AppleCI中Sendable值保存FileManager引用的问题已修复。[第三轮Apple运行43935576994](https://github.com/sherlockerX/Nivo-Bot/actions/runs/43935576994)的`portable-core`执行612项测试，出现1处失败，标记为unexpected；第二轮失败的原11处断言现已通过。剩余失败发生在通过符号链接路径枚举Routine目录时，错误为`ENOTDIR`。读取入口现已改为枚举`resolvedDirectory`，Windows专项10项通过，日志为`evidence/swift-core-routine-directory-alias.log`。这次修正仍待Apple复验，完整Apple回归尚未通过。Apple Security、真实提供商登录和iPhone交互仍未验证。
 
-工作流已配置独立的`portable-core`和`build`作业，使用官方`macos-26-intel`运行器以缓解arm64运行器容量限制。更新后的工作流尚待CI运行；任一作业失败，整个工作流仍判定失败。当前没有应用构建成功的结论。下文保留各阶段历史证据，旧结果以本节最新状态为准。
+工作流使用官方`macos-26-intel`运行器，独立执行`portable-core`和`build`作业；任一作业失败，整个工作流仍判定失败。第三轮应用作业在依赖下载阶段因`ffmpeg.org`的DNS解析失败而终止，原生依赖缓存也报告`ENOTFOUND`，Xcode编译未开始。依赖下载正在增加有界重试，尚未经CI验证。当前没有应用构建成功的结论。下文保留各阶段历史证据，旧结果以本节最新状态为准。
 
 ## 导航和每日使用 {#navigation-and-daily-work}
 

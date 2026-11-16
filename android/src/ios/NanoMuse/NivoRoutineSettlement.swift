@@ -47,8 +47,10 @@ enum NivoRoutineSettlementFiles {
 
     /// 主档案没有对应任务时丢弃收据，不恢复用户已经删除的任务。
     static func read(directory: URL) throws -> [NivoRoutineSettlement] {
-        guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
-        let files = try FileManager.default.contentsOfDirectory(at: directory,
+        // Darwin目录枚举拒绝符号链接根，先解析目录别名；叶记录仍单独拒绝符号链接。
+        let resolvedDirectory = directory.standardizedFileURL.resolvingSymlinksInPath().absoluteURL
+        guard FileManager.default.fileExists(atPath: resolvedDirectory.path) else { return [] }
+        let files = try FileManager.default.contentsOfDirectory(at: resolvedDirectory,
             includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey]).filter { $0.pathExtension == "json" }
         guard files.count <= 1_000 else { throw NivoLifeError.invalidField("routine_settlements") }
         let decoder = JSONDecoder()
@@ -59,7 +61,7 @@ enum NivoRoutineSettlementFiles {
                   size <= maximumBytes else { throw NivoLifeError.invalidField("routine_settlement") }
             let receipt = try decoder.decode(NivoRoutineSettlement.self, from: Data(contentsOf: url))
             // 枚举URL可能使用不同基址或Darwin的/var别名；先拒绝链接文件，再比较完整规范路径。
-            let expected = try file(receipt, directory: directory).standardizedFileURL.resolvingSymlinksInPath().path
+            let expected = try file(receipt, directory: resolvedDirectory).standardizedFileURL.resolvingSymlinksInPath().path
             let actual = url.standardizedFileURL.resolvingSymlinksInPath().path
             guard expected == actual else { throw NivoLifeError.invalidField("routine_settlement") }
             return receipt
