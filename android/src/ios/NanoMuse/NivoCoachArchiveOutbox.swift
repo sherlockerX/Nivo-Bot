@@ -27,6 +27,12 @@ struct NivoCoachArchiveFiles {
     let directory: URL
     let writer: NivoCoachV2Store.Writer
 
+    /// 固定真实绝对根路径，目录枚举返回的URL不再依赖调用方的baseURL或系统路径别名。
+    init(directory: URL, writer: @escaping NivoCoachV2Store.Writer) {
+        self.directory = directory.standardizedFileURL.resolvingSymlinksInPath().absoluteURL
+        self.writer = writer
+    }
+
     /// 同一原话重试保留首次课次，改写的来源必须先被撤销。
     @discardableResult
     func put(_ entry: NivoCoachArchiveEntry) throws -> NivoCoachArchiveEntry {
@@ -67,11 +73,19 @@ struct NivoCoachArchiveFiles {
     }
 
     private func decode(_ path: URL, owner: String, chatID: String) throws -> NivoCoachArchiveEntry {
+        // 只解析父目录别名，条目本身必须是普通文件，不能通过符号链接绕过文件名校验。
+        let attributes = try path.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        guard attributes.isRegularFile == true, attributes.isSymbolicLink != true else { throw NivoLifeError.corruptStore }
         let data = try Data(contentsOf: path)
         guard data.count <= 2_000_000 else { throw NivoLifeError.corruptStore }
         let value = try JSONDecoder().decode(NivoCoachArchiveEntry.self, from: data)
         try validate(value)
-        guard value.ownerKey == owner, value.chatID == chatID, file(value) == path else { throw NivoLifeError.corruptStore }
+        let expected = file(value)
+        let actualParent = path.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath().absoluteURL
+        let expectedParent = expected.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath().absoluteURL
+        guard value.ownerKey == owner, value.chatID == chatID,
+              expected.lastPathComponent == path.lastPathComponent,
+              expectedParent.path == actualParent.path else { throw NivoLifeError.corruptStore }
         return value
     }
 

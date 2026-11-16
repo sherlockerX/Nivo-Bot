@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Stopped rejecting valid pending Coach archives and scheduled-result files because of relative or aliased path representations, while retaining symbolic-link and filename checks.
+
 - Removed stored FileManager references from sendable account, wardrobe and script-home file helpers after Apple CI reported Foundation concurrency errors. Preserved file transaction behavior and included portable-test logs in CI artifacts.
 
 - Routed iOS provider setup and key rotation through confirmed configuration, credential and sync-queue recovery. Preserved complete model candidates, kept failed input available to retry, rejected stale key checks and prevented closed forms from navigating on delayed completion.

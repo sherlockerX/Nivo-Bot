@@ -80,6 +80,64 @@ final class NivoRoutineHistoryTests: XCTestCase {
         XCTAssertTrue(try NivoRoutineSettlementFiles.read(directory: directory).isEmpty)
     }
 
+    func testStagedResultCanBeReadThroughRelativeDirectoryURL() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = URL(fileURLWithPath: "receipts", isDirectory: true, relativeTo: root)
+        let receipt = completedReceipt()
+        try NivoRoutineSettlementFiles.stage(receipt, directory: directory)
+        XCTAssertEqual(try NivoRoutineSettlementFiles.read(directory: directory), [receipt])
+    }
+
+    func testStagedResultRejectsFilenameForDifferentRun() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let receipt = completedReceipt()
+        try NivoRoutineSettlementFiles.stage(receipt, directory: directory)
+        let runID = try XCTUnwrap(receipt.run.id)
+        try FileManager.default.moveItem(at: directory.appendingPathComponent(runID + ".json"),
+            to: directory.appendingPathComponent(UUID().uuidString + ".json"))
+        XCTAssertThrowsError(try NivoRoutineSettlementFiles.read(directory: directory))
+    }
+
+    #if !os(Windows)
+    func testStagedResultCanBeReadThroughSymbolicAncestor() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent("receipts", isDirectory: true)
+        let alias = root.appendingPathComponent("alias", isDirectory: true)
+        let receipt = completedReceipt()
+        try NivoRoutineSettlementFiles.stage(receipt, directory: directory)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: directory)
+        XCTAssertEqual(try NivoRoutineSettlementFiles.read(directory: alias), [receipt])
+        try NivoRoutineSettlementFiles.clear(receipt, directory: alias)
+        XCTAssertTrue(try NivoRoutineSettlementFiles.read(directory: directory).isEmpty)
+    }
+
+    func testStagedResultRejectsSymbolicLinkReceipt() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directory = root.appendingPathComponent("receipts", isDirectory: true)
+        let external = root.appendingPathComponent("external", isDirectory: true)
+        let receipt = completedReceipt()
+        try NivoRoutineSettlementFiles.stage(receipt, directory: external)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let filename = try XCTUnwrap(receipt.run.id) + ".json"
+        try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent(filename),
+            withDestinationURL: external.appendingPathComponent(filename))
+        XCTAssertThrowsError(try NivoRoutineSettlementFiles.read(directory: directory))
+        XCTAssertEqual(try NivoRoutineSettlementFiles.read(directory: external), [receipt])
+    }
+    #endif
+
+    /// 使用完整且时间精度稳定的业务结果验证收据文件边界。
+    private func completedReceipt() -> NivoRoutineSettlement {
+        let date = Date(timeIntervalSince1970: 100)
+        let run = NanoMuseRoutine.Run(at: date, ok: true, note: "completed", id: UUID().uuidString,
+            finishedAt: date.addingTimeInterval(1), duration: 1, result: "result", status: "completed")
+        return NivoRoutineSettlement(routineID: UUID().uuidString, routineCreatedAt: date, run: run)
+    }
+
     func testQueueHandoffKeepsIdentityAndDoesNotReplayInterruptedRun() throws {
         let row = NanoMuseRoutine(label: "Read", prompt: "Review", hour: 9, minute: 0)
         let queued = try NivoRoutineRunRules.enqueuing(row, now: Date(), dryNotify: true)

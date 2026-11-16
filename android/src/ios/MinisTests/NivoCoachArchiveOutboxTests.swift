@@ -62,4 +62,66 @@ final class NivoCoachArchiveOutboxTests: XCTestCase {
         XCTAssertEqual(result.entries, [first])
         XCTAssertEqual(result.failures.count, 1)
     }
+
+    func testRelativeDirectoryReadsAndRetriesTheSameStoredEntry() throws {
+        let original = try files()
+        let relative = URL(fileURLWithPath: original.directory.lastPathComponent,
+            isDirectory: true, relativeTo: original.directory.deletingLastPathComponent())
+        let files = NivoCoachArchiveFiles(directory: relative, writer: original.writer)
+        let first = entry()
+        try files.put(first)
+        let result = files.read(owner: first.ownerKey, chatID: first.chatID)
+        XCTAssertEqual(result.entries, [first])
+        XCTAssertTrue(result.failures.isEmpty)
+        var retry = first
+        retry.lessonID = "later"
+        XCTAssertEqual(try files.put(retry), first)
+        try files.remove(first)
+        XCTAssertTrue(original.read(owner: first.ownerKey, chatID: first.chatID).entries.isEmpty)
+    }
+
+    func testValidEntryUnderWrongFilenameRemainsCorrupt() throws {
+        let files = try files()
+        let first = entry()
+        try files.put(first)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: files.directory, includingPropertiesForKeys: nil))
+        let path = try XCTUnwrap(enumerator.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "json" })
+        let wrong = path.deletingLastPathComponent().appendingPathComponent("wrong-message.json")
+        try FileManager.default.copyItem(at: path, to: wrong)
+        let result = files.read(owner: first.ownerKey, chatID: first.chatID)
+        XCTAssertEqual(result.entries, [first])
+        XCTAssertEqual(result.failures.count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: wrong.path))
+    }
+
+    #if !os(Windows)
+    func testSymbolicEntryCannotReadOutsideTheQueue() throws {
+        let files = try files()
+        let first = entry()
+        try files.put(first)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: files.directory, includingPropertiesForKeys: nil))
+        let path = try XCTUnwrap(enumerator.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "json" })
+        let outside = files.directory.appendingPathComponent("outside.json")
+        try JSONEncoder().encode(first).write(to: outside)
+        try FileManager.default.removeItem(at: path)
+        try FileManager.default.createSymbolicLink(at: path, withDestinationURL: outside)
+        let result = files.read(owner: first.ownerKey, chatID: first.chatID)
+        XCTAssertTrue(result.entries.isEmpty)
+        XCTAssertEqual(result.failures.count, 1)
+        XCTAssertEqual(try JSONDecoder().decode(NivoCoachArchiveEntry.self, from: Data(contentsOf: outside)), first)
+    }
+
+    func testSymbolicRootAliasReadsTheCanonicalQueue() throws {
+        let original = try files()
+        let alias = original.directory.appendingPathComponent("alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: original.directory)
+        let files = NivoCoachArchiveFiles(directory: alias, writer: original.writer)
+        let first = entry()
+        try files.put(first)
+        let result = files.read(owner: first.ownerKey, chatID: first.chatID)
+        XCTAssertEqual(result.entries, [first])
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertEqual(original.read(owner: first.ownerKey, chatID: first.chatID).entries, [first])
+    }
+    #endif
 }

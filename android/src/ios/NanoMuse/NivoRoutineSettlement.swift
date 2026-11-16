@@ -58,7 +58,10 @@ enum NivoRoutineSettlementFiles {
             guard values.isRegularFile == true, values.isSymbolicLink != true, let size = values.fileSize,
                   size <= maximumBytes else { throw NivoLifeError.invalidField("routine_settlement") }
             let receipt = try decoder.decode(NivoRoutineSettlement.self, from: Data(contentsOf: url))
-            guard try file(receipt, directory: directory) == url else { throw NivoLifeError.invalidField("routine_settlement") }
+            // 枚举URL可能使用不同基址或Darwin的/var别名；先拒绝链接文件，再比较完整规范路径。
+            let expected = try file(receipt, directory: directory).standardizedFileURL.resolvingSymlinksInPath().path
+            let actual = url.standardizedFileURL.resolvingSymlinksInPath().path
+            guard expected == actual else { throw NivoLifeError.invalidField("routine_settlement") }
             return receipt
         }
     }

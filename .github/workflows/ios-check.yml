@@ -30,9 +30,34 @@ permissions:
   contents: read
 
 jobs:
+  portable-core:
+    name: Portable Swift regression tests
+    # 官方提示arm64容量紧张，使用支持相同Xcode版本的标准Intel执行器。
+    runs-on: macos-26-intel
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+      # 核心回归与应用构建独立执行，任何一项失败仍使整个工作流失败。
+      - name: Portable Swift regression tests
+        working-directory: android/src/ios
+        run: |
+          set -o pipefail
+          mkdir -p build
+          swift test -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-tests.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: ios-core-log-${{ github.run_number }}
+          path: android/src/ios/build/swift-tests.log
+          retention-days: 7
+          if-no-files-found: warn
+
   build:
     name: xcodebuild (unsigned)
-    runs-on: macos-26
+    runs-on: macos-26-intel
     timeout-minutes: 150
     env:
       GO_VERSION: "1.25"
@@ -57,21 +82,13 @@ jobs:
         working-directory: android/src/ios
         run: cp Configs/ProviderCustomization.xcconfig.example Configs/ProviderCustomization.xcconfig
 
-      # 可移植核心在真实Swift工具链执行，不能以应用编译代替业务回归。
-      - name: Portable Swift regression tests
-        working-directory: android/src/ios
-        run: |
-          set -o pipefail
-          mkdir -p build
-          swift test -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-tests.log
-
       - name: Pinned iSH revision
         id: ish
         run: echo "rev=$(git rev-parse HEAD:android/deps/ish)" >> "$GITHUB_OUTPUT"
 
       - name: Native dependency cache
         id: deps-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             android/deps/libs
@@ -79,6 +96,7 @@ jobs:
             android/deps/resources
             android/deps/frameworks
             android/deps/lame-build
+          # 缓存均为固定arm64设备/模拟器产物和头文件，不包含宿主可执行工具。
           key: ios-deps-${{ runner.os }}-${{ steps.ish.outputs.rev }}-${{ hashFiles('android/deps/*.sh', 'android/deps/ffmpeg-patch/**', 'android/deps/rclone-mobile/**') }}
 
       - name: Native dependencies (LAME → FFmpeg → iSH → Alpine rootfs → rclone)
@@ -90,6 +108,19 @@ jobs:
           ./deps/build_ish.sh
           ./deps/prepare_alpine_rootfs.sh
           ./deps/build_rclone_ios.sh
+
+      # 依赖成功后立即保存，后续Swift错误不应让下一轮重复构建原生库。
+      - name: Save native dependency cache
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            android/deps/libs
+            android/deps/include
+            android/deps/resources
+            android/deps/frameworks
+            android/deps/lame-build
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
 
       - name: Build for a device, unsigned
         working-directory: android/src/ios
@@ -154,7 +185,6 @@ jobs:
         with:
           name: ios-check-log-${{ github.run_number }}
           path: |
-            android/src/ios/build/swift-tests.log
             android/src/ios/build/xcodebuild.log
             android/src/ios/build/xcodebuild-tests.log
           retention-days: 7
