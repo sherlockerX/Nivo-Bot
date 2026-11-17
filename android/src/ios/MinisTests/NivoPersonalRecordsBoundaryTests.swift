@@ -3,6 +3,26 @@ import XCTest
 
 /// 专题裁剪与隐私策略直接覆盖生产入口共用的规则。
 final class NivoPersonalRecordsBoundaryTests: XCTestCase {
+    func testZeroMillisecondReflectionEvidenceRemainsZeroInJSONAndMarkdown() throws {
+        var state = NivoMosaicState(ownerKey: "owner")
+        var entry = NivoMosaicEntry(ownerKey: "owner", id: "reflection", day: 1, text: "Immediate finish",
+            taskIDs: [], focusIDs: ["zero"], createdAt: 1, updatedAt: 1)
+        entry.reflectionSessionID = "zero"
+        entry.focusSnapshots = [.init(id: "zero", title: "No measured time", elapsedMs: 0, startedAt: 0, endedAt: 0)]
+        state.entries = [entry]
+        let query = try NivoJigsawQuery.parse(["get", "--date", "1970-01-02"])
+        let output = try NivoJigsawOutput.render(query: query, state: state)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        let day = try XCTUnwrap((root["days"] as? [[String: Any]])?.first)
+        let record = try XCTUnwrap((day["records"] as? [[String: Any]])?.first)
+        let focus = try XCTUnwrap((record["focusSnapshots"] as? [[String: Any]])?.first)
+        XCTAssertEqual(focus["elapsedMs"] as? Int, 0)
+        XCTAssertEqual(focus["startedAt"] as? Int, 0)
+        XCTAssertEqual(focus["endedAt"] as? Int, 0)
+        let markdown = try NivoJigsawQuery.parse(["get", "--date", "1970-01-02", "--format", "md"])
+        XCTAssertTrue(try NivoJigsawOutput.render(query: markdown, state: state).contains("elapsedMs=0; startedAt=0; endedAt=0"))
+    }
+
     func testOrdinaryConversationCanReadCurrentAccountSnapshot() throws {
         let state = fixture()
         let visible = try NivoPersonalRecordsCoachScope.visible(state, chatID: "ordinary", requiresTopic: false)

@@ -62,6 +62,8 @@ struct NivoTodoSelection: Codable, Equatable, Sendable {
     var expectedRevision: Int64
     var requestedStatus: NivoTodoStatus?
     var completedDay: Int64?
+    /// 只有用户操作日期控件才允许更正已完成日期，旧草稿缺失时保留重复完成语义。
+    var isCompletionDayExplicit: Bool?
 }
 
 /// 专注模式，休息计时不进入专注统计。

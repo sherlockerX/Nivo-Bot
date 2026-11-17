@@ -113,7 +113,7 @@ final class NanoMuseAccountData: ObservableObject {
             if restoresProviders {
                 try await ProviderConfigStore.shared.nmReloadFromDisk()
                 try await ProviderConfigStore.shared.nmReloadThinkingRuleCache()
-                await ProviderConfigStore.shared.nmDidRollbackConfiguration()
+                ProviderConfigStore.shared.nmDidRollbackConfiguration()
             }
             try await NivoProviderDeletionHost.shared.recoverDuringAccountChange()
             // nanoMuse: 已持有账户锁时先结束提供商删除屏障，再重放环境变量，避免两份日志互相阻塞。

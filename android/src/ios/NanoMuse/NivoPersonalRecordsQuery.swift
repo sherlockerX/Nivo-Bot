@@ -2,7 +2,7 @@ import Foundation
 
 /// 原生工具与便携测试共用严格的只读参数协议，不接受路径和写入动作。
 struct NivoPersonalRecordsRequest: Sendable {
-    static let kinds = ["catalog", "reflection_range", "reflections", "reflection_stats", "coach"]
+    static let kinds = ["catalog", "reflection_range", "reflections", "reflection_stats", "coach", "goals", "routines"]
     static let sections = ["overview", "courses", "topics", "sessions", "actions", "drafts"]
     let kind: String
     let section: String
@@ -23,13 +23,14 @@ struct NivoPersonalRecordsRequest: Sendable {
         let target = try optionalText(args, "targetId")
         let start = try optionalText(args, "startDate")
         let end = try optionalText(args, "endDate")
-        guard args["section"] == nil || kind == "coach", target == nil || kind == "coach",
+        guard args["section"] == nil || kind == "coach", target == nil || ["coach", "goals", "routines"].contains(kind),
               (start == nil && end == nil) || ["reflections", "reflection_stats"].contains(kind) else {
             throw invalid("A filter does not apply to this record kind")
         }
         if let target {
-            guard section != "overview", target.range(of: "^[A-Za-z0-9_.:-]{1,160}$", options: .regularExpression) != nil else {
-                throw invalid("Choose an exact ID and a Coach detail section")
+            guard (kind != "coach" || section != "overview"),
+                  target.range(of: "^[A-Za-z0-9_.:-]{1,160}$", options: .regularExpression) != nil else {
+                throw invalid("Choose an exact ID; Coach details also require a section")
             }
         }
         return Self(kind: kind, section: section, targetID: target, startDate: start, endDate: end,

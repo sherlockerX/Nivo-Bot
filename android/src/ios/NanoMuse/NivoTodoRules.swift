@@ -76,6 +76,24 @@ enum NivoTodoRules {
         return task
     }
 
+    /// 明确更正日历日期不产生第二次完成，完成时刻和标签快照保持原证据。
+    static func correctCompletionDay(_ previous: NivoTodoTask, day: Int64, owner: String,
+                                     now: Int64, today: Int64) throws -> NivoTodoTask {
+        guard previous.ownerKey == owner else { throw NivoLifeError.accountChanged }
+        guard previous.status == .done, previous.deletedAt == nil else {
+            throw NivoLifeError.invalidTransition("completion_day")
+        }
+        try validateDay(day)
+        guard day <= today else { throw NivoLifeError.invalidField("completedDay") }
+        guard day != previous.completedDay else { return previous }
+        guard previous.revision < Int64.max else { throw NivoLifeError.invalidField("revision") }
+        var corrected = previous
+        corrected.completedDay = day
+        corrected.revision += 1
+        corrected.updatedAt = max(now, previous.updatedAt)
+        return corrected
+    }
+
     /// 写入前比较实际版本，不能把调用者提供的旧版本覆盖为最新版本。
     static func requireRevision(_ expected: Int64, actual: Int64) throws {
         guard expected == actual else {

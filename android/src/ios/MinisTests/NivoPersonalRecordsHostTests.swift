@@ -4,6 +4,22 @@ import UIKit
 
 /// 真正宿主注册和执行入口拒绝无来源的模型请求，不能仅凭工具名读取个人数据。
 final class NivoPersonalRecordsHostTests: XCTestCase {
+    func testGoalArchiveWireFormatMatchesPortableReader() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("goal-records-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var goal = NanoMuseGoal(title: "Temporary test goal")
+        goal.steps = [NanoMuseGoalStep(text: "Saved step")]
+        goal.lastNote = "Saved note"
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode([goal]).write(to: directory.appendingPathComponent("goals.json"))
+        let rows = try NivoPersonalRecordsPlanningQuery.readGoals(directory: directory)
+        XCTAssertEqual(rows.first?.id, goal.id)
+        XCTAssertEqual(rows.first?.steps.first?.text, "Saved step")
+        XCTAssertEqual(rows.first?.lastNote, "Saved note")
+    }
+
     @MainActor
     func testUnknownCallerCannotRegisterOrExecutePersonalTools() async {
         let host = AIChatViewModel()

@@ -31,6 +31,7 @@ enum NivoMosaicRules {
             try validateContent(day: entry.day, path: entry.mediaPath, crop: entry.crop,
                                 taskIDs: entry.taskIDs, focusIDs: entry.focusIDs)
             try NivoFocusReflectionRules.validateSource(entry.reflectionSessionID)
+            try validateReflectionTaskIntents(entry)
         }
         for draft in state.drafts { try validateDraft(draft, owner: owner) }
         for habit in state.habits { try validateHabit(habit, owner: owner) }
@@ -60,6 +61,16 @@ enum NivoMosaicRules {
         guard selections.count <= maximumLinks, unique(selections.map(\.taskId)),
               Set(selections.map(\.taskId)).isSubset(of: Set(draft.taskIDs)),
               selections.allSatisfy({ $0.expectedRevision > 0 }) else { throw NivoLifeError.invalidField("task_selection") }
+        for selection in selections { try validateExplicitCompletionDay(selection) }
+    }
+
+    /// 旧草稿自动填入的日期不代表更正意图，已完成任务默认展示真实完成日期。
+    static func displayedCompletionDay(_ selection: NivoTodoSelection?, task: NivoTodoTask,
+                                       defaultDay: Int64) -> Int64 {
+        if task.status == .done, selection?.isCompletionDayExplicit != true {
+            return task.completedDay ?? defaultDay
+        }
+        return selection?.completedDay ?? defaultDay
     }
 
     /// 图片文件仅允许应用自己创建的UUID名称，不接受外部绝对路径。
@@ -115,6 +126,29 @@ enum NivoMosaicRules {
         }
     }
 
+    /// 已提交意图只描述本条心得的关联任务，备份不能混入无效版本或额外任务。
+    private static func validateReflectionTaskIntents(_ entry: NivoMosaicEntry) throws {
+        guard let selections = entry.reflectionTaskSelections else { return }
+        guard entry.reflectionSessionID != nil, selections.count <= maximumLinks,
+              unique(selections.map(\.taskId)), Set(selections.map(\.taskId)).isSubset(of: Set(entry.taskIDs)),
+              selections.allSatisfy({ $0.expectedRevision > 0 && $0.requestedStatus != nil }) else {
+            throw NivoLifeError.corruptStore
+        }
+        for selection in selections {
+            try validateExplicitCompletionDay(selection)
+            if let day = selection.completedDay { try NivoTodoRules.validateDay(day) }
+        }
+    }
+
+    /// 明确日期必须由输入提供，不能在规范化时用心得日期填补缺失的用户选择。
+    private static func validateExplicitCompletionDay(_ selection: NivoTodoSelection) throws {
+        guard selection.isCompletionDayExplicit == true else { return }
+        guard selection.requestedStatus == .done, let day = selection.completedDay else {
+            throw NivoLifeError.invalidField("completedDay")
+        }
+        try NivoTodoRules.validateDay(day)
+    }
+
     private static func validateHabit(_ habit: NivoMosaicHabit, owner: String) throws {
         guard habit.ownerKey == owner, !habit.id.isEmpty,
               !habit.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -134,10 +168,10 @@ enum NivoMosaicRules {
 
 /// 专注心得的来源资格和稳定草稿身份，界面与仓库共用同一判断。
 enum NivoFocusReflectionRules {
-    /// 只把确实计量过的结束专注作为心得来源，休息和零时长不提供入口。
+    /// 已结束的非休息专注可记录心得，零时长保留真实计量，不补造专注时间。
     static func canReflect(_ session: NivoFocusSession) -> Bool {
         session.deletedAt == nil && session.status == .finished && session.mode != .rest
-            && session.elapsedMs > 0 && session.endedAt != nil
+            && session.elapsedMs >= 0 && session.endedAt != nil
     }
 
     /// 身份与日期分离；账户由仓库和ownerKey隔离，备份换账户后仍能恢复原草稿。
@@ -152,10 +186,21 @@ enum NivoFocusReflectionRules {
               identifier.utf16.count <= 200 else { throw NivoLifeError.invalidField("reflection_source") }
     }
 
-    /// 重复提交只忽略请求元数据和心得不会执行的待办状态意图，内容差异必须交给用户处理。
+    /// 重复提交忽略请求元数据，明确待办意图必须与已保存回执一致。
     static func hasSameContent(_ draft: NivoMosaicDraft, as entry: NivoMosaicEntry,
                                habitDays: [NivoMosaicHabitDay] = []) -> Bool {
-        content(draft) == content(NivoMosaicRules.draft(from: entry, now: 0, habitDays: habitDays))
+        var saved = NivoMosaicRules.draft(from: entry, now: 0, habitDays: habitDays)
+        saved.taskSelections = entry.reflectionTaskSelections
+        return content(draft) == content(saved)
+    }
+
+    /// 仅保存用户明确选择的状态和所见版本，默认关联不构成任务变更意图。
+    static func taskIntents(_ draft: NivoMosaicDraft) -> [NivoTodoSelection] {
+        (draft.taskSelections ?? []).filter { $0.requestedStatus != nil }.map { selection in
+            var intent = selection
+            intent.completedDay = intent.requestedStatus == .done ? intent.completedDay ?? draft.day : nil
+            return intent
+        }.sorted { $0.taskId < $1.taskId }
     }
 
     /// 规范化默认显示值与保存时裁剪的首尾空白，保留正文、日期、照片及全部关联。
@@ -165,7 +210,7 @@ enum NivoFocusReflectionRules {
         draft.entryID = nil
         draft.expectedRevision = nil
         draft.updatedAt = 0
-        draft.taskSelections = nil
+        draft.taskSelections = taskIntents(input)
         draft.text = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
         draft.shape = draft.shape ?? "rounded"
         if draft.habitID == nil { draft.shouldMarkHabitDone = nil }

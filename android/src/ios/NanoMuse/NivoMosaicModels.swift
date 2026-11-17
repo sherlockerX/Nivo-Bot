@@ -33,6 +33,8 @@ struct NivoMosaicEntry: Codable, Equatable, Identifiable, Sendable {
     var zoneID: String?
     /// 心得来源独立于用户可取消的关联，用于重复点击时定位原条目。
     var reflectionSessionID: String?
+    /// 已提交的明确待办意图供重复保存比较，编辑时不自动重放；旧记录缺失时视为未提交状态变更。
+    var reflectionTaskSelections: [NivoTodoSelection]?
 }
 
 /// 编辑草稿携带读入的版本，自动保存不修改任务或习惯状态。

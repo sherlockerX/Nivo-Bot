@@ -69,9 +69,7 @@ struct NivoMosaicEditor: View {
                 tasksSection
                 focusSection
                 Section {
-                    Text(AppLocalized(draft.reflectionSessionID == nil
-                        ? "Task changes are applied only when you save this fragment."
-                        : "Linked tasks keep their current status when you save this reflection."))
+                    Text(AppLocalized("Task changes are applied only when you save this fragment."))
                         .font(.footnote).foregroundStyle(.secondary)
                     Button(AppLocalized("Discard draft"), role: .destructive) { discardOpen = true }.disabled(isImporting)
                 }
@@ -143,9 +141,7 @@ struct NivoMosaicEditor: View {
                             Text(AppLocalized("Task status when saved") + ": " + saved.title + " · " + saved.status.title)
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        if draft.reflectionSessionID != nil {
-                            Text(task.status.title).font(.subheadline).foregroundStyle(.secondary)
-                        } else { taskStatusControls(task, saved: saved) }
+                        taskStatusControls(task, saved: saved)
                     }
                 }
             }
@@ -158,7 +154,7 @@ struct NivoMosaicEditor: View {
         }
     }
 
-    /// 只有普通碎片编辑保留显式状态选择，专注心得不会出现待办变更控件。
+    /// 普通碎片与专注心得共用明确状态选择，默认保持状态，保存前保留所见版本。
     @ViewBuilder
     private func taskStatusControls(_ task: NivoTodoTask, saved: NivoMosaicTaskLink?) -> some View {
         Picker(AppLocalized("Task status when saved"), selection: Binding(get: {
@@ -170,7 +166,8 @@ struct NivoMosaicEditor: View {
         }.font(.subheadline)
         if draft.taskSelections?.first(where: { $0.taskId == task.id })?.requestedStatus == .done {
             DatePicker(AppLocalized("Completion date"), selection: Binding(get: {
-                let selectedDay = draft.taskSelections?.first { $0.taskId == task.id }?.completedDay ?? draft.day
+                let selection = draft.taskSelections?.first { $0.taskId == task.id }
+                let selectedDay = NivoMosaicRules.displayedCompletionDay(selection, task: task, defaultDay: draft.day)
                 return NivoLifeDay.date(selectedDay)
             }, set: { setTaskCompletionDay(task.id, day: NivoLifeDay.value($0)) }),
                 in: ...Date(), displayedComponents: .date)
@@ -221,8 +218,10 @@ struct NivoMosaicEditor: View {
 
     /// 完成日期可以与日记日期不同，只修改当前草稿，提交前不改变待办。
     private func setTaskCompletionDay(_ identifier: String, day: Int64) {
-        guard let index = draft.taskSelections?.firstIndex(where: { $0.taskId == identifier }) else { return }
+        guard let index = draft.taskSelections?.firstIndex(where: { $0.taskId == identifier }),
+              draft.taskSelections?[index].requestedStatus == .done else { return }
         draft.taskSelections?[index].completedDay = day
+        draft.taskSelections?[index].isCompletionDayExplicit = true
     }
 
     private func setTask(_ task: NivoTodoTask, selected: Bool) {
@@ -240,7 +239,12 @@ struct NivoMosaicEditor: View {
         var selections = draft.taskSelections ?? []
         var selection = selections.first { $0.taskId == task.id } ?? NivoTodoSelection(taskId: task.id, expectedRevision: task.revision)
         selection.requestedStatus = status
-        selection.completedDay = status == .done ? selection.completedDay ?? draft.day : nil
+        if status == .done {
+            selection.completedDay = NivoMosaicRules.displayedCompletionDay(selection, task: task, defaultDay: draft.day)
+        } else {
+            selection.completedDay = nil
+            selection.isCompletionDayExplicit = nil
+        }
         selections.removeAll { $0.taskId == task.id }
         selections.append(selection)
         draft.taskSelections = selections

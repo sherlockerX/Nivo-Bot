@@ -11,6 +11,8 @@
 #include "../NanoMuse/NivoShellBytes.h"
 
 #include <poll.h>
+// nanoMuse: 显式导入宿主stat定义，供文件描述符类型校验使用。
+#include <sys/stat.h>
 #include <libkern/OSAtomic.h>
 #include "ish/kernel/init.h"
 #include "ish/kernel/calls.h"

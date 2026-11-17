@@ -380,6 +380,18 @@ final class NivoMosaicRepositoryTests: XCTestCase {
             clock: NivoFocusClockSample(wallMs: startedAt + elapsed, elapsedMs: 1_000 + elapsed, bootID: "test"))
     }
 
+    /// 更正日期的测试共用真实完成任务与专注来源，保留首次完成历史用于比较。
+    private func completionDayReflection(_ repository: NivoLifeRepository, scope: NivoLifeScope)
+        async throws -> (task: NivoTodoTask, draft: NivoMosaicDraft) {
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read", status: .done,
+            tags: ["Growth"], completedDay: 1), operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision,
+            requestedStatus: .done, completedDay: 2, isCompletionDayExplicit: true)]
+        return (task, opened)
+    }
+
     /// 首次保存捕获真实起止及关联时间，来源删除后改正文也保留同一历史快照。
     func testReflectionLinkTimesSurviveEditingAfterSourcesAreDeleted() async throws {
         let repository = try repository()
@@ -484,7 +496,7 @@ final class NivoMosaicRepositoryTests: XCTestCase {
     }
 
     /// 无效来源在仓库边界拒绝，按钮资格与实际打开规则一致。
-    func testReflectionRejectsRunningBreakZeroAndDeletedSessions() async throws {
+    func testReflectionRejectsRunningBreakAndDeletedSessions() async throws {
         let repository = try repository()
         let scope = try await repository.open(ownerKey: "local", clock: clock)
         let running = try await repository.startFocus(title: "Read", mode: .stopwatch, minutes: 1,
@@ -494,21 +506,44 @@ final class NivoMosaicRepositoryTests: XCTestCase {
             _ = try await repository.openFocusReflection(sessionID: running.id, scope: scope, now: 2)
             XCTFail("未结束会话不能生成心得")
         } catch { XCTAssertEqual(error as? NivoLifeError, .notFound("focus_reflection")) }
-        let zero = try await repository.controlFocus(action: "finish", id: running.id,
+        _ = try await repository.controlFocus(action: "finish", id: running.id,
             expectedRevision: running.revision, operationID: "zero", scope: scope, clock: clock)
         let rest = try await finishedReflectionFocus(repository, scope: scope, mode: .rest)
         let finished = try await finishedReflectionFocus(repository, scope: scope)
         let deleted = try await repository.controlFocus(action: "delete", id: finished.id,
             expectedRevision: finished.revision, operationID: "delete", scope: scope, clock: clock)
-        for session in [zero, rest, deleted] {
+        for session in [rest, deleted] {
             XCTAssertFalse(NivoFocusReflectionRules.canReflect(session))
             do {
                 _ = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 3)
-                XCTFail("休息、零时长和删除记录不能生成心得")
+                XCTFail("休息和删除记录不能生成心得")
             } catch { XCTAssertEqual(error as? NivoLifeError, .notFound("focus_reflection")) }
         }
         let state = try await repository.mosaicSnapshot(scope: scope)
         XCTAssertTrue(state.drafts.isEmpty)
+    }
+
+    /// 同一时刻开始并结束保留真实零计量，心得保存与重载不得补造时长。
+    func testZeroDurationReflectionSavesAndReloadsMeasuredZero() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let session = try await finishedReflectionFocus(repository, scope: scope, elapsed: 0)
+        XCTAssertEqual(session.elapsedMs, 0)
+        XCTAssertEqual(session.endedAt, session.startedAt)
+        XCTAssertTrue(NivoFocusReflectionRules.canReflect(session))
+        var missingEnd = session
+        missingEnd.endedAt = nil
+        XCTAssertFalse(NivoFocusReflectionRules.canReflect(missingEnd))
+        let opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        let saved = try await repository.saveMosaic(opened, operationID: "publish-zero", scope: scope, now: 3, today: 10)
+        XCTAssertEqual(saved.entry?.focusSnapshots?.first?.elapsedMs, 0)
+        XCTAssertEqual(saved.entry?.focusSnapshots?.first?.startedAt, session.startedAt)
+        XCTAssertEqual(saved.entry?.focusSnapshots?.first?.endedAt, session.endedAt)
+        try await repository.close(clock: clock)
+        let restoredScope = try await repository.open(ownerKey: "local", clock: clock)
+        let restored = try await repository.mosaicSnapshot(scope: restoredScope)
+        XCTAssertEqual(restored.entries, [try XCTUnwrap(saved.entry)])
+        XCTAssertEqual(restored.entries.first?.focusSnapshots?.first?.elapsedMs, 0)
     }
 
     /// 重新进入不会重置正文、改期、心情或重新勾选已取消的关联。
@@ -671,36 +706,437 @@ final class NivoMosaicRepositoryTests: XCTestCase {
         XCTAssertEqual(opened.focusIDs, [finished.id])
     }
 
-    /// 新心得只做关联，连草稿中携带的显式完成意图也不能写入待办状态。
-    func testReflectionCannotCompleteLinkedTask() async throws {
+    /// 默认预选只有关联，打开与保存都不会自动完成待办。
+    func testReflectionDefaultSelectionKeepsTaskUnchanged() async throws {
         let repository = try repository()
         let scope = try await repository.open(ownerKey: "local", clock: clock)
         let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
             operationID: "task", scope: scope, now: 1, today: 10)
         let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
-        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
-        opened.taskSelections = [NivoTodoSelection(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done)]
+        let opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        XCTAssertNil(opened.taskSelections?.first?.requestedStatus)
         let saved = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 3, today: 10)
+        var changed = opened
+        changed.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done)]
+        do {
+            _ = try await repository.saveMosaic(changed, operationID: "changed", scope: scope, now: 4, today: 10)
+            XCTFail("默认关联保存后新增状态意图不能当作相同提交")
+        } catch { XCTAssertEqual(error as? NivoLifeError, .operationConflict) }
         let state = try await repository.snapshot(scope: scope, clock: clock)
         XCTAssertEqual(state.tasks, [task])
         XCTAssertEqual(saved.entry?.taskSnapshots?.first?.status, .todo)
+        XCTAssertNil(state.operations["changed"])
     }
 
-    /// 恢复草稿使用任务当前状态，不因旧版本或旧状态意图把已完成待办回退。
+    /// 显式完成与正文原子保存，自动保存和相同意图重试均不重复修改任务。
+    func testReflectionExplicitStatusSavesAtomicallyAndRetriesOnce() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read", tags: ["Growth"]),
+            operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.text = "I finished the chapter."
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done, completedDay: 1)]
+        _ = try await repository.saveMosaicDraft(opened, scope: scope)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(before.tasks, [task])
+        let saved = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 3, today: 10)
+        let exact = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 4, today: 10)
+        let repeated = try await repository.saveMosaic(opened, operationID: "repeat", scope: scope, now: 5, today: 10)
+        XCTAssertEqual(exact, saved)
+        XCTAssertEqual(repeated.entry, saved.entry)
+        XCTAssertEqual(saved.entry?.taskSnapshots?.first?.status, .done)
+        XCTAssertEqual(saved.entry?.text, opened.text)
+        do {
+            _ = try await repository.saveMosaicDraft(opened, scope: scope)
+            XCTFail("显式状态保存后迟到自动保存不能复活草稿")
+        } catch { XCTAssertEqual(error as? NivoLifeError, .invalidTransition("reflection_saved")) }
+        let state = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(state.tasks.first?.status, .done)
+        XCTAssertEqual(state.tasks.first?.completedDay, 1)
+        XCTAssertEqual(state.tasks.first?.revision, task.revision + 1)
+        XCTAssertEqual(state.tasks.first?.completionTags, ["Growth"])
+        XCTAssertEqual(state.mosaic?.entries.count, 1)
+        XCTAssertTrue(state.mosaic?.drafts.isEmpty == true)
+    }
+
+    /// 关联默认项采用当前状态，旧版本不会把已完成待办回退。
     func testReflectionKeepsLatestTaskStatusAfterStaleDraft() async throws {
         let repository = try repository()
         let scope = try await repository.open(ownerKey: "local", clock: clock)
         let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
             operationID: "task", scope: scope, now: 1, today: 10)
         let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
-        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        let opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
         let completed = try await repository.changeTaskStatus(id: task.id, status: .done, expectedRevision: task.revision,
             operationID: "complete", scope: scope, now: 3, today: 10)
-        opened.taskSelections = [NivoTodoSelection(taskId: task.id, expectedRevision: task.revision, requestedStatus: .inProgress)]
         let saved = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 4, today: 10)
         let state = try await repository.snapshot(scope: scope, clock: clock)
         XCTAssertEqual(state.tasks, [completed])
         XCTAssertEqual(saved.entry?.taskSnapshots?.first?.status, .done)
+    }
+
+    /// 显式选择必须遵守所见版本，后一个冲突也回滚前一个任务及全部正文。
+    func testReflectionStaleExplicitStatusRollsBackAllChanges() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let first = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "First"),
+            operationID: "first", scope: scope, now: 1, today: 10)
+        let second = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Second"),
+            operationID: "second", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: first.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.text = "Both chapters are finished."
+        opened.taskIDs = [first.id, second.id]
+        opened.taskSelections = [first, second].map {
+            .init(taskId: $0.id, expectedRevision: $0.revision, requestedStatus: .done)
+        }
+        _ = try await repository.saveMosaicDraft(opened, scope: scope)
+        _ = try await repository.changeTaskStatus(id: second.id, status: .inProgress, expectedRevision: second.revision,
+            operationID: "changed", scope: scope, now: 3, today: 10)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        do {
+            _ = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 4, today: 10)
+            XCTFail("显式状态的旧版本必须整体冲突")
+        } catch { XCTAssertEqual(error as? NivoLifeError, .staleRevision(expected: second.revision, actual: second.revision + 1)) }
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(after, before)
+        XCTAssertEqual(after.mosaic?.drafts, [opened])
+        XCTAssertTrue(after.mosaic?.entries.isEmpty == true)
+        XCTAssertNil(after.operations["publish"])
+    }
+
+    /// 改变显式状态或完成日期不是同一提交，不能把新意图当成保存成功。
+    func testReflectionRetryRejectsChangedTaskIntentAfterReload() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
+            operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done, completedDay: 1)]
+        let saved = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 3, today: 10)
+        try await repository.close(clock: clock)
+        let restoredScope = try await repository.open(ownerKey: "local", clock: clock)
+        let repeated = try await repository.saveMosaic(opened, operationID: "repeat", scope: restoredScope, now: 4, today: 10)
+        XCTAssertEqual(repeated.entry, saved.entry)
+        let changes: [(inout NivoMosaicDraft) -> Void] = [
+            { $0.taskSelections?[0].requestedStatus = .inProgress },
+            { $0.taskSelections?[0].completedDay = 2 },
+            { $0.taskSelections?[0].expectedRevision += 1 },
+            { $0.taskSelections = nil }
+        ]
+        let before = try await repository.snapshot(scope: restoredScope, clock: clock)
+        for (index, change) in changes.enumerated() {
+            var changed = opened
+            change(&changed)
+            do {
+                _ = try await repository.saveMosaic(changed, operationID: "changed-\(index)", scope: restoredScope, now: 5, today: 10)
+                XCTFail("待办意图变化必须报告冲突：\(index)")
+            } catch { XCTAssertEqual(error as? NivoLifeError, .operationConflict) }
+        }
+        let after = try await repository.snapshot(scope: restoredScope, clock: clock)
+        XCTAssertEqual(after, before)
+    }
+
+    /// 已发布心得可显式更新任务，编辑草稿不会自动重放先前已执行的状态意图。
+    func testPublishedReflectionAllowsExplicitStatusEdit() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
+            operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .inProgress)]
+        let saved = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 3, today: 10)
+        let progress = try XCTUnwrap(saved.tasks.first)
+        XCTAssertEqual(progress.status, .inProgress)
+        var edit = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 4)
+        XCTAssertNil(edit.taskSelections)
+        edit.taskSelections = [.init(taskId: task.id, expectedRevision: progress.revision, requestedStatus: .done, completedDay: 2)]
+        let completed = try await repository.saveMosaic(edit, operationID: "complete", scope: scope, now: 5, today: 10)
+        XCTAssertEqual(completed.entry?.id, saved.entry?.id)
+        XCTAssertEqual(completed.entry?.taskSnapshots?.first?.status, .done)
+        XCTAssertEqual(completed.entry?.taskSnapshots?.first?.linkedAt, saved.entry?.taskSnapshots?.first?.linkedAt)
+        XCTAssertEqual(completed.tasks.first?.completedDay, 2)
+        XCTAssertEqual(completed.tasks.first?.revision, progress.revision + 1)
+    }
+
+    /// 明确更正已完成日期与心得同时保存，不重复计入完成历史或重写完成时刻。
+    func testReflectionExplicitCompletionDayCorrectsAlreadyDoneTaskAtomically() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read", status: .done,
+            tags: ["Growth"], completedDay: 1), operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.text = "The chapter was completed on the corrected date."
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision,
+            requestedStatus: .done, completedDay: 2, isCompletionDayExplicit: true)]
+        _ = try await repository.saveMosaicDraft(opened, scope: scope)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(before.tasks, [task])
+
+        let saved = try await repository.saveMosaic(opened, operationID: "correct-date", scope: scope, now: 3, today: 10)
+        let corrected = try XCTUnwrap(saved.tasks.first)
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(corrected.completedDay, 2)
+        XCTAssertEqual(corrected.revision, task.revision + 1)
+        XCTAssertEqual(corrected.completedAt, task.completedAt)
+        XCTAssertEqual(corrected.completionTags, task.completionTags)
+        XCTAssertEqual(after.tasks, [corrected])
+        XCTAssertEqual(after.todoHistory, before.todoHistory)
+        XCTAssertEqual(saved.entry?.text, opened.text)
+        XCTAssertEqual(saved.entry?.reflectionTaskSelections?.first?.isCompletionDayExplicit, true)
+        XCTAssertEqual(saved.entry?.reflectionTaskSelections?.first?.completedDay, corrected.completedDay)
+        XCTAssertTrue(after.mosaic?.drafts.isEmpty == true)
+        XCTAssertNotNil(after.operations["correct-date"])
+    }
+
+    /// 旧自动日期、默认保持及相同日期均不再写任务，日期控件显示实际完成日期。
+    func testReflectionCompletionDayKeepsLegacyAndUnchangedSelections() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let fixture = try await completionDayReflection(repository, scope: scope)
+        let task = fixture.task
+        let source = try XCTUnwrap(fixture.draft.reflectionSessionID)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        let selections: [NivoTodoSelection?] = [nil,
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done),
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done, completedDay: 9),
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done,
+                completedDay: 9, isCompletionDayExplicit: false),
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done,
+                completedDay: 1, isCompletionDayExplicit: true)]
+        for (index, selection) in selections.enumerated() {
+            var edit = try await repository.openFocusReflection(sessionID: source, scope: scope, now: 3)
+            edit.taskSelections = selection.map { [$0] }
+            XCTAssertEqual(NivoMosaicRules.displayedCompletionDay(selection, task: task, defaultDay: 10), 1)
+            _ = try await repository.saveMosaic(edit, operationID: "unchanged-\(index)", scope: scope, now: 4, today: 10)
+            let after = try await repository.snapshot(scope: scope, clock: clock)
+            XCTAssertEqual(after.tasks, [task])
+            XCTAssertEqual(after.todoHistory, before.todoHistory)
+        }
+    }
+
+    /// 重试固定原回执，重开编辑不会重放更正；不同明确意图不能复用同一来源提交。
+    func testReflectionCompletionDayRetriesAndReopensWithoutRepeatingCorrection() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let fixture = try await completionDayReflection(repository, scope: scope)
+        let saved = try await repository.saveMosaic(fixture.draft, operationID: "correct-date", scope: scope, now: 3, today: 10)
+        let replay = try await repository.saveMosaic(fixture.draft, operationID: "correct-date", scope: scope, now: 4, today: 10)
+        XCTAssertEqual(replay, saved)
+        try await repository.close(clock: clock)
+        let restoredScope = try await repository.open(ownerKey: "local", clock: clock)
+        let repeated = try await repository.saveMosaic(fixture.draft, operationID: "repeat", scope: restoredScope, now: 5, today: 10)
+        XCTAssertEqual(repeated.entry, saved.entry)
+        let before = try await repository.snapshot(scope: restoredScope, clock: clock)
+        let changes: [(inout NivoMosaicDraft) -> Void] = [
+            { $0.taskSelections?[0].completedDay = 3 },
+            { $0.taskSelections?[0].isCompletionDayExplicit = nil },
+            { $0.taskSelections?[0].expectedRevision += 1 }
+        ]
+        for (index, change) in changes.enumerated() {
+            var changed = fixture.draft
+            change(&changed)
+            do {
+                _ = try await repository.saveMosaic(changed, operationID: "changed-\(index)", scope: restoredScope, now: 6, today: 10)
+                XCTFail("更正日期或意图变化不能被当成相同回执")
+            } catch { XCTAssertEqual(error as? NivoLifeError, .operationConflict) }
+        }
+        let unchanged = try await repository.snapshot(scope: restoredScope, clock: clock)
+        XCTAssertEqual(unchanged, before)
+        var edit = try await repository.openFocusReflection(sessionID: XCTUnwrap(fixture.draft.reflectionSessionID),
+            scope: restoredScope, now: 7)
+        XCTAssertNil(edit.taskSelections)
+        edit.text = "Only the reflection text changed."
+        let edited = try await repository.saveMosaic(edit, operationID: "edit-text", scope: restoredScope, now: 8, today: 10)
+        let after = try await repository.snapshot(scope: restoredScope, clock: clock)
+        XCTAssertEqual(after.tasks, before.tasks)
+        XCTAssertEqual(after.todoHistory, before.todoHistory)
+        XCTAssertEqual(after.tasks.first?.revision, fixture.task.revision + 1)
+        XCTAssertEqual(after.tasks.first?.completedDay, 2)
+        XCTAssertEqual(edited.entry?.reflectionTaskSelections, [])
+    }
+
+    /// 原始草稿和备份回执先校验明确意图，缺日期或非完成状态不得被默认值掩盖。
+    func testReflectionCompletionDayRejectsMalformedIntentBeforeNormalization() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let fixture = try await completionDayReflection(repository, scope: scope)
+        let task = fixture.task
+        let invalid: [NivoTodoSelection] = [
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done, isCompletionDayExplicit: true),
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .inProgress,
+                completedDay: 2, isCompletionDayExplicit: true),
+            .init(taskId: task.id, expectedRevision: task.revision, completedDay: 2, isCompletionDayExplicit: true),
+            .init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done,
+                completedDay: Int64.max, isCompletionDayExplicit: true)]
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        for (index, selection) in invalid.enumerated() {
+            var candidate = fixture.draft
+            candidate.taskSelections = [selection]
+            XCTAssertThrowsError(try NivoMosaicRules.validateDraft(candidate, owner: "local"))
+            do {
+                _ = try await repository.saveMosaicDraft(candidate, scope: scope)
+                XCTFail("非法明确日期不能进入草稿")
+            } catch { XCTAssertTrue(error is NivoLifeError) }
+            do {
+                _ = try await repository.saveMosaic(candidate, operationID: "invalid-\(index)", scope: scope, now: 3, today: 10)
+                XCTFail("非法明确日期不能进入正式保存")
+            } catch { XCTAssertTrue(error is NivoLifeError) }
+        }
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(after, before)
+        _ = try await repository.saveMosaic(fixture.draft, operationID: "correct-date", scope: scope, now: 3, today: 10)
+        let saved = try await repository.mosaicSnapshot(scope: scope)
+        for selection in invalid {
+            var imported = saved
+            imported.entries[0].reflectionTaskSelections = [selection]
+            XCTAssertThrowsError(try NivoMosaicRules.validate(imported, owner: "local"))
+        }
+    }
+
+    /// 第二个任务的日期、版本或删除冲突不能留下第一个任务的日期更正。
+    func testReflectionCompletionDayFailureRollsBackEveryTaskAndReceipt() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let fixture = try await completionDayReflection(repository, scope: scope)
+        let second = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Second", status: .done,
+            completedDay: 1), operationID: "second", scope: scope, now: 1, today: 10)
+        var candidate = fixture.draft
+        candidate.taskIDs.append(second.id)
+        candidate.taskSelections?.append(.init(taskId: second.id, expectedRevision: second.revision,
+            requestedStatus: .done, completedDay: 2, isCompletionDayExplicit: true))
+        _ = try await repository.saveMosaicDraft(candidate, scope: scope)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        var future = candidate
+        future.taskSelections?[1].completedDay = 11
+        var stale = candidate
+        stale.taskSelections?[1].expectedRevision += 1
+        for (index, invalid) in [future, stale].enumerated() {
+            do {
+                _ = try await repository.saveMosaic(invalid, operationID: "rollback-\(index)", scope: scope, now: 3, today: 10)
+                XCTFail("后一个任务失败必须整体回滚")
+            } catch { XCTAssertTrue(error is NivoLifeError) }
+            let after = try await repository.snapshot(scope: scope, clock: clock)
+            XCTAssertEqual(after, before)
+        }
+        _ = try await repository.deleteTask(id: second.id, expectedRevision: second.revision,
+            operationID: "delete", scope: scope, now: 3)
+        let deleted = try await repository.snapshot(scope: scope, clock: clock)
+        do {
+            _ = try await repository.saveMosaic(candidate, operationID: "deleted", scope: scope, now: 4, today: 10)
+            XCTFail("更正已删除任务必须拒绝")
+        } catch { XCTAssertEqual(error as? NivoLifeError, .notFound(second.id)) }
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(after, deleted)
+    }
+
+    /// 写盘失败时更正日期、正文、历史和幂等回执均保持提交前状态。
+    func testReflectionCompletionDayDiskFailureDoesNotPublishCorrection() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nivo-date-fail-" + UUID().uuidString)
+        addTeardownBlock { if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) } }
+        let repository = NivoLifeRepository(directory: directory, writer: { data, url in
+            let state = try JSONDecoder().decode(NivoLifeState.self, from: data)
+            if state.operations["correct-date"] != nil { throw CocoaError(.fileWriteOutOfSpace) }
+            try data.write(to: url, options: .atomic)
+        })
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let fixture = try await completionDayReflection(repository, scope: scope)
+        _ = try await repository.saveMosaicDraft(fixture.draft, scope: scope)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        do {
+            _ = try await repository.saveMosaic(fixture.draft, operationID: "correct-date", scope: scope, now: 3, today: 10)
+            XCTFail("写盘失败不能报告日期更正成功")
+        } catch { XCTAssertTrue(error is CocoaError) }
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(after, before)
+    }
+
+    /// 旧选择缺失标记仍可解码，新回执备份往返保留明确意图且不新增完成历史。
+    func testReflectionCompletionDayBackupPreservesExplicitIntentAndLegacyDecoding() async throws {
+        let legacyJSON = Data(#"{"taskId":"old","expectedRevision":1,"requestedStatus":"done","completedDay":9}"#.utf8)
+        let legacy = try JSONDecoder().decode(NivoTodoSelection.self, from: legacyJSON)
+        XCTAssertNil(legacy.isCompletionDayExplicit)
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let fixture = try await completionDayReflection(repository, scope: scope)
+        _ = try await repository.saveMosaic(fixture.draft, operationID: "correct-date", scope: scope, now: 3, today: 10)
+        let state = try await repository.snapshot(scope: scope, clock: clock)
+        let decoded = try JSONDecoder().decode(NivoLifeState.self, from: JSONEncoder().encode(state))
+        XCTAssertEqual(decoded, state)
+        let imported = try NivoPersonalBackupMerge.life(local: NivoLifeState(ownerKey: "local"), incoming: decoded, owner: "local")
+        XCTAssertEqual(imported.tasks.first?.completedDay, 2)
+        XCTAssertEqual(imported.mosaic?.entries.first?.reflectionTaskSelections?.first?.isCompletionDayExplicit, true)
+        XCTAssertEqual(imported.todoHistory?.events, state.todoHistory?.events)
+    }
+
+    /// 更正规则保留原完成证据，时钟回拨不倒退版本时间，重复日期不产生新版本。
+    func testCompletionDayCorrectionRulePreservesEvidenceAndRejectsInvalidState() throws {
+        let task = NivoTodoTask(ownerKey: "local", id: "task", title: "Read", status: .done,
+            tags: ["New tag"], revision: 5, createdAt: 1, updatedAt: 20,
+            completedDay: 1, completedAt: 10, completionTags: ["Original tag"])
+        let corrected = try NivoTodoRules.correctCompletionDay(task, day: 2, owner: "local", now: 15, today: 10)
+        XCTAssertEqual(corrected.revision, 6)
+        XCTAssertEqual(corrected.updatedAt, 20)
+        XCTAssertEqual(corrected.completedAt, 10)
+        XCTAssertEqual(corrected.completionTags, ["Original tag"])
+        XCTAssertEqual(try NivoTodoRules.correctCompletionDay(task, day: 1, owner: "local", now: 30, today: 10), task)
+        XCTAssertThrowsError(try NivoTodoRules.correctCompletionDay(task, day: 11, owner: "local", now: 30, today: 10))
+        XCTAssertThrowsError(try NivoTodoRules.correctCompletionDay(task, day: 2, owner: "other", now: 30, today: 10))
+        var unfinished = task
+        unfinished.status = .inProgress
+        XCTAssertThrowsError(try NivoTodoRules.correctCompletionDay(unfinished, day: 2, owner: "local", now: 30, today: 10))
+        var deleted = task
+        deleted.deletedAt = 21
+        XCTAssertThrowsError(try NivoTodoRules.correctCompletionDay(deleted, day: 2, owner: "local", now: 30, today: 10))
+        var exhausted = task
+        exhausted.revision = Int64.max
+        XCTAssertThrowsError(try NivoTodoRules.correctCompletionDay(exhausted, day: 2, owner: "local", now: 30, today: 10))
+    }
+
+    /// 状态意图回执进入备份比较，等版本冲突不能覆盖已经执行的选择。
+    func testReflectionTaskIntentBackupConflictPreservesSavedState() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
+            operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done, completedDay: 1)]
+        _ = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 3, today: 10)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        var incoming = try JSONDecoder().decode(NivoLifeState.self, from: JSONEncoder().encode(before))
+        incoming.mosaic?.entries[0].reflectionTaskSelections?[0].completedDay = 2
+        XCTAssertThrowsError(try NivoPersonalBackupMerge.life(local: before, incoming: incoming, owner: "local")) {
+            XCTAssertEqual($0 as? NivoLifeError, .operationConflict)
+        }
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(after, before)
+    }
+
+    /// 用户明确修改的任务若被删除，保存必须失败，不能静默跳过操作并宣称成功。
+    func testReflectionExplicitStatusRejectsDeletedTask() async throws {
+        let repository = try repository()
+        let scope = try await repository.open(ownerKey: "local", clock: clock)
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
+            operationID: "task", scope: scope, now: 1, today: 10)
+        let session = try await finishedReflectionFocus(repository, scope: scope, taskID: task.id)
+        var opened = try await repository.openFocusReflection(sessionID: session.id, scope: scope, now: 2)
+        opened.taskSelections = [.init(taskId: task.id, expectedRevision: task.revision, requestedStatus: .done)]
+        _ = try await repository.saveMosaicDraft(opened, scope: scope)
+        _ = try await repository.deleteTask(id: task.id, expectedRevision: task.revision,
+            operationID: "delete", scope: scope, now: 3)
+        let before = try await repository.snapshot(scope: scope, clock: clock)
+        do {
+            _ = try await repository.saveMosaic(opened, operationID: "publish", scope: scope, now: 4, today: 10)
+            XCTFail("明确修改已删除任务必须报告失败")
+        } catch { XCTAssertEqual(error as? NivoLifeError, .notFound(task.id)) }
+        let after = try await repository.snapshot(scope: scope, clock: clock)
+        XCTAssertEqual(after, before)
     }
 
     /// 任务在打开前或编辑期间被删除，都可保存心得且不恢复删除记录。

@@ -4,6 +4,14 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Extended iOS personal-record queries to saved goals and routines, with exact details, paginated retained runs and explicit archive errors. Kept queries read-only and excluded script execution content.
+
+- Aligned focus reflections with Android's explicit linked-task choices while preserving the default task status, transactional revision checks and genuine zero-duration records.
+
+- Applied explicitly corrected completion dates from fragment editors without adding a second completion, while preserving original completion times, tag snapshots, old drafts and atomic rollback.
+
+- Imported the host filesystem metadata declaration explicitly in the iOS shell executor and removed a redundant account-recovery await after Apple compiler diagnostics.
+
 - Corrected the iOS root filesystem tool's native build configuration on Intel Macs while retaining the ARM64 device filesystem. Native dependencies passed the next Apple CI build.
 
 - Added iOS focus reflections from completed timers, the latest three sessions and history, retained one draft or saved entry per session, linked valid tasks without changing their status and preserved conflicting backup text. Kept measured start and end times in saved links. Renamed the fragment text field to Reflection in all nine locales.

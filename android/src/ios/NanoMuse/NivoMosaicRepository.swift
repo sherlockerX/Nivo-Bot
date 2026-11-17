@@ -111,7 +111,8 @@ extension NivoLifeRepository {
                 habitID: habit?.id, habitTitle: habit?.title,
                 taskSnapshots: tasks.links,
                 focusSnapshots: focus, crop: draft.crop, shape: draft.shape ?? "rounded",
-                zoneID: old?.zoneID ?? TimeZone.current.identifier, reflectionSessionID: draft.reflectionSessionID)
+                zoneID: old?.zoneID ?? TimeZone.current.identifier, reflectionSessionID: draft.reflectionSessionID,
+                reflectionTaskSelections: draft.reflectionSessionID == nil ? nil : NivoFocusReflectionRules.taskIntents(draft))
             mosaic.entries.removeAll { $0.id == entry.id }
             mosaic.entries.append(entry)
             mosaic.drafts.removeAll { $0.id == draft.id }
@@ -246,7 +247,7 @@ extension NivoLifeRepository {
         }
     }
 
-    /// 新关联只选有效待办，已发布关联保留历史；忽略状态意图，绝不完成或回退任务。
+    /// 默认关联采用当前任务，明确状态保留所见版本，交由既有任务事务校验并执行。
     private static func reflectionLinks(_ input: NivoMosaicDraft, in state: NivoLifeState) throws -> NivoMosaicDraft {
         guard let source = input.reflectionSessionID else { return input }
         if input.entryID == nil {
@@ -255,10 +256,16 @@ extension NivoLifeRepository {
         }
         var draft = input
         let tasks = state.tasks.filter { $0.ownerKey == input.ownerKey && $0.deletedAt == nil && input.taskIDs.contains($0.id) }
+        let intents = NivoFocusReflectionRules.taskIntents(input)
+        for intent in intents where !tasks.contains(where: { $0.id == intent.taskId }) {
+            throw NivoLifeError.notFound(intent.taskId)
+        }
         let savedLinks = state.mosaic?.entries.first { $0.id == input.entryID }?.taskSnapshots ?? []
         // 已发布心得保留历史关联；首次保存时仍跳过已删除的待办。
         draft.taskIDs = input.taskIDs.filter { id in tasks.contains { $0.id == id } || savedLinks.contains { $0.id == id } }
-        draft.taskSelections = tasks.map { NivoTodoSelection(taskId: $0.id, expectedRevision: $0.revision) }
+        draft.taskSelections = tasks.map { task in
+            intents.first { $0.taskId == task.id } ?? NivoTodoSelection(taskId: task.id, expectedRevision: task.revision)
+        }
         return draft
     }
 
@@ -279,14 +286,8 @@ extension NivoLifeRepository {
             }
             let previous = state.tasks[index]
             if let selection {
-                try NivoTodoRules.requireRevision(selection.expectedRevision, actual: previous.revision)
-                if let requestedStatus = selection.requestedStatus, requestedStatus != previous.status {
-                    var candidate = previous
-                    candidate.status = requestedStatus
-                    candidate.completedDay = selection.completedDay ?? draft.day
-                    state.tasks[index] = try NivoTodoRules.update(candidate, previous: previous, owner: draft.ownerKey,
-                                                               id: id, now: now, today: today)
-                }
+                state.tasks[index] = try applyMosaicTaskSelection(selection, previous: previous, draft: draft,
+                                                                now: now, today: today)
             }
             result.append(state.tasks[index])
             let current = state.tasks[index]
@@ -298,6 +299,22 @@ extension NivoLifeRepository {
             links.append(NivoMosaicTaskLink(id: current.id, title: current.title, status: current.status, linkedAt: linkedAt))
         }
         return (result, links)
+    }
+
+    /// 同状态的日期更正必须有明确标记，旧草稿及普通重复完成继续保持原日期。
+    private static func applyMosaicTaskSelection(_ selection: NivoTodoSelection, previous: NivoTodoTask,
+                                                draft: NivoMosaicDraft, now: Int64, today: Int64) throws -> NivoTodoTask {
+        try NivoTodoRules.requireRevision(selection.expectedRevision, actual: previous.revision)
+        if selection.requestedStatus == .done, previous.status == .done, selection.isCompletionDayExplicit == true {
+            guard let day = selection.completedDay else { throw NivoLifeError.invalidField("completedDay") }
+            return try NivoTodoRules.correctCompletionDay(previous, day: day, owner: draft.ownerKey, now: now, today: today)
+        }
+        guard let status = selection.requestedStatus, status != previous.status else { return previous }
+        var candidate = previous
+        candidate.status = status
+        candidate.completedDay = selection.completedDay ?? draft.day
+        return try NivoTodoRules.update(candidate, previous: previous, owner: draft.ownerKey,
+                                       id: previous.id, now: now, today: today)
     }
 
     private static func mosaicFocus(_ ids: [String], old: NivoMosaicEntry?, in state: NivoLifeState) throws -> [NivoMosaicFocusLink] {
