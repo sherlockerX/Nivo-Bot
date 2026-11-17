@@ -114,21 +114,21 @@ check_prerequisites() {
 fetch_ffmpeg_source() {
     local version="6.1.2"
     local tarball="ffmpeg-${version}.tar.xz"
-    local url="https://ffmpeg.org/releases/${tarball}"
+    # nanoMuse: 固定发行包摘要来自Buildroot官方2024.08版本记录：
+    # https://github.com/buildroot/buildroot/blob/2024.08/package/ffmpeg/ffmpeg.hash
+    local sha256="3b624649725ecdc565c903ca6643d41f33bd49239922e45c9b1442c63dca4e38"
+    local archive="$SCRIPT_DIR/.cache/ffmpeg/$tarball"
+    # FFmpeg主站不可用时仅使用MacPorts项目源码镜像，仍必须匹配同一发行包摘要。
+    if ! bash "$SCRIPT_DIR/download_verified_archive.sh" "$archive" "$sha256" \
+        "https://ffmpeg.org/releases/${tarball}" \
+        "https://distfiles.macports.org/ffmpeg/${tarball}"; then
+        log_error "Failed to obtain verified FFmpeg ${version} source."
+    fi
     local tmp
     tmp="$(mktemp -d)"
 
-    log_info "FFmpeg source not present — downloading ${version}..."
-    # nanoMuse: 官方源DNS或临时故障最多重试4次，限制连接、单次传输与重试窗口；最终失败仍清理暂存并退出。
-    if ! curl -fL# --retry 4 --retry-all-errors --retry-delay 5 \
-        --connect-timeout 30 --max-time 300 --retry-max-time 600 \
-        "$url" -o "$tmp/$tarball"; then
-        rm -rf "$tmp"
-        log_error "Failed to download $url — check your network, or place the source at $FFMPEG_DIR manually."
-    fi
-
     log_info "Extracting..."
-    if ! tar -xf "$tmp/$tarball" -C "$tmp"; then
+    if ! tar -xf "$archive" -C "$tmp"; then
         rm -rf "$tmp"
         log_error "Failed to extract $tarball"
     fi
