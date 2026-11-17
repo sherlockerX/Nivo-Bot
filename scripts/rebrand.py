@@ -30,6 +30,7 @@ Anything else is a hand edit marked `// nanoMuse:` in the file.
     python scripts/rebrand.py --check    # report only, write nothing
     python scripts/rebrand.py --android-brand-only  # 仅更新Android品牌与版本
     python scripts/rebrand.py --ios-brand-only      # 仅更新iOS可见品牌，不更改版本或数据标识
+    python scripts/rebrand.py --ios-version-only    # 仅更新iOS版本，不更改品牌、图像或数据标识
 """
 
 from __future__ import annotations
@@ -50,9 +51,9 @@ IOS = ROOT / "android" / "src" / "ios"
 
 APP_ID = "io.github.nanomuse.app"
 NAME = "Nicholasx"  # Mosaic: the personal build's product name
-VERSION_NAME = "1.0.6"
-VERSION_CODE = 49
-# Android采用独立发行版本；iOS保留既有版本，不能据此宣称平台功能同步。
+VERSION_NAME = "2.0.0"
+VERSION_CODE = 51
+# 两个平台独立保存版本；当前按用户要求对齐品牌版本，不代表平台功能已同步。
 ANDROID_VERSION_NAME = "2.0.0"
 ANDROID_VERSION_CODE = 51
 ANDROID_NAME = "Nivo Bot"
@@ -392,14 +393,27 @@ def ios_schemes() -> None:
     )
 
 
-def ios_project() -> None:
+def ios_versions_only() -> None:
+    """仅生成iOS版本字段，不改可见品牌、图像、数据标识或其他平台。"""
+    if not IOS.is_dir():
+        return
     pbx = IOS / "Minis.xcodeproj" / "project.pbxproj"
     edit(
         pbx,
         [
-            # upstream's `1.13` and every version of ours before this one
             (r"MARKETING_VERSION = \d+(?:\.\d+)+;", f"MARKETING_VERSION = {VERSION_NAME};"),
             (r"CURRENT_PROJECT_VERSION = \d+;", f"CURRENT_PROJECT_VERSION = {VERSION_CODE};"),
+        ],
+    )
+
+
+def ios_project() -> None:
+    """完整iOS品牌流程复用同一版本生成入口，避免后续同步回退版本。"""
+    ios_versions_only()
+    pbx = IOS / "Minis.xcodeproj" / "project.pbxproj"
+    edit(
+        pbx,
+        [
             (
                 r'INFOPLIST_KEY_CFBundleDisplayName = "Share to Minis";',
                 f'INFOPLIST_KEY_CFBundleDisplayName = "Share to {NAME}";',
@@ -633,6 +647,10 @@ def main(argv: list[str] | None = None) -> int:
     if args == ["--ios-brand-only"]:
         ios_brand_only()
         print(f"{len(set(changed))} iOS brand files changed")
+        return 0
+    if args == ["--ios-version-only"]:
+        ios_versions_only()
+        print(f"{len(set(changed))} iOS version files changed")
         return 0
     if args not in ([], ["--check"]):
         print(f"usage: {sys.argv[0]} [--check]  (unknown: {' '.join(args)})", file=sys.stderr)

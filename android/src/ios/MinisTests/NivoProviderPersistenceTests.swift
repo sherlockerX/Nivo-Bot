@@ -614,14 +614,14 @@ final class NivoProviderPersistenceTests: XCTestCase {
             XCTFail("第二个删除失败时必须回滚第一个删除")
         } catch is NivoSQLiteWriteError {}
         for id in ids {
-            let row = await database.entryRow(id: id)
-            XCTAssertNotNil(row)
+            let hasEntry = await database.hasTestEntryRow(id: id)
+            XCTAssertTrue(hasEntry)
         }
         try executeSQL(url, sql: "DROP TRIGGER reject_model_delete")
         try await database.deleteEntryRows(ids: ids)
         for id in ids {
-            let row = await database.entryRow(id: id)
-            XCTAssertNil(row)
+            let hasEntry = await database.hasTestEntryRow(id: id)
+            XCTAssertFalse(hasEntry)
         }
     }
 
@@ -696,8 +696,8 @@ final class NivoProviderPersistenceTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? NivoPersonalBackupError, .invalidPackage)
         }
-        let row = await database.entryRow(id: original.modelEntries[0].uuid)
-        XCTAssertEqual(row?["base_model_json"] as? String, "broken")
+        let modelJSON = await database.testEntryModelJSON(id: original.modelEntries[0].uuid)
+        XCTAssertEqual(modelJSON, "broken")
     }
 
     func testLegacyIDMapSurvivesFullConfigurationWriteAndDatabaseReopen() async throws {
@@ -732,8 +732,8 @@ final class NivoProviderPersistenceTests: XCTestCase {
         try await store.nmRefreshFromDatabase()
         XCTAssertEqual(store.config.modelGroups.first?.memberEntryIds, ["provider/incoming"])
         // 缓存归一化不反写数据库中的整组记录。
-        let group = await database.groupRow(id: "group")
-        XCTAssertEqual(group?["member_entry_ids_json"] as? String, "[\"legacy-entry\"]")
+        let membersJSON = await database.testGroupMembersJSON(id: "group")
+        XCTAssertEqual(membersJSON, "[\"legacy-entry\"]")
     }
 
     func testReadOnlyMirrorFailureCanRetrySameSnapshotWithoutDatabaseRewrite() async throws {
@@ -893,9 +893,9 @@ final class NivoProviderPersistenceTests: XCTestCase {
         let persisted = try await database.nmDumpProviderConfig()
         XCTAssertEqual(persisted.instances.first?.label, "local-name")
         XCTAssertEqual(persisted.modelEntries.count, 2)
-        let row = await database.entryRow(id: "provider/incoming")
-        XCTAssertEqual(row?["updated_at"] as? Double, 50)
-        XCTAssertEqual(row?["extras_json"] as? String, "{\"future\":true}")
+        let metadata = await database.testEntryMetadata(id: "provider/incoming")
+        XCTAssertEqual(metadata.updatedAt, 50)
+        XCTAssertEqual(metadata.extrasJSON, "{\"future\":true}")
         let saved = try JSONDecoder().decode(ProviderConfig.self, from: Data(contentsOf: mirror))
         XCTAssertEqual(saved.modelEntries.count, 2)
     }
@@ -1004,9 +1004,9 @@ final class NivoProviderPersistenceTests: XCTestCase {
                     updatedAt: Date().timeIntervalSince1970 + 100, extrasJson: nil)
                 XCTFail("本机损坏成员记录不能被当成空集合合并")
             } catch {}
-            let row = await database.groupRow(id: "group")
-            XCTAssertEqual(row?[column] as? String, "broken")
-            XCTAssertEqual(row?["name"] as? String, "original")
+            let history = await database.testGroupHistory(id: "group", column: column)
+            XCTAssertEqual(history.value, "broken")
+            XCTAssertEqual(history.name, "original")
         }
     }
 
@@ -1075,5 +1075,35 @@ final class NivoProviderPersistenceTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try FileManager.default.removeItem(at: root) }
         return root
+    }
+}
+
+/// 在数据库actor内读取真实行，只将断言所需的可发送值传回主actor。
+private extension ProviderConfigDB {
+    /// 检查模型行是否仍然存在，不向测试调用方传递原始字典。
+    func hasTestEntryRow(id: String) -> Bool {
+        entryRow(id: id) != nil
+    }
+
+    /// 保留模型载荷原文，使测试仍能断言损坏内容未被删除或改写。
+    func testEntryModelJSON(id: String) -> String? {
+        entryRow(id: id)?["base_model_json"] as? String
+    }
+
+    /// 保留组成员的原始JSON，使测试仍能区分缓存归一化与数据库改写。
+    func testGroupMembersJSON(id: String) -> String? {
+        groupRow(id: id)?["member_entry_ids_json"] as? String
+    }
+
+    /// 从同一次读取提取模型时间戳与扩展数据，避免跨actor传递Any。
+    func testEntryMetadata(id: String) -> (updatedAt: Double?, extrasJSON: String?) {
+        let row = entryRow(id: id)
+        return (row?["updated_at"] as? Double, row?["extras_json"] as? String)
+    }
+
+    /// 从同一次读取提取指定历史字段与组名称，保留故障恢复断言的对应关系。
+    func testGroupHistory(id: String, column: String) -> (value: String?, name: String?) {
+        let row = groupRow(id: id)
+        return (row?[column] as? String, row?["name"] as? String)
     }
 }

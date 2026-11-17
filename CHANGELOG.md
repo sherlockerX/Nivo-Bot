@@ -4,6 +4,12 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Corrected application-test membership for six standalone Swift scripts, reused the real provider host-tag implementation and kept database assertions within Swift 6 actor boundaries. The scripts and application XCTest suites were preserved; the next Apple test build will verify the configuration.
+
+- Aligned the local iOS configuration with the user's authorized version 2.0.0 (51) and added an iOS-only version generator. Four generator tests passed; identifiers, display names and images were preserved. These local version changes are not covered by the Apple run at `a53fe85`.
+
+- Passed 682 macOS portable tests with zero failures and built the unsigned iOS application at `a53fe85`. The application-test target failed during `build-for-testing` and remains under diagnosis; application tests and phone interactions have not been accepted.
+
 - Extended iOS personal-record queries to saved goals and routines, with exact details, paginated retained runs and explicit archive errors. Kept queries read-only and excluded script execution content.
 
 - Aligned focus reflections with Android's explicit linked-task choices while preserving the default task status, transactional revision checks and genuine zero-duration records.

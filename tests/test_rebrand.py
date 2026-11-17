@@ -98,3 +98,41 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
     before = {path: path.read_bytes() for path in ios.rglob("*") if path.is_file()}
     rebrand.ios_brand_only()
     assert {path: path.read_bytes() for path in before} == before
+
+
+def test_ios_version_only_updates_versions_preserves_other_files_and_is_idempotent(
+    rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """显式版本入口只对齐iOS版本，不改品牌、标识、图像或其他平台。"""
+    ios = tmp_path / "ios"
+    monkeypatch.setattr(rebrand, "ROOT", tmp_path)
+    monkeypatch.setattr(rebrand, "IOS", ios)
+    project = ios / "Minis.xcodeproj/project.pbxproj"
+    project.parent.mkdir(parents=True)
+    original = (
+        "MARKETING_VERSION = 1.0.6;\nCURRENT_PROJECT_VERSION = 49;\n"
+        'INFOPLIST_KEY_CFBundleDisplayName = "Personal brand";\n'
+        "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app;\n"
+        "MARKETING_VERSION = 1.13;\nCURRENT_PROJECT_VERSION = 1;\n"
+        "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app.share;\n"
+    )
+    project.write_text(original, encoding="utf-8")
+    image = ios / "custom-icon.png"
+    image.write_bytes(b"unchanged-image-fixture")
+    android = tmp_path / "android.gradle"
+    android.write_text('versionName = "2.0.0"\nversionCode = 51\n', encoding="utf-8")
+    assert rebrand.main(["--ios-version-only"]) == 0
+    expected = (
+        original.replace("MARKETING_VERSION = 1.0.6;", "MARKETING_VERSION = 2.0.0;")
+        .replace("MARKETING_VERSION = 1.13;", "MARKETING_VERSION = 2.0.0;")
+        .replace("CURRENT_PROJECT_VERSION = 49;", "CURRENT_PROJECT_VERSION = 51;")
+        .replace("CURRENT_PROJECT_VERSION = 1;", "CURRENT_PROJECT_VERSION = 51;")
+    )
+    assert project.read_text(encoding="utf-8") == expected
+    assert image.read_bytes() == b"unchanged-image-fixture"
+    assert android.read_text(encoding="utf-8") == 'versionName = "2.0.0"\nversionCode = 51\n'
+    before = {path: path.read_bytes() for path in (project, image, android)}
+    assert rebrand.main(["--ios-version-only"]) == 0
+    assert {path: path.read_bytes() for path in before} == before
+    rebrand.ios_project()
+    assert project.read_text(encoding="utf-8") == expected
