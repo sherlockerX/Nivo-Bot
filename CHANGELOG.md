@@ -14,6 +14,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 - Corrected dynamic localized titles in task, focus, classic-menu and provider-migration views after Apple type checking rejected plain strings passed to the localization helper.
 
+- Split focus group mapping and ordering into explicitly typed steps after the Apple application compiler exhausted its type-checking budget on the combined expression.
+
 - Stopped rejecting valid pending Coach archives and scheduled-result files because of relative or aliased path representations, while retaining symbolic-link and filename checks.
 
 - Removed stored FileManager references from sendable account, wardrobe and script-home file helpers after Apple CI reported Foundation concurrency errors. Preserved file transaction behavior and included portable-test logs in CI artifacts.

@@ -29,8 +29,13 @@ enum NivoFocusStatistics {
             let duration = max(0, min(endMs, span.startedAt + span.durationMs) - max(startMs, span.startedAt))
             if duration > 0 { totals[group, default: 0] += duration }
         }
-        let groups = totals.map { NivoFocusGroupTotal(group: $0.key, durationMs: $0.value) }.sorted {
-            $0.durationMs == $1.durationMs ? $0.group < $1.group : $0.durationMs > $1.durationMs
+        // 分开映射和排序并固定类型，避免Apple编译器在链式重载中耗尽推导预算。
+        var groups: [NivoFocusGroupTotal] = totals.map { entry in
+            NivoFocusGroupTotal(group: entry.key, durationMs: entry.value)
+        }
+        groups.sort { (left: NivoFocusGroupTotal, right: NivoFocusGroupTotal) -> Bool in
+            if left.durationMs != right.durationMs { return left.durationMs > right.durationMs }
+            return left.group < right.group
         }
         return NivoFocusDistribution(groups: groups)
     }
