@@ -16,6 +16,7 @@ struct NivoMosaicEditor: View {
     @State private var operationID = UUID().uuidString
     @State private var errorMessage: String?
     @State private var discardOpen = false
+    @State private var hasFinished = false
 
     private var canSave: Bool {
         NivoMosaicRules.canSave(draft)
@@ -30,10 +31,19 @@ struct NivoMosaicEditor: View {
         NavigationStack {
             Form {
                 if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red).font(.subheadline) } }
-                Section(AppLocalized("Fragment")) {
+                Section(AppLocalized("Reflection")) {
                     DatePicker(AppLocalized("Date"), selection: Binding(get: { NivoLifeDay.date(draft.day) }, set: { draft.day = NivoLifeDay.value($0) }),
                                in: ...latestEditableDate, displayedComponents: .date)
-                    TextEditor(text: $draft.text).frame(minHeight: 140).accessibilityLabel(AppLocalized("Fragment"))
+                    TextEditor(text: $draft.text).frame(minHeight: 140)
+                        .accessibilityLabel(AppLocalized("Reflection"))
+                        .accessibilityHint(AppLocalized("What did you notice or learn?"))
+                        .overlay(alignment: .topLeading) {
+                            if draft.text.isEmpty {
+                                Text(AppLocalized("What did you notice or learn?"))
+                                    .foregroundStyle(.secondary).padding(.top, 8).padding(.leading, 5)
+                                    .allowsHitTesting(false).accessibilityHidden(true)
+                            }
+                        }
                     Picker(AppLocalized("Mood"), selection: $draft.mood) {
                         Text(AppLocalized("Not selected")).tag(nil as NivoMosaicMood?)
                         ForEach(NivoMosaicMood.allCases, id: \.self) { mood in
@@ -59,7 +69,9 @@ struct NivoMosaicEditor: View {
                 tasksSection
                 focusSection
                 Section {
-                    Text(AppLocalized("Task changes are applied only when you save this fragment."))
+                    Text(AppLocalized(draft.reflectionSessionID == nil
+                        ? "Task changes are applied only when you save this fragment."
+                        : "Linked tasks keep their current status when you save this reflection."))
                         .font(.footnote).foregroundStyle(.secondary)
                     Button(AppLocalized("Discard draft"), role: .destructive) { discardOpen = true }.disabled(isImporting)
                 }
@@ -73,11 +85,12 @@ struct NivoMosaicEditor: View {
                     else { Button(AppLocalized("Save")) { Task { await save() } }.disabled(!canSave || isImporting) }
                 }
             }
-            .disabled(isSubmitting || life.accessScope != access)
+            .disabled(isSubmitting || hasFinished || life.accessScope != access)
             .interactiveDismissDisabled()
             .nmOnChange(of: draft) { value in queueDraft(value) }
             .nmOnChange(of: photo) { item in if let item { Task { await importPhoto(item) } } }
             .onReceive(NotificationCenter.default.publisher(for: .nanoMuseAccountSwitched)) { _ in autosave?.cancel(); dismiss() }
+            .nmOnChange(of: life.accessScope) { if $0 != access { autosave?.cancel(); dismiss() } }
             .onDisappear { autosave?.cancel() }
             .confirmationDialog(AppLocalized("Discard this saved draft?"), isPresented: $discardOpen, titleVisibility: .visible) {
                 Button(AppLocalized("Discard draft"), role: .destructive) {
@@ -130,27 +143,9 @@ struct NivoMosaicEditor: View {
                             Text(AppLocalized("Task status when saved") + ": " + saved.title + " · " + saved.status.title)
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        Picker(AppLocalized("Task status when saved"), selection: Binding(get: {
-                            draft.taskSelections?.first { $0.taskId == task.id }?.requestedStatus
-                        }, set: { setTaskStatus(task, status: $0) })) {
-                            Text(AppLocalized(saved == nil ? "Keep current status" : "Keep saved status"))
-                                .tag(nil as NivoTodoStatus?)
-                            Text(AppLocalized("In progress")).tag(NivoTodoStatus.inProgress as NivoTodoStatus?)
-                            Text(AppLocalized("Done")).tag(NivoTodoStatus.done as NivoTodoStatus?)
-                        }.font(.subheadline)
-                        if draft.taskSelections?.first(where: { $0.taskId == task.id })?.requestedStatus == .done {
-                            DatePicker(AppLocalized("Completion date"), selection: Binding(get: {
-                                let selectedDay = draft.taskSelections?.first { $0.taskId == task.id }?.completedDay ?? draft.day
-                                return NivoLifeDay.date(selectedDay)
-                            }, set: { setTaskCompletionDay(task.id, day: NivoLifeDay.value($0)) }),
-                                       in: ...Date(), displayedComponents: .date)
-                        }
-                        if let selection = draft.taskSelections?.first(where: { $0.taskId == task.id }),
-                           selection.expectedRevision != task.revision,
-                           selection.requestedStatus != nil || originalEntry?.taskSnapshots?.contains(where: { $0.id == task.id }) != true {
-                            Button(AppLocalized("Review latest task version")) { refreshTask(task) }.font(.caption)
-                            Text(AppLocalized("This item changed. Reload before saving.")).font(.caption).foregroundStyle(.orange)
-                        }
+                        if draft.reflectionSessionID != nil {
+                            Text(task.status.title).font(.subheadline).foregroundStyle(.secondary)
+                        } else { taskStatusControls(task, saved: saved) }
                     }
                 }
             }
@@ -160,6 +155,31 @@ struct NivoMosaicEditor: View {
                     draft.taskSelections?.removeAll { $0.taskId == identifier }
                 }
             }
+        }
+    }
+
+    /// 只有普通碎片编辑保留显式状态选择，专注心得不会出现待办变更控件。
+    @ViewBuilder
+    private func taskStatusControls(_ task: NivoTodoTask, saved: NivoMosaicTaskLink?) -> some View {
+        Picker(AppLocalized("Task status when saved"), selection: Binding(get: {
+            draft.taskSelections?.first { $0.taskId == task.id }?.requestedStatus
+        }, set: { setTaskStatus(task, status: $0) })) {
+            Text(AppLocalized(saved == nil ? "Keep current status" : "Keep saved status")).tag(nil as NivoTodoStatus?)
+            Text(AppLocalized("In progress")).tag(NivoTodoStatus.inProgress as NivoTodoStatus?)
+            Text(AppLocalized("Done")).tag(NivoTodoStatus.done as NivoTodoStatus?)
+        }.font(.subheadline)
+        if draft.taskSelections?.first(where: { $0.taskId == task.id })?.requestedStatus == .done {
+            DatePicker(AppLocalized("Completion date"), selection: Binding(get: {
+                let selectedDay = draft.taskSelections?.first { $0.taskId == task.id }?.completedDay ?? draft.day
+                return NivoLifeDay.date(selectedDay)
+            }, set: { setTaskCompletionDay(task.id, day: NivoLifeDay.value($0)) }),
+                in: ...Date(), displayedComponents: .date)
+        }
+        if let selection = draft.taskSelections?.first(where: { $0.taskId == task.id }),
+           selection.expectedRevision != task.revision,
+           selection.requestedStatus != nil || saved == nil {
+            Button(AppLocalized("Review latest task version")) { refreshTask(task) }.font(.caption)
+            Text(AppLocalized("This item changed. Reload before saving.")).font(.caption).foregroundStyle(.orange)
         }
     }
 
@@ -235,7 +255,7 @@ struct NivoMosaicEditor: View {
     }
 
     private func queueDraft(_ value: NivoMosaicDraft) {
-        guard !isSubmitting else { return }
+        guard !isSubmitting, !hasFinished else { return }
         pendingSave = nil
         operationID = UUID().uuidString
         let previous = autosave
@@ -261,7 +281,7 @@ struct NivoMosaicEditor: View {
     }
 
     private func save() async {
-        guard !isSubmitting else { return }
+        guard !isSubmitting, !hasFinished else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         await finishAutosave()
@@ -271,12 +291,12 @@ struct NivoMosaicEditor: View {
             pendingSave = candidate
         }
         guard let candidate = pendingSave else { return }
-        if await model.save(candidate, operationID: operationID, scope: access) { dismiss() }
+        if await model.save(candidate, operationID: operationID, scope: access) { hasFinished = true; dismiss() }
         else { errorMessage = model.errorMessage }
     }
 
     private func closeKeepingDraft() async {
-        guard !isSubmitting, !isImporting else { return }
+        guard !isSubmitting, !isImporting, !hasFinished else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         await finishAutosave()
@@ -284,17 +304,18 @@ struct NivoMosaicEditor: View {
             var candidate = draft
             candidate.updatedAt = NivoMosaicViewModel.now
             try await model.saveDraft(candidate, scope: access)
+            hasFinished = true
             dismiss()
         } catch { errorMessage = NivoLifeModel.message(error) }
     }
 
     /// 放弃期间冻结输入并排空自动保存，避免删除后迟到写入重新生成草稿。
     private func discardDraft() async {
-        guard !isSubmitting, !isImporting else { return }
+        guard !isSubmitting, !isImporting, !hasFinished else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         await finishAutosave()
-        if await model.discard(draft, scope: access) { dismiss() }
+        if await model.discard(draft, scope: access) { hasFinished = true; dismiss() }
         else { errorMessage = model.errorMessage }
     }
 

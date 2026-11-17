@@ -117,6 +117,15 @@ actor NivoLifeRepository {
     }
 
     /// 草稿与清理操作原地替换，不把每次自动保存的全文永久堆积在幂等回执中。
+    func updateLife<Result>(scope requested: NivoLifeScope,
+                            body: (inout NivoLifeState) throws -> Result) throws -> Result {
+        var current = try requireState(requested)
+        let result = try body(&current)
+        try commit(current, scope: requested)
+        return result
+    }
+
+    /// 碎片局部更新仍通过同一账户代次和原子文件提交。
     func updateMosaic<Result>(scope requested: NivoLifeScope,
                              body: (inout NivoMosaicState) throws -> Result) throws -> Result {
         var current = try requireState(requested)

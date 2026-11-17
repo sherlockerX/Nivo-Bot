@@ -123,8 +123,10 @@ enum NivoPersonalBackupMerge {
 
     private static func mosaic(_ local: NivoMosaicState?, _ source: NivoMosaicState?, owner: String) throws -> NivoMosaicState? {
         guard let source else { return local }
+        try requireReflectionMergeCompatibility(local ?? NivoMosaicState(ownerKey: owner), source)
         guard var result = local else { return source }
         result.entries = try merge(result.entries, source.entries, key: \.id) { previous, imported in
+            guard previous.reflectionSessionID == imported.reflectionSessionID else { throw NivoLifeError.operationConflict }
             if previous.deletedAt != nil { return previous }
             return try ordered(previous, imported, before: previous.revision ?? 1, after: imported.revision ?? 1)
         }
@@ -143,6 +145,23 @@ enum NivoPersonalBackupMerge {
         }
         try NivoMosaicRules.validate(result, owner: owner)
         return result
+    }
+
+    /// 来源碰撞属于有效备份间的内容冲突，不当作文件损坏，也不丢弃任一未提交正文。
+    private static func requireReflectionMergeCompatibility(_ local: NivoMosaicState, _ incoming: NivoMosaicState) throws {
+        let entries = local.entries + incoming.entries
+        var entryIDsBySource: [String: String] = [:]
+        for entry in entries {
+            guard let source = entry.reflectionSessionID else { continue }
+            if let identifier = entryIDsBySource[source], identifier != entry.id {
+                throw NivoLifeError.operationConflict
+            }
+            entryIDsBySource[source] = entry.id
+        }
+        for draft in local.drafts + incoming.drafts {
+            guard draft.entryID == nil, let source = draft.reflectionSessionID else { continue }
+            if entryIDsBySource[source] != nil { throw NivoLifeError.operationConflict }
+        }
     }
 
     /// 重新从证据计算掌握，课程版本变化时暂停旧课次并要求复核。

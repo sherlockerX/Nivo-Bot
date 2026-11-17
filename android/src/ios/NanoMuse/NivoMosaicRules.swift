@@ -22,6 +22,7 @@ enum NivoMosaicRules {
     static func validate(_ state: NivoMosaicState, owner: String) throws {
         guard state.ownerKey == owner, state.version == 1,
               unique(state.entries.map(\.id)), unique(state.drafts.map(\.id)),
+              unique(state.entries.compactMap(\.reflectionSessionID)),
               unique(state.habits.map(\.id)), unique(state.days.map { String($0.day) }),
               unique((state.habitDays ?? []).map(\.id)) else { throw NivoLifeError.corruptStore }
         for entry in state.entries {
@@ -29,6 +30,7 @@ enum NivoMosaicRules {
                   entry.text.utf16.count <= maximumTextLength else { throw NivoLifeError.corruptStore }
             try validateContent(day: entry.day, path: entry.mediaPath, crop: entry.crop,
                                 taskIDs: entry.taskIDs, focusIDs: entry.focusIDs)
+            try NivoFocusReflectionRules.validateSource(entry.reflectionSessionID)
         }
         for draft in state.drafts { try validateDraft(draft, owner: owner) }
         for habit in state.habits { try validateHabit(habit, owner: owner) }
@@ -47,6 +49,13 @@ enum NivoMosaicRules {
               (draft.expectedRevision ?? 0) >= 0 else { throw NivoLifeError.invalidField("fragment") }
         try validateContent(day: draft.day, path: draft.mediaPath, crop: draft.crop,
                             taskIDs: draft.taskIDs, focusIDs: draft.focusIDs)
+        try NivoFocusReflectionRules.validateSource(draft.reflectionSessionID)
+        if draft.id.hasPrefix("focus-reflection:") || (draft.reflectionSessionID != nil && draft.entryID == nil) {
+            guard let identifier = draft.reflectionSessionID,
+                  draft.id == NivoFocusReflectionRules.draftID(sessionID: identifier), draft.entryID == nil else {
+                throw NivoLifeError.invalidField("reflection_draft")
+            }
+        }
         let selections = draft.taskSelections ?? []
         guard selections.count <= maximumLinks, unique(selections.map(\.taskId)),
               Set(selections.map(\.taskId)).isSubset(of: Set(draft.taskIDs)),
@@ -87,7 +96,7 @@ enum NivoMosaicRules {
                        shouldMarkHabitDone: habitDays.map { marks in
                            marks.contains { $0.habitID == entry.habitID && $0.day == entry.day && $0.status == .done }
                        },
-                       crop: entry.crop, shape: entry.shape)
+                       crop: entry.crop, shape: entry.shape, reflectionSessionID: entry.reflectionSessionID)
     }
 
     private static func validateContent(day: Int64, path: String?, crop: NivoMosaicCrop?,
@@ -121,4 +130,45 @@ enum NivoMosaicRules {
     }
 
     private static func unique(_ values: [String]) -> Bool { Set(values).count == values.count }
+}
+
+/// 专注心得的来源资格和稳定草稿身份，界面与仓库共用同一判断。
+enum NivoFocusReflectionRules {
+    /// 只把确实计量过的结束专注作为心得来源，休息和零时长不提供入口。
+    static func canReflect(_ session: NivoFocusSession) -> Bool {
+        session.deletedAt == nil && session.status == .finished && session.mode != .rest
+            && session.elapsedMs > 0 && session.endedAt != nil
+    }
+
+    /// 身份与日期分离；账户由仓库和ownerKey隔离，备份换账户后仍能恢复原草稿。
+    static func draftID(sessionID: String) -> String {
+        "focus-reflection:" + NivoFocusPreferences.ownerHash(sessionID)
+    }
+
+    /// 可选来源兼容旧文件，存在时必须是受限长度的有效标识。
+    static func validateSource(_ identifier: String?) throws {
+        guard let identifier else { return }
+        guard !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              identifier.utf16.count <= 200 else { throw NivoLifeError.invalidField("reflection_source") }
+    }
+
+    /// 重复提交只忽略请求元数据和心得不会执行的待办状态意图，内容差异必须交给用户处理。
+    static func hasSameContent(_ draft: NivoMosaicDraft, as entry: NivoMosaicEntry,
+                               habitDays: [NivoMosaicHabitDay] = []) -> Bool {
+        content(draft) == content(NivoMosaicRules.draft(from: entry, now: 0, habitDays: habitDays))
+    }
+
+    /// 规范化默认显示值与保存时裁剪的首尾空白，保留正文、日期、照片及全部关联。
+    private static func content(_ input: NivoMosaicDraft) -> NivoMosaicDraft {
+        var draft = input
+        draft.id = ""
+        draft.entryID = nil
+        draft.expectedRevision = nil
+        draft.updatedAt = 0
+        draft.taskSelections = nil
+        draft.text = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft.shape = draft.shape ?? "rounded"
+        if draft.habitID == nil { draft.shouldMarkHabitDone = nil }
+        return draft
+    }
 }

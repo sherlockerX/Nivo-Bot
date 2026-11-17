@@ -20,6 +20,8 @@ extension AIChatViewModel {
     }
 
     private func offloadContextContent(_ content: String, toolId: String, toolName: String, ext: String = "txt") -> String {
+        // nanoMuse: 文件写入入口再次阻断，不能只依赖候选扫描时的过滤。
+        guard NivoPersonalRecordsPrivacy.canOffload(toolName) else { return "" }
         let fm = FileManager.default
         let sid = sessionId ?? "unknown"
         let persistDir = Self.minisOffloadsPersistentDir(for: sid)
@@ -446,6 +448,8 @@ extension AIChatViewModel {
             for (partIdx, part) in msg.parts.enumerated() {
                 switch part {
                 case .toolResult(let id, let name, let content, _, let imgData, _, _, _):
+                    // nanoMuse: 个人工具历史保持受控查询边界，不能卸载后由file_read绕过授权。
+                    guard NivoPersonalRecordsPrivacy.canOffload(name) else { continue }
                     // Skip already-offloaded parts
                     if content.hasPrefix("[CONTEXT OFFLOADED]") {
                         skippedAlreadyOffloaded += 1
@@ -513,6 +517,8 @@ extension AIChatViewModel {
 
             switch part {
             case .toolResult(let id, let name, let content, let isError, let imgData, let imgMime, _, _):
+                // nanoMuse: 实际写文本或图片前复核当前工具名称，避免未来候选来源绕过过滤。
+                guard NivoPersonalRecordsPrivacy.canOffload(name) else { continue }
                 // Offload text content
                 if content.count > 500 {
                     linuxPath = offloadContextContent(content, toolId: id, toolName: name)

@@ -20,7 +20,7 @@ struct NivoTodoStatisticsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Picker(AppLocalized("Period"), selection: $period) {
-                ForEach(NivoTodoPeriod.allCases) { Text(AppLocalized($0.rawValue)).tag($0) }
+                ForEach(NivoTodoPeriod.allCases) { Text(AppLocalized(String.LocalizationValue(stringLiteral: $0.rawValue))).tag($0) }
             }.pickerStyle(.segmented)
             DatePicker(AppLocalized("Date"), selection: $date, displayedComponents: .date)
             if slices.isEmpty {

@@ -162,6 +162,8 @@ struct QueuedPrompt: Identifiable {
     let text: String
     let attachments: [InputAttachment]
     let timestamp = Date()
+    // nanoMuse: 入队时捕获真实来源，后台出队时不重新借用前台状态。
+    var nmUserOrigin: NivoUserTurnOrigin? = nil
 }
 
 /// Token usage for the current assistant turn.

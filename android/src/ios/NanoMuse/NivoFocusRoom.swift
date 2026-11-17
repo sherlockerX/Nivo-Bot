@@ -18,6 +18,7 @@ struct NivoFocusRoom: View {
     @State private var deletionScope: NivoLifeScope?
     @State private var didRestore = false
     @State private var isExporting = false
+    @State private var pendingReflection: NivoLifeItemTarget?
 
     var body: some View {
         ScrollView {
@@ -92,9 +93,10 @@ struct NivoFocusRoom: View {
         .sheet(isPresented: $isExporting, onDismiss: resolveEntry) {
             if let scope = model.accessScope { NivoLifeFileTransferView(kind: .focus, scope: scope) }
         }
-        .fullScreenCover(item: $immersive) { presentation in
+        .fullScreenCover(item: $immersive, onDismiss: openPendingReflection) { presentation in
             NivoFocusImmersiveView(sessionID: presentation.id, model: model,
-                                   backgroundID: presentation.backgroundID, access: presentation.scope) {
+                backgroundID: presentation.backgroundID, access: presentation.scope,
+                onReflection: { requestReflection(sessionID: presentation.id, scope: presentation.scope) }) {
                 guard model.accessScope == presentation.scope else { return }
                 NivoFocusPreferences.dismissImmersive(presentation.id, owner: presentation.scope.ownerKey)
                 if immersive?.id == presentation.id, immersive?.scope == presentation.scope { immersive = nil }
@@ -105,8 +107,9 @@ struct NivoFocusRoom: View {
         ), titleVisibility: .visible) {
             if let deleting, let deletionScope {
                 Button(AppLocalized("Delete"), role: .destructive) {
+                    guard pendingReflection == nil else { return }
                     Task { _ = await model.controlFocus(deleting, action: "delete", scope: deletionScope) }
-                }
+                }.disabled(pendingReflection != nil)
             }
         } message: { Text(AppLocalized("It will be removed from focus statistics.")) }
         .alert(AppLocalized("Error"), isPresented: Binding(
@@ -144,7 +147,21 @@ struct NivoFocusRoom: View {
             Text(AppLocalized("Link a task, choose a background, then focus. Finishing a timer does not complete the task."))
                 .font(.subheadline).foregroundStyle(.secondary)
             NivoFocusStatisticsView(model: model, isCompact: true)
+            HStack {
+                Text(AppLocalized("Recent focus records")).font(.headline)
+                Spacer()
+                Button(AppLocalized("Focus records")) { section = "records" }.font(.subheadline)
+            }
+            if recentSessions.isEmpty {
+                Text(AppLocalized("No focus records yet")).foregroundStyle(.secondary)
+            }
+            ForEach(recentSessions) { session in recordCard(session) }
         }
+    }
+
+    private var recentSessions: [NivoFocusSession] {
+        Array(model.focusSessions.filter { $0.status == .finished && $0.deletedAt == nil }
+            .sorted { ($0.startedAt, $0.id) > ($1.startedAt, $1.id) }.prefix(3))
     }
 
     private var records: some View {
@@ -152,31 +169,46 @@ struct NivoFocusRoom: View {
             if model.focusSessions.isEmpty {
                 Text(AppLocalized("No focus records yet")).foregroundStyle(.secondary).padding(.vertical, 32)
             }
-            ForEach(model.focusSessions) { session in
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text(session.title).font(.headline)
-                        Spacer()
-                        Text(session.mode.title).font(.caption).foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        Text(Date(timeIntervalSince1970: Double(session.startedAt) / 1_000), style: .date)
-                        Text(session.status.title)
-                        Spacer()
-                        Text(NivoFocusFormat.clock(session.elapsedMs)).monospacedDigit()
-                    }.font(.caption).foregroundStyle(.secondary)
-                    if session.isActive {
-                        Button(AppLocalized("Return to focus")) { present(session) }
-                    } else {
-                        Button(AppLocalized("Delete"), role: .destructive) {
-                            deletionScope = model.accessScope
-                            deleting = session
-                        }
-                            .font(.caption).disabled(model.isBusy)
-                    }
-                }.padding(18).background(NanoMuseTones.surface, in: RoundedRectangle(cornerRadius: 20))
-            }
+            ForEach(model.focusSessions) { session in recordCard(session) }
         }
+    }
+
+    /// 首页与历史共用卡片及心得入口，起止日期均保留，跨午夜时段仍可辨认。
+    private func recordCard(_ session: NivoFocusSession) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(session.title).font(.headline)
+                Spacer()
+                Text(session.mode.title).font(.caption).foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AppLocalized("Start") + ": " + Date(timeIntervalSince1970: Double(session.startedAt) / 1_000)
+                    .formatted(date: .abbreviated, time: .shortened))
+                if let endedAt = session.endedAt {
+                    Text(AppLocalized("End") + ": " + Date(timeIntervalSince1970: Double(endedAt) / 1_000)
+                        .formatted(date: .abbreviated, time: .shortened))
+                }
+            }.font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Text(session.status.title)
+                Spacer()
+                Text(NivoFocusFormat.clock(session.elapsedMs)).monospacedDigit()
+            }.font(.caption).foregroundStyle(.secondary)
+            if session.isActive {
+                Button(AppLocalized("Return to focus")) { present(session) }
+            } else {
+                if NivoFocusReflectionRules.canReflect(session), let scope = model.accessScope {
+                    Button(AppLocalized("Record reflection")) { requestReflection(sessionID: session.id, scope: scope) }
+                        .disabled(model.isBusy || pendingReflection != nil || !model.isMosaicReady)
+                }
+                Button(AppLocalized("Delete"), role: .destructive) {
+                    deletionScope = model.accessScope
+                    deleting = session
+                }
+                    .font(.caption).disabled(model.isBusy || pendingReflection != nil)
+            }
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(NanoMuseTones.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func present(_ session: NivoFocusSession) {
@@ -188,7 +220,8 @@ struct NivoFocusRoom: View {
     }
 
     private func resolveEntry() {
-        guard let scope = model.accessScope, !isStarting, !isShowingBackgrounds, !isExporting else { return }
+        guard let scope = model.accessScope, !isStarting, !isShowingBackgrounds, !isExporting,
+              pendingReflection == nil else { return }
         _ = NivoFocusPreferences.restorableSession(owner: scope.ownerKey, sessions: model.focusSessions)
         let destination = NivoLifeEntryRules.focusDestination(
             requestedSessionID: navigation.takeFocusTarget(), requestedTask: navigation.takeFocusTaskTarget(),
@@ -215,6 +248,7 @@ struct NivoFocusRoom: View {
     }
 
     private func clearPresentations() {
+        pendingReflection = nil
         immersive = nil
         pendingStart = nil
         deleting = nil
@@ -225,6 +259,25 @@ struct NivoFocusRoom: View {
         isShowingBackgrounds = false
         isExporting = false
         didRestore = false
+    }
+
+    /// 先清除全屏恢复标记；有全屏时仅排队，等待系统完成关闭后再跨模块导航。
+    private func requestReflection(sessionID: String, scope: NivoLifeScope) {
+        guard pendingReflection == nil, model.accessScope == scope, !model.isBusy, model.isMosaicReady,
+              let session = model.focusSessions.first(where: { $0.id == sessionID && $0.ownerKey == scope.ownerKey }),
+              NivoFocusReflectionRules.canReflect(session) else { return }
+        pendingReflection = NivoLifeItemTarget(id: sessionID, scope: scope)
+        NivoFocusPreferences.dismissImmersive(sessionID, owner: scope.ownerKey)
+        if immersive != nil { immersive = nil }
+        else { openPendingReflection() }
+    }
+
+    /// 原生与经典宿主都复用此一次性入口，不在全屏退场动画中呈现编辑器。
+    private func openPendingReflection() {
+        guard let target = pendingReflection else { return }
+        pendingReflection = nil
+        guard model.accessScope == target.scope else { return }
+        navigation.openReflection(sessionID: target.id, scope: target.scope)
     }
 }
 

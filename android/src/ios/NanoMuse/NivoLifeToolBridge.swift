@@ -10,8 +10,8 @@ enum NivoLifeToolBridge {
     static let focusQuery = "focus_query"
     static let focusCommand = "focus_command"
 
-    static func definitions() -> [AgentToolDefinition] {
-        [
+    static func definitions(includeCommands: Bool = true) -> [AgentToolDefinition] {
+        let tools = [
             AgentToolDefinition(name: todoQuery, description: "Read tasks and reusable groups/tags in the current account. Query exact IDs and revisions before changes.", parameters: [
                 "kind": AgentToolParam(type: .string, description: "tasks, detail or categories", enumValues: ["tasks", "detail", "categories"]),
                 "targetId": AgentToolParam(type: .string, description: "Exact task ID for detail"),
@@ -34,33 +34,43 @@ enum NivoLifeToolBridge {
                 "action": AgentToolParam(type: .string, description: "start, pause, resume, finish or delete", enumValues: ["start", "pause", "resume", "finish", "delete"]), "operationId": AgentToolParam(type: .string, description: "Stable ID reused for exact retries"), "targetId": AgentToolParam(type: .string, description: "Exact session ID except start"), "expectedRevision": AgentToolParam(type: .integer, description: "Fresh session revision except start"), "title": AgentToolParam(type: .string, description: "Title when starting"), "taskId": AgentToolParam(type: .string, description: "Optional task ID"), "mode": AgentToolParam(type: .string, description: "pomodoro, stopwatch or break", enumValues: ["pomodoro", "stopwatch", "break"]), "minutes": AgentToolParam(type: .integer, description: "1..180 minutes")
             ], required: ["action", "operationId"])
         ]
+        return includeCommands ? tools : tools.filter { $0.name == todoQuery || $0.name == focusQuery }
     }
 
     static func promptParagraph() -> String {
-        "Personal tasks and focus timers are local account data. Use these tools only in the foreground main chat. Query exact IDs and revisions before writes, reuse operationId for exact retries, and report success only when success=true. Completion requires an exact quote of the current user's explicit completion report; plans or assistant claims never count. Focus duration comes only from device-measured intervals."
+        "Personal task and focus queries are available in authorized foreground user conversations. Writes are restricted to the main chat. Query exact IDs and revisions before writes, reuse operationId for exact retries, and report success only when success=true. Completion requires an exact quote of the current user's explicit completion report; plans or assistant claims never count. Focus duration comes only from device-measured intervals."
     }
 
-    static func execute(name: String, args: [String: Any], model: NivoLifeModel, sessionID: String?, currentUser: NivoSavedUserTurn?) async -> Result {
-        guard UIApplication.shared.applicationState == .active else { return failure("This tool is available only while the main chat is in the foreground.") }
-        guard let sessionID, sessionID == UserDefaults.standard.string(forKey: NanoMuseMainChat.key) else { return failure("This tool is available only in the main chat.") }
+    static func execute(name: String, args: [String: Any], model: NivoLifeModel, sessionID: String?, currentUser: NivoSavedUserTurn?,
+                        host: AIChatViewModel, authorization: NivoPersonalRecordsAuthorization?) async throws -> Result {
+        guard UIApplication.shared.applicationState == .active else { return failure("This tool requires a foreground user conversation.") }
+        guard let sessionID else { return failure("A saved conversation is required.") }
+        let isQuery = name == todoQuery || name == focusQuery
+        guard isQuery || sessionID == UserDefaults.standard.string(forKey: NanoMuseMainChat.key) else { return failure("Changes are available only in the main chat.") }
         guard let currentUser, currentUser.chatSessionID == sessionID else { return failure("A current saved user turn is required.") }
         guard let scope = model.accessScope, currentUser.ownerKey == scope.ownerKey,
               currentUser.ownerKey == NanoMuseAccountData.shared.current else { return failure("Personal data is still loading; try again shortly.") }
         do {
+            _ = try await host.nmRequireRecordsAccess(authorization)
             let result: Result
             switch name {
             case todoQuery:
                 try await model.refreshForTool(scope: scope)
+                _ = try await host.nmRequireRecordsAccess(authorization)
                 result = try queryTodo(args, model: model)
             case todoCommand: result = try await commandTodo(args, model: model, scope: scope, user: currentUser)
             case focusQuery:
                 try await model.refreshForTool(scope: scope)
+                _ = try await host.nmRequireRecordsAccess(authorization)
                 result = try queryFocus(args, model: model)
             case focusCommand: result = try await commandFocus(args, model: model, scope: scope, user: currentUser)
             default: return failure("Unknown life tool.")
             }
             guard model.accessScope == scope, scope.ownerKey == NanoMuseAccountData.shared.current else { throw NivoLifeError.accountChanged }
+            _ = try await host.nmRequireRecordsAccess(authorization)
+            guard result.output.utf8.count <= 2 * 1_024 * 1_024 else { return failure("Result is too large; reduce the limit. No text was truncated.") }
             return result
+        } catch is CancellationError { throw CancellationError()
         } catch let error as NivoLifeError {
             if case .staleRevision = error { return failure("stale_revision: query the latest item before a new operation.") }
             return failure(NivoLifeModel.message(error))
@@ -68,6 +78,7 @@ enum NivoLifeToolBridge {
     }
 
     private static func queryTodo(_ args: [String: Any], model: NivoLifeModel) throws -> Result {
+        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "status", "search", "dateField", "startDate", "endDate", "limit", "offset"])
         let kind = try string(args, "kind", default: "tasks")
         if kind == "categories" {
             let search = try string(args, "search", default: "")
@@ -156,6 +167,7 @@ enum NivoLifeToolBridge {
     }
 
     private static func queryFocus(_ args: [String: Any], model: NivoLifeModel) throws -> Result {
+        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "startDate", "endDate", "limit", "offset"])
         let kind = try string(args, "kind", default: "sessions")
         guard ["sessions", "active", "detail", "statistics"].contains(kind) else { throw ToolError.invalid("Unknown focus query kind") }
         let sampledAt = Int64(Date().timeIntervalSince1970 * 1_000)
@@ -170,11 +182,15 @@ enum NivoLifeToolBridge {
             return success(["durationMs": duration, "startDate": dateString(start), "endDate": dateString(end),
                             "includesBreaks": false, "sampledAt": sampledAt, "view_url": "minis://views/focus"])
         }
-        if kind == "detail" { guard let id = args["targetId"] as? String, let session = model.focusSessions.first(where: { $0.id == id }) else { throw ToolError.notFound }; return success(focusJSON(session, sampledAt: sampledAt)) }
-        let rows = kind == "active" ? model.focusSessions.filter { $0.status == .running || $0.status == .paused } : model.focusSessions
+        if kind == "detail" { guard let id = args["targetId"] as? String, let session = model.focusSessions.first(where: { $0.id == id && $0.deletedAt == nil }) else { throw ToolError.notFound }; return success(focusJSON(session, sampledAt: sampledAt)) }
+        let start = try day(args["startDate"])
+        let end = try day(args["endDate"])
+        let rows = try NivoPersonalRecordsFocusQuery.rows(model.focusSessions, kind: kind, startDay: start, endDay: end)
         let (limit, offset) = try pagination(args, defaultLimit: 20)
         let page = Array(rows.dropFirst(Int(offset)).prefix(Int(limit)))
         return success(["items": page.map { focusJSON($0, sampledAt: sampledAt) }, "total": rows.count, "offset": offset,
+                        "nextOffset": offset + limit < rows.count ? offset + limit : NSNull(), "limit": limit,
+                        "dateField": "startedAt", "timezone": TimeZone.current.identifier,
                         "view_url": "minis://views/focus", "sampledAt": sampledAt])
     }
 
@@ -285,6 +301,8 @@ enum NivoLifeToolBridge {
         return ["id": session.id, "title": session.title, "status": session.status.rawValue, "mode": session.mode.rawValue,
                 "targetMs": session.targetMs, "elapsedMs": session.elapsedMs, "currentElapsedMs": current,
                 "remainingMs": max(0, session.targetMs - current), "revision": session.revision,
+                "startedAt": session.startedAt, "endedAt": session.endedAt.map { $0 as Any } ?? NSNull(),
+                "groupName": session.groupName, "tags": session.tags,
                 "taskId": session.taskId ?? NSNull(), "view_url": "minis://views/focus", "sampledAt": sampledAt]
     }
 }

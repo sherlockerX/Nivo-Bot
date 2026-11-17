@@ -4743,7 +4743,8 @@ struct AIChatView: View {
         }
         speechManager.recognizedText = ""
         lastRecognizedLength = 0
-        vm.enqueuePrompt()
+        // nanoMuse: 点击排队时固定来源，之后的后台等待不能补发授权。
+        vm.enqueuePrompt(userOrigin: vm.nmCaptureUserOrigin())
         // [inline-voice] Enqueue consumed the text — clear the voice transcript
         // too, otherwise it lingers in the panel (the "residual after swipe-send"
         // bug). performSend already does this; the enqueue path (taken while the
@@ -4784,7 +4785,8 @@ struct AIChatView: View {
         // onChange binding, so doing it before send() left send() with empty text
         // → "send() GUARD FAILED" and nothing was sent. send() consumes and clears
         // inputText itself; we re-arm voice listening only AFTER it has run.
-        vm.send()
+        // nanoMuse: 只有真实界面发送入口把用户来源传给宿主。
+        vm.send(userOrigin: vm.nmCaptureUserOrigin())
         // [inline-voice] Stay in voice mode after sending — clear the recognized
         // text and re-arm listening for the next utterance (close with ✕).
         if voiceInputActive {

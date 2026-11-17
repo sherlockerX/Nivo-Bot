@@ -12,8 +12,8 @@ enum NivoCoachToolBridge {
     private static let queryKinds = ["overview", "courses", "sessions", "drafts", "actions", "topics"]
     private static var actions: [String] { NivoCoachPolicy.actions }
 
-    static func definitions() -> [AgentToolDefinition] {
-        [
+    static func definitions(includeCommands: Bool = true) -> [AgentToolDefinition] {
+        let tools = [
             AgentToolDefinition(name: query, description: "Read the current account's structured Coach courses, sessions, topics and drafts. Query exact IDs before changes.", parameters: [
                 "kind": AgentToolParam(type: .string, description: "overview, courses, sessions, drafts, actions or topics", enumValues: queryKinds),
                 "targetId": AgentToolParam(type: .string, description: "Exact object ID for detail"),
@@ -29,34 +29,52 @@ enum NivoCoachToolBridge {
                 "payload": AgentToolParam(type: .string, description: "JSON object for unit, assessment, course or lesson fields")
             ], required: ["action", "operationId", "expectedRevision"])
         ]
+        return includeCommands ? tools : tools.filter { $0.name == query }
     }
 
     static func promptParagraph() -> String {
         "Coach is local structured learning data. The foreground main chat manages courses; a daily-practice conversation is restricted to its bound topic. Query exact IDs and the global revision before mutations. Reuse the entire original request and operationId for exact retries. Save draft goals as exact current user quotes. Propose with a course and sourceStatus; activate only with draftRevision after the user explicitly confirms in a later message. Teach normally and answer free questions. Host archives real user messages and final visible assistant text. coach_reply can add a practice/review assessment with dimension and optional reviewOfSessionId; its text must appear in the final visible reply. When pendingTurnId exists, include it as payload.requestTurnId. answer marks an existing saved user turn as an independent attempt only if a traceable question preceded it. Evidence entries need criterionId, turnId, quote, reason and met. Ordinary teaching, hints and plans never certify mastery. Real-action criteria require action_report quoting the user's actual event; a simulation does not qualify. End lessons with end_lesson, which does not mean mastery. Delayed review is checked against the host clock and previous independent evidence. Never edit Coach files with shell tools or claim success when success=false."
     }
 
-    static func execute(name: String, args: [String: Any], model: NivoLifeModel, sessionID: String?, currentUser: NivoSavedUserTurn?) async -> Result {
+    static func execute(name: String, args: [String: Any], model: NivoLifeModel, sessionID: String?, currentUser: NivoSavedUserTurn?,
+                        host: AIChatViewModel, authorization: NivoPersonalRecordsAuthorization?) async throws -> Result {
         guard UIApplication.shared.applicationState == .active else { return failure("Coach tools require the foreground app.") }
         guard let sessionID, let currentUser, let scope = model.accessScope,
               currentUser.ownerKey == scope.ownerKey, currentUser.chatSessionID == sessionID,
               NanoMuseSync.shared.shows(sessionID) else { return failure("A current saved user turn is required.") }
         let isMain = sessionID == UserDefaults.standard.string(forKey: NanoMuseMainChat.key)
         do {
+            _ = try await host.nmRequireRecordsAccess(authorization)
+            // 全局历史查询只读取现有快照，不触发课程初始化、迁移或来源对账。
+            if name == query {
+                try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "limit", "offset"])
+                var parameters = args
+                parameters["kind"] = "coach"
+                parameters["section"] = args["kind"] ?? "overview"
+                let request = try NivoPersonalRecordsRequest.parse(parameters)
+                let state = try await NivoCoachV2Store.shared.snapshot(ownerKey: scope.ownerKey)
+                _ = try await host.nmRequireRecordsAccess(authorization)
+                let visible = try NivoPersonalRecordsCoachScope.visible(state, chatID: sessionID,
+                    requiresTopic: host.sessionSource == NivoCoachConversationIdentity.source)
+                return .init(output: try NivoPersonalRecordsOutput.coach(request, state: visible), success: true)
+            }
+            guard name == command, isMain || NivoCoachChatContext.shared.isPractice(sessionID) else {
+                return failure("Coach changes require the main chat or its bound practice conversation.")
+            }
             let generation = try await NivoCoachV2Store.shared.access(ownerKey: scope.ownerKey)
+            _ = try await host.nmRequireRecordsAccess(authorization)
             if isMain { try await NivoCoachReconciliation.reconcileAll(scope: scope, generation: generation) }
             else { try await NivoCoachReconciliation.reconcile(chatSessionID: sessionID, scope: scope, generation: generation) }
             guard model.accessScope == scope else { throw NivoLifeError.accountChanged }
+            _ = try await host.nmRequireRecordsAccess(authorization)
             let context = NivoCoachCommandContext(ownerKey: scope.ownerKey, generation: generation,
                 chatSessionID: sessionID, isMain: isMain, user: currentUser)
-            let result: Result
-            if name == query {
-                let snapshot = try await NivoCoachV2Store.shared.snapshot(ownerKey: scope.ownerKey)
-                result = try query(args, state: NivoCoachPolicy.visible(snapshot, chatID: sessionID, isMain: isMain))
-            } else if name == command { result = try await command(args, context: context) }
-            else { return failure("Unknown Coach tool.") }
+            let result = try await command(args, context: context)
             guard model.accessScope == scope, UIApplication.shared.applicationState == .active else { throw NivoLifeError.accountChanged }
+            _ = try await host.nmRequireRecordsAccess(authorization)
             NotificationCenter.default.post(name: .nivoCoachStateChanged, object: scope.ownerKey)
             return result
+        } catch is CancellationError { throw CancellationError()
         } catch let error as NivoLifeError {
             if case .staleRevision = error { return failure("State changed. Query again before a new operation.", code: "stale_revision") }
             return failure(NivoLifeModel.message(error))

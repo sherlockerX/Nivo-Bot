@@ -150,7 +150,7 @@ struct NivoTodoDetailView: View {
         }
     }
 
-    private func dateRow(_ title: String, day: Int64) -> some View {
+    private func dateRow(_ title: String.LocalizationValue, day: Int64) -> some View {
         LabeledContent(AppLocalized(title)) { Text(NivoLifeDay.date(day), style: .date) }
     }
 

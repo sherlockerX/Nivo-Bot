@@ -6,11 +6,13 @@ struct NivoFocusImmersiveView: View {
     @ObservedObject var model: NivoLifeModel
     var backgroundID: String
     let access: NivoLifeScope
+    var onReflection: () -> Void
     var onClose: () -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var keepAwake = false
     @State private var isConfirmingFinish = false
     @State private var previousIdleSetting = false
+    @State private var isOpeningReflection = false
 
     private var session: NivoFocusSession? {
         guard model.accessScope == access else { return nil }
@@ -65,7 +67,8 @@ struct NivoFocusImmersiveView: View {
         VStack(spacing: 22) {
             HStack {
                 Button(action: onClose) { Image(systemName: "chevron.down").frame(width: 44, height: 44) }
-                    .accessibilityLabel(AppLocalized("Keep running in background"))
+                    .accessibilityLabel(AppLocalized(session.isActive ? "Keep running in background" : "Close"))
+                    .disabled(isOpeningReflection)
                 Spacer()
                 Toggle(isOn: $keepAwake) { Image(systemName: keepAwake ? "sun.max.fill" : "sun.max") }
                     .toggleStyle(.button).accessibilityLabel(AppLocalized("Keep screen awake"))
@@ -92,7 +95,20 @@ struct NivoFocusImmersiveView: View {
 
     @ViewBuilder private func controls(_ session: NivoFocusSession) -> some View {
         if session.status == .finished {
-            Button(AppLocalized("Done"), action: onClose).buttonStyle(.borderedProminent).controlSize(.large)
+            if NivoFocusReflectionRules.canReflect(session) {
+                Text(AppLocalized("Reflect on this session. Its focus time and linked task are included automatically."))
+                    .font(.subheadline).multilineTextAlignment(.center).frame(maxWidth: 360)
+                Button {
+                    guard !isOpeningReflection, model.accessScope == access, model.isMosaicReady else { return }
+                    isOpeningReflection = true
+                    onReflection()
+                } label: {
+                    Label(AppLocalized("Record reflection"), systemImage: "square.and.pencil")
+                }.buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(isOpeningReflection || model.isBusy || !model.isMosaicReady || model.accessScope != access)
+            }
+            Button(AppLocalized("Done"), action: onClose).buttonStyle(.bordered).controlSize(.large)
+                .disabled(isOpeningReflection)
         } else {
             HStack(spacing: 16) {
                 Button { Task { _ = await model.controlFocus(session, action: session.status == .paused ? "resume" : "pause", scope: access) } } label: {

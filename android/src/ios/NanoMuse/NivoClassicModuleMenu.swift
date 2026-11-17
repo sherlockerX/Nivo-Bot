@@ -17,7 +17,7 @@ struct NivoClassicModuleMenu: View {
         .accessibilityLabel(AppLocalized("More"))
     }
 
-    private func entry(_ room: String, title: String, symbol: String) -> some View {
+    private func entry(_ room: String, title: String.LocalizationValue, symbol: String) -> some View {
         Button { NivoLifeNavigation.shared.open(room) } label: {
             Label(AppLocalized(title), systemImage: symbol)
         }

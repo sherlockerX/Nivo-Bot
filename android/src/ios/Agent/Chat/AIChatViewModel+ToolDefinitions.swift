@@ -27,7 +27,7 @@ extension AIChatViewModel {
 
     // MARK: - Tool Definitions (Canonical)
 
-    func makeAgentTools() -> [AgentToolDefinition] {
+    func makeAgentTools(recordsAuthorization: NivoPersonalRecordsAuthorization? = nil) -> [AgentToolDefinition] {
         // [T-memory-toggle-gates-injection-and-tools-ios] memory_get and
         // memory_write are conditionally registered. When the per-session
         // toggle is off, drop both tool definitions so the LLM never sees
@@ -202,17 +202,14 @@ extension AIChatViewModel {
             ))
         }
 
-        // nanoMuse: Android 的个人任务和专注工具只在主聊天注册。侧聊即使知道工具名，执行层仍会拒绝，
-        // 但不把这些工具暴露给侧聊可以避免模型误以为自己拥有跨会话的个人数据权限。
+        // nanoMuse: 只读工具绑定本轮真实用户来源；命令仍限制在主聊天或已绑定专题。
         let isMainChat = sessionId == UserDefaults.standard.string(forKey: NanoMuseMainChat.key)
-        if isMainChat {
-            tools.append(contentsOf: NivoLifeToolBridge.definitions())
-        }
-        // nanoMuse: 每日练习对话只获得Coach工具，执行层继续核对专题范围。
-        if isMainChat || NivoCoachChatContext.shared.isPractice(sessionId) {
-            tools.append(contentsOf: NivoCoachToolBridge.definitions())
-            // nanoMuse: 日常记录只读接口不暴露图片内容，也不能替用户写日记。
+        if recordsAuthorization != nil, recordsAuthorization == nmPersonalRecordsAuthorization, nmCanReadPersonalRecords {
+            tools.append(contentsOf: NivoLifeToolBridge.definitions(includeCommands: isMainChat))
+            tools.append(NivoPersonalRecordsToolBridge.definition())
             tools.append(NivoMosaicToolBridge.definition())
+            tools.append(contentsOf: NivoCoachToolBridge.definitions(includeCommands:
+                isMainChat || NivoCoachChatContext.shared.isPractice(sessionId)))
         }
 
         return tools

@@ -59,14 +59,14 @@ extension AIChatViewModel {
 
     /// Queue the current input text as a prompt to be injected into the running agent loop.
     /// The message immediately appears in the chat with a dashed border (isQueued=true).
-    func enqueuePrompt() {
+    func enqueuePrompt(userOrigin: NivoUserTurnOrigin? = nil) {
         // nanoMuse: 在途任务独占这一轮，用户草稿保留到任务结束后再发送。
         guard NivoScheduledRunScopes.shared.canStart(sessionID: sessionId, runID: nil) else { return }
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachments.isEmpty, isProcessing else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let pendingAttachments = attachments
-        let prompt = QueuedPrompt(text: text, attachments: pendingAttachments)
+        let prompt = QueuedPrompt(text: text, attachments: pendingAttachments, nmUserOrigin: userOrigin)
         promptQueue.append(prompt)
         // Show in chat immediately with queued styling
         let chatMsg = ChatMessage(role: .user, content: text, isQueued: true)

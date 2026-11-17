@@ -19,10 +19,49 @@ private struct NivoMosaicRequest: Codable {
 }
 
 extension NivoLifeRepository {
+    /// 心得来源、有效待办与独立草稿在同一账户事务内读取，恢复时完整保留用户编辑。
+    func openFocusReflection(sessionID: String, scope: NivoLifeScope, now: Int64,
+                             timeZone: TimeZone = .current) throws -> NivoMosaicDraft {
+        try updateLife(scope: scope) { state in
+            guard let session = state.focusSessions.first(where: { $0.id == sessionID && $0.ownerKey == scope.ownerKey }),
+                  NivoFocusReflectionRules.canReflect(session), let endedAt = session.endedAt else {
+                throw NivoLifeError.notFound("focus_reflection")
+            }
+            var mosaic = state.mosaic ?? NivoMosaicState(ownerKey: scope.ownerKey)
+            let draftID = NivoFocusReflectionRules.draftID(sessionID: sessionID)
+            if let entry = mosaic.entries.first(where: { $0.reflectionSessionID == sessionID }) {
+                guard entry.deletedAt == nil else { throw NivoLifeError.notFound("focus_reflection") }
+                // 已发布条目和遗留草稿同时存在时保留双方，不能静默删除尚未提交的正文。
+                guard !mosaic.drafts.contains(where: { $0.id == draftID }) else {
+                    throw NivoLifeError.operationConflict
+                }
+                let edit = mosaic.drafts.first { $0.entryID == entry.id }
+                    ?? NivoMosaicRules.draft(from: entry, now: now, habitDays: mosaic.habitDays ?? [])
+                state.mosaic = mosaic
+                return edit
+            }
+            if let draft = mosaic.drafts.first(where: { $0.id == draftID }) { return draft }
+            let task = state.tasks.first { $0.id == session.taskId && $0.ownerKey == scope.ownerKey && $0.deletedAt == nil }
+            let draft = NivoMosaicDraft(ownerKey: scope.ownerKey, id: draftID,
+                day: NivoLifeDay.value(Date(timeIntervalSince1970: Double(endedAt) / 1_000), timeZone: timeZone),
+                text: "", taskIDs: task.map { [$0.id] } ?? [], focusIDs: [session.id], updatedAt: now,
+                taskSelections: task.map { [NivoTodoSelection(taskId: $0.id, expectedRevision: $0.revision)] } ?? [],
+                shouldMarkHabitDone: false, shape: "rounded", reflectionSessionID: session.id)
+            mosaic.drafts.append(draft)
+            state.mosaic = mosaic
+            return draft
+        }
+    }
+
     /// 自动保存只写草稿；任务状态变更留待用户正式保存。
     func saveMosaicDraft(_ draft: NivoMosaicDraft, scope: NivoLifeScope) throws -> NivoMosaicDraft {
         try updateMosaic(scope: scope) { mosaic in
             try NivoMosaicRules.validateDraft(draft, owner: scope.ownerKey)
+            try Self.requireReflectionIdentity(draft, in: mosaic)
+            if let source = draft.reflectionSessionID, draft.entryID == nil,
+               mosaic.entries.contains(where: { $0.reflectionSessionID == source }) {
+                throw NivoLifeError.invalidTransition("reflection_saved")
+            }
             if let current = mosaic.drafts.first(where: { $0.id == draft.id }), current.updatedAt > draft.updatedAt {
                 return current
             }
@@ -33,13 +72,23 @@ extension NivoLifeRepository {
     }
 
     /// 正文、待办执行状态、专注关联和习惯标记一次提交，任一步失败均不发布候选状态。
-    func saveMosaic(_ draft: NivoMosaicDraft, operationID: String, scope: NivoLifeScope,
+    func saveMosaic(_ input: NivoMosaicDraft, operationID: String, scope: NivoLifeScope,
                     now: Int64, today: Int64) throws -> NivoMosaicSaveResult {
-        let request = NivoMosaicRequest(action: "mosaic_save", draft: draft)
+        let request = NivoMosaicRequest(action: "mosaic_save", draft: input)
         return try transaction(operationID: operationID, request: request, scope: scope) { state in
-            try NivoMosaicRules.validateDraft(draft, owner: scope.ownerKey)
-            try requireMosaicMedia(draft.mediaPath, owner: scope.ownerKey)
+            try NivoMosaicRules.validateDraft(input, owner: scope.ownerKey)
             var mosaic = state.mosaic ?? NivoMosaicState(ownerKey: scope.ownerKey)
+            try Self.requireReflectionIdentity(input, in: mosaic)
+            if let source = input.reflectionSessionID, input.entryID == nil,
+               let saved = mosaic.entries.first(where: { $0.reflectionSessionID == source }) {
+                guard saved.deletedAt == nil else { throw NivoLifeError.notFound("focus_reflection") }
+                guard NivoFocusReflectionRules.hasSameContent(input, as: saved, habitDays: mosaic.habitDays ?? []) else {
+                    throw NivoLifeError.operationConflict
+                }
+                return NivoMosaicSaveResult(entry: saved, tasks: [])
+            }
+            let draft = try Self.reflectionLinks(input, in: state)
+            try requireMosaicMedia(draft.mediaPath, owner: scope.ownerKey)
             let old = try Self.previousEntry(draft, in: mosaic)
             guard draft.day <= today || old?.day == draft.day else { throw NivoLifeError.invalidField("future_fragment") }
             guard NivoMosaicRules.canSave(draft) else { throw NivoLifeError.invalidField("empty_fragment") }
@@ -62,7 +111,7 @@ extension NivoLifeRepository {
                 habitID: habit?.id, habitTitle: habit?.title,
                 taskSnapshots: tasks.links,
                 focusSnapshots: focus, crop: draft.crop, shape: draft.shape ?? "rounded",
-                zoneID: old?.zoneID ?? TimeZone.current.identifier)
+                zoneID: old?.zoneID ?? TimeZone.current.identifier, reflectionSessionID: draft.reflectionSessionID)
             mosaic.entries.removeAll { $0.id == entry.id }
             mosaic.entries.append(entry)
             mosaic.drafts.removeAll { $0.id == draft.id }
@@ -185,6 +234,34 @@ extension NivoLifeRepository {
         return previous
     }
 
+    /// 来源在编辑和恢复中不可换绑或清除，取消关联不改变这条记录的身份。
+    private static func requireReflectionIdentity(_ draft: NivoMosaicDraft, in mosaic: NivoMosaicState) throws {
+        if let entryID = draft.entryID, let entry = mosaic.entries.first(where: { $0.id == entryID }),
+           entry.reflectionSessionID != draft.reflectionSessionID {
+            throw NivoLifeError.invalidField("reflection_source")
+        }
+        if let previous = mosaic.drafts.first(where: { $0.id == draft.id }),
+           previous.reflectionSessionID != draft.reflectionSessionID {
+            throw NivoLifeError.invalidField("reflection_source")
+        }
+    }
+
+    /// 新关联只选有效待办，已发布关联保留历史；忽略状态意图，绝不完成或回退任务。
+    private static func reflectionLinks(_ input: NivoMosaicDraft, in state: NivoLifeState) throws -> NivoMosaicDraft {
+        guard let source = input.reflectionSessionID else { return input }
+        if input.entryID == nil {
+            guard let session = state.focusSessions.first(where: { $0.id == source && $0.ownerKey == input.ownerKey }),
+                  NivoFocusReflectionRules.canReflect(session) else { throw NivoLifeError.notFound("focus_reflection") }
+        }
+        var draft = input
+        let tasks = state.tasks.filter { $0.ownerKey == input.ownerKey && $0.deletedAt == nil && input.taskIDs.contains($0.id) }
+        let savedLinks = state.mosaic?.entries.first { $0.id == input.entryID }?.taskSnapshots ?? []
+        // 已发布心得保留历史关联；首次保存时仍跳过已删除的待办。
+        draft.taskIDs = input.taskIDs.filter { id in tasks.contains { $0.id == id } || savedLinks.contains { $0.id == id } }
+        draft.taskSelections = tasks.map { NivoTodoSelection(taskId: $0.id, expectedRevision: $0.revision) }
+        return draft
+    }
+
     private static func applyMosaicTasks(_ draft: NivoMosaicDraft, old: NivoMosaicEntry?, state: inout NivoLifeState,
                                          now: Int64, today: Int64) throws -> (tasks: [NivoTodoTask], links: [NivoMosaicTaskLink]) {
         var result: [NivoTodoTask] = []
@@ -213,17 +290,24 @@ extension NivoLifeRepository {
             }
             result.append(state.tasks[index])
             let current = state.tasks[index]
-            links.append(NivoMosaicTaskLink(id: current.id, title: current.title, status: current.status))
+            let oldLink = old?.taskSnapshots?.first { $0.id == id }
+            // 明确更新任务状态也不改变关联首次保存的时刻，旧关联的未知时间继续为空。
+            let linkedAt: Int64?
+            if let oldLink { linkedAt = oldLink.linkedAt }
+            else { linkedAt = now }
+            links.append(NivoMosaicTaskLink(id: current.id, title: current.title, status: current.status, linkedAt: linkedAt))
         }
         return (result, links)
     }
 
     private static func mosaicFocus(_ ids: [String], old: NivoMosaicEntry?, in state: NivoLifeState) throws -> [NivoMosaicFocusLink] {
         try ids.map { id in
-            if let session = state.focusSessions.first(where: { $0.id == id && $0.deletedAt == nil && $0.status == .finished && $0.mode != .rest }) {
-                return NivoMosaicFocusLink(id: id, title: session.title, elapsedMs: session.elapsedMs)
-            }
+            // 先取已保存快照，避免编辑正文时用当前会话填补旧记录未知的时间。
             if let snapshot = old?.focusSnapshots?.first(where: { $0.id == id }) { return snapshot }
+            if let session = state.focusSessions.first(where: { $0.id == id && $0.deletedAt == nil && $0.status == .finished && $0.mode != .rest }) {
+                return NivoMosaicFocusLink(id: id, title: session.title, elapsedMs: session.elapsedMs,
+                                          startedAt: session.startedAt, endedAt: session.endedAt)
+            }
             throw NivoLifeError.invalidField("focus_link")
         }
     }

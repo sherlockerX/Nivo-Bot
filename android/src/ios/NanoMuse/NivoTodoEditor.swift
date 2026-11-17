@@ -105,7 +105,7 @@ struct NivoTodoEditor: View {
         }
     }
 
-    @ViewBuilder private func dayField(_ title: String, value: Binding<Int64?>) -> some View {
+    @ViewBuilder private func dayField(_ title: String.LocalizationValue, value: Binding<Int64?>) -> some View {
         Toggle(AppLocalized(title), isOn: Binding(get: { value.wrappedValue != nil }, set: {
             value.wrappedValue = $0 ? NivoLifeDay.value() : nil
         }))

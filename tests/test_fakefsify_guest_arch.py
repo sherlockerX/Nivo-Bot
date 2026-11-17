@@ -1,11 +1,10 @@
 """离线验证fakefsify宿主配置只选择当前iSH源码支持的架构组合。"""
 
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "android/deps/fakefsify_guest_arch.sh"
@@ -31,25 +30,39 @@ class FakefsifyGuestArchTests(unittest.TestCase):
             check=False,
         )
 
-    def assert_supported(self, architecture: str, cpu_family: str, guest: str) -> None:
-        """核对选择结果与Meson实际拼接的gadget路径一致。"""
+    def assert_guest(self, architecture: str, guest: str) -> None:
+        """不依赖子模块，核对真实脚本的宿主架构映射。"""
         result = self.select_guest(architecture)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), guest)
-        directory = ISH / f"asbestos/guest-{guest}/gadgets-{cpu_family}"
-        self.assertTrue((directory / "entry.S").is_file(), directory)
 
-    def test_intel_selects_existing_x86_guest_gadgets(self) -> None:
+    def test_intel_selects_x86_guest(self) -> None:
         """Intel宿主必须避开不存在的ARM64 guest与x86_64宿主组合。"""
-        self.assert_supported("x86_64", "x86_64", "x86")
+        self.assert_guest("x86_64", "x86")
 
-    def test_apple_silicon_keeps_arm64_guest_gadgets(self) -> None:
+    def test_apple_silicon_keeps_arm64_guest(self) -> None:
         """Apple Silicon继续选择已有ARM64 guest实现。"""
-        self.assert_supported("arm64", "aarch64", "arm64")
+        self.assert_guest("arm64", "arm64")
 
-    def test_aarch64_alias_selects_supported_arm64_guest(self) -> None:
+    def test_aarch64_alias_selects_arm64_guest(self) -> None:
         """其他uname实现的aarch64名称映射到同一受支持组合。"""
-        self.assert_supported("aarch64", "aarch64", "arm64")
+        self.assert_guest("aarch64", "arm64")
+
+    def test_selected_guests_have_gadgets_in_checked_out_ish(self) -> None:
+        """子模块已检出才核对固定源码；缺失gadget仍须失败，不能当作未检出。"""
+        if not (ISH / "meson.build").is_file():
+            self.skipTest("iSH子模块未检出：仅跳过gadget源码覆盖检查")
+        for architecture, cpu_family in [
+            ("x86_64", "x86_64"),
+            ("arm64", "aarch64"),
+            ("aarch64", "aarch64"),
+        ]:
+            with self.subTest(architecture=architecture):
+                result = self.select_guest(architecture)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                guest = result.stdout.strip()
+                directory = ISH / f"asbestos/guest-{guest}/gadgets-{cpu_family}"
+                self.assertTrue((directory / "entry.S").is_file(), directory)
 
     def test_unknown_host_is_rejected_before_meson(self) -> None:
         """不支持的宿主明确失败，不能回退到错误架构。"""

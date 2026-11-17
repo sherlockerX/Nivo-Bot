@@ -24,7 +24,7 @@ extension AIChatViewModel {
     }
 
     /// 编辑发送保留当前草稿，落盘失败时不清输入、不删消息，也不调用模型。
-    func nmSendEditedMessage(scheduledRunID: String?) {
+    func nmSendEditedMessage(scheduledRunID: String?, userOrigin: NivoUserTurnOrigin? = nil) {
         guard let index = editingMessageIndex else { return }
         do {
             let historyIndex = try nmUserHistoryIndex(at: index)
@@ -33,7 +33,7 @@ extension AIChatViewModel {
                 self.messages.removeSubrange(index...)
                 self.editingMessageIndex = nil
             }, continueAfterCommit: {
-                self.send(scheduledRunID: scheduledRunID)
+                self.send(scheduledRunID: scheduledRunID, userOrigin: userOrigin)
             })
         } catch { errorMessage = NivoLifeModel.message(error) }
     }

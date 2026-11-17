@@ -326,6 +326,8 @@ private struct NanoMuseComposerVignette: View {
 /// "{device} is working…" line under the last remote row, cleared when the reply arrives),
 /// and the Action Button's voice prompt (#296).
 struct NanoMuseChatHooks: ViewModifier {
+    // nanoMuse: 外壳切换标签仅隐藏聊天层，必须独立于页面挂载状态撤销读取权限。
+    @Environment(\.nmRunLayerVisible) private var layerVisible
     let vm: AIChatViewModel
     let sessionKey: String
     /// `vm.isProcessing`, passed as a value so a change re-runs this body and `onChange` sees it.
@@ -341,10 +343,18 @@ struct NanoMuseChatHooks: ViewModifier {
     /// A reply's steps, the anchors, a reply shared: asked for by the cells and the menu (NanoMuseChatSheets).
     @ObservedObject private var sheets = NanoMuseChatSheets.shared
 
+    private var personalRecordsVisible: Bool {
+        visible && layerVisible && !readOnly && sheets.binding(for: vm).wrappedValue == nil
+    }
+
     func body(content: Content) -> some View {
         content
             .preference(key: NanoMuseThinkingAvailabilityKey.self, value: [sessionKey:
                 !vm.availableThinkingLevels.isEmpty && (vm.currentThinkingLevel.isEnabled || vm.currentModelSupportsReasoning)])
+            // nanoMuse: 可见宿主登记不会产生读取权限，只供真实按钮捕获和执行时复核。
+            .onAppear { vm.nmPersonalRecordsVisible = personalRecordsVisible }
+            .nmOnChange(of: personalRecordsVisible) { vm.nmPersonalRecordsVisible = $0 }
+            .onDisappear { vm.nmPersonalRecordsVisible = false }
             .onReceive(NotificationCenter.default.publisher(for: .nanoMuseChatAction)) { note in
                 guard let action = NanoMuseChatAction.from(note, for: vm.nmSessionKey) else { return }
                 if action == .anchors {

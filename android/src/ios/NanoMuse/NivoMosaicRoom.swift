@@ -14,6 +14,7 @@ struct NivoMosaicRoom: View {
     @State private var pendingDraft: NivoMosaicDraft?
     @State private var panel: Panel?
     @State private var deleting: NivoMosaicEntry?
+    @State private var reflectionDrain = NivoLifeRequestDrain()
 
     private enum Panel: String, Identifiable { case calendar, habits, drafts, bin, form; var id: String { rawValue } }
     private var range: NivoMosaicRange { NivoMosaicCalendar.range(scope: scope, anchor: anchor) }
@@ -78,6 +79,7 @@ struct NivoMosaicRoom: View {
         .task(id: life.accessScope) { await reload() }
         .nmOnChange(of: scenePhase) { if $0 == .active { Task { await reload() } } }
         .nmOnChange(of: navigation.mosaicTarget) { if $0 != nil { Task { await reload() } } }
+        .nmOnChange(of: navigation.mosaicReflectionTarget) { if $0 != nil { Task { await reload() } } }
         .onReceive(NotificationCenter.default.publisher(for: .nivoMosaicStateChanged)) { _ in Task { await model.load() } }
         .onReceive(NotificationCenter.default.publisher(for: .nanoMuseAccountSwitched)) { _ in
             editor = nil; editorScope = nil; pendingDraft = nil; panel = nil; deleting = nil
@@ -264,7 +266,38 @@ struct NivoMosaicRoom: View {
     private func reload() async {
         if !life.isReady { await life.activate() }
         await model.load()
+        await openRequestedReflection()
         openRequestedFragment()
+    }
+
+    /// 草稿由当前仓库重新校验，账户切换、备份恢复或迟到请求均不能打开旧内容。
+    private func openRequestedReflection() async {
+        await reflectionDrain.run(next: {
+            guard editor == nil, panel == nil, model.snapshot != nil,
+                  model.loadError == nil, life.accessScope != nil else { return nil }
+            return navigation.mosaicReflectionTarget
+        }, handle: presentReflection)
+    }
+
+    /// 旧读取结束后由消费器继续读取最新目标，旧失败不会覆盖新请求的提示。
+    private func presentReflection(_ target: NivoLifeItemTarget) async {
+        guard let access = life.accessScope else { return }
+        guard target.scope == access else { navigation.handledReflection(target); return }
+        do {
+            let draft = try await model.openReflection(sessionID: target.id, scope: access)
+            guard life.accessScope == access, navigation.mosaicReflectionTarget == target,
+                  editor == nil, panel == nil else { return }
+            editorScope = access
+            anchor = NivoLifeDay.date(draft.day)
+            scope = .day
+            editor = draft
+            navigation.handledReflection(target)
+        } catch {
+            if life.accessScope == access, navigation.mosaicReflectionTarget == target {
+                model.errorMessage = NivoLifeModel.message(error)
+            }
+            navigation.handledReflection(target)
+        }
     }
 
     private func openRequestedFragment() {
@@ -286,6 +319,7 @@ struct NivoMosaicRoom: View {
         }
         pendingDraft = nil
         openRequestedFragment()
+        Task { await openRequestedReflection() }
     }
 
     private func shift(_ amount: Int) { anchor = NivoMosaicCalendar.shifted(scope: scope, anchor: anchor, amount: amount) }

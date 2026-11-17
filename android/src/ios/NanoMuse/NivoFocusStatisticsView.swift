@@ -33,7 +33,7 @@ struct NivoFocusStatisticsView: View {
             if isCompact { Text(AppLocalized("Today")).font(.headline) }
             else {
                 Picker(AppLocalized("Period"), selection: $period) {
-                    ForEach(["Day", "Week", "Month", "Year"], id: \.self) { Text(AppLocalized($0)).tag($0) }
+                    ForEach(["Day", "Week", "Month", "Year"], id: \.self) { Text(AppLocalized(String.LocalizationValue(stringLiteral: $0))).tag($0) }
                 }.pickerStyle(.segmented)
                 DatePicker(AppLocalized("Date"), selection: $date, displayedComponents: .date)
             }

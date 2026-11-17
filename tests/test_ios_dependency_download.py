@@ -2,12 +2,11 @@
 
 import hashlib
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "android/deps/download_verified_archive.sh"
@@ -57,7 +56,7 @@ class VerifiedArchiveTests(unittest.TestCase):
         # 显式覆盖curl，避免Git Bash改写PATH时意外调用真实网络命令。
         wrapper = (
             'curl() { bash "$FIXTURE_ROOT/bin/curl" "$@"; }; '
-            'if ! command -v shasum >/dev/null; then '
+            "if ! command -v shasum >/dev/null; then "
             'shasum() { shift 2; sha256sum "$@"; }; fi; '
             'source "$1" "${@:2}"'
         )

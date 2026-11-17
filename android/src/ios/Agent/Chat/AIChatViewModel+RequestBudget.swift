@@ -356,6 +356,8 @@ extension AIChatViewModel {
     /// Save large tool output to persistent storage.
     /// With bind mounts, writing to persistent storage is automatically visible to iSH.
     func offloadToolOutput(_ output: String, toolName: String, toolId: String) -> OffloadResult {
+        // nanoMuse: 即使调用方遗漏筛选，个人工具正文也不能进入共享沙盒目录。
+        guard NivoPersonalRecordsPrivacy.canOffload(toolName) else { return OffloadResult(linuxPath: "") }
         let fm = FileManager.default
         let sid = sessionId ?? "unknown"
 

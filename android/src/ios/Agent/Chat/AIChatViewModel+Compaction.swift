@@ -46,11 +46,14 @@ extension AIChatViewModel {
         showCompactBeforeSendPrompt = false
         let text = pendingSendText ?? ""
         let atts = pendingSendAttachments
+        // nanoMuse: 压缩沿用最初点击来源，不在压缩结束时重新捕获。
+        let userOrigin = nmPendingUserOrigin
+        nmPendingUserOrigin = nil
         pendingSendText = nil
         pendingSendAttachments = []
 
         // Show the message as queued immediately
-        let queuedPrompt = QueuedPrompt(text: text, attachments: atts)
+        let queuedPrompt = QueuedPrompt(text: text, attachments: atts, nmUserOrigin: userOrigin)
         promptQueue.append(queuedPrompt)
         let chatMsg = ChatMessage(role: .user, content: text, isQueued: true)
         chatMsg.queuedPromptId = queuedPrompt.id
@@ -69,7 +72,7 @@ extension AIChatViewModel {
             inputText = text
             attachments = atts
             skipCompactCheck = true
-            send()
+            send(userOrigin: userOrigin)
             return
         }
 
@@ -125,6 +128,8 @@ extension AIChatViewModel {
 
     /// Cancel the compact-before-send prompt, restoring text to input.
     func cancelCompactBeforeSend() {
+        // nanoMuse: 用户撤销压缩发送，旧来源随待发送意图一起失效。
+        nmPendingUserOrigin = nil
         showCompactBeforeSendPrompt = false
         inputText = pendingSendText ?? ""
         attachments = pendingSendAttachments

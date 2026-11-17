@@ -75,7 +75,7 @@ extension AIChatViewModel {
     }
 
     /// Appended to the system prompt of this session (empty when there is nothing to add).
-    func nmSystemPromptAddenda() -> String {
+    func nmSystemPromptAddenda(recordsAuthorization: NivoPersonalRecordsAuthorization? = nil) -> String {
         // A draft became a session: carry what was registered under the draft's id.
         if let draft = draftId, let real = sessionId, draft != real { nmRebind(from: draft, to: real) }
         let key = nmSessionKey
@@ -87,14 +87,16 @@ extension AIChatViewModel {
         if let addenda = NanoMuseSessionAddenda.forPrompt(session: key) { parts.append(addenda) }
         if let naming = NanoMuseFirstConversation.shared.systemAddendum(session: key) { parts.append(naming) }
         parts.append("Timed tasks use minis-scheduled through the shell tool. Read minis-scheduled --help, list tasks and their revisions before changes. Use --expected-revision for mutations. A run reply with accepted=true means durably queued, never completed; inspect logs for its run_id. On iOS tasks start while the app is open, with reminders while it is asleep. Notification policies and quiet hours are available. Explicit .sh or .py scripts live in /var/minis/home/bin; probe checks availability without running the script. Execution requires user approval of the frozen content and arguments. Only a process started by the current task can use minis-scheduled report. Keep the real exit code, a task's self-report and an unverified outcome distinct. Never claim a prompt task has verified a script exit code.")
-        // nanoMuse: 任务与专注工具的规则和Android主聊天保持一致；工具本身仍在注册和执行层复核前台、账号及原话边界。
-        if sessionId == UserDefaults.standard.string(forKey: NanoMuseMainChat.key) {
+        // nanoMuse: 系统提示与本轮工具注册保持同一授权边界，历史文本不能授予权限。
+        let canReadRecords = recordsAuthorization != nil && recordsAuthorization == nmPersonalRecordsAuthorization && nmCanReadPersonalRecords
+        if canReadRecords {
             parts.append(NivoLifeToolBridge.promptParagraph())
-        }
-        if sessionId == UserDefaults.standard.string(forKey: NanoMuseMainChat.key)
-            || NivoCoachChatContext.shared.isPractice(sessionId) {
-            parts.append(NivoCoachToolBridge.promptParagraph())
+            parts.append(NivoPersonalRecordsToolBridge.promptParagraph())
             parts.append(NivoMosaicToolBridge.promptParagraph())
+        }
+        if canReadRecords && (sessionId == UserDefaults.standard.string(forKey: NanoMuseMainChat.key)
+            || NivoCoachChatContext.shared.isPractice(sessionId)) {
+            parts.append(NivoCoachToolBridge.promptParagraph())
         }
         if let practice = NivoCoachChatContext.shared.prompt(for: sessionId) { parts.append(practice) }
         guard !parts.isEmpty else { return "" }
@@ -158,10 +160,10 @@ extension AIChatViewModel {
         inputText = text
     }
 
-    /// Send a message on the person's behalf (an idea's "Try it", a goal's "Start").
-    func nmSendNow(_ text: String) {
+    /// 显式按钮可传入点击时捕获的来源，其他自动发送默认不获个人工具权限。
+    func nmSendNow(_ text: String, userOrigin: NivoUserTurnOrigin? = nil) {
         inputText = text
-        send()
+        send(userOrigin: userOrigin)
     }
 
     // MARK: C9 presence

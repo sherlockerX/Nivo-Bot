@@ -9,6 +9,7 @@ final class NivoLifeNavigation: ObservableObject {
     @Published private(set) var focusTarget: String?
     @Published private(set) var focusTaskTarget: NivoLifeItemTarget?
     @Published private(set) var mosaicTarget: NivoLifeItemTarget?
+    @Published private(set) var mosaicReflectionTarget: NivoLifeItemTarget?
 
     /// 仅接收支持的本地页面名称，不从链接执行数据修改。
     @discardableResult
@@ -16,6 +17,7 @@ final class NivoLifeNavigation: ObservableObject {
         guard ["todo", "focus", "mosaic", "routines", "coach", "ideas"].contains(room) else { return false }
         focusTaskTarget = nil
         mosaicTarget = nil
+        mosaicReflectionTarget = nil
         focusTarget = room == "focus" ? focusID : nil
         pendingRoom = room
         return true
@@ -37,6 +39,7 @@ final class NivoLifeNavigation: ObservableObject {
     func openFocus(taskID: String, scope: NivoLifeScope) {
         focusTarget = nil
         mosaicTarget = nil
+        mosaicReflectionTarget = nil
         focusTaskTarget = NivoLifeItemTarget(id: taskID, scope: scope)
         pendingRoom = "focus"
     }
@@ -45,8 +48,25 @@ final class NivoLifeNavigation: ObservableObject {
     func openMosaic(entryID: String, scope: NivoLifeScope) {
         focusTarget = nil
         focusTaskTarget = nil
+        mosaicReflectionTarget = nil
         mosaicTarget = NivoLifeItemTarget(id: entryID, scope: scope)
         pendingRoom = "mosaic"
+    }
+
+    /// 全屏关闭后排队心得定位，宿主仍通过已有pendingRoom打开两种布局的碎片页。
+    func openReflection(sessionID: String, scope: NivoLifeScope) {
+        let target = NivoLifeItemTarget(id: sessionID, scope: scope)
+        guard mosaicReflectionTarget != target else { return }
+        focusTarget = nil
+        focusTaskTarget = nil
+        mosaicTarget = nil
+        mosaicReflectionTarget = target
+        pendingRoom = "mosaic"
+    }
+
+    /// 只有对应请求完成后才消费；异步读取迟到时不能清掉后来的点击。
+    func handledReflection(_ target: NivoLifeItemTarget) {
+        if mosaicReflectionTarget == target { mosaicReflectionTarget = nil }
     }
 
     /// 目标页完成加载后才消费任务意图。

@@ -42,7 +42,7 @@ struct NivoProviderMigrationNotice: View {
                 if status.isRunning {
                     ProgressView(AppLocalized("nivo.providers.migration.running"))
                 } else if let key = status.messageKey {
-                    Label(AppLocalized(key), systemImage: "exclamationmark.triangle")
+                    Label(AppLocalized(String.LocalizationValue(stringLiteral: key)), systemImage: "exclamationmark.triangle")
                         .font(.subheadline)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)

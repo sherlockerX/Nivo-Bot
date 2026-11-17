@@ -107,3 +107,85 @@ final class NivoLifeEntryRulesTests: XCTestCase {
             focusIDs: [], createdAt: 1_000, updatedAt: 1_000)
     }
 }
+
+/// 直接运行界面使用的异步消费者，以可控挂起点验证新请求不会丢失或忙等。
+@MainActor
+final class NivoLifeRequestDrainTests: XCTestCase {
+    private let scope = NivoLifeScope(ownerKey: "local", generation: 7)
+
+    func testNewTargetArrivingDuringReadIsHandledWithoutAnotherNavigationEvent() async {
+        await assertReplacementIsDrained(NivoLifeItemTarget(id: "second", scope: scope))
+    }
+
+    func testSameSessionInNewAccountGenerationIsHandledAfterOldRead() async {
+        await assertReplacementIsDrained(NivoLifeItemTarget(id: "first",
+            scope: NivoLifeScope(ownerKey: "local", generation: 8)))
+    }
+
+    /// 同一目标未消费时结束本轮，后续真实页面事件仍可重新尝试。
+    func testUnconsumedTargetDoesNotRetryForeverAndCanResumeLater() async {
+        let drain = NivoLifeRequestDrain()
+        let target = NivoLifeItemTarget(id: "first", scope: scope)
+        var pending: NivoLifeItemTarget? = target
+        var handled: [NivoLifeItemTarget] = []
+        await drain.run(next: { pending }) { handled.append($0) }
+        XCTAssertEqual(handled, [target])
+        XCTAssertEqual(pending, target)
+        XCTAssertFalse(drain.isRunning)
+        await drain.run(next: { pending }) { value in
+            handled.append(value)
+            pending = nil
+        }
+        XCTAssertEqual(handled, [target, target])
+        XCTAssertNil(pending)
+        XCTAssertFalse(drain.isRunning)
+    }
+
+    /// 编辑器或面板占用展示位置时不消费请求，关闭之后才继续。
+    func testPresentationBlockKeepsPendingTargetUntilDismissal() async {
+        let drain = NivoLifeRequestDrain()
+        var canPresent = false
+        let target = NivoLifeItemTarget(id: "first", scope: scope)
+        var pending: NivoLifeItemTarget? = target
+        await drain.run(next: { canPresent ? pending : nil }) { _ in XCTFail("当前弹层关闭前不能开始新导航") }
+        XCTAssertEqual(pending, target)
+        canPresent = true
+        var handled: NivoLifeItemTarget?
+        await drain.run(next: { canPresent ? pending : nil }) { value in
+            handled = value
+            pending = nil
+        }
+        XCTAssertEqual(handled, target)
+        XCTAssertNil(pending)
+    }
+
+    /// 第一轮真正挂起后才替换目标，第二次调用必须由既有消费者接管。
+    private func assertReplacementIsDrained(_ replacement: NivoLifeItemTarget) async {
+        let drain = NivoLifeRequestDrain()
+        let initial = NivoLifeItemTarget(id: "first", scope: scope)
+        var pending: NivoLifeItemTarget? = initial
+        var handled: [NivoLifeItemTarget] = []
+        let started = AsyncStream<Void>.makeStream()
+        let release = AsyncStream<Void>.makeStream()
+        let worker = Task { @MainActor in
+            await drain.run(next: { pending }) { target in
+                handled.append(target)
+                if target == initial {
+                    started.continuation.yield(())
+                    for await _ in release.stream { break }
+                }
+                if pending == target { pending = nil }
+            }
+        }
+        for await _ in started.stream { break }
+        pending = replacement
+        await drain.run(next: { pending }) { _ in XCTFail("并行调用不能再启动第二个消费者") }
+        release.continuation.yield(())
+        await worker.value
+        started.continuation.finish()
+        release.continuation.finish()
+        XCTAssertEqual(handled, [initial, replacement])
+        XCTAssertNil(pending)
+        XCTAssertFalse(drain.isRunning)
+    }
+}

@@ -17,6 +17,19 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     var nmCoachTurnCapture: NivoCoachTurnCapture?
     // nanoMuse: 仅宿主调度器设置，普通聊天不能从环境变量继承定时上报能力。
     var nmScheduledRunID: String?
+    // nanoMuse: 个人记录权限只存在于内存，不能随聊天历史或自动恢复持久化。
+    let nmPersonalRecordsHostID = UUID().uuidString
+    var nmPersonalRecordsTurnID = UUID()
+    var nmPersonalRecordsAuthorization: NivoPersonalRecordsAuthorization?
+    var nmPendingUserOrigin: NivoUserTurnOrigin?
+    var nmPersonalRecordsVisibilityID = UUID()
+    var nmPersonalRecordsVisible = false {
+        didSet {
+            // nanoMuse: 短暂离开页面也永久撤销旧来源，重新显示不会恢复权限。
+            if oldValue && !nmPersonalRecordsVisible { nmRevokeRecordsVisibility() }
+        }
+    }
+    private var nmRecordsForegroundCancellable: AnyCancellable?
 
     /// Maximum characters returned in a single tool result to the model
     static let kMaxToolResultChars = 15000
@@ -185,6 +198,12 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
 
     init() {
         logger.info("🔄SESSION [vm=\(self.vmInstanceId)] init — new AIChatViewModel created")
+
+        // nanoMuse: 通知在主队列同步撤销，快速前后台切换也不能趁下一次工具检查前复活来源。
+        nmRecordsForegroundCancellable = NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.nmRevokeRecordsVisibility() }
+            }
 
         fontChangeObserver = NotificationCenter.default.addObserver(
             forName: .fontSettingsMessageBaseChanged, object: nil, queue: .main
@@ -2219,8 +2238,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
 
     // MARK: - Send Message
 
-    // nanoMuse: 定时调用显式交出身份，普通界面调用保持无参。
-    func send(scheduledRunID: String? = nil) {
+    // nanoMuse: 定时调用显式交出任务身份，真实界面调用单独提供用户来源。
+    func send(scheduledRunID: String? = nil, userOrigin: NivoUserTurnOrigin? = nil) {
         // nanoMuse: 备份的聊天来源与教练档案必须位于同一个静止边界。
         do { try NivoChatAccountAccess.require(sessionID: sessionId, scheduledRunID: scheduledRunID) }
         catch { if !isProcessing { errorMessage = NivoLifeModel.message(error) }; return }
@@ -2251,8 +2270,11 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         }
         // nanoMuse: 编辑先提交截断，失败保留草稿；提交后再走正常发送与上下文检查。
         guard !isTruncatingForRetry else { return }
+        // nanoMuse: 来源由真实按钮入口传入，所有等待前固定回合代次。
+        let nmRecordsTurnID = nmBeginRecordsTurn()
+        nmPendingUserOrigin = nil
         if editingMessageIndex != nil {
-            nmSendEditedMessage(scheduledRunID: scheduledRunID)
+            nmSendEditedMessage(scheduledRunID: scheduledRunID, userOrigin: userOrigin)
             return
         }
         // nanoMuse: "change your avatar to …" (and a pick while the options are up) is handled in the app, not by the model.
@@ -2306,6 +2328,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                     // no-prompt path — compact and send without asking.
                     logger.info("[Context] Near capacity — auto-compacting (\(sessionSource == "shortcut" ? "shortcut session" : "autoCompactEnabled"))")
                     pendingSendText = text
+                    nmPendingUserOrigin = userOrigin
                     pendingSendAttachments = pendingAttachments
                     inputText = ""
                     attachments = []
@@ -2313,6 +2336,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                     return
                 }
                 pendingSendText = text
+                nmPendingUserOrigin = userOrigin
                 pendingSendAttachments = pendingAttachments
                 inputText = ""
                 attachments = []
@@ -2329,6 +2353,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                     return
                 }
                 pendingSendText = text
+                nmPendingUserOrigin = userOrigin
                 pendingSendAttachments = pendingAttachments
                 inputText = ""
                 attachments = []
@@ -2617,7 +2642,15 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             // compact can later resolve boundaries by id.
             if let persistedId = await self.persistAgentMessage(userMessage), userIdx < self.agentHistory.count {
                 self.agentHistory[userIdx].dbMessageId = persistedId
+                // nanoMuse: 来源ID供归档定位使用，本身不授予模型工具权限。
+                userMsg.nmSourceMessageIDs.insert(persistedId)
+                // nanoMuse: 保存返回的真实ID成为本轮唯一来源，保存失败不继承历史权限。
+                await self.nmBindRecordsTurn(origin: userOrigin, turnID: nmRecordsTurnID,
+                    messageID: persistedId, text: text, visibleMessageIDs: [userMsg.id])
             }
+            // nanoMuse: 等待内核或并发槽位前固定已保存的这一轮授权。
+            let nmBoundAuthorization = self.nmPersonalRecordsAuthorization?.turnID == nmRecordsTurnID
+                ? self.nmPersonalRecordsAuthorization : nil
             if let sid = self.sessionId { NanoMuseSync.shared.userMessageSent(session: sid) } // nanoMuse: C8 — the person's line goes up now, the reply when the turn ends
             if let wake = userMsg.nmRoutine, userIdx < self.agentHistory.count, let mid = self.agentHistory[userIdx].dbMessageId { NanoMuseRoutineWakes.shared.record(mid: mid, label: wake.label, at: wake.at) } // nanoMuse: a routine's row keeps its mark across reloads
 
@@ -2648,7 +2681,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             defer { concurrency.releaseSlot(sessionId: sid) }
 
             do {
-                try await self.runAgentLoop()
+                try await self.runAgentLoop(recordsAuthorization: nmBoundAuthorization)
             } catch is CancellationError {
                 logger.info("Agent loop cancelled")
                 self.handleUserCancelledCleanup()
@@ -2728,6 +2761,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     func retry() {
         // nanoMuse: 恢复期间保留原对话，不在前置截断步骤修改来源。
         guard !isProcessing, !isTruncatingForRetry else { return }
+        // nanoMuse: 重试旧任务不能从当前前台状态重新生成记录权限。
+        nmBeginRecordsTurn()
         do { try NivoChatAccountAccess.require(sessionID: sessionId) }
         catch { errorMessage = NivoLifeModel.message(error); return }
         guard !isProcessing else { return }
@@ -2908,6 +2943,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     func resume() {
         // nanoMuse: 等待备份租约退出后才能继续模型回合。
         guard !isProcessing, !isTruncatingForRetry else { return }
+        // nanoMuse: 合成的继续消息不是新的用户原话。
+        nmBeginRecordsTurn()
         do { try NivoChatAccountAccess.require(sessionID: sessionId) }
         catch { errorMessage = NivoLifeModel.message(error); return }
         guard !isProcessing, canResume else { return }
@@ -3285,6 +3322,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     /// — covered for both cases since `isProcessing = true` is set below and
     /// `messages.last` is the prepared assistant in each case.
     private func launchRerunAgentLoop(label: String, resumeAt: Int? = nil, resumeBlocks: Int? = nil) {
+        // nanoMuse: 历史重跑没有新的真实用户原话，不继承先前的读取令牌。
+        nmBeginRecordsTurn()
         AppLogger(category: "RetryDiag").info("[RetryDiag] launchRerunAgentLoop called label=\(label) resumeAt=\(resumeAt.map(String.init) ?? "nil") resumeBlocks=\(resumeBlocks.map(String.init) ?? "nil") messagesCount=\(self.messages.count)")
         errorMessage = nil
         // Clear interrupt badge on the last assistant message if present
@@ -3567,6 +3606,9 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     }
 
     func cancel() {
+        // nanoMuse: 先撤销在途读权限，再取消异步任务。
+        nmBeginRecordsTurn()
+        nmRevokeRecordsVisibility()
         let lastBlocks = (messages.last?.role == .assistant) ? messages.last!.blocks.count : -1
         let lastRole = messages.last.map { $0.role == .assistant ? "assistant" : "user" } ?? "nil"
         logger.info("⏹️ cancel() START session=\(self.sessionId ?? "nil") isProcessing=\(self.isProcessing) lastRole=\(lastRole) lastBlocks=\(lastBlocks) currentTask=\(self.currentTask != nil)")
@@ -3726,6 +3768,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             }
             let queued = self.promptQueue
             self.promptQueue.removeAll()
+            // nanoMuse: 队列进入新回合前撤销上一轮令牌。
+            let nmQueueTurnID = nmBeginRecordsTurn()
             logger.info("📨[DRAIN] Draining \(queued.count) queued prompt(s)")
 
             let queuedIds = Set(queued.map(\.id))
@@ -3774,10 +3818,19 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             self.agentHistory.append(queueAgentMsg)
             if let pid = await self.persistAgentMessage(queueAgentMsg), qIdx < self.agentHistory.count {
                 self.agentHistory[qIdx].dbMessageId = pid
+                // nanoMuse: 每个气泡保留实际合并行ID，未授权来源仍不能调用记录工具。
+                for message in self.messages where message.queuedPromptId.map(queuedIds.contains) ?? false {
+                    message.nmSourceMessageIDs.insert(pid)
+                }
+                await self.nmBindRecordsTurn(origin: NivoUserTurnOrigin.merged(queued.map(\.nmUserOrigin)),
+                    turnID: nmQueueTurnID, messageID: pid, text: queued.last?.text ?? "",
+                    visibleMessageIDs: Set(self.messages.filter { $0.queuedPromptId.map(queuedIds.contains) ?? false }.map(\.id)))
             }
 
             do {
-                try await self.runAgentLoop()
+                let authorization = self.nmPersonalRecordsAuthorization?.turnID == nmQueueTurnID
+                    ? self.nmPersonalRecordsAuthorization : nil
+                try await self.runAgentLoop(recordsAuthorization: authorization)
             } catch is CancellationError {
                 logger.info("Agent loop (queued-drain) cancelled")
                 self.handleUserCancelledCleanup()
@@ -3853,11 +3906,14 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
     private func injectQueuedPromptsAsNewTurn(
         msgIdx: inout Int,
         committedBlockCount: inout Int,
-        turnUsage: TokenUsage
+        turnUsage: TokenUsage,
+        recordsAuthorization: inout NivoPersonalRecordsAuthorization?
     ) async throws -> Bool {
         guard !promptQueue.isEmpty else { return false }
         let queued = promptQueue
         promptQueue.removeAll()
+        // nanoMuse: 同一模型循环注入新用户回合时同样更换授权代次。
+        let nmQueueTurnID = nmBeginRecordsTurn()
         // Mark corresponding chat messages as no longer queued (remove dashed border + X)
         let queuedIds = Set(queued.map(\.id))
         for msg in messages where msg.isQueued {
@@ -3928,7 +3984,17 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         agentHistory.append(queueMsg)
         if let pid = await persistAgentMessage(queueMsg, snapshots: [:]), queueIdx < agentHistory.count {
             agentHistory[queueIdx].dbMessageId = pid
+            // nanoMuse: 队列持久化来源与读取授权分开维护。
+            for message in messages where message.queuedPromptId.map(queuedIds.contains) ?? false {
+                message.nmSourceMessageIDs.insert(pid)
+            }
+            await nmBindRecordsTurn(origin: NivoUserTurnOrigin.merged(queued.map(\.nmUserOrigin)),
+                turnID: nmQueueTurnID, messageID: pid, text: queued.last?.text ?? "",
+                visibleMessageIDs: Set(messages.filter { $0.queuedPromptId.map(queuedIds.contains) ?? false }.map(\.id)))
         }
+        // nanoMuse: 先固定这一轮授权，再等待归档，迟到任务不能取得后来一轮的令牌。
+        recordsAuthorization = nmPersonalRecordsAuthorization?.turnID == nmQueueTurnID
+            ? nmPersonalRecordsAuthorization : nil
         // nanoMuse: 排队消息开始新一轮时捕获其自己的课次和数据库消息身份。
         try await nmPrepareCoachTurn()
         // Cache markdown on the completed assistant message before starting a new one
@@ -4383,7 +4449,15 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         message.blocks = kept
     }
 
-    private func runAgentLoop(resumingAt existingMsgIdx: Int? = nil, committedBlocks: Int? = nil) async throws {
+    private func runAgentLoop(resumingAt existingMsgIdx: Int? = nil, committedBlocks: Int? = nil,
+                              recordsAuthorization: NivoPersonalRecordsAuthorization? = nil) async throws {
+        // nanoMuse: 工具批次捕获本轮令牌，不读取后来另一轮覆盖的授权。
+        var nmLoopAuthorization = recordsAuthorization
+        defer {
+            if nmPersonalRecordsAuthorization?.turnID == nmLoopAuthorization?.turnID {
+                nmPersonalRecordsAuthorization = nil
+            }
+        }
         // nanoMuse: 重试和后台任务也必须遵守个人数据冻结边界。
         try NivoChatAccountAccess.require(sessionID: sessionId, scheduledRunID: nmScheduledRunID)
         let nmCallGeneration = NanoMuseCallSession.generation(for: self) // nanoMuse: 锁定本轮通话代次。
@@ -4448,8 +4522,11 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         }
         // nanoMuse: 用户原话先由宿主归档，再建立专题上下文和受限工具。
         try await nmPrepareCoachTurn()
-        await NivoCoachChatContext.shared.refresh(sessionID: sessionId)
-        let tools = makeAgentTools()
+        // nanoMuse: 普通聊天读取Coach快照不触发专题恢复和对账写入。
+        if sessionSource == NivoCoachConversationIdentity.source || NivoCoachChatContext.shared.isPractice(sessionId) {
+            await NivoCoachChatContext.shared.refresh(sessionID: sessionId)
+        }
+        var tools = makeAgentTools(recordsAuthorization: nmLoopAuthorization)
 
         let activeModel = ProviderConfigStore.shared.entry(for: entry.id)?.model ?? selectedModel
         let skillFragment = sessionId.flatMap { SkillStore.shared.skillPromptFragment(for: $0) }
@@ -4475,7 +4552,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             globalMemoryFragment,
             dailyMemoryFragment,
             memoryStatusFragment,
-            nmSystemPromptAddenda(),
+            nmSystemPromptAddenda(recordsAuthorization: nmLoopAuthorization),
         ]
         let commonVolatileSuffix = NanoMusePromptCacheLayout.makeVolatileSuffix(
             volatileSections: commonVolatileSections,
@@ -4656,6 +4733,19 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         // is reached and we're still near capacity, the loop stops as exhausted.
         var compactionsThisLoop = 0
         loopLabel: while turnCount < Self.maxAgentTurns {
+            // nanoMuse: 离开前台只撤销记录能力；账户或回合已变化则停止旧循环。
+            if let authorization = nmLoopAuthorization {
+                do { _ = try await nmRequireRecordsAccess(authorization) }
+                catch is CancellationError { throw CancellationError() }
+                catch {
+                    guard authorization.turnID == nmPersonalRecordsTurnID,
+                          authorization.scope == NivoLifeModel.shared.accessScope else { throw CancellationError() }
+                    nmLoopAuthorization = nil
+                    if nmPersonalRecordsAuthorization == authorization { nmPersonalRecordsAuthorization = nil }
+                }
+            }
+            // nanoMuse: 队列可能开始全新用户回合，注册仍需当前回合授权。
+            tools = makeAgentTools(recordsAuthorization: nmLoopAuthorization)
             defer { turnCount += 1 }
             // [LoopHeartbeat] (#181) One line per loop iteration. If the loop
             // wedges on an await, the last heartbeat pins which iteration it
@@ -4852,12 +4942,9 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                         // so concurrent calls are visibly distinct.
                         partSummaries.append("tool_use(\(name), id:\(id.prefix(20)))")
                     case .toolResult(let id, let name, let content, let isError, let imgData, _, _, _):
-                        let head = String(content.prefix(200))
-                        let tail = content.count > 400 ? String(content.suffix(200)) : ""
-                        let errTag = isError ? " [ERROR]" : ""
-                        let imgTag = imgData != nil ? " [IMG]" : ""
-                        // Same prefix(20) as the .toolUse branch above — see note there.
-                        partSummaries.append("tool_result(\(name), id:\(id.prefix(20)), \(content.count)ch\(errTag)\(imgTag)): head=\"\(head)\(content.count > 200 ? "..." : "")\"" + (tail.isEmpty ? "" : " tail=\"...\(tail)\""))
+                        // nanoMuse: 通用历史日志和AgentRequestTrace都只记录个人结果的元信息。
+                        partSummaries.append(NivoPersonalRecordsPrivacy.historySummary(id: id, name: name,
+                            content: content, isError: isError, hasImage: imgData != nil))
                     case .imageData(_, let mime, _):
                         partSummaries.append("image(\(mime))")
                     }
@@ -5485,7 +5572,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 if try await injectQueuedPromptsAsNewTurn(
                     msgIdx: &msgIdx,
                     committedBlockCount: &committedBlockCount,
-                    turnUsage: turnUsage
+                    turnUsage: turnUsage,
+                    recordsAuthorization: &nmLoopAuthorization
                 ) {
                     // We're continuing with the user's new turn, so this session is
                     // no longer in an interrupted/resumable state. Reset per-turn
@@ -5578,6 +5666,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             // with its source index and stitch results back in order after
             // every task completes.
             let toolsSnapshot = tools
+            // nanoMuse: 等待并发槽位也不能改用新回合的权限。
+            let nmBatchAuthorization = nmLoopAuthorization
             var outcomesByIndex: [Int: ToolExecOutcome] = [:]
             await withTaskGroup(of: (Int, ToolExecOutcome).self) { group in
                 var added = 0
@@ -5604,7 +5694,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                             ))
                         }
                         let outcome = await self.executeSingleToolUse(
-                            tu: tu, msgIdx: msgIdx, tools: toolsSnapshot, batchBudget: imageBudgetActor
+                            tu: tu, msgIdx: msgIdx, tools: toolsSnapshot, batchBudget: imageBudgetActor,
+                            recordsAuthorization: nmBatchAuthorization
                         )
                         return (idx, outcome)
                     }
@@ -5620,6 +5711,23 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             // Stitch outcomes back in original tool_use order so the
             // tool_result blocks pair correctly with the assistant
             // message's tool_use blocks for the next API call.
+            // nanoMuse: 并行的其他工具可能长时间等待，汇总时再次撤销已失效的个人结果。
+            let strippedImageCount = await imageBudgetActor.strippedSoFar
+            if toolEntries.contains(where: { NivoPersonalRecordsToolBridge.isPersonalTool($0.name) }) {
+                do { _ = try await nmRequireRecordsAccess(nmBatchAuthorization) }
+                catch {
+                    for (index, entry) in toolEntries.enumerated() where NivoPersonalRecordsToolBridge.isPersonalTool(entry.name) {
+                        let refusal = "Personal records access expired; no record result is available."
+                        outcomesByIndex[index] = ToolExecOutcome(toolId: entry.id, toolName: entry.name,
+                            resultPart: .toolResult(id: entry.id, name: entry.name, content: refusal, isError: true),
+                            snapshotEntry: nil, snapshotItem: nil, cancelled: error is CancellationError)
+                        if msgIdx < messages.count, entry.blockIdx < messages[msgIdx].blocks.count {
+                            messages[msgIdx].blocks[entry.blockIdx].content = refusal
+                            messages[msgIdx].blocks[entry.blockIdx].toolStatus = .failed(message: refusal)
+                        }
+                    }
+                }
+            }
             for idx in 0..<toolEntries.count {
                 guard let outcome = outcomesByIndex[idx] else { continue }
                 toolResultParts.append(outcome.resultPart)
@@ -5635,7 +5743,6 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             }
 
             // If any tool images were stripped due to budget, append a batch-reading tip
-            let strippedImageCount = await imageBudgetActor.strippedSoFar
             if strippedImageCount > 0 {
                 toolResultParts.append(.text(
                     "<system-reminder>\(strippedImageCount) image(s) from read_image were replaced with text placeholders"
@@ -5729,7 +5836,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 if try await injectQueuedPromptsAsNewTurn(
                     msgIdx: &msgIdx,
                     committedBlockCount: &committedBlockCount,
-                    turnUsage: turnUsage
+                    turnUsage: turnUsage,
+                    recordsAuthorization: &nmLoopAuthorization
                 ) {
                     // [T-ios-inloop-compact-freeze] Retarget the stable anchor
                     // alongside msgIdx (fresh assistant message for the new turn).

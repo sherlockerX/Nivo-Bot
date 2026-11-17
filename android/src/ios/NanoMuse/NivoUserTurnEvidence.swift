@@ -7,10 +7,12 @@ enum NivoUserTurnEvidence {
     static func validated(_ row: RawMessage, text: String, sessionID: String, owner: String) -> NivoSavedUserTurn? {
         guard row.sessionId == sessionID, row.role == .user, !row.isToolResultOnly,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              row.parts.contains(where: { part in
+              (row.parts.contains(where: { part in
                   if case .text(let stored) = part { return stored == text || stored.hasPrefix(text + "\n") }
                   return false
-              }) else { return nil }
+              }) || row.parts.compactMap({ part -> String? in
+                  if case .text(let stored) = part { return stored }; return nil
+              }).joined(separator: "\n") == text) else { return nil }
         return NivoSavedUserTurn(id: row.id, text: text, ownerKey: owner, chatSessionID: sessionID,
                                  createdAt: Int64(row.createdAt.timeIntervalSince1970 * 1_000), sourceDigest: digest(row))
     }
@@ -28,20 +30,19 @@ extension AIChatViewModel {
     /// 从当前轮次的持久化历史定位数据库ID，再读库验证，未落盘和定时消息都不授权写入。
     func nmSavedUserTurn(_ message: ChatMessage?) async -> NivoSavedUserTurn? {
         guard let message, message.role == .user, !message.isQueued, !message.isCompactedHistory,
-              message.nmRoutine == nil, message.nmFromDevice == nil, let sessionId,
-              NivoLifeModel.shared.isReady, NanoMuseSync.shared.shows(sessionId) else { return nil }
-        guard let scope = NivoLifeModel.shared.accessScope else { return nil }
-        let owner = scope.ownerKey
-        let candidate = agentHistory.last { entry in
-            entry.role == .user && entry.parts.contains { part in
-                if case .text(let text) = part { return text == message.content || text.hasPrefix(message.content + "\n") }
-                return false
-            }
+              message.nmRoutine == nil, message.nmFromDevice == nil,
+              let scope = NivoLifeModel.shared.accessScope, let sessionId,
+              NanoMuseSync.shared.shows(sessionId) else { return nil }
+        if let authorization = nmPersonalRecordsAuthorization,
+           message.nmSourceMessageIDs.contains(authorization.user.id) {
+            return try? await nmRequireRecordsAccess(authorization)
         }
-        guard let identifier = candidate?.dbMessageId,
+        // 归档恢复可核对已有来源ID，但这份证据本身不产生任何工具读取权限。
+        guard message.nmSourceMessageIDs.count == 1, let identifier = message.nmSourceMessageIDs.first,
               let row = try? await ChatStore.shared.nmLoadEvidenceMessage(id: identifier),
-              NivoLifeModel.shared.accessScope == scope,
-              NanoMuseAccountData.shared.current == owner, NanoMuseSync.shared.shows(sessionId) else { return nil }
-        return NivoUserTurnEvidence.validated(row, text: message.content, sessionID: sessionId, owner: owner)
+              NivoLifeModel.shared.accessScope == scope, self.sessionId == sessionId,
+              NanoMuseAccountData.shared.current == scope.ownerKey,
+              NanoMuseSync.shared.shows(sessionId) else { return nil }
+        return NivoUserTurnEvidence.validated(row, text: message.content, sessionID: sessionId, owner: scope.ownerKey)
     }
 }

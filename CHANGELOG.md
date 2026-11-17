@@ -4,9 +4,15 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-- Corrected the iOS root filesystem tool's native build configuration on Intel Macs while retaining the ARM64 device filesystem. Five host-architecture checks passed; the fix follows the actual Apple CI Meson diagnostic.
+- Corrected the iOS root filesystem tool's native build configuration on Intel Macs while retaining the ARM64 device filesystem. Native dependencies passed the next Apple CI build.
 
-- Made iOS FFmpeg source downloads retry within bounds, verify a fixed release digest, fall back to the MacPorts mirror and retain the verified archive between builds. Five offline download regressions passed; Apple CI validation remains pending.
+- Added iOS focus reflections from completed timers, the latest three sessions and history, retained one draft or saved entry per session, linked valid tasks without changing their status and preserved conflicting backup text. Kept measured start and end times in saved links. Renamed the fragment text field to Reflection in all nine locales.
+
+- Enabled foreground user chats to query saved tasks, measured focus, reflections, habits and Coach records through native tools, with account and message checks, local-date filtering, complete pagination and explicit read failures. Preserved bound-topic scope and kept personal tool bodies out of diagnostics and shared offload files.
+
+- Made iOS FFmpeg source downloads retry within bounds, verify a fixed release digest, fall back to the MacPorts mirror and retain the verified archive between builds. Offline regressions and the next Apple dependency build passed.
+
+- Corrected dynamic localized titles in task, focus, classic-menu and provider-migration views after Apple type checking rejected plain strings passed to the localization helper.
 
 - Stopped rejecting valid pending Coach archives and scheduled-result files because of relative or aliased path representations, while retaining symbolic-link and filename checks.
 

@@ -9,13 +9,14 @@ struct NivoJigsawQuery: Sendable {
     var offset: Int
     var format: String
     var today: Int64
+    var zoneID: String
     static let zone = TimeZone(identifier: "Asia/Shanghai")!
     var pageStart: Int64 { startDay + Int64(offset) }
     var pageEnd: Int64 { min(endDay, pageStart + Int64(limit) - 1) }
     var nextOffset: Int? { pageEnd < endDay ? Int(pageEnd - startDay + 1) : nil }
 
     /// 严格拒绝写命令、重复参数、错误日期和过大范围，读取正文不静默截断。
-    static func parse(_ arguments: [String], now: Date = Date()) throws -> NivoJigsawQuery {
+    static func parse(_ arguments: [String], now: Date = Date(), timeZone: TimeZone = zone) throws -> NivoJigsawQuery {
         guard let command = arguments.first, ["list", "get", "stats", "export"].contains(command) else {
             throw QueryError("Only list, get, stats and export are supported.")
         }
@@ -26,7 +27,7 @@ struct NivoJigsawQuery: Sendable {
         let format = values["format"] ?? "json"
         guard ["json", "md"].contains(format) else { throw QueryError("--format must be json or md.") }
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = zone
+        calendar.timeZone = timeZone
         let parts = calendar.dateComponents([.year, .month, .day], from: now)
         let today = try day(String(format: "%04d-%02d-%02d", parts.year ?? 1970, parts.month ?? 1, parts.day ?? 1))
         let end = command == "get" ? try day(required(values, "date")) : try values["end"].map(day) ?? today
@@ -36,7 +37,8 @@ struct NivoJigsawQuery: Sendable {
         let limit = try number(values, key: "limit", fallback: 31, range: 1...366)
         let offset = try number(values, key: "offset", fallback: 0, range: 0...365)
         guard Int64(offset) <= end - start else { throw QueryError("--offset must be smaller than the date range.") }
-        return NivoJigsawQuery(command: command, startDay: start, endDay: end, limit: limit, offset: offset, format: format, today: today)
+        return NivoJigsawQuery(command: command, startDay: start, endDay: end, limit: limit, offset: offset,
+            format: format, today: today, zoneID: timeZone.identifier)
     }
 
     /// 日期只接受严格的四位公历年，回读校验防止2月30日被系统纠正。
@@ -117,10 +119,11 @@ enum NivoJigsawOutput {
         guard query.command == "stats" || entries.reduce(0, { $0 + $1.text.utf16.count }) <= 500_000 else {
             throw NivoJigsawQuery.QueryError("Result is too large. Use a smaller range or limit; no text was truncated.")
         }
-        var root: [String: Any] = ["timezone": "Asia/Shanghai", "start": NivoJigsawQuery.date(query.startDay),
+        var root: [String: Any] = ["timezone": query.zoneID, "date_semantics": "saved_local_calendar_day",
+            "start": NivoJigsawQuery.date(query.startDay),
             "end": NivoJigsawQuery.date(query.endDay), "computed_at": ISO8601DateFormatter().string(from: now),
             "habits_configured": !state.habits.isEmpty, "view_url": "minis://views/mosaic"]
-        root["queried"] = ["start": NivoJigsawQuery.date(start), "end": NivoJigsawQuery.date(end), "inclusive": true, "timezone": "Asia/Shanghai"]
+        root["queried"] = ["start": NivoJigsawQuery.date(start), "end": NivoJigsawQuery.date(end), "inclusive": true, "timezone": query.zoneID]
         // 每日数据由日期单独过滤，避免同一天跨页或正文被摘要截断。
         let grouped = Dictionary(grouping: entries, by: \.day)
         var outputDays: [[String: Any]] = []
@@ -161,18 +164,36 @@ enum NivoJigsawOutput {
             let mark = state.habitDays?.first { $0.day == day && $0.habitID == habit.id }
             return ["name": habit.title, "done": mark?.status == .done, "state": mark.map { $0.status.rawValue as Any } ?? NSNull()]
         }
-        let records: [[String: Any]] = entries.map { entry in
-            ["id": entry.id, "text": entry.text, "mood": entry.mood.map { $0.rawValue as Any } ?? NSNull(),
-             "energy": entry.mood.map { (6 - $0.rawValue) as Any } ?? NSNull(),
-             "has_photo": entry.mediaPath != nil, "habit": entry.habitTitle.map { $0 as Any } ?? NSNull(),
-             "created_at_ms": entry.createdAt, "updated_at_ms": entry.updatedAt]
-        }
+        let records = entries.map(recordJSON)
         let text = entries.map(\.text).filter { !$0.isEmpty }.joined(separator: "\n")
         return ["date": NivoJigsawQuery.date(day), "text": text.isEmpty ? NSNull() : text as Any,
                 "mood": mood.map { $0.rawValue as Any } ?? NSNull(),
                 "mood_label": mood.map { ["great", "good", "okay", "low", "bad"][$0.rawValue - 1] as Any } ?? NSNull(),
                 "energy": mood.map { (6 - $0.rawValue) as Any } ?? NSNull(),
                 "habits_configured": !state.habits.isEmpty, "habits": habits, "records": records]
+    }
+
+    /// 关联只输出同账户仓库保存的语义快照，不读取照片路径、草稿或现有任务状态。
+    private static func recordJSON(_ entry: NivoMosaicEntry) -> [String: Any] {
+        var result: [String: Any] = ["id": entry.id, "text": entry.text,
+            "mood": entry.mood.map { $0.rawValue as Any } ?? NSNull(),
+            "energy": entry.mood.map { (6 - $0.rawValue) as Any } ?? NSNull(),
+            "has_photo": entry.mediaPath != nil, "habit": entry.habitTitle.map { $0 as Any } ?? NSNull(),
+            "created_at_ms": entry.createdAt, "updated_at_ms": entry.updatedAt]
+        result["taskIDs"] = entry.taskIDs
+        result["focusIDs"] = entry.focusIDs
+        result["reflectionSessionID"] = entry.reflectionSessionID.map { $0 as Any } ?? NSNull()
+        result["taskSnapshots"] = (entry.taskSnapshots ?? []).map {
+            ["id": $0.id, "title": $0.title, "status": $0.status.rawValue,
+             "linkedAt": $0.linkedAt.map { $0 as Any } ?? NSNull()] as [String: Any]
+        }
+        result["focusSnapshots"] = (entry.focusSnapshots ?? []).map {
+            ["id": $0.id, "title": $0.title, "elapsedMs": $0.elapsedMs,
+             "startedAt": $0.startedAt.map { $0 as Any } ?? NSNull(),
+             "endedAt": $0.endedAt.map { $0 as Any } ?? NSNull()] as [String: Any]
+        }
+        result["linkEvidence"] = "saved_snapshot_not_current_completion_proof"
+        return result
     }
 
     private static func stats(query: NivoJigsawQuery, entries: [NivoMosaicEntry], state: NivoMosaicState) throws -> [String: Any] {
@@ -198,12 +219,15 @@ enum NivoJigsawOutput {
     }
 
     private static func markdown(_ root: [String: Any], days: [[String: Any]]) -> String {
-        var lines = ["# Mosaic \(root["start"] ?? "") to \(root["end"] ?? "")", "Timezone: Asia/Shanghai"]
+        var lines = ["# Mosaic \(root["start"] ?? "") to \(root["end"] ?? "")", "Timezone: \(root["timezone"] ?? "")"]
         if let stats = root["stats"] as? [String: Any] {
             lines += stats.keys.sorted().map { "- \($0): \(stats[$0] ?? "")" }
         } else {
             for day in days {
-                lines += ["", "## \(day["date"] ?? "")", "Mood: \(day["mood_label"] ?? ""); energy: \(day["energy"] ?? "")", day["text"] as? String ?? ""]
+                lines += ["", "## \(day["date"] ?? "")", "Mood: \(day["mood_label"] ?? ""); energy: \(day["energy"] ?? "")"]
+                for record in day["records"] as? [[String: Any]] ?? [] {
+                    lines += markdownRecord(record)
+                }
                 for habit in day["habits"] as? [[String: Any]] ?? [] {
                     lines.append("- [\((habit["done"] as? Bool == true) ? "x" : " ")] \(habit["name"] ?? "") (\(habit["state"] ?? ""))")
                 }
@@ -211,5 +235,28 @@ enum NivoJigsawOutput {
             if root["has_more"] as? Bool == true { lines.append("More days: repeat with --offset \(root["next_offset"] ?? "").") }
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// 每条心得保留自己的正文和关联，不能合并同日正文后丢失任务、时段对应关系。
+    private static func markdownRecord(_ record: [String: Any]) -> [String] {
+        var lines = ["", "### Record \(record["id"] ?? "")", record["text"] as? String ?? ""]
+        let taskIDs = record["taskIDs"] as? [String] ?? []
+        let focusIDs = record["focusIDs"] as? [String] ?? []
+        lines += ["Task IDs: \(taskIDs.joined(separator: ", "))", "Focus IDs: \(focusIDs.joined(separator: ", "))"]
+        if let source = record["reflectionSessionID"] as? String { lines.append("Reflection source: \(source)") }
+        lines.append("Link evidence: saved_snapshot_not_current_completion_proof. Times below are Unix milliseconds; unknown means not recorded.")
+        for task in record["taskSnapshots"] as? [[String: Any]] ?? [] {
+            lines.append("- Saved task \(task["id"] ?? ""): \(task["title"] ?? ""); status=\(task["status"] ?? ""); linkedAt=\(recordedTime(task["linkedAt"]))")
+        }
+        for focus in record["focusSnapshots"] as? [[String: Any]] ?? [] {
+            lines.append("- Saved focus \(focus["id"] ?? ""): \(focus["title"] ?? ""); elapsedMs=\(focus["elapsedMs"] ?? "unknown"); startedAt=\(recordedTime(focus["startedAt"])); endedAt=\(recordedTime(focus["endedAt"]))")
+        }
+        return lines
+    }
+
+    /// 旧快照没有时间字段时明确标为未知，不借用碎片创建时间补造。
+    private static func recordedTime(_ value: Any?) -> String {
+        guard let value, !(value is NSNull) else { return "unknown" }
+        return String(describing: value)
     }
 }

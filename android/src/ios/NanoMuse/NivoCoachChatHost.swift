@@ -125,7 +125,8 @@ struct NivoCoachChatHost: ViewModifier {
         } else if lesson?.turns.isEmpty == true {
             Button(AppLocalized("Start teaching")) {
                 guard let scope, life.accessScope == scope else { return }
-                vm.nmSendNow(AppLocalized("Start this unit with an explanation and a concrete example."))
+                let origin = vm.nmCaptureUserOrigin()
+                vm.nmSendNow(AppLocalized("Start this unit with an explanation and a concrete example."), userOrigin: origin)
             }
                 .buttonStyle(.borderedProminent)
         } else if lesson?.assessment != nil {
@@ -137,6 +138,8 @@ struct NivoCoachChatHost: ViewModifier {
     private func perform(_ action: String, targetID: String, scope: NivoLifeScope?, beginTeaching: Bool = false) {
         guard !isBusy, !vm.isProcessing, !readOnly, let scope, life.accessScope == scope else { return }
         let chatID = vm.sessionId
+        // 仅真实按钮在异步建课前捕获来源，等待期间切换前后台会撤销这次点击。
+        let origin = beginTeaching ? vm.nmCaptureUserOrigin() : nil
         isBusy = true
         Task { @MainActor in
             defer { isBusy = false }
@@ -144,7 +147,7 @@ struct NivoCoachChatHost: ViewModifier {
                 try await NivoCoachConversationCoordinator.shared.command(action, targetID: targetID, scope: scope)
                 await context.refresh(sessionID: chatID)
                 guard life.accessScope == scope, vm.sessionId == chatID else { return }
-                if beginTeaching { vm.nmSendNow(AppLocalized("Continue learning")) }
+                if beginTeaching { vm.nmSendNow(AppLocalized("Continue learning"), userOrigin: origin) }
             } catch {
                 if life.accessScope == scope, vm.sessionId == chatID { errorMessage = NivoLifeModel.message(error) }
             }

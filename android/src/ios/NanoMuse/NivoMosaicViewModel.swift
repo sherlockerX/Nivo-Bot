@@ -48,6 +48,16 @@ final class NivoMosaicViewModel: ObservableObject {
         }
     }
 
+    /// 来源重读和加载完成后再次核验代次，旧账户结果不能交给编辑器。
+    func openReflection(sessionID: String, scope: NivoLifeScope) async throws -> NivoMosaicDraft {
+        try require(scope)
+        let draft = try await life.repository.openFocusReflection(sessionID: sessionID, scope: scope, now: Self.now)
+        try require(scope)
+        await load()
+        try require(scope)
+        return draft
+    }
+
     /// 草稿自动保存不占用正式提交按钮，失败会留在编辑器内提示。
     func saveDraft(_ draft: NivoMosaicDraft, scope: NivoLifeScope) async throws {
         try require(scope)

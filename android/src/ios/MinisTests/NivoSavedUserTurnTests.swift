@@ -24,4 +24,16 @@ final class NivoSavedUserTurnTests: XCTestCase {
                              parts: [.text("这个任务做完了")], createdAt: Date())
         XCTAssertNil(NivoUserTurnEvidence.validated(row, text: "这个任务做完了", sessionID: "chat", owner: "one"))
     }
+
+    func testSameTextInAnotherRowDoesNotMatchCapturedAuthorization() {
+        let original = RawMessage(id: "first", sessionId: "chat", role: .user,
+            parts: [.text("读取记录")], createdAt: Date(timeIntervalSince1970: 1))
+        let duplicate = RawMessage(id: "second", sessionId: "chat", role: .user,
+            parts: [.text("读取记录")], createdAt: Date(timeIntervalSince1970: 2))
+        let saved = NivoUserTurnEvidence.validated(original, text: "读取记录", sessionID: "chat", owner: "one")!
+        let other = NivoUserTurnEvidence.validated(duplicate, text: "读取记录", sessionID: "chat", owner: "one")!
+        let token = NivoPersonalRecordsAuthorization(hostID: "host", turnID: UUID(),
+            scope: .init(ownerKey: "one", generation: 1), user: saved)
+        XCTAssertFalse(token.matches(hostID: "host", turnID: token.turnID, scope: token.scope, user: other))
+    }
 }

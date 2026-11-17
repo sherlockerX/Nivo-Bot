@@ -31,6 +31,8 @@ struct NivoMosaicEntry: Codable, Equatable, Identifiable, Sendable {
     var crop: NivoMosaicCrop?
     var shape: String?
     var zoneID: String?
+    /// 心得来源独立于用户可取消的关联，用于重复点击时定位原条目。
+    var reflectionSessionID: String?
 }
 
 /// 编辑草稿携带读入的版本，自动保存不修改任务或习惯状态。
@@ -51,6 +53,8 @@ struct NivoMosaicDraft: Codable, Equatable, Identifiable, Sendable {
     var shouldMarkHabitDone: Bool?
     var crop: NivoMosaicCrop?
     var shape: String?
+    /// 来源为空时保持普通碎片语义，旧快照缺少此字段仍可解码。
+    var reflectionSessionID: String?
 }
 
 /// 习惯当前名称与历史日程分开保存，暂停不会抹去过去的计划。
@@ -94,6 +98,8 @@ struct NivoMosaicTaskLink: Codable, Equatable, Sendable {
     var id: String
     var title: String
     var status: NivoTodoStatus
+    /// 关联首次保存的时间；旧快照没有此字段时不以碎片日期补造。
+    var linkedAt: Int64?
 }
 
 /// 关联专注保留实际计量时长，休息时段不会作为专注关联。
@@ -101,6 +107,9 @@ struct NivoMosaicFocusLink: Codable, Equatable, Sendable {
     var id: String
     var title: String
     var elapsedMs: Int64
+    /// 保留实际会话的起止时刻；旧快照的未知时间保持为空。
+    var startedAt: Int64?
+    var endedAt: Int64?
 }
 
 /// 当日封面、心情和拼图形状由用户独立选择。

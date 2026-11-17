@@ -1,9 +1,26 @@
 import Foundation
 
 /// 页面跳转绑定来源账户代次，旧弹窗不能在切号或恢复备份后继续打开新账户的内容。
-struct NivoLifeItemTarget: Equatable, Sendable {
+struct NivoLifeItemTarget: Equatable, Hashable, Sendable {
     var id: String
     var scope: NivoLifeScope
+}
+
+/// 串行消费页面当前目标；处理期间到达的新请求由同一轮继续读取，不依赖第二次界面事件。
+@MainActor
+final class NivoLifeRequestDrain {
+    private(set) var isRunning = false
+
+    /// 每轮最多尝试同一目标一次，暂未具备呈现条件的请求保留给下一次真实页面事件。
+    func run(next: () -> NivoLifeItemTarget?, handle: (NivoLifeItemTarget) async -> Void) async {
+        guard !isRunning else { return }
+        isRunning = true
+        defer { isRunning = false }
+        var attempted: Set<NivoLifeItemTarget> = []
+        while !Task.isCancelled, let target = next(), attempted.insert(target).inserted {
+            await handle(target)
+        }
+    }
 }
 
 /// 专注入口的结果只描述导航，不开始计时或改变任务状态。
