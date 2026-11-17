@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Corrected the iOS root filesystem tool's native build configuration on Intel Macs while retaining the ARM64 device filesystem. Five host-architecture checks passed; the fix follows the actual Apple CI Meson diagnostic.
+
 - Made iOS FFmpeg source downloads retry within bounds, verify a fixed release digest, fall back to the MacPorts mirror and retain the verified archive between builds. Five offline download regressions passed; Apple CI validation remains pending.
 
 - Stopped rejecting valid pending Coach archives and scheduled-result files because of relative or aliased path representations, while retaining symbolic-link and filename checks.

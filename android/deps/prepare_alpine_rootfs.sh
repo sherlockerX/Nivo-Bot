@@ -136,6 +136,9 @@ build_fakefsify() {
     # Configure for native build (not cross-compile)
     if [ ! -f "$BUILD_DIR/build.ninja" ]; then
         log_info "Configuring native meson build..."
+        # nanoMuse: Intel宿主没有ARM64 guest的gadget组合；此选项仅用于宿主工具，不改变aarch64根文件系统。
+        local HOST_GUEST_ARCH
+        HOST_GUEST_ARCH="$(bash "$SCRIPT_DIR/fakefsify_guest_arch.sh" "$(uname -m)")"
         # Deliberately no -Db_ndebug here (unlike build_ish.sh, which disables
         # asserts for release). This build produces only tools/fakefsify, a
         # host-side tool that runs on this Mac and never ships to a device, so
@@ -146,7 +149,7 @@ build_fakefsify() {
             -Dlog="" \
             -Dkernel=ish \
             -Dengine=asbestos \
-            -Dguest_arch=arm64
+            -Dguest_arch="$HOST_GUEST_ARCH"
     fi
 
     # Build only fakefsify
