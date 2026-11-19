@@ -87,7 +87,7 @@ Pembelajaran, tugas, fokus dan catatan memakai penyimpanan lokal dengan aturan a
 |---|---|
 | Situs produk | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 ke atas, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16 ke atas, perlu penandatanganan pribadi | [IPA tanpa tanda tangan dan log CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16 ke atas, perlu penandatanganan pribadi | [IPA tanpa tanda tangan](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | Sumber yang sesuai dengan APK | [Paket sumber v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Checksum unduhan | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | Detail rilis | [Catatan rilis](../releases/v2.0.5.md) · [Pemeriksaan build](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

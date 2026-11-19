@@ -87,7 +87,7 @@ AI는 앱 도구를 통해 할 일 변경을 저장합니다. 대화 답변만�
 |---|---|
 | 제품 사이트 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 이상, arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16 이상, 개인 서명 필요 | [서명되지 않은 IPA 및 CI 로그](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16 이상, 개인 서명 필요 | [서명되지 않은 IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | APK에 대응하는 소스 | [v2.0.5 소스 묶음](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | 다운로드 체크섬 | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | 릴리스 정보 | [릴리스 노트](../releases/v2.0.5.md) · [빌드 검사](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

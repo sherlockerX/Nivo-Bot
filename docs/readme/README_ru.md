@@ -87,7 +87,7 @@ Nivo Bot, пространство ИИ для повседневной жизн
 |---|---|
 | Сайт продукта | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA и журналы CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | Исходный код, соответствующий APK | [Архив исходников v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Контрольные суммы | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | Сведения о выпуске | [Примечания к выпуску](../releases/v2.0.5.md) · [Проверки сборки](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

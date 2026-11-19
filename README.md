@@ -87,7 +87,7 @@ Learning, tasks, focus records and fragments use local storage with module-speci
 |---|---|
 | Product website | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0+, arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16+, personal signing required | [Unsigned IPA and CI logs](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16+, personal signing required | [Unsigned IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | Source corresponding to the APK | [v2.0.5 source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Download checksums | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | Release details | [Release notes](docs/releases/v2.0.5.md) · [Build checks](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

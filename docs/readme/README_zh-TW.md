@@ -87,7 +87,7 @@ AI透過應用程式工具儲存任務變更，聊天裡說「建好了」不等
 |---|---|
 | 產品網站 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android8.0及以上，arm64 | [Nivo Bot v2.0.5安裝檔](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS16及以上，需自行簽章 | [未簽章IPA與CI記錄](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS16及以上，需自行簽章 | [未簽章IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | 與安裝檔對應的原始碼 | [v2.0.5原始碼套件](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | 下載校驗碼 | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | 發行詳情 | [發行說明](../releases/v2.0.5.md)·[建置檢查](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

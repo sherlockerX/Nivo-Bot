@@ -87,7 +87,7 @@ Apprentissages, tâches, concentration et notes utilisent un stockage local avec
 |---|---|
 | Site du produit | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 ou ultérieur, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16 ou ultérieur, signature personnelle requise | [IPA non signé et journaux CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16 ou ultérieur, signature personnelle requise | [IPA non signé](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | Sources correspondant à l'APK | [Archive source v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Sommes de contrôle | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | Détails de la version | [Notes de version](../releases/v2.0.5.md) · [Vérifications de compilation](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

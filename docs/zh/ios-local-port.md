@@ -4,9 +4,9 @@
 
 ## 当前验证，2026年11月19日 {#current-validation}
 
-**2.0.5(56)**的本轮发布CI待完成。[iOS工作流](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)完成对应发布提交后，再记录运行链接及最终结果。下方旧构建和测试数量只适用于各自标明的提交，不能作为本次发布的验证结果。应用测试编译、应用XCTest执行与iPhone真机验收分别检查。
+**2.0.5(56)**的发布CI已通过，对应[运行44517545021](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021)和提交`4e473f9138afe84d38e0f62c113a3a5c2a1cf7d4`。691项便携测试全部通过，0失败；未签名设备构建、应用测试目标`build-for-testing`及`NanoMuse/`零警告检查也均通过。应用测试编译不会执行应用XCTest测试，也不等于iPhone真机验收。
 
-工作流在编译测试目标前保留未签名设备应用，使用独立副本生成供自行签名的IPA。IPA产物可能先于后续测试目标编译完成，请分别检查各项最终状态。iPhone通知、引导式访问、登录、真实模型回复、CloudKit、音频和页面切换仍未验收。iOS不提供Android的强制锁定计划与应用白名单。
+已检查的[未签名IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa)版本为**2.0.5(56)**，架构为arm64，最低要求iOS16。主应用与3个扩展的版本一致，均不含代码签名或描述文件。工作流在编译测试目标前保留未签名设备应用，使用独立副本生成供自行签名的IPA。iPhone通知、引导式访问、登录、真实模型回复、CloudKit、音频和页面切换仍未验收。iOS不提供Android的强制锁定计划与应用白名单。
 
 ## 早期验证，2026年11月17日
 

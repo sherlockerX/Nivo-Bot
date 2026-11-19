@@ -87,7 +87,7 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16 trở lên, cần tự ký | [IPA chưa ký và nhật ký CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16 trở lên, cần tự ký | [IPA chưa ký](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Mã kiểm tra tải xuống | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.5.md) · [Kiểm tra bản dựng](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

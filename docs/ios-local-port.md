@@ -4,9 +4,9 @@ This page describes the native iOS implementation of Nivo Bot's tasks, focus, da
 
 ## Current validation, 2026-11-19 {#current-validation}
 
-The release CI for **2.0.5 (56)** is pending completion. Its run and final results will be recorded after the matching release commit finishes the [iOS workflow](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml). Earlier successful builds and test counts below are evidence for their stated commits, not this release. Application-test compilation, application XCTest execution and iPhone runtime acceptance remain separate checks.
+The release CI for **2.0.5 (56)** passed in [run 44517545021](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021) at commit `4e473f9138afe84d38e0f62c113a3a5c2a1cf7d4`. All 691 portable tests passed with zero failures. The unsigned device build, application-test target `build-for-testing` and zero-warning check for `NanoMuse/` also passed. Application-test compilation does not execute the application XCTest suites or establish iPhone runtime acceptance.
 
-The workflow preserves the unsigned device app before compiling its test target, then packages that independent copy for personal signing. An IPA artifact may be available before the later test-target compilation completes; check each job's final status. iPhone notifications, Guided Access, login, real model responses, CloudKit, audio and screen transitions remain unverified. Android forced lock plans and app whitelists are not implemented on iOS.
+The inspected [unsigned IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) is version **2.0.5 (56)** for arm64 and requires iOS 16 or later. Its main application and three extensions have matching versions, with no code signatures or provisioning profiles. The workflow preserves the unsigned device app before compiling its test target, then packages that independent copy for personal signing. iPhone notifications, Guided Access, login, real model responses, CloudKit, audio and screen transitions remain unverified. Android forced lock plans and app whitelists are not implemented on iOS.
 
 ## Earlier validation, 2026-11-17
 

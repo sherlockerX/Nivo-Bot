@@ -87,7 +87,7 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 |---|---|
 | 製品サイト | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android8.0以上、arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS16以上、個人署名が必要 | [未署名IPAとCIログ](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS16以上、個人署名が必要 | [未署名IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | APKに対応するソース | [v2.0.5ソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | ダウンロードのチェックサム | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | リリース情報 | [リリースノート](../releases/v2.0.5.md) · [ビルド検証](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

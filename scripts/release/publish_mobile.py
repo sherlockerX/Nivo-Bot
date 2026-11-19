@@ -14,6 +14,7 @@ import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPOSITORY = "sherlockerX/Nivo-Bot"
@@ -204,23 +205,69 @@ def verify_ipa(path: Path, plan: ReleasePlan) -> None:
 
 
 def get_release(tag: str) -> dict | None:
-    """仅404表示发行不存在，鉴权和其他网络错误必须中止。"""
+    """读取正式发行，404时分页寻找隐藏的草稿，其他错误必须中止。"""
     result = subprocess.run(
         ["gh", "api", f"repos/{REPOSITORY}/releases/tags/{tag}"], capture_output=True, text=True
     )
     if result.returncode == 0:
         return json.loads(result.stdout)
     if "(HTTP 404)" in result.stderr:
-        return None
+        pages = json.loads(
+            run(
+                [
+                    "gh",
+                    "api",
+                    f"repos/{REPOSITORY}/releases?per_page=100",
+                    "--paginate",
+                    "--slurp",
+                ]
+            )
+        )
+        if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+            raise ValueError("GitHub release list has an invalid shape")
+        releases = [
+            release
+            for page in pages
+            for release in page
+            if isinstance(release, dict) and release.get("tag_name") == tag
+        ]
+        if len(releases) > 1:
+            raise ValueError(f"Multiple GitHub releases use tag {tag}")
+        return releases[0] if releases else None
     raise RuntimeError(f"Cannot inspect existing release: {result.stderr.strip()}")
+
+
+def verify_release_target(release: dict, commit: str) -> None:
+    """校验现有Release目标，兼容SHA和合法分支名但不接受错误提交。"""
+    target = release.get("target_commitish")
+    if not isinstance(target, str) or not target:
+        raise ValueError("Existing release has no target commit")
+    if re.fullmatch(r"[0-9a-f]{40}", target):
+        if target != commit:
+            raise ValueError("Existing release target commit differs")
+        return
+    resolved = run(
+        [
+            "gh",
+            "api",
+            f"repos/{REPOSITORY}/commits/{quote(target, safe='')}",
+            "--jq",
+            ".sha",
+        ]
+    )
+    if resolved != commit:
+        raise ValueError("Existing release branch target resolves to a different commit")
 
 
 def missing_artifacts(plan: ReleasePlan, commit: str, release: dict) -> list[Artifact]:
     """先核对所有已有内容，再决定能否补传，任何差异均拒绝覆盖。"""
-    if release.get("tag_name") != plan.tag or release.get("target_commitish") != commit:
-        raise ValueError("Existing release tag or target commit differs")
-    if release.get("draft") is not False or release.get("prerelease") is not False:
-        raise ValueError("Existing release is not a published stable release")
+    if release.get("tag_name") != plan.tag:
+        raise ValueError("Existing release tag differs")
+    verify_release_target(release, commit)
+    if release.get("draft") is not False and release.get("draft") is not True:
+        raise ValueError("Existing release draft state is invalid")
+    if release.get("prerelease") is not False:
+        raise ValueError("Existing release is not a stable release")
     assets = release.get("assets", [])
     existing = {item["name"]: item for item in assets}
     expected = {item.name: item for item in plan.artifacts}
@@ -276,7 +323,10 @@ def publish(plan: ReleasePlan, commit: str, folder: Path, release: dict | None) 
             ]
         )
         return
+    was_draft = release.get("draft") is True
     missing = missing_artifacts(plan, commit, release)
+    if was_draft and (type(release.get("id")) is not int or release["id"] <= 0):
+        raise ValueError("Existing draft has no valid release ID")
     if missing:
         run(
             [
@@ -289,8 +339,32 @@ def publish(plan: ReleasePlan, commit: str, folder: Path, release: dict | None) 
                 REPOSITORY,
             ]
         )
-    else:
+    if was_draft:
+        publish_draft(plan, commit, release["id"])
+    elif not missing:
         print("Release and all three assets already match; nothing changed")
+
+
+def publish_draft(plan: ReleasePlan, commit: str, release_id: int) -> None:
+    """草稿补全后重读身份与附件，验证完整才转为正式发行。"""
+    refreshed = get_release(plan.tag)
+    if refreshed is None or refreshed.get("id") != release_id:
+        raise ValueError("Existing draft changed or disappeared during upload")
+    if missing_artifacts(plan, commit, refreshed):
+        raise ValueError("Existing draft is still missing verified assets")
+    if refreshed.get("draft") is True:
+        run(
+            [
+                "gh",
+                "release",
+                "edit",
+                plan.tag,
+                "--repo",
+                REPOSITORY,
+                "--draft=false",
+                "--latest",
+            ]
+        )
 
 
 def main() -> None:
@@ -323,7 +397,9 @@ def main() -> None:
         verify_checkout(root, args.tag, commit)
         publish(plan, commit, folder, get_release(plan.tag))
         completed = get_release(plan.tag)
-        if completed is None or missing_artifacts(plan, commit, completed):
+        if completed is None or completed.get("draft") is not False:
+            raise ValueError("Release is still unpublished; retry the same workflow")
+        if missing_artifacts(plan, commit, completed):
             raise ValueError("Release upload incomplete; retry the same workflow")
     print(f"Published {REPOSITORY} {plan.tag} with three verified assets")
 

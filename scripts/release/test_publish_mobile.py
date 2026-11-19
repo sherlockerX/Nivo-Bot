@@ -69,6 +69,7 @@ class MobilePublishTest(unittest.TestCase):
     def release(self):
         """构造已完整发布且内容一致的GitHub响应。"""
         return {
+            "id": 123,
             "tag_name": self.tag,
             "target_commitish": self.commit,
             "draft": False,
@@ -293,12 +294,53 @@ class MobilePublishTest(unittest.TestCase):
         """鉴权或网络失败不能被误判为尚未创建发布。"""
         for status in ("404", "403", "500"):
             result = subprocess.CompletedProcess([], 1, "", f"gh: failure (HTTP {status})")
-            with patch.object(publisher.subprocess, "run", return_value=result):
+            with (
+                patch.object(publisher.subprocess, "run", return_value=result),
+                patch.object(publisher, "run", return_value="[[]]") as command,
+            ):
                 if status == "404":
                     self.assertIsNone(publisher.get_release(self.tag))
+                    self.assertIn("--paginate", command.call_args.args[0])
                 else:
                     with self.assertRaises(RuntimeError):
                         publisher.get_release(self.tag)
+                    command.assert_not_called()
+
+    def test_404_finds_exact_draft_tag_across_all_pages(self):
+        """标签接口隐藏草稿时，分页列表仍能定位当前版本。"""
+        draft = {**self.release(), "draft": True}
+        result = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
+        pages = [[{**draft, "tag_name": "v2.0.4"}], [draft]]
+        with (
+            patch.object(publisher.subprocess, "run", return_value=result),
+            patch.object(publisher, "run", return_value=json.dumps(pages)) as command,
+        ):
+            self.assertEqual(publisher.get_release(self.tag), draft)
+        self.assertIn("--paginate", command.call_args.args[0])
+        self.assertIn("--slurp", command.call_args.args[0])
+        self.assertIn("?per_page=100", command.call_args.args[0][2])
+        self.assertNotIn("--field", command.call_args.args[0])
+
+    def test_duplicate_draft_tags_are_rejected(self):
+        """分页中出现两个同标签记录时不能任选其一。"""
+        draft = {**self.release(), "draft": True}
+        result = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
+        with (
+            patch.object(publisher.subprocess, "run", return_value=result),
+            patch.object(publisher, "run", return_value=json.dumps([[draft], [draft]])),
+            self.assertRaises(ValueError),
+        ):
+            publisher.get_release(self.tag)
+
+    def test_release_list_failure_cannot_be_treated_as_absence(self):
+        """草稿列表查询失败时停止，不能继续创建同标签发行。"""
+        result = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
+        with (
+            patch.object(publisher.subprocess, "run", return_value=result),
+            patch.object(publisher, "run", side_effect=subprocess.CalledProcessError(1, "gh")),
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            publisher.get_release(self.tag)
 
     def test_new_release_creates_with_all_verified_files(self):
         """一次create附带全部文件、明确目标提交与正式发行设置。"""
@@ -325,7 +367,6 @@ class MobilePublishTest(unittest.TestCase):
         for field, value in (
             ("target_commitish", "b" * 40),
             ("tag_name", "v2.0.4"),
-            ("draft", True),
             ("prerelease", True),
         ):
             release = copy.deepcopy(original)
@@ -350,6 +391,136 @@ class MobilePublishTest(unittest.TestCase):
         self.assertIn(str(self.root / missing["name"]), args)
         self.assertNotIn("--clobber", args)
         self.assertNotIn(str(self.root / release["assets"][0]["name"]), args)
+
+    def test_branch_target_is_resolved_without_modifying_published_release(self):
+        """合法分支目标解析到已核验提交时，仅查询而不修改已发布内容。"""
+        release = {**self.release(), "target_commitish": "master"}
+        with patch.object(publisher, "run", return_value=self.commit) as command:
+            publisher.publish(self.plan(), self.commit, self.root, release)
+        self.assertEqual(command.call_count, 1)
+        self.assertEqual(
+            command.call_args.args[0],
+            ["gh", "api", f"repos/{publisher.REPOSITORY}/commits/master", "--jq", ".sha"],
+        )
+
+    def test_different_branch_target_is_rejected_without_mutation(self):
+        """分支解析到其他提交时拒绝，含斜杠的引用按URL片段编码。"""
+        release = {**self.release(), "target_commitish": "release/mobile"}
+        with (
+            patch.object(publisher, "run", return_value="b" * 40) as command,
+            self.assertRaises(ValueError),
+        ):
+            publisher.publish(self.plan(), self.commit, self.root, release)
+        self.assertEqual(command.call_count, 1)
+        self.assertIn("commits/release%2Fmobile", command.call_args.args[0][2])
+
+    def test_draft_uploads_rechecks_then_publishes(self):
+        """真实中间态：标签404、分页找到草稿、补齐、复核，再转为正式发行。"""
+        draft = {**self.release(), "draft": True}
+        missing = draft["assets"].pop()
+        complete = {**self.release(), "draft": True}
+        result = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
+        sequence = []
+
+        def simulate(args):
+            sequence.append(args[:3])
+            if args[:2] == ["gh", "api"]:
+                pages = [[draft]] if len(sequence) == 1 else [[complete]]
+                return json.dumps(pages)
+            return ""
+
+        with (
+            patch.object(publisher.subprocess, "run", return_value=result),
+            patch.object(publisher, "run", side_effect=simulate) as command,
+        ):
+            existing = publisher.get_release(self.tag)
+            publisher.publish(self.plan(), self.commit, self.root, existing)
+        self.assertEqual(
+            [entry[:2] if entry[1] == "api" else entry for entry in sequence],
+            [["gh", "api"], ["gh", "release", "upload"], ["gh", "api"], ["gh", "release", "edit"]],
+        )
+        upload = command.call_args_list[1].args[0]
+        self.assertIn(str(self.root / missing["name"]), upload)
+        self.assertNotIn("--clobber", upload)
+        edit = command.call_args_list[-1].args[0]
+        self.assertIn("--draft=false", edit)
+        self.assertIn("--latest", edit)
+        self.assertNotIn("--notes-file", edit)
+
+    def test_complete_draft_publishes_without_upload(self):
+        """附件齐全的草稿只在再次确认身份后发布。"""
+        draft = {**self.release(), "draft": True}
+        with (
+            patch.object(publisher, "get_release", return_value=draft),
+            patch.object(publisher, "run") as command,
+        ):
+            publisher.publish(self.plan(), self.commit, self.root, draft)
+        self.assertEqual(command.call_count, 1)
+        self.assertEqual(command.call_args.args[0][:3], ["gh", "release", "edit"])
+
+    def test_interrupted_create_resumes_draft_without_recreating_release(self):
+        """create上传中断留下草稿，下一次仅补齐后发布，不重复create。"""
+        with (
+            patch.object(
+                publisher, "run", side_effect=subprocess.CalledProcessError(1, "gh")
+            ) as command,
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            publisher.publish(self.plan(), self.commit, self.root, None)
+        self.assertEqual(command.call_count, 1)
+        self.assertEqual(command.call_args.args[0][:3], ["gh", "release", "create"])
+        draft = {**self.release(), "draft": True}
+        draft["assets"].pop()
+        completed = {**self.release(), "draft": True}
+        with (
+            patch.object(publisher, "get_release", side_effect=[draft, completed]),
+            patch.object(publisher, "run") as command,
+        ):
+            publisher.publish(self.plan(), self.commit, self.root, publisher.get_release(self.tag))
+        self.assertEqual(
+            [call.args[0][:3] for call in command.call_args_list],
+            [["gh", "release", "upload"], ["gh", "release", "edit"]],
+        )
+
+    def test_failed_draft_upload_never_publishes(self):
+        """补传网络失败后保留草稿，下次仍可按同一规则恢复。"""
+        draft = {**self.release(), "draft": True}
+        draft["assets"].pop()
+        with (
+            patch.object(
+                publisher, "run", side_effect=subprocess.CalledProcessError(1, "gh")
+            ) as command,
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            publisher.publish(self.plan(), self.commit, self.root, draft)
+        self.assertEqual(command.call_count, 1)
+        self.assertEqual(command.call_args.args[0][:3], ["gh", "release", "upload"])
+
+    def test_inconsistent_draft_never_uploads_or_publishes(self):
+        """不同目标或已有损坏附件的草稿保持原样。"""
+        for field in ("target", "asset"):
+            draft = {**self.release(), "draft": True}
+            if field == "target":
+                draft["target_commitish"] = "b" * 40
+            else:
+                draft["assets"][0]["digest"] = "sha256:" + "f" * 64
+            with patch.object(publisher, "run") as command, self.assertRaises(ValueError):
+                publisher.publish(self.plan(), self.commit, self.root, draft)
+            command.assert_not_called()
+
+    def test_incomplete_or_replaced_draft_is_not_published(self):
+        """上传后仍不完整或草稿已换身份时，绝不提前发布。"""
+        draft = {**self.release(), "draft": True}
+        draft["assets"].pop()
+        for refreshed in (None, draft, {**self.release(), "id": 456, "draft": True}):
+            with (
+                patch.object(publisher, "get_release", return_value=refreshed),
+                patch.object(publisher, "run") as command,
+                self.assertRaises(ValueError),
+            ):
+                publisher.publish(self.plan(), self.commit, self.root, draft)
+            self.assertEqual(command.call_count, 1)
+            self.assertEqual(command.call_args.args[0][:3], ["gh", "release", "upload"])
 
     def test_legacy_asset_without_digest_is_downloaded_and_checked(self):
         """旧API没有digest时下载已有附件比较，不假设同名同尺寸就是相同内容。"""

@@ -87,7 +87,7 @@ El aprendizaje, las tareas, la concentración y las notas usan almacenamiento lo
 |---|---|
 | Sitio del producto | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 o posterior, arm64 | [APK de Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
-| iOS 16 o posterior, requiere firma personal | [IPA sin firmar y registros de CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS 16 o posterior, requiere firma personal | [IPA sin firmar](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
 | Código fuente correspondiente al APK | [Paquete de código v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Sumas de verificación | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
 | Detalles de la versión | [Notas de versión](../releases/v2.0.5.md) · [Comprobaciones de compilación](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |

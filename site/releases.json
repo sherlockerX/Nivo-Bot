@@ -1,12 +1,79 @@
 {
   "schemaVersion": 2,
   "product": "Nivo Bot",
-  "updatedAt": "2026-11-13",
+  "updatedAt": "2026-11-19",
   "platforms": [
-    {"id": "android", "name": "Android", "status": "available"},
-    {"id": "ios", "name": "iOS", "status": "unreleased", "message": "iOS版目前尚未公开发布，没有可用的安装包或TestFlight入口。后续版本会在这里说明实际分发方式与系统要求。", "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/blob/master/docs/ios.md"}
+    {
+      "id": "android",
+      "name": "Android",
+      "status": "available"
+    },
+    {
+      "id": "ios",
+      "name": "iOS",
+      "status": "available",
+      "message": "提供需要自行签名的未签名IPA。没有TestFlight或App Store入口。",
+      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021"
+    }
   ],
   "releases": [
+    {
+      "version": "2.0.5",
+      "versionCode": 56,
+      "channel": "stable",
+      "releasedAt": "2026-11-19",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip",
+      "sourceSha256": "3332136c540b6c8654cd899f3cbb1925bf4f7185ed9f6be48ef7d114dd042dbd",
+      "sourceSizeBytes": 60563744,
+      "sourceCommit": "4e473f9138afe84d38e0f62c113a3a5c2a1cf7d4",
+      "id": "android-2.0.5-56-arm64",
+      "platform": "android",
+      "distribution": "apk",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 41090315,
+      "sha256": "da2e1c3435030fe24870685c64214d9d57ea0609f145798908c5aa1b6f92306f",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk",
+      "notesUrl": "releases/android-2.0.5.html",
+      "summary": "在聊天中复盘个人记录，连接待办、专注心得与技能练习。",
+      "notes": [
+        "技能档案汇总目标、今日训练与历史表现",
+        "专注结束后记录心得，自动关联时段和任务",
+        "AI可在普通聊天中查询已保存的个人记录",
+        "Android11及以上支持强制专注、计划与允许应用",
+        "正式签名与2.0.0相同，保留包名以支持覆盖升级"
+      ]
+    },
+    {
+      "version": "2.0.5",
+      "versionCode": 56,
+      "channel": "stable",
+      "releasedAt": "2026-11-19",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip",
+      "sourceSha256": "3332136c540b6c8654cd899f3cbb1925bf4f7185ed9f6be48ef7d114dd042dbd",
+      "sourceSizeBytes": 60563744,
+      "sourceCommit": "4e473f9138afe84d38e0f62c113a3a5c2a1cf7d4",
+      "id": "ios-2.0.5-56-arm64",
+      "platform": "ios",
+      "distribution": "ipa",
+      "signing": "unsigned",
+      "minimumOs": "16.0",
+      "architecture": "arm64",
+      "sizeBytes": 89593360,
+      "sha256": "d79ec7439475be4f0962a0086ad791113705456fde674a18751b0e1884fbf973",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa",
+      "notesUrl": "releases/ios-2.0.5.html",
+      "summary": "iOS原生待办、专注、每日碎片和教练，需要自行签名后安装。",
+      "buildUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021",
+      "notes": [
+        "提供未签名IPA，需使用自己的有效配置签名后安装",
+        "691项核心测试通过，设备应用和应用测试目标编译通过",
+        "支持专注提醒、任务搜索、心得关联和技能档案",
+        "普通聊天可读取已保存的个人记录",
+        "没有Android强制锁定计划与应用白名单，引导式访问由用户手动操作"
+      ]
+    },
     {
       "id": "android-2.0.0-51-arm64",
       "platform": "android",
@@ -25,7 +92,13 @@
       "sourceSha256": "d28ab85b8285178aabac350469dba3a87dff1a9924118d88036eff4e7b7b354b",
       "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
       "notesUrl": "releases/android-2.0.0.html",
-      "notes": ["通过聊天工具管理待办与专注", "可复用的分组、标签和多种任务视图", "可恢复的全屏专注与本地背景", "每日碎片关联实际任务和专注时段", "教练档案连接每日练习对话"]
+      "notes": [
+        "通过聊天工具管理待办与专注",
+        "可复用的分组、标签和多种任务视图",
+        "可恢复的全屏专注与本地背景",
+        "每日碎片关联实际任务和专注时段",
+        "教练档案连接每日练习对话"
+      ]
     }
   ]
 }
