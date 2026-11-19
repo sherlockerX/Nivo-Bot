@@ -49,6 +49,8 @@ jobs:
           swift test -Xswiftc -warnings-as-errors 2>&1 | tee build/swift-tests.log
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
+        # 核心测试的原始输出仍在作业日志中，归档服务中断不改变测试结果。
+        continue-on-error: true
         with:
           name: ios-core-log-${{ github.run_number }}
           path: android/src/ios/build/swift-tests.log
@@ -207,6 +209,7 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
+        continue-on-error: true
         with:
           name: ios-check-log-${{ github.run_number }}
           path: |
