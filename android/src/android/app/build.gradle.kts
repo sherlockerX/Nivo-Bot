@@ -67,8 +67,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // nanoMuse：Nicholasx的Android独立发行版本，内部编号保持递增。
-        versionCode = 51
-        versionName = "2.0.0"
+        versionCode = 56
+        versionName = "2.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -215,7 +215,8 @@ val stageDebugSkillAssets by tasks.registering(Exec::class) {
     if (skillDir.isDirectory) inputs.dir(skillDir)
     if (script.isFile) inputs.file(script)
     outputs.dir(layout.projectDirectory.dir("src/debug/assets/debug-skill"))
-    commandLine("bash", script.absolutePath)
+    // nanoMuse: Windows可显式选择Git Bash，避免系统WSL占位程序抢先匹配。
+    commandLine(providers.gradleProperty("nm.bash").getOrElse("bash"), script.absolutePath)
 }
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") && it.name.contains("Debug") }
     .configureEach { dependsOn(stageDebugSkillAssets) }

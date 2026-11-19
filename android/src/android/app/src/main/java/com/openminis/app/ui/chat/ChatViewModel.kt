@@ -468,7 +468,8 @@ class ChatViewModel(
         /// `ToolInputDelta`. Drained on preflight failure for diagnosis.
         private const val TOOL_INPUT_CHUNK_RING_MAX = 10
         /** Auto-retry backoff schedule (seconds). Mirrors iOS retryDelays, scaled to task spec: 1s → 2s → 4s. */
-        private val AUTO_RETRY_DELAYS_SEC = intArrayOf(1, 2, 4)
+        // nanoMuse: six retries over about 50 seconds; one dropped stream is not a dead provider.
+        private val AUTO_RETRY_DELAYS_SEC = io.github.nanomuse.chat.ModelRetryPolicy.DELAYS_SEC
 
         /**
          * Factory for use with `viewModel(factory = ...)`. Binds the ChatViewModel
@@ -1225,8 +1226,8 @@ class ChatViewModel(
     }
 
     /** nanoMuse: 压缩确认沿用同一请求；发起失败时结束它，不创建无目标替代请求。 */
-    private fun nmSendPendingCoach(text: String, coachTurn: Boolean) {
-        sendMessage(text, skipContextCheck = true, coachTurn = coachTurn)
+    private fun nmSendPendingCoach(text: String, coachTurn: Boolean, userOrigin: io.github.nanomuse.coach.UserTurnOrigin?) {
+        sendMessage(text, skipContextCheck = true, coachTurn = coachTurn, userOrigin = userOrigin)
         if (coachTurn && !_isStreaming.value) nmCoachRequests.reject("send_not_started",
             _error.value ?: "教练请求未发送，原内容已保留，请重试。")
     }
@@ -1241,6 +1242,51 @@ class ChatViewModel(
         isBoundPractice = nmIsCoachPractice())
 
     private fun nmCoachAvailable(): Boolean = nmCoachDenial() == null
+
+    /** nanoMuse: 在发送、重试或入队事件中固定来源，不在模型循环启动时重新猜测。 */
+    private fun nmCaptureUserOrigin(retryMessageId: String? = null): io.github.nanomuse.coach.UserTurnOrigin? =
+        io.github.nanomuse.coach.UserTurnOrigin.capture(sessionId, activeSessionId, retryMessageId,
+            isForeground = (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true,
+            isAccountCurrent = nmAccountOperation.isCurrent(), isSessionVisible = nmPersonalSessionVisible(activeSessionId),
+            isTaskDispatch = nmScheduledRun != null || nmTaskDispatchId != null || nmHeadlessDepth > 0)
+
+    /** nanoMuse: 来源只绑定本宿主已落盘用户，账户、会话或重试消息变化后拒绝签发。 */
+    private fun nmBindUserAuthorization(origin: io.github.nanomuse.coach.UserTurnOrigin?, userId: String):
+        io.github.nanomuse.coach.CoachTurnAuthorization? = origin?.takeIf {
+        it.canBind(sessionId, activeSessionId, userId, nmAccountOperation.isCurrent(),
+            nmPersonalSessionVisible(activeSessionId), nmScheduledRun != null || nmTaskDispatchId != null)
+    }?.let { nmCoachTurns.authorize(userId, activeSessionId) }
+
+    /** nanoMuse: 查询只访问当前账户可见聊天，不把隐藏工作会话视为前台用户入口。 */
+    private fun nmPersonalSessionVisible(id: String): Boolean = id.isNotBlank() &&
+        id !in io.github.nanomuse.sync.ConversationSync.hidden.value &&
+        id !in io.github.nanomuse.feed.FeedFlow.hidden.value
+
+    /** nanoMuse: schema与执行层共用已落盘正文检查；执行时另携带所在循环的精确授权。 */
+    private fun nmPersonalRecordsAccess(loopUserId: String?, authorization: io.github.nanomuse.coach.CoachTurnAuthorization?):
+        io.github.nanomuse.todo.TodoToolAccess {
+        val user = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }
+        val savedId = agentHistory.lastOrNull { it.role == LLMMessage.Role.USER &&
+            it.dbMessageId == user?.id && it.contentParts.none { part -> part is AgentContentPart.ToolResult } }?.dbMessageId
+        return io.github.nanomuse.todo.TodoToolAccess(
+            isAccountCurrent = nmAccountOperation.isCurrent(),
+            isMain = io.github.nanomuse.home.MainChat.isMain(context, activeSessionId),
+            isScheduled = nmScheduledRun != null, isTaskDispatch = nmTaskDispatchId != null,
+            sessionId = activeSessionId, loopUserId = loopUserId, authorization = authorization,
+            currentAuthorization = loopUserId?.let(nmCoachTurns::currentAuthorization),
+            user = user?.takeIf { it.id == savedId }?.let {
+                io.github.nanomuse.todo.TodoToolUser(it.id, it.content, activeSessionId)
+            },
+            isSessionVisible = nmPersonalSessionVisible(activeSessionId),
+        )
+    }
+
+    /** nanoMuse: 只声明本回合能真正执行的查询，普通新聊天无需先设为主要聊天。 */
+    private fun nmPersonalRecordsReadAvailable(authorization: io.github.nanomuse.coach.CoachTurnAuthorization?): Boolean {
+        val userId = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id
+        return nmPersonalRecordsAccess(userId, authorization)
+            .denialReason(isReadOnly = true) == null
+    }
 
     private val _stopStaleReadAloud = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
     val stopStaleReadAloud: SharedFlow<Unit> = _stopStaleReadAloud.asSharedFlow()
@@ -1361,6 +1407,13 @@ class ChatViewModel(
     private var streamJob: Job? = null
 
     private var nmTaskDispatchId: String? = null // nanoMuse: 仅宿主任务派发调用期间允许进入独占会话。
+    private var nmHeadlessDepth = 0 // nanoMuse: 无定时ID的Hub与RPC同样不能冒充前台用户操作。
+
+    /** nanoMuse: 同步入口内阻止签发用户来源，异步阶段只使用入口已捕获的快照。 */
+    internal fun <T> nmHeadlessDispatch(action: () -> T): T {
+        nmHeadlessDepth++
+        return try { action() } finally { nmHeadlessDepth-- }
+    }
     @Volatile private var nmScheduledRun: io.github.nanomuse.routines.ScheduledChatRun? = null // nanoMuse: 固定父Job跨越准备与流式执行。
 
     /** nanoMuse: 定时运行等待本轮实际Job，而不是提前变化的UI标志。 */
@@ -1371,13 +1424,13 @@ class ChatViewModel(
 
     /** nanoMuse: 可信派发身份不保存在用户输入或模型可设置的环境中。 */
     internal fun nmTaskDispatch(runId: String?, action: () -> Unit): Job? {
-        if (runId == null) { action(); return null }
+        if (runId == null) { nmHeadlessDispatch(action); return null }
         val run = io.github.nanomuse.routines.ScheduledChatRun(viewModelScope.coroutineContext[Job])
         nmScheduledRun = run
         run.job.invokeOnCompletion { if (nmScheduledRun === run) nmScheduledRun = null }
         val previous = nmTaskDispatchId
         nmTaskDispatchId = runId
-        try { action() } catch (failure: Exception) { run.job.cancel(); throw failure }
+        try { nmHeadlessDispatch(action) } catch (failure: Exception) { run.job.cancel(); throw failure }
         finally { nmTaskDispatchId = previous; run.seal() }
         return run.job.takeIf { run.hasStarted }
     }
@@ -1472,8 +1525,8 @@ class ChatViewModel(
      * The cost is negligible — [AgentTools.makeAgentTools] just builds a
      * fixed list of definition objects, no I/O.
      */
-    private val agentTools: List<AgentToolDefinition>
-        get() = AgentTools.makeAgentTools(
+    private fun agentTools(authorization: io.github.nanomuse.coach.CoachTurnAuthorization?): List<AgentToolDefinition> =
+        AgentTools.makeAgentTools(
             // [T-android-vision-group / GH#182] The main model's own vision
             // capability. When false but a Vision Group is configured, read_image
             // is still exposed and routes through the group (see
@@ -1487,9 +1540,10 @@ class ChatViewModel(
                 providerRepository, context,
             ),
             memoryEnabled = _memoryEnabled.value,
-            coachEnabled = nmCoachAvailable(), // nanoMuse: 定时任务与旁聊不暴露教练读写入口。
-            todoEnabled = nmAccountOperation.isCurrent() && nmCoachAvailable() &&
+            coachEnabled = authorization != null && nmCoachTurns.currentAuthorization(authorization.messageId) == authorization && nmCoachAvailable(), // nanoMuse: schema也固定到所在循环。
+            todoEnabled = authorization != null && nmCoachTurns.currentAuthorization(authorization.messageId) == authorization && nmAccountOperation.isCurrent() && nmCoachAvailable() &&
                 io.github.nanomuse.home.MainChat.isMain(context, activeSessionId), // nanoMuse: 待办只在主聊天开放。
+            personalRecordsRead = nmPersonalRecordsReadAvailable(authorization), // nanoMuse: 只读记录在当前用户普通聊天也可查询。
         )
 
     /**
@@ -3656,6 +3710,7 @@ class ChatViewModel(
      */
     private var pendingSendText: String? = null
     private var nmPendingSendCoachTurn = false // nanoMuse: 压缩等待也保留这一条发送的语音策略。
+    private var nmPendingSendOrigin: io.github.nanomuse.coach.UserTurnOrigin? = null // nanoMuse: 保留最初点击来源。
 
     private val _showCompactBeforeSendPrompt = MutableStateFlow(false)
     val showCompactBeforeSendPrompt: StateFlow<Boolean> = _showCompactBeforeSendPrompt.asStateFlow()
@@ -3671,15 +3726,17 @@ class ChatViewModel(
         val text = pendingSendText ?: return
         pendingSendText = null
         val coachTurn = nmPendingSendCoachTurn.also { nmPendingSendCoachTurn = false } // nanoMuse
+        val userOrigin = nmPendingSendOrigin.also { nmPendingSendOrigin = null } // nanoMuse
         val coachRequestId = nmCoachRequest.value?.requestId // nanoMuse: 压缩续发不能绑定后来重试的新请求。
         viewModelScope.launch {
+            streamJob = coroutineContext[Job] // nanoMuse: 等待压缩期间的Stop必须阻止后续续发。
             val ok = awaitCompaction()
             if (!ok) {
                 AppLogger.warning(TAG, "[Context] pre-send compaction failed — sending anyway")
             }
             // nanoMuse: 压缩期间若用户停止，不能在压缩完成后悄悄发送已取消的教练请求。
             if (!coachTurn || (nmCoachRequest.value?.isRunning == true && nmCoachRequest.value?.requestId == coachRequestId))
-                nmSendPendingCoach(text, coachTurn)
+                nmSendPendingCoach(text, coachTurn, userOrigin)
         }
     }
 
@@ -3689,7 +3746,8 @@ class ChatViewModel(
         val text = pendingSendText ?: return
         pendingSendText = null
         val coachTurn = nmPendingSendCoachTurn.also { nmPendingSendCoachTurn = false } // nanoMuse
-        nmSendPendingCoach(text, coachTurn) // nanoMuse: 确认后沿用原教练请求身份。
+        val userOrigin = nmPendingSendOrigin.also { nmPendingSendOrigin = null } // nanoMuse
+        nmSendPendingCoach(text, coachTurn, userOrigin) // nanoMuse: 确认后沿用原教练请求身份。
     }
 
     /** Dialog dismissed — restore the text to the composer so it isn't lost. */
@@ -3698,6 +3756,7 @@ class ChatViewModel(
         pendingSendText?.let { _inputText.value = it }
         pendingSendText = null
         nmPendingSendCoachTurn = false // nanoMuse: 取消后不会污染下一条普通发送。
+        nmPendingSendOrigin = null // nanoMuse: 取消确认同时丢弃来源快照。
         nmCoachRequests.cancelAwaiting() // nanoMuse: 取消确认结束原请求，不能留下等待或随后重发。
     }
 
@@ -5654,6 +5713,8 @@ class ChatViewModel(
         // [T-android-tool-autoscroll] Start-of-turn snap — see resume().
         _forceScrollToBottom.tryEmit(Unit)
         val targetToolUseId = targetBlock.id
+        val retryUserId = messages.take(asstIdx).lastOrNull { it.role == "user" && !it.isQueued }?.id
+        val userOrigin = retryUserId?.let(::nmCaptureUserOrigin) // nanoMuse: 截断和准备前固定真实用户。
 
         // Degenerate: nothing of substance precedes the target in this turn —
         // a block cut here is identical to truncating at the preceding user
@@ -5711,7 +5772,8 @@ class ChatViewModel(
         AppLogger.info(TAG_STREAM, "rerunFromToolBlock _isStreaming=true (sync, sid=$activeSessionId)")
         _isStreaming.value = true
 
-        viewModelScope.launch {
+        nmLaunchSetup { // nanoMuse: Stop覆盖数据库和凭证准备阶段。
+            streamJob = coroutineContext[Job]
             var streamLaunched = false
             try {
                 val sid = realSessionId.takeIf { it.isNotEmpty() } ?: sessionId
@@ -5740,7 +5802,7 @@ class ChatViewModel(
                     // Anchor not in DB (shouldn't happen for a rendered tool
                     // block). Abort cleanly without a half-applied truncation.
                     Log.w(TAG, "rerunFromToolBlock: toolUseId ${targetToolUseId.take(12)} not found in DB — aborting")
-                    return@launch
+                    return@nmLaunchSetup
                 }
 
                 // Trim the row's parts to those strictly before the target
@@ -5823,13 +5885,13 @@ class ChatViewModel(
                     if (!entity.id.startsWith("nm_error_")) agentHistory.add(entity.toLLMMessage()) // nanoMuse: 不向模型发送空错误占位。
                 }
 
-                streamLaunched = runRerunStreamTail(initialProvider, "rerunFromToolBlock")
+                streamLaunched = runRerunStreamTail(initialProvider, "rerunFromToolBlock", userOrigin)
             } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.warning(TAG_STREAM, "rerunFromToolBlock setup failed: ${e.message}")
                 _error.value = context.getString(R.string.nm_coach_failed)
             } finally {
-                if (!streamLaunched) {
+                if (!streamLaunched && streamJob === coroutineContext[Job]) { // nanoMuse: 旧重跑准备不能清除新请求的忙碌状态。
                     AppLogger.info(TAG_STREAM, "rerunFromToolBlock _isStreaming=false (setup aborted)")
                     _isStreaming.value = false
                 }
@@ -5855,6 +5917,7 @@ class ChatViewModel(
         // [T-android-tool-autoscroll] Start-of-turn snap — see resume().
         _forceScrollToBottom.tryEmit(Unit)
         if (message.role != "user" || message.content.isBlank()) return
+        val userOrigin = nmCaptureUserOrigin(messageId) // nanoMuse: 等待数据库和并发槽前捕获。
 
         val initialProvider = currentProvider
         if (initialProvider == null) {
@@ -5905,6 +5968,7 @@ class ChatViewModel(
         _isStreaming.value = true
 
         nmLaunchSetup { // nanoMuse: 重跑的数据库准备也由固定任务父Job持有。
+            streamJob = coroutineContext[Job] // nanoMuse: 准备期间取消也能阻止随后签发凭证。
             // If setup throws before the inner streamJob is launched, the
             // streaming flag would be stuck true forever. Reset on the
             // unhappy paths; happy path resets in the streamJob's tail.
@@ -5959,13 +6023,13 @@ class ChatViewModel(
                 if (!entity.id.startsWith("nm_error_")) agentHistory.add(entity.toLLMMessage()) // nanoMuse: 不向模型发送空错误占位。
             }
 
-            streamLaunched = runRerunStreamTail(provider, "retryFromMessage")
+            streamLaunched = runRerunStreamTail(provider, "retryFromMessage", userOrigin)
             } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.warning(TAG_STREAM, "retryFromMessage setup failed: ${e.message}")
                 _error.value = context.getString(R.string.nm_coach_failed)
             } finally {
-                if (!streamLaunched) {
+                if (!streamLaunched && streamJob === coroutineContext[Job]) { // nanoMuse: 旧消息重试准备只收尾自己的请求。
                     AppLogger.info(TAG_STREAM, "retry _isStreaming=false (setup aborted)")
                     _isStreaming.value = false
                 }
@@ -6135,6 +6199,7 @@ class ChatViewModel(
     private suspend fun runRerunStreamTail(
         initialProvider: LLMProvider,
         label: String,
+        userOrigin: io.github.nanomuse.coach.UserTurnOrigin?,
     ): Boolean {
         var provider = initialProvider
         // Refresh OAuth token if needed
@@ -6171,7 +6236,8 @@ class ChatViewModel(
 
         // _isStreaming was already set synchronously by the caller.
         val launchedProvider = provider
-        streamJob = nmLaunchSetup(Dispatchers.IO) { // nanoMuse: 重跑执行不再脱离准备阶段的任务句柄。
+        kotlinx.coroutines.currentCoroutineContext().let { if (!it.isActive) throw CancellationException() } // nanoMuse
+        streamJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()).launch(Dispatchers.IO) { // nanoMuse: 重跑执行继承准备任务，Stop不能留下孤立循环。
             AppLogger.info(TAG_STREAM, "$label streamJob ENTER sid=$activeSessionId")
             try {
                 SessionConcurrencyManager.acquireSlot(activeSessionId)
@@ -6190,6 +6256,7 @@ class ChatViewModel(
                         systemPrompt = systemPrompt,
                         fallbackProviders = fallbackProviders,
                         fallbackStrategy = activeFallbackStrategy,
+                        userOrigin = userOrigin, // nanoMuse: 重跑保留原始点击来源。
                     )
                     AppLogger.info(TAG_STREAM, "$label runAgentLoop RETURN normal")
                 } catch (e: CancellationException) {
@@ -6462,7 +6529,8 @@ class ChatViewModel(
      * current agent loop finishes, drainQueuedPrompts() consumes the queue.
      * Mirrors iOS AIChatViewModel.enqueuePrompt().
      */
-    fun enqueuePrompt(text: String, coachTurn: Boolean = false) { // nanoMuse: 排队消息保持独立的教练语音标记。
+    fun enqueuePrompt(text: String, coachTurn: Boolean = false,
+        userOrigin: io.github.nanomuse.coach.UserTurnOrigin? = nmCaptureUserOrigin()) { // nanoMuse: 排队时固定来源。
         val trimmed = text.trim()
         val pendingAttachments = _attachments.value
         if ((trimmed.isBlank() && pendingAttachments.isEmpty()) || !_isStreaming.value) return
@@ -6471,6 +6539,7 @@ class ChatViewModel(
             id = "queued_${System.currentTimeMillis()}_${(Math.random() * 1_000_000).toInt()}",
             text = trimmed,
             attachments = pendingAttachments,
+            userOrigin = userOrigin, // nanoMuse: 排队转后台仍沿用同一来源。
         )
         _promptQueue.value = _promptQueue.value + prompt
 
@@ -6648,10 +6717,8 @@ class ChatViewModel(
         }
         agentHistory.add(bridgeEntry)
         // nanoMuse: 人在前台提交的排队消息以落盘ID取得自己的授权，不继承旧回合。
-        val nmQueuedAuthorization = if (nmCoachHostAllowed(sid) && nmScheduledRun == null &&
-            nmTaskDispatchId == null && (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true) {
-            nmCoachTurns.authorize(userEntity.id, sid)
-        } else null
+        val queuedOrigin = io.github.nanomuse.coach.UserTurnOrigin.merged(queued.map { it.userOrigin })
+        val nmQueuedAuthorization = nmBindUserAuthorization(queuedOrigin, userEntity.id) // nanoMuse: 后台接管不丢失前台来源。
         // nanoMuse: 授权后立刻交接，后续持久化或重绘被取消也能由同一finally撤销新用户授权。
         kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.coach.CoachRequestLoop]
             ?.replaceUser(userEntity.id, nmQueuedAuthorization)
@@ -6749,6 +6816,7 @@ class ChatViewModel(
     ) {
         while (_promptQueue.value.isNotEmpty()) {
             val sid = ensureSession()
+            var queuedOrigin: io.github.nanomuse.coach.UserTurnOrigin? = null
             val isCommitted = nmCommitPreparedQueue(sid) { queued, prepared ->
             Log.i(TAG, "📨[DRAIN] Draining ${queued.size} queued prompt(s): " +
                 queued.joinToString(", ") { "${it.id}=\"${it.text.take(20)}...\"" })
@@ -6794,9 +6862,13 @@ class ChatViewModel(
             if (drainPaste != null) {
                 _pastedTexts.value = _pastedTexts.value.filterNot { it.id in drainPaste.consumedIds }
             }
-            _messages.value = _messages.value.map { message ->
-                if (message.queuedPromptId in queuedIds) message.copy(isQueued = false, queuedPromptId = null) else message
-            }
+            // nanoMuse: 合并批次使用唯一落盘ID，保留等待期间新加入的排队泡泡。
+            _messages.value = io.github.nanomuse.chat.promoteSavedQueuedUser(_messages.value, queuedIds,
+                ChatMessage(id = queuedUser.id, role = "user", content = userText,
+                    imageUris = prepared.imageUris, attachmentNames = prepared.attachmentNames,
+                    attachmentUris = prepared.nonImageUris)) { it.queuedPromptId }
+            queuedOrigin = io.github.nanomuse.coach.UserTurnOrigin.merged(queued.map { it.userOrigin })
+            if (queued.any { nmCoachTurns.isCoachUser("queued_msg_${it.id}") }) nmCoachTurns.markUser(queuedUser.id)
             // nanoMuse: 上一回合结束后才发出的排队消息同样记入专题档案（与回合中插入的排队消息一致），失败只显示整理提示。
             nmArchiveCoachMessage(queuedUser.id, "user", userText)
             io.github.nanomuse.sync.ConversationSync.sent(sid) // nanoMuse: pushed at send (C8), then "working" (C9)
@@ -6821,6 +6893,7 @@ class ChatViewModel(
                     systemPrompt = systemPrompt,
                     fallbackProviders = fallbackProviders,
                     fallbackStrategy = fallbackStrategy,
+                    userOrigin = queuedOrigin, // nanoMuse: 使用入队来源，非消费时前台状态。
                 )
                 nmAfterTurn() // nanoMuse: queued prompts complete turns too
             } catch (e: CancellationException) {
@@ -6858,6 +6931,7 @@ class ChatViewModel(
     fun sendMessage(text: String) {
         val coachTurn = nmNextCoachTurn.getAndSet(false) // nanoMuse: 发送失败也不保留入口标记。
         if (!nmConversationAvailable()) return // nanoMuse: 删除或任务独占期间不接受普通输入。
+        if (!coachTurn) nmCoachRequests.dismissSettled() // nanoMuse: 用户继续聊天后不再常驻上一次教练请求的错误提示。
         // nanoMuse: "change your avatar to …" (and a pick while the options are
         // up) is handled in the app, not by the model.
         if (nmInterceptAvatar(text)) { nmCountableTurn = false; return }
@@ -7266,7 +7340,8 @@ class ChatViewModel(
      *   chunk) token count and pop the dialog again — iOS guards the identical
      *   re-entry with `skipCompactCheck`.
      */
-    private fun sendMessage(text: String, skipContextCheck: Boolean, coachTurn: Boolean = false) { // nanoMuse
+    private fun sendMessage(text: String, skipContextCheck: Boolean, coachTurn: Boolean = false,
+        userOrigin: io.github.nanomuse.coach.UserTurnOrigin? = nmCaptureUserOrigin()) { // nanoMuse
         if (io.github.nanomuse.chat.SessionDeleteGuard.isDeleting(realSessionId.ifEmpty { sessionId })) return // nanoMuse: 私有异步续派沿用当前任务，普通入口已检查任务独占。
         // [T-android-paste-mediaref] `[Pasted#N]` markers are NOT expanded here
         // any more.
@@ -7286,12 +7361,11 @@ class ChatViewModel(
         // a send that then bails on the context-check paths below.
         val trimmed = text.trim()
         // nanoMuse: 只捕获本次真实用户发起时的授权，后台派发不因旧聊天内容取得权限。
-        val nmTrustedCoachUser = nmCoachHostAllowed() &&
-            nmScheduledRun == null && nmTaskDispatchId == null &&
-            (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true
+        val nmTrustedCoachUser = userOrigin != null && nmCoachHostAllowed() &&
+            nmScheduledRun == null && nmTaskDispatchId == null // nanoMuse: 教练范围保持独立。
         // While streaming, enqueue instead of silently dropping (iOS: send vs enqueuePrompt).
         if (_isStreaming.value) {
-            enqueuePrompt(text, coachTurn = coachTurn) // nanoMuse
+            enqueuePrompt(text, coachTurn = coachTurn, userOrigin = userOrigin) // nanoMuse
             return
         }
         // T180: allow attachments-only sends (no caption). Mirrors iOS, where
@@ -7317,6 +7391,7 @@ class ChatViewModel(
                 PreSendContextAction.COMPACT_THEN_SEND -> {
                     pendingSendText = text
                     nmPendingSendCoachTurn = coachTurn // nanoMuse
+                    nmPendingSendOrigin = userOrigin // nanoMuse: 压缩之后不重新按前台状态授权。
                     if (coachTurn) nmCoachRequests.awaitConfirmation()
                     _inputText.value = ""
                     compactAndSendPending()
@@ -7327,6 +7402,7 @@ class ChatViewModel(
                     // owns it; cancelCompactBeforeSend puts it back.
                     pendingSendText = text
                     nmPendingSendCoachTurn = coachTurn // nanoMuse
+                    nmPendingSendOrigin = userOrigin // nanoMuse: 压缩之后不重新按前台状态授权。
                     if (coachTurn) nmCoachRequests.awaitConfirmation()
                     _inputText.value = ""
                     _showCompactBeforeSendPrompt.value = true
@@ -7462,7 +7538,7 @@ class ChatViewModel(
                 if (!nmCoachRequests.bindUser(userMsg.id, nmSetupOwner?.requestId)) throw CancellationException()
                 nmSetupOwner = nmSetupOwner?.copy(userId = userMsg.id)
             }
-            if (nmTrustedCoachUser) nmSetupAuthorization = nmCoachTurns.authorize(userMsg.id, activeSessionId)
+            nmSetupAuthorization = nmBindUserAuthorization(userOrigin, userMsg.id) // nanoMuse: 落盘后核对原始来源。
             if (nmTrustedCoachUser) nmArchiveCoachMessage(userMsg.id, "user", userMsg.content)
             val imageParts = prepared.imageParts
 
@@ -7573,6 +7649,7 @@ class ChatViewModel(
                             systemPrompt = systemPrompt,
                             fallbackProviders = fallbackProviders,
                             fallbackStrategy = activeFallbackStrategy,
+                            initialAuthorization = nmSetupAuthorization, // nanoMuse: 不读取可能已替换的全局凭证。
                         )
                         AppLogger.info(TAG_STREAM, "send runAgentLoop RETURN normal")
                         nmAfterTurn() // nanoMuse: the first conversation steps forward when a turn completes
@@ -7803,6 +7880,8 @@ class ChatViewModel(
     fun retryLast() {
         if (!nmConversationAvailable()) return // nanoMuse
         if (_isStreaming.value) return
+        val userOrigin = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id
+            ?.let(::nmCaptureUserOrigin) // nanoMuse: 在等待前固定重试消息。
         // T-streaming-side-channel: belt-and-suspenders flush in case any
         // delta survived an earlier abnormal exit; retryLast is gated on
         // !isStreaming so this is normally a no-op.
@@ -7873,7 +7952,8 @@ class ChatViewModel(
         AppLogger.info(TAG_STREAM, "retryLast _isStreaming=true (sync, sid=$activeSessionId)")
         _isStreaming.value = true
 
-        viewModelScope.launch {
+        nmLaunchSetup { // nanoMuse: 重试准备与模型循环使用同一可取消任务。
+            streamJob = coroutineContext[Job]
             var streamLaunched = false
             try {
             val sid = realSessionId.takeIf { it.isNotEmpty() } ?: sessionId
@@ -7923,6 +8003,7 @@ class ChatViewModel(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e // nanoMuse: Stop取消准备后不能继续派发或覆盖新请求句柄。
                     Log.w(TAG, "OAuth token refresh failed: ${e.message}")
                 }
             }
@@ -7935,6 +8016,7 @@ class ChatViewModel(
             } else baseSystemPrompt
 
             // _isStreaming was already set synchronously at the top.
+            kotlinx.coroutines.currentCoroutineContext().let { if (!it.isActive) throw CancellationException() } // nanoMuse: 迟到准备不得接管streamJob。
             streamLaunched = true
             streamJob = launch(Dispatchers.IO) {
                 AppLogger.info(TAG_STREAM, "retryLast streamJob ENTER sid=$activeSessionId")
@@ -7955,6 +8037,7 @@ class ChatViewModel(
                             systemPrompt = systemPrompt,
                             fallbackProviders = fallbackProviders,
                             fallbackStrategy = activeFallbackStrategy,
+                            userOrigin = userOrigin, // nanoMuse
                         )
                         AppLogger.info(TAG_STREAM, "retryLast runAgentLoop RETURN normal")
                         nmAfterTurn() // nanoMuse
@@ -8001,7 +8084,7 @@ class ChatViewModel(
                 AppLogger.warning(TAG_STREAM, "retryLast setup failed: ${e.message}")
                 _error.value = context.getString(R.string.nm_coach_failed)
             } finally {
-                if (!streamLaunched) {
+                if (!streamLaunched && streamJob === coroutineContext[Job]) { // nanoMuse: Stop后旧准备收尾不能隐藏新请求的Stop按钮。
                     AppLogger.info(TAG_STREAM, "retryLast _isStreaming=false (setup aborted)")
                     _isStreaming.value = false
                 }
@@ -8422,6 +8505,8 @@ class ChatViewModel(
         systemPrompt: String?,
         fallbackProviders: List<FallbackCandidate> = emptyList(),
         fallbackStrategy: com.openminis.app.data.model.FallbackStrategy = com.openminis.app.data.model.FallbackStrategy.default,
+        userOrigin: io.github.nanomuse.coach.UserTurnOrigin? = null,
+        initialAuthorization: io.github.nanomuse.coach.CoachTurnAuthorization? = null,
     ) {
         nmAccountOperation.requireCurrent() // nanoMuse: 包括取消清理或旧页面重新派发。
         // nanoMuse: 取消后的旧循环不得重新取得授权，收尾固定到本循环的请求与用户代次。
@@ -8434,14 +8519,10 @@ class ChatViewModel(
             finish = { owner -> nmFinishCoachRequest(owner, null, nmLoopCancelled, nmLoopFailure ?: _error.value) },
             revoke = nmCoachTurns::revoke,
             initialOwner = nmCoachRequests.ownerForUser(nmInitialUserId),
-            initialAuthorization = nmInitialUserId?.let(nmCoachTurns::currentAuthorization),
+            initialAuthorization = initialAuthorization?.takeIf { it.messageId == nmInitialUserId },
         )
         nmLoop.userId?.let { initialUserId ->
-            // nanoMuse: 用户在前台主动重试/恢复同一消息时，重新绑定该真实回合。
-            if (nmCoachHostAllowed() && nmScheduledRun == null &&
-                nmTaskDispatchId == null && (context.applicationContext as? com.openminis.app.MinisApp)?.isAppForeground() == true) {
-                nmLoop.bindAuthorization(nmCoachTurns.authorize(initialUserId, activeSessionId))
-            }
+            nmBindUserAuthorization(userOrigin, initialUserId)?.let(nmLoop::bindAuthorization) // nanoMuse: 仅绑定入口保存的来源。
         }
         try {
         withContext(nmLoop) { // nanoMuse: 工具和队列注入沿用所在循环的身份，不跟随全局最新消息。
@@ -8958,7 +9039,7 @@ class ChatViewModel(
                     currentProvider.streamMessage(
                         applyRequestImageBudget(effectiveAgentHistory()),
                         systemPrompt, dynamicMaxTokens(currentProvider, lastContextTokens),
-                        tools = agentTools,
+                        tools = agentTools(nmLoop.authorization),
                         thinkingLevel = if (currentModelSupportsReasoning) _thinkingLevel.value else ThinkingLevel.OFF,
                     ).collect { chunk ->
                 // [T-STALL-DIAG] Mark first byte back from the provider and log
@@ -9366,10 +9447,9 @@ class ChatViewModel(
                     // before considering a fallback (mirrors iOS streamWithAutoRetry).
                     // Rate limits are provider-level signals that should trigger fallback immediately,
                     // not retry on the same provider.
-                    val isTransient = actual is com.openminis.app.data.model.LLMError.NetworkError ||
-                        actual is com.openminis.app.data.model.LLMError.TransientError ||
-                        is5xx
-                    if (isTransient && retryAttempt < AUTO_RETRY_DELAYS_SEC.size) {
+                    // nanoMuse: also retry rate limits, cut-off streams and provider errors that are
+                    // not about the request itself, before falling back or showing the error.
+                    if (io.github.nanomuse.chat.ModelRetryPolicy.shouldRetry(actual) && retryAttempt < AUTO_RETRY_DELAYS_SEC.size) {
                         val delaySec = AUTO_RETRY_DELAYS_SEC[retryAttempt]
                         retryAttempt += 1
                         val errDesc = actual.message ?: actual.javaClass.simpleName
@@ -9793,7 +9873,7 @@ class ChatViewModel(
                 // the repaired payload. Mirrors iOS repairToolArgs in
                 // AIChatViewModel.swift.
                 val repairs = com.openminis.app.provider.ToolJsonRepair.repair(
-                    name, args, toolInputChunkRings[id]?.lastOrNull(), agentTools,
+                    name, args, toolInputChunkRings[id]?.lastOrNull(), agentTools(nmLoop.authorization),
                 )
                 if (repairs.isNotEmpty()) {
                     AppLogger.warning(
@@ -9905,7 +9985,7 @@ class ChatViewModel(
                 // AIChatViewModel.swift. Synthesizes a tool_result error so the
                 // model can self-correct on the next turn without us spawning
                 // shells or touching the filesystem on `{}` args.
-                val preflightError = preflightValidateToolCall(name, args, agentTools)
+                val preflightError = preflightValidateToolCall(name, args, agentTools(nmLoop.authorization))
                 if (preflightError != null) {
                     // nanoMuse: 格式校验也会在工具分发前失败，教练界面必须得到失败状态。
                     if (name in setOf(io.github.nanomuse.coach.CoachAgentBridge.QUERY, io.github.nanomuse.coach.CoachAgentBridge.COMMAND)) {
@@ -10278,7 +10358,8 @@ class ChatViewModel(
             io.github.nanomuse.coach.CoachAgentBridge.QUERY,
             io.github.nanomuse.coach.CoachAgentBridge.COMMAND -> executeCoachTool(name, argsJson, assistantId)
             io.github.nanomuse.focus.FocusAgentBridge.QUERY,
-            io.github.nanomuse.focus.FocusAgentBridge.COMMAND, // nanoMuse: 专注复用当前主聊天授权和风险门禁。
+            io.github.nanomuse.focus.FocusAgentBridge.COMMAND, // nanoMuse: 专注查询与命令由宿主分别校验范围。
+            io.github.nanomuse.records.PersonalRecordsAgentBridge.QUERY, // nanoMuse: 全局只读记录沿用同一回合校验。
             io.github.nanomuse.todo.TodoAgentBridge.QUERY,
             io.github.nanomuse.todo.TodoAgentBridge.COMMAND -> executeTodoTool(name, argsJson) // nanoMuse: 进入独立待办门禁。
             FileReadTool.NAME -> {
@@ -10316,27 +10397,13 @@ class ChatViewModel(
         }
     }
 
-    /** nanoMuse: 待办只信任本循环的主聊天用户；审批等待后和每次存储操作前重新校验。 */
+    /** nanoMuse: 查询与命令共用真实用户校验，命令仍限主要聊天；等待后复核同一授权。 */
     private suspend fun executeTodoTool(name: String, argsJson: String): ToolExecutionResult {
         val loop = kotlinx.coroutines.currentCoroutineContext()[io.github.nanomuse.coach.CoachRequestLoop]
         val host = io.github.nanomuse.todo.TodoToolHost(
             access = {
                 withContext(Dispatchers.Main.immediate) { // nanoMuse: 界面和历史列表在主线程取得同一快照。
-                    val user = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }
-                    // nanoMuse: 工具结果也使用USER角色，必须按真实泡泡ID寻找正文回合。
-                    val savedId = agentHistory.lastOrNull { it.role == LLMMessage.Role.USER &&
-                        it.dbMessageId == user?.id && it.contentParts.none { part -> part is AgentContentPart.ToolResult } }?.dbMessageId
-                    io.github.nanomuse.todo.TodoToolAccess(
-                        isAccountCurrent = nmAccountOperation.isCurrent(),
-                        isMain = io.github.nanomuse.home.MainChat.isMain(context, activeSessionId),
-                        isScheduled = nmScheduledRun != null, isTaskDispatch = nmTaskDispatchId != null,
-                        sessionId = activeSessionId, loopUserId = loop?.userId,
-                        authorization = loop?.authorization,
-                        currentAuthorization = loop?.userId?.let(nmCoachTurns::currentAuthorization),
-                        user = user?.takeIf { it.id == savedId }?.let {
-                            io.github.nanomuse.todo.TodoToolUser(it.id, it.content, activeSessionId)
-                        },
-                    )
+                    nmPersonalRecordsAccess(loop?.userId, loop?.authorization)
                 }
             },
             guard = { toolName, arguments ->
@@ -10352,6 +10419,10 @@ class ChatViewModel(
             focusFactory = { // nanoMuse: 专注固定账号，模型不能指定身份。
                 nmAccountOperation.requireCurrent()
                 io.github.nanomuse.focus.FocusStore.get(context)
+            },
+            recordsFactory = { checkAccess -> // nanoMuse: 读取器在每次取数与返回前复核宿主授权。
+                nmAccountOperation.requireCurrent()
+                io.github.nanomuse.records.PersonalRecordsAgentBridge(context, checkAccess)
             },
             storageFactory = {
                 nmAccountOperation.requireCurrent()
@@ -10370,6 +10441,12 @@ class ChatViewModel(
         val user = _messages.value.lastOrNull { it.role == "user" && !it.isQueued &&
             (nmLoop == null || it.id == nmLoop.userId) }
             ?: return ToolExecutionResult("No current user message is available.", false)
+        // nanoMuse: 普通读取来源不扩大教练权限，Headless及旧循环不能借用全局残留凭证。
+        val authorization = nmLoop?.authorization
+        if (authorization == null || authorization.messageId != user.id ||
+            authorization.chatSessionId != activeSessionId || nmCoachTurns.currentAuthorization(user.id) != authorization) {
+            return ToolExecutionResult("No current user authorization is available.", false)
+        }
         val requestArgs = runCatching { JSONObject(argsJson) }.getOrNull()
         val action = requestArgs?.optString("action").orEmpty()
         val target = requestArgs?.optString("targetId").orEmpty()
@@ -10401,6 +10478,10 @@ class ChatViewModel(
         if (gate is io.github.nanomuse.guard.GateOutcome.Denied) {
             nmCoachRequests.toolFailure(user.id, "permission_denied", gate.message, mutationKey)
             return ToolExecutionResult(gate.message, false)
+        }
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive) throw CancellationException()
+        if (nmCoachTurns.currentAuthorization(user.id) != authorization) {
+            return ToolExecutionResult("The user authorization changed.", false)
         }
         return try {
             val service = io.github.nanomuse.coach.CoachRuntime.service(context)
@@ -11580,6 +11661,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                 io.github.nanomuse.coach.CoachAgentBridge.promptParagraph(), // nanoMuse: 稳定教练规则，无全量历史注入。
                 io.github.nanomuse.focus.FocusAgentBridge.promptParagraph(), // nanoMuse: 计时事实与任务完成分开。
                 io.github.nanomuse.todo.TodoAgentBridge.promptParagraph(), // nanoMuse: 稳定待办协议，任务按需查询。
+                io.github.nanomuse.records.PersonalRecordsAgentBridge.promptParagraph(), // nanoMuse: 全局记录按需分页，不注入全部档案。
             ),
             volatileSections = listOf(
                 skillFragment,
@@ -12995,6 +13077,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
     fun resume() {
         if (!nmConversationAvailable()) return // nanoMuse
         if (_isStreaming.value || !_canResume.value) return
+        val userOrigin = _messages.value.lastOrNull { it.role == "user" && !it.isQueued }?.id
+            ?.let(::nmCaptureUserOrigin) // nanoMuse: 继续只授权点击时的原消息。
         val provider = currentProvider ?: run {
             _error.value = context.getString(R.string.nm_chat_no_model) // nanoMuse: where to fix it, in the person's language
             return
@@ -13038,7 +13122,11 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
             }
         }
 
-        viewModelScope.launch {
+        _isStreaming.value = true // nanoMuse: 点击时即占位，准备期间不可重复恢复。
+        nmLaunchSetup {
+            streamJob = coroutineContext[Job] // nanoMuse: Stop覆盖恢复提示准备。
+            var streamLaunched = false
+            try {
             val baseSystemPrompt = buildSystemPrompt()
             val systemPrompt =
                 if ((provider as? com.openminis.app.provider.anthropic.AnthropicProvider)?.isOAuth == true) {
@@ -13047,8 +13135,10 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                     else "$prefix\n\n${baseSystemPrompt ?: ""}"
                 } else baseSystemPrompt
 
+            kotlinx.coroutines.currentCoroutineContext().let { if (!it.isActive) throw CancellationException() } // nanoMuse
             AppLogger.info(TAG_STREAM, "resume _isStreaming=true (sid=$activeSessionId)")
             _isStreaming.value = true
+            streamLaunched = true
             streamJob = launch(Dispatchers.IO) {
                 AppLogger.info(TAG_STREAM, "resume streamJob ENTER sid=$activeSessionId")
                 try {
@@ -13069,6 +13159,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                             systemPrompt = systemPrompt,
                             fallbackProviders = fallbackProviders,
                             fallbackStrategy = activeFallbackStrategy,
+                            userOrigin = userOrigin, // nanoMuse
                         )
                         AppLogger.info(TAG_STREAM, "resume runAgentLoop RETURN normal")
                         nmAfterTurn() // nanoMuse
@@ -13107,6 +13198,9 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                     AppLogger.info(TAG_STREAM, "resume _isStreaming SKIPPED (stale job)")
                 }
                 AppLogger.info(TAG_STREAM, "resume streamJob EXIT")
+            }
+            } finally {
+                if (!streamLaunched && streamJob === coroutineContext[Job]) _isStreaming.value = false
             }
         }
     }

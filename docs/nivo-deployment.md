@@ -6,6 +6,8 @@
 
 部署前校验静态文件与下载包SHA256，解包到新发行目录。先验证静态容器和Caddy候选配置，再备份主Caddyfile、原子替换并reload。更新失败时恢复原Caddyfile并reload；回退内容时切回先前的`www/current`链接。
 
-下载目录只包含安装包、对应源码和校验文件。签名密钥、签名配置、加密凭据、本机记录、服务器证书、Git配置与数据库均不得放进站点。APK版本、release.json和源码发行记录必须一致。
+下载目录只包含安装包、对应源码和校验文件。签名密钥、签名配置、加密凭据、本机记录、服务器证书、Git配置与数据库均不得放进站点。APK版本、iOS包版本、release.json、releases.json和对应源码发行记录必须一致；历史文件保持原名与原校验和。
+
+2.0.5(56)发布文件分别为`Nivo-Bot-v2.0.5-arm64.apk`与`Nivo-Bot-v2.0.5-unsigned.ipa`。未签名IPA在清单中使用`distribution: "ipa"`和`signing: "unsigned"`，上线前核对原始文件SHA256、大小、包内版本与最低系统要求。下载页必须显示自行签名安装的前提，不把IPA文件当作TestFlight或App Store入口。Android强制专注能力不得写入iOS发行功能说明。
 
 `scripts/deploy/compose.nivo.yml`和`nivo.Caddyfile`是可审查的部署模板。可通过`NIVO_CADDY_IMAGE`固定实际使用的镜像digest。公网Cloudflare验证策略需另行检查；源站200不能代替公网浏览器验收。

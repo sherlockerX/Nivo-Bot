@@ -354,7 +354,7 @@ class TodoFlowInstrumentedTest {
                 scenario.onActivity { activity -> activity.setContent {
                     MinisTheme(darkTheme = false) {
                         var isOpen by remember(task.id) { mutableStateOf(true) }
-                        if (isOpen) TodoEditDialog(task, store, { isOpen = false }, { saved.set(true); isOpen = false })
+                        if (isOpen) TodoEditDialog(task, store, { isOpen = false }, { _ -> saved.set(true); isOpen = false })
                     }
                 } }
                 waitForText(label("nm_todo_edit_task"))

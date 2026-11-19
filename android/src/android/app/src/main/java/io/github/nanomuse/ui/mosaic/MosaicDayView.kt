@@ -96,6 +96,8 @@ fun MosaicDayView(
     val drafts by remember(epoch) { store.drafts(epoch) }.collectAsState(initial = emptyList())
     val coroutines = rememberCoroutineScope()
     val context = LocalContext.current
+    val accountEpoch by io.github.nanomuse.account.AccountData.epoch.collectAsState()
+    val draftOwner = remember(accountEpoch) { io.github.nanomuse.account.AccountData.key(context) }
 
     val recorded = entries.isNotEmpty() || done.isNotEmpty()
     val isToday = day == today
@@ -163,7 +165,9 @@ fun MosaicDayView(
             }
         }
 
-        drafts.forEach { draft ->
+        // 专注心得按账号隔离预览，旧账号草稿不会通过每日记录列表泄露正文。
+        drafts.filter { !io.github.nanomuse.focus.FocusReflectionDrafts.isReflectionDraft(it.id) ||
+            io.github.nanomuse.focus.FocusReflectionDrafts.belongsToOwner(it.id, draftOwner) }.forEach { draft ->
             val what = draft.text.trim().takeIf { it.isNotEmpty() }
                 ?: stringResource(
                     if (draft.stagedPath != null || draft.mediaId != null) R.string.nm_mosaic_draft_photo else R.string.nm_mosaic_draft_blank,

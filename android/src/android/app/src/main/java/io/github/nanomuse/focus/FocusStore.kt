@@ -32,10 +32,19 @@ class FocusStore internal constructor(private val context: Context, internal val
         val sessions=dao.sessions(ownerKey)
         val ids=sessions.map { it.id }.toSet()
         org.json.JSONObject().put("format","nanomuse-focus").put("version",1)
+            .put("lock",io.github.nanomuse.focus.lock.LockBackup.encode(
+                database.lockDao().plans(ownerKey).map { it.toModel() },
+                database.lockDao().whitelist(ownerKey).map { it.packageName }.toSet()))
             .put("sessions",org.json.JSONArray(sessions.map(FocusJson::session)))
             .put("spans",org.json.JSONArray(dao.allSpans(ownerKey).filter { it.sessionId in ids }.map {
                 org.json.JSONObject().put("id",it.id).put("sessionId",it.sessionId).put("startedAt",it.startedAt).put("durationMs",it.durationMs)
             })).toString(2)
+    }
+    /** 从专注备份恢复锁机配置，不导入活动计时或解除已有锁定。 */
+    suspend fun importLockConfiguration(text: String): Int {
+        val configuration=io.github.nanomuse.focus.lock.LockBackup.parseFocusConfiguration(text)
+        return io.github.nanomuse.focus.lock.LockStore(context,database,ownerKey,ownerEpoch,clock)
+            .importConfiguration(configuration.toString())
     }
     /** 统计只读取已结束且未删除的专注区间。 */
     suspend fun spans(): List<FocusSpan> = transaction { dao.spans(ownerKey) }
@@ -60,6 +69,7 @@ class FocusStore internal constructor(private val context: Context, internal val
             .put("title",title).put("taskId",taskId ?: "").put("mode",mode).put("minutes",minutes).toString()
         val result = transaction {
             authorize()
+            io.github.nanomuse.focus.lock.LockStore(context,database,ownerKey,ownerEpoch,clock).requireCommandAllowedInTransaction(action)
             val previous = dao.operation(ownerKey,operationId)
             if (previous != null) {
                 require(previous.request == request) { "operation_id_conflict" }
@@ -102,7 +112,10 @@ class FocusStore internal constructor(private val context: Context, internal val
         val row=when(action) {
             "pause" -> { check(old.status == "running") { "not_running" }; settled.copy(status=if(settled.status == "finished") "finished" else "paused") }
             "resume" -> { check(old.status == "paused") { "not_paused" }; settled.copy(status="running",runningWall=now,runningElapsed=clock.elapsed(),bootCount=clock.boot()) }
-            "finish" -> { check(old.status in setOf("running","paused","finished")) { "not_active" }; settled.copy(status="finished",endedAt=settled.endedAt ?: now) }
+            "finish" -> { check(old.status in setOf("running","paused","finished")) { "not_active" }
+                // 暂停中的记录在暂停那一刻就停止计时；之后才点结束，起止时间和心得日期仍按暂停时刻。
+                val end=if(old.status == "paused") old.updatedAt.coerceIn(old.startedAt,now) else now
+                settled.copy(status="finished",endedAt=settled.endedAt ?: end) }
             else -> { check(old.status == "finished") { "finish_before_delete" }; settled.copy(deletedAt=now) }
         }.copy(revision=old.revision+1,updatedAt=now)
         dao.putSession(row)
@@ -122,6 +135,8 @@ class FocusStore internal constructor(private val context: Context, internal val
     }
 
     private suspend fun reconcile(): FocusSession? {
+        val lock = io.github.nanomuse.focus.lock.LockStore(context,database,ownerKey,ownerEpoch,clock).checkpointInTransaction()
+        if (lock != null) return dao.session(ownerKey,lock.sessionId)
         val row=dao.active(ownerKey) ?: return null
         if(row.status != "running") return row
         val sameBoot=row.bootCount==clock.boot()
@@ -135,6 +150,14 @@ class FocusStore internal constructor(private val context: Context, internal val
     /** 查询采用与结算一致的设备时钟，测试可注入固定时间而不伪造数据库。 */
     internal fun currentElapsed(row: FocusSession): Long = row.elapsedMs + if (row.status == "running")
         FocusTiming.delta(row.runningElapsed, clock.elapsed(), row.bootCount == clock.boot(), row.targetMs - row.elapsedMs) else 0
+
+    /** 锁机开始时按已有规则结束普通计时，不补记暂停或关机期间的时长。 */
+    internal suspend fun finishForLockInTransaction() {
+        val row = dao.active(ownerKey) ?: return
+        val saved = settle(row)
+        dao.putSession(saved.copy(status="finished",endedAt=saved.endedAt ?: clock.wall(),
+            revision=row.revision+1,updatedAt=clock.wall()))
+    }
 
     /** 自动保存关联只验证既有记录，不生成专注事实。调用者已持账号与数据库锁。 */
     internal suspend fun putDraftInTransaction(draftId: String, ids: List<String>) {
@@ -171,6 +194,8 @@ class FocusStore internal constructor(private val context: Context, internal val
         suspend fun pauseOwner(context:Context,owner:String) {
             val store=FocusStore(context,MosaicDatabase.get(context),owner,AccountData.epoch.value)
             store.database.withTransaction {
+                val lock=io.github.nanomuse.focus.lock.LockStore(context,store.database,owner,AccountData.epoch.value).checkpointInTransaction(force=true)
+                if(lock!=null) return@withTransaction
                 store.dao.active(owner)?.takeIf { it.status=="running" }?.let { row ->
                     store.dao.putSession(store.settle(row).copy(revision=row.revision+1,updatedAt=System.currentTimeMillis()))
                 }

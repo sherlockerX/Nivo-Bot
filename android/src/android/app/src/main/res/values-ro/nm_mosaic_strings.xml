@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">O fotografie, o reflecție sau un obicei îndeplinit umple câte un nor. Restul poate rămâne gol.</string>
+    <string name="nm_mosaic_action_text">Reflecție</string>
+    <string name="nm_mosaic_photo_hint">Adaugă o fotografie sau scrie o reflecție.</string>
+    <string name="nm_mosaic_text_label">Reflecție</string>
+    <string name="nm_mosaic_text_hint">Ce ai învățat sau observat?</string>
+    <string name="nm_mosaic_err_empty">Adaugă mai întâi o fotografie sau o reflecție.</string>
+</resources>

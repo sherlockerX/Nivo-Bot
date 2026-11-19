@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">ทำทีละอย่าง</string>
     <string name="nm_focus_screen_hint">ล็อกหน้าจอได้ กลับมาแล้วดำเนินช่วงเดิมต่อ</string>
     <string name="nm_focus_finish_confirm">บันทึกเวลาที่จับได้จริงและจบช่วงนี้หรือไม่ งานที่เชื่อมโยงจะไม่เปลี่ยนแปลง</string>
+    <string name="nm_focus_reflection">บันทึกข้อคิด</string>
+    <string name="nm_focus_reflection_hint">บันทึกข้อคิดจากการจดจ่อครั้งนี้ ระบบจะเพิ่มช่วงเวลาจดจ่อและงานที่เชื่อมโยงให้โดยอัตโนมัติ</string>
 </resources>

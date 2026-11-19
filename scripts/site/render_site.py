@@ -31,7 +31,52 @@ def link(url: str, label: str, css: str = "") -> str:
     return f'<a href="{esc(url)}" class="{esc(css)}"{external}>{label}</a>'
 
 
-def page(path: str, title: str, description: str, body: str, section: str) -> str:
+def latest_release(releases: dict, platform: str) -> dict | None:
+    """按数字版本取平台的最新稳定发行，不把测试包自动推荐给访客。"""
+    candidates = [
+        release
+        for release in releases["releases"]
+        if release["platform"] == platform and release["channel"] == "stable"
+    ]
+    return max(
+        candidates,
+        key=lambda release: (
+            tuple(int(part) for part in release["version"].split("-")[0].split(".")),
+            release.get("versionCode", 0),
+        ),
+        default=None,
+    )
+
+
+def application_metadata(releases: dict) -> list[dict]:
+    """结构化应用信息与真实发行清单一起更新，未签名IPA注明安装前提。"""
+    applications = []
+    for platform in releases["platforms"]:
+        release = latest_release(releases, platform["id"])
+        if platform["status"] != "available" or release is None:
+            continue
+        applications.append(
+            {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "Nivo Bot",
+                "applicationCategory": "ProductivityApplication",
+                "operatingSystem": f"{platform['name']} {release['minimumOs']} and later",
+                "softwareVersion": release["version"],
+                "description": release_installation(release),
+                "url": ORIGIN,
+                "downloadUrl": ORIGIN + "downloads.html?platform=" + platform["id"],
+                "isAccessibleForFree": True,
+                "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+                "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+            }
+        )
+    return applications
+
+
+def page(
+    path: str, title: str, description: str, body: str, section: str, releases: dict | None = None
+) -> str:
     """生成具有统一导航、元信息和无障碍入口的真实独立页面。"""
     prefix = "../" * (len(Path(path).parts) - 1)
     navigation = [
@@ -76,23 +121,7 @@ def page(path: str, title: str, description: str, body: str, section: str) -> st
                         "name": "Nivo Bot",
                         "url": ORIGIN,
                     },
-                    {
-                        "@context": "https://schema.org",
-                        "@type": "SoftwareApplication",
-                        "name": "Nivo Bot",
-                        "applicationCategory": "ProductivityApplication",
-                        "operatingSystem": "Android 8.0 and later",
-                        "softwareVersion": "2.0.0",
-                        "url": ORIGIN,
-                        "downloadUrl": ORIGIN + "downloads.html",
-                        "isAccessibleForFree": True,
-                        "offers": {
-                            "@type": "Offer",
-                            "price": "0",
-                            "priceCurrency": "USD",
-                        },
-                        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
-                    },
+                    *application_metadata(releases or {"platforms": [], "releases": []}),
                 ],
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -139,8 +168,8 @@ def carousel(prefix: str = "") -> str:
 
 def home() -> str:
     """首页只解释定位并提供页面入口，不重复功能、教程和下载正文。"""
-    return f"""<section class="hero wrap home-hero"><div><p class="eyebrow"><span class="live-dot"></span>开源AI日常工作台</p><h1>想法说出来，<br>生活<span class="accent">动起来。</span></h1><p class="hero-copy">把AI对话、待办、专注和个人成长连起来。<br>从聊清一件事，到做完一件事，再留下自己的积累。</p><div class="actions"><a class="button primary" href="features.html">探索六项功能 ↗</a><a class="text-link" href="downloads.html">下载Android版 ↓</a></div><div class="hero-facts"><span>Android 8.0+</span><span>自主选择模型</span><span>免费开源客户端</span></div><div class="home-flow" aria-label="日常使用流程"><span>对话</span><b>→</b><span>待办</span><b>→</b><span>专注</span><b>→</b><span>回顾</span></div></div><a class="home-preview" href="features/focus.html" aria-label="了解沉浸专注"><div class="preview-label"><span>一段时间，一件事。</span><span>沉浸专注 ↗</span></div><img src="media/focus-preview.svg?v={ASSET_HASH}" width="450" height="690" alt="沉浸专注功能示意，非手机截图" fetchpriority="high"><span class="preview-caption">功能示意 · 实际界面以App为准</span></a></section>
-<nav class="wrap entry-grid" aria-label="选择下一步"><a href="features.html"><span class="entry-number">01 / EXPLORE</span><h2>先看看，能做什么。</h2><p>六项功能、图片轮播与具体用法。</p><span class="entry-arrow">打开功能画廊 ↗</span></a><a href="models.html"><span class="entry-number">02 / CONNECT</span><h2>连接你自己的模型。</h2><p>按服务商找到完整的配置教程。</p><span class="entry-arrow">选择模型服务商 ↗</span></a><a href="downloads.html"><span class="entry-number">03 / GET NIVO</span><h2>从今天开始使用。</h2><p>选择平台和版本，下载正式安装包。</p><span class="entry-arrow">前往下载中心 ↗</span></a></nav>"""
+    return f"""<section class="hero wrap home-hero"><div><p class="eyebrow"><span class="live-dot"></span>开源AI日常工作台</p><h1>想法说出来，<br>生活<span class="accent">动起来。</span></h1><p class="hero-copy">把AI对话、待办、专注和个人成长连起来。<br>从聊清一件事，到做完一件事，再留下自己的积累。</p><div class="actions"><a class="button primary" href="features.html">探索六项功能 ↗</a><a class="text-link" href="downloads.html">选择Android或iOS ↓</a></div><div class="hero-facts"><span>Android与iOS</span><span>自主选择模型</span><span>免费开源客户端</span></div><div class="home-flow" aria-label="日常使用流程"><span>对话</span><b>→</b><span>待办</span><b>→</b><span>专注</span><b>→</b><span>回顾</span></div></div><a class="home-preview" href="features/focus.html" aria-label="了解沉浸专注"><div class="preview-label"><span>一段时间，一件事。</span><span>沉浸专注 ↗</span></div><img src="media/focus-preview.svg?v={ASSET_HASH}" width="450" height="690" alt="沉浸专注功能示意，非手机截图" fetchpriority="high"><span class="preview-caption">功能示意 · 实际界面以App为准</span></a></section>
+<nav class="wrap entry-grid" aria-label="选择下一步"><a href="features.html"><span class="entry-number">01 / EXPLORE</span><h2>先看看，能做什么。</h2><p>六项功能、图片轮播与具体用法。</p><span class="entry-arrow">打开功能画廊 ↗</span></a><a href="models.html"><span class="entry-number">02 / CONNECT</span><h2>连接你自己的模型。</h2><p>按服务商找到完整的配置教程。</p><span class="entry-arrow">选择模型服务商 ↗</span></a><a href="downloads.html"><span class="entry-number">03 / GET NIVO</span><h2>从今天开始使用。</h2><p>选择平台和版本，查看安装包与签名要求。</p><span class="entry-arrow">前往下载中心 ↗</span></a></nav>"""
 
 
 def feature_index() -> str:
@@ -167,7 +196,7 @@ def feature_detail(feature: dict, index: int) -> str:
     return (
         f"""<div class="wrap breadcrumb"><a href="../features.html">功能画廊</a><span>／</span><span>{feature["name"]}</span></div>"""
         + title_block(feature["kicker"], title, feature["description"])
-        + f'''<section class="wrap"><div class="feature-badges">{bullets}</div><figure class="feature-figure"><img src="../media/{feature["id"]}.svg?v={ASSET_HASH}" width="1280" height="800" alt="{feature["name"]}功能示意"><figcaption>原创功能示意 · 使用虚构示例，实际界面以Android应用为准</figcaption></figure></section>
+        + f'''<section class="wrap"><div class="feature-badges">{bullets}</div><figure class="feature-figure"><img src="../media/{feature["id"]}.svg?v={ASSET_HASH}" width="1280" height="800" alt="{feature["name"]}功能示意"><figcaption>原创功能示意 · 使用虚构示例，实际界面与可用功能以对应平台App为准</figcaption></figure></section>
 <section class="wrap narrow section">{steps}<aside class="callout"><h3>把使用边界说清楚</h3><p>{feature["boundary"]}</p></aside><div class="actions"><a class="button primary" href="../downloads.html">下载后试一试 ↗</a><a class="text-link" href="{next_feature["id"]}.html">下一个：{next_feature["name"]} →</a></div></section>'''
     )
 
@@ -240,24 +269,63 @@ def provider_detail(provider: dict) -> str:
 <section id="sources"><h2>官方资料与维护依据</h2><p>本篇将官方端点资料与Nivo的实际表单逻辑对照整理，未使用个人Key逐一请求厂商。后续遇到控制台迁移，以官方最新文档为准。</p><ul><li>{link(p["docs"], esc(p["name"]) + "官方文档 ↗")}</li><li>{link(p["console"], "控制台／产品入口 ↗")}</li><li>{link(REPO + "/blob/master/android/src/android/app/src/main/java/io/github/nanomuse/cloud/OwnKeyPresets.kt", "App预置与/v1拼接逻辑 ↗")}</li></ul></section><div class="article-end"><a href="../models.html" class="text-link">← 返回全部服务商</a><a class="button primary" href="../downloads.html">获取App ↗</a></div></article></div>'''
 
 
+def release_installation(release: dict) -> str:
+    """按实际分发方式说明安装前提，未签名包不冒充商店发行。"""
+    if release.get("signing") == "unsigned":
+        return (
+            "这是未签名IPA，不能下载后直接安装到iPhone。"
+            "需要使用自己的Apple开发签名与适用的安装工具重新签名；"
+            "能否安装、签名有效期和可用权限取决于你的账户与签名方式。"
+            "本文件没有TestFlight或App Store安装入口。"
+        )
+    if release["platform"] == "android":
+        return (
+            "Android同包名覆盖升级通常需要同一签名；"
+            "旧Debug证书或其他证书的包请先核对签名和备份范围。"
+        )
+    return "请按本版实际分发入口的要求安装，并核对系统版本、签名和设备资格。"
+
+
 def release_card(release: dict, prefix: str = "") -> str:
-    """静态首屏也提供真实可下载的发行文件。"""
-    return f'''<div class="release-card"><div class="release-heading"><span class="platform-symbol">↗</span><div><p class="eyebrow">ANDROID / STABLE</p><h2>Nivo Bot <span>v{release["version"]}</span></h2></div><span class="chip">正式签名</span></div><p class="release-summary">{release["summary"]}</p><div class="release-facts"><span>Android {release["minimumOs"]}+</span><span>{release["architecture"]}</span><span>{release["sizeBytes"] / 1024 / 1024:.1f}MB</span><span>{release["releasedAt"]}</span></div><div class="actions"><a class="button primary" href="{release["downloadUrl"]}">下载APK <span>↓</span></a><a class="text-link" href="{prefix}{release["notesUrl"]}">查看更新说明 ↗</a></div><div class="checksum"><span>APK SHA256</span><code>{release["sha256"]}</code><button class="copy-button" data-copy="{release["sha256"]}" type="button" aria-label="复制APK SHA256">复制校验和</button></div><div class="release-links">{link(release["sourceUrl"], "下载本版对应源码ZIP ↗")}{link("https://nivo.8666886.xyz/downloads/SHA256SUMS.txt", "校验清单 ↗")}</div></div>'''
+    """静态首屏和禁用脚本时也能查看各平台真实文件与安装前提。"""
+    platform = "Android" if release["platform"] == "android" else "iOS"
+    kind = release.get("distribution", "apk")
+    method = {
+        "apk": "正式签名",
+        "ipa": "IPA",
+        "app-store": "App Store",
+        "testflight": "TestFlight",
+    }[kind]
+    if release.get("signing") == "unsigned":
+        method = "未签名IPA"
+    action = {"apk": "下载APK ↓", "ipa": f"下载{method} ↓"}.get(kind, "打开官方安装入口 ↗")
+    facts = [
+        f"{platform} {release['minimumOs']}+",
+        release.get("architecture"),
+        f"构建{release['versionCode']}" if release.get("versionCode") else None,
+        release["releasedAt"],
+    ]
+    if release.get("sizeBytes"):
+        facts.insert(2, f"{release['sizeBytes'] / 1024 / 1024:.1f}MB")
+    facts_html = "".join(f"<span>{esc(value)}</span>" for value in facts if value)
+    install = (
+        f'<aside class="callout"><h3>安装前需要自行签名</h3><p>{release_installation(release)}</p></aside>'
+        if release.get("signing") == "unsigned"
+        else ""
+    )
+    checksum = ""
+    if release.get("sha256"):
+        checksum = f'''<div class="checksum"><span>安装文件SHA256</span><code>{esc(release["sha256"])}</code><button class="copy-button" data-copy="{esc(release["sha256"])}" type="button" aria-label="复制安装文件SHA256">复制校验和</button></div>'''
+    return f'''<div class="release-card"><div class="release-heading"><span class="platform-symbol">↗</span><div><p class="eyebrow">{platform.upper()} / {esc(release["channel"].upper())}</p><h2>Nivo Bot <span>v{esc(release["version"])}</span></h2></div><span class="chip">{method}</span></div><p class="release-summary">{esc(release["summary"])}</p><div class="release-facts">{facts_html}</div>{install}<div class="actions">{link(release["downloadUrl"], action, "button primary")}<a class="text-link" href="{prefix}{esc(release["notesUrl"])}">查看更新说明 ↗</a></div>{checksum}<div class="release-links">{link(release["sourceUrl"], "本版对应源码 ↗")}{link(ORIGIN + "downloads/SHA256SUMS.txt", "校验清单 ↗")}</div></div>'''
 
 
 def downloads(releases: dict) -> str:
     """提供平台选择、可维护的历史版本与安装说明。"""
-    android = [
-        r for r in releases["releases"] if r["platform"] == "android" and r["channel"] == "stable"
-    ]
-    first = sorted(
-        android,
-        key=lambda r: (
-            tuple(int(x) for x in r["version"].split("-")[0].split(".")),
-            r.get("versionCode", 0),
-        ),
-        reverse=True,
-    )[0]
+    first = latest_release(releases, "android")
+    if first is None:
+        raise ValueError("The download page requires a stable Android release")
+    ios = latest_release(releases, "ios")
+    noscript_ios = release_card(ios) if ios else "<p>iOS当前没有公开发行文件。</p>"
     tabs = "".join(
         f'<button role="tab" data-platform="{p["id"]}" aria-selected="{str(p["id"] == "android").lower()}" aria-controls="release-content" id="platform-{p["id"]}" tabindex="{0 if p["id"] == "android" else -1}">{p["name"]} <span>{"已发布" if p["status"] == "available" else "尚未公开发布"}</span></button>'
         for p in releases["platforms"]
@@ -268,7 +336,7 @@ def downloads(releases: dict) -> str:
             "下载Nivo Bot。",
             "选择你的平台、渠道与版本。安装说明和历史发行可从上方栏目单独打开。",
         )
-        + f'''<section class="wrap download-layout" data-downloads><div><div class="platform-tabs" role="tablist" aria-label="选择平台">{tabs}</div><div class="download-filters"><label>发行渠道<select id="release-channel"><option value="stable">稳定版</option><option value="beta">测试版</option><option value="all">全部已发布版本</option></select></label><label>选择版本<select id="release-version"><option value="{first["id"]}">v{first["version"]}（{first["versionCode"]}）· {first["releasedAt"]}</option></select></label></div><p id="release-message" role="status" aria-live="polite" class="muted">正在同步版本目录；下方提供当前正式版。</p><div id="release-content" role="tabpanel" aria-labelledby="platform-android" tabindex="0">{release_card(first)}</div><button type="button" id="release-retry" class="text-button" hidden>重新加载版本目录</button><noscript><p>未启用JavaScript时仍可下载上方Android正式版。iOS目前没有公开安装包。</p></noscript></div><aside class="download-aside"><span class="eyebrow">A FEW THINGS TO KNOW</span><h2>开始之前，<br>把这些准备好。</h2><ol><li><strong>选择对的设备</strong><p>目前发布arm64-v8a架构的Android安装包。iOS单独展示发布状态。</p></li><li><strong>保留原有数据</strong><p>同包名应用通常需要相同签名才能覆盖升级。旧Debug签名或上游签名包请先核对备份，不要直接卸载。</p></li><li><strong>连接一个模型</strong><p>客户端开源；模型服务由你选择，调用费用遵循服务商规则。</p><a href="models.html" class="text-link">接入教程 →</a></li></ol></aside></section>
+        + f'''<section class="wrap download-layout" data-downloads><div><div class="platform-tabs" role="tablist" aria-label="选择平台">{tabs}</div><div class="download-filters"><label>发行渠道<select id="release-channel"><option value="stable">稳定版</option><option value="beta">测试版</option><option value="all">全部已发布版本</option></select></label><label>选择版本<select id="release-version"><option value="{first["id"]}">v{first["version"]}（{first["versionCode"]}）· {first["releasedAt"]}</option></select></label></div><p id="release-message" role="status" aria-live="polite" class="muted">正在同步版本目录；下方提供当前正式版。</p><div id="release-content" role="tabpanel" aria-labelledby="platform-android" tabindex="0">{release_card(first)}</div><button type="button" id="release-retry" class="text-button" hidden>重新加载版本目录</button><noscript><p>未启用JavaScript时，Android下载见上方，iOS发行状态与安装前提见下方。</p>{noscript_ios}</noscript></div><aside class="download-aside"><span class="eyebrow">A FEW THINGS TO KNOW</span><h2>开始之前，<br>把这些准备好。</h2><ol><li><strong>选择对的设备</strong><p>Android使用arm64-v8a安装包。iOS未签名IPA需自行签名；请先阅读安装说明，确认设备与签名条件。</p></li><li><strong>保留原有数据</strong><p>同包名应用通常需要相同签名才能覆盖升级。旧Debug签名或上游签名包请先核对备份，不要直接卸载。</p></li><li><strong>连接一个模型</strong><p>客户端开源；模型服务由你选择，调用费用遵循服务商规则。</p><a href="models.html" class="text-link">接入教程 →</a></li></ol></aside></section>
 <div class="wrap page-end"><a class="text-link" href="versions.html">查看所有历史版本 ↗</a><a class="text-link" href="install.html">安装与升级说明 ↗</a></div>'''
     )
 
@@ -289,7 +357,7 @@ def version_history(releases: dict) -> str:
             "每个版本，都有来处。",
             "查找发行时间、更新内容与对应源码，历史文件保留各自的身份。",
         )
-        + f'<section class="wrap standalone-panel"><div class="table-wrap" id="release-history"><table><thead><tr><th>平台</th><th>版本</th><th>渠道</th><th>发布日期</th><th>详情</th></tr></thead><tbody>{rows}</tbody></table></div><p class="muted archive-note">iOS尚未公开发布。新的正式发行会加入这里。</p></section>'
+        + f'<section class="wrap standalone-panel"><div class="table-wrap" id="release-history"><table><thead><tr><th>平台</th><th>版本</th><th>渠道</th><th>发布日期</th><th>详情</th></tr></thead><tbody>{rows}</tbody></table></div><p class="muted archive-note">每条记录独立保留平台与分发方式。iOS未签名IPA的安装前提见对应版本说明。</p></section>'
     )
 
 
@@ -300,7 +368,7 @@ def installation() -> str:
             "INSTALLATION", "下载之后，怎么开始？", "安装、校验、升级与平台分发的常见问题。"
         )
         + """
-<section class="wrap narrow section"><h2>下载后，怎么开始？</h2><details open><summary>Android安装步骤</summary><p>下载安装包，在Android文件管理器中打开；仅为此次安装允许来源应用安装软件，然后按系统提示操作。首次打开后，按模型教程配置你自己的服务商。</p></details><details><summary>怎样检查安装包有没有损坏？</summary><p>比较APK文件的SHA256与本页值。Windows可运行<code>Get-FileHash -Algorithm SHA256 -LiteralPath '你的APK路径'</code>；macOS可运行<code>shasum -a 256 '你的APK路径'</code>。校验和用于检查文件一致性，签名则用于确认应用更新身份。</p></details><details><summary>iOS会直接提供IPA文件吗？</summary><p>暂未确定公开分发方式，当前没有可用安装入口。后续若发布，会在iOS页说明系统要求、TestFlight或App Store等实际渠道；不提供未经验证的下载按钮。</p></details></section>"""
+<section class="wrap narrow section"><h2>下载后，怎么开始？</h2><details open><summary>Android安装步骤</summary><p>下载安装包，在Android文件管理器中打开；仅为此次安装允许来源应用安装软件，然后按系统提示操作。首次打开后，按模型教程配置你自己的服务商。</p></details><details><summary>怎样检查安装包有没有损坏？</summary><p>比较下载文件的SHA256与该版本下载卡中的值。Windows可运行<code>Get-FileHash -Algorithm SHA256 -LiteralPath '你的安装包路径'</code>；macOS可运行<code>shasum -a 256 '你的安装包路径'</code>。校验和用于检查文件一致性，签名则用于确认应用更新身份。</p></details><details open><summary>iOS未签名IPA怎样安装？</summary><p>标为“未签名IPA”的文件不能下载后直接安装到iPhone。请先核对下载卡中的最低iOS版本与文件SHA256，再使用自己的Apple开发签名和适用的安装工具重新签名。签名工具可能需要电脑；有效期、设备资格和应用权限取决于你的账户与签名方式。</p><p>下载IPA不代表已获得TestFlight名额或App Store版本。重新签名会改变文件，站点SHA256用于核对下载的原始IPA；签名后的包需由你另行记录。iPhone安装、通知和后台运行仍以实际设备结果为准。</p></details><details><summary>Android和iOS的专注有什么区别？</summary><p>两端提供普通计时、任务关联、背景、统计与专注感悟。强制专注、允许应用和自动锁机计划仅在Android11及以上提供，启用前需完成权限设置。iOS专注提醒只提示你开始，系统引导式访问需你自行开启与结束，计时完成不会自动退出引导式访问。</p></details></section>"""
     )
 
 
@@ -325,9 +393,9 @@ def release_detail(release: dict) -> str:
         + title_block(
             "RELEASE NOTES",
             title,
-            f"{release['releasedAt']} · {platform} {release['minimumOs']}及以上",
+            f"{release['releasedAt']} · {platform} {release['minimumOs']}及以上 · 构建{release.get('versionCode', '未注明')}",
         )
-        + f"""<section class="wrap narrow"><h2>这一版的变化</h2><p>{esc(release["summary"])}</p><ul class="guide-points">{notes}</ul><h2>安装与升级</h2><p>请按本版平台和分发方式安装。Android同包名覆盖升级通常需要同一签名；旧Debug证书或其他证书的包请先核对签名和备份范围。</p>{certificate_html}<h2>验证范围</h2><p>发行包提供对应源码和文件身份信息，不代表每个手机、模型服务或全部业务流程均已实机验收。历史安装包与源码保持原发行文件不变。</p><h2>本版对应源码</h2><p>安装文件与本版源码对应；GitHub默认分支可能包含之后的维护提交。</p><div class="actions">{link(release["downloadUrl"], "打开本版安装入口 ↓", "button primary")}{link(release["sourceUrl"], "本版对应源码 ↗", "text-link")}</div>{source_hash}<a class="text-link" href="../downloads.html">← 返回下载中心</a></section>"""
+        + f"""<section class="wrap narrow"><h2>这一版的变化</h2><p>{esc(release["summary"])}</p><ul class="guide-points">{notes}</ul><h2>安装与升级</h2><p>{esc(release_installation(release))}</p><p><a href="../install.html">查看平台安装步骤与功能差异 ↗</a></p>{certificate_html}<h2>验证范围</h2><p>发行包提供对应源码和文件身份信息，不代表每个手机、模型服务或全部业务流程均已实机验收。历史安装包与源码保持原发行文件不变。</p><h2>本版对应源码</h2><p>安装文件与本版源码对应；GitHub默认分支可能包含之后的维护提交。</p><div class="actions">{link(release["downloadUrl"], "下载未签名IPA ↓" if release.get("signing") == "unsigned" else "打开本版安装入口 ↓", "button primary")}{link(release["sourceUrl"], "本版对应源码 ↗", "text-link")}</div>{source_hash}<a class="text-link" href="../downloads.html">← 返回下载中心</a></section>"""
     )
 
 
@@ -344,8 +412,8 @@ cd Nivo-Bot
 bash scripts/android/build-natives.sh
 cd android/src/android
 bash gradlew :app:assembleDebug --console=plain --no-daemon</code></pre><p>使用JDK21、Android SDK36、NDK27.2.12479018和CMake3.22.1。完整工具链与Windows入口以仓库文档为准。</p><p>{link(REPO + "/blob/master/docs/android-development.md", "Android构建与签名文档 ↗")} · {link(REPO + "/actions/workflows/android.yml", "GitHub自动打包 ↗")}</p></section>
-<section><h2>模块有各自的职责</h2><div class="table-wrap"><table><thead><tr><th>入口</th><th>职责</th></tr></thead><tbody><tr><td>chat / ui/chat</td><td>主要聊天、工具协作、回复朗读</td></tr><tr><td>todo</td><td>任务、分组、标签、版本冲突与完成证据</td></tr><tr><td>focus</td><td>计时事实、全屏恢复、背景和统计</td></tr><tr><td>mosaic</td><td>生活碎片、草稿和任务／专注关联</td></tr><tr><td>coach</td><td>课程、每日练习、证据与回访</td></tr></tbody></table></div><p>Android扩展主要位于io.github.nanomuse命名空间。上游包名、沙盒协议与许可继续保留。</p>{link(REPO + "/blob/master/docs/android-code-map.md", "阅读源码地图 ↗")}</section>
-<section><h2>给之后的版本留好位置</h2><p>下载中心由版本清单驱动。每个发行记录保存平台、渠道、版本、架构、日期、安装地址、SHA256、对应源码和说明页。加入新版本即可继续显示历史版本；只有实际可用的文件会显示下载入口。</p><p>iOS目前单独显示尚未公开发布。未来应按实际分发渠道增加记录，而不是让Android和iOS共用一个安装按钮。</p></section>
+<section><h2>模块有各自的职责</h2><div class="table-wrap"><table><thead><tr><th>入口</th><th>职责</th></tr></thead><tbody><tr><td>chat / ui/chat</td><td>主要聊天、工具协作、回复朗读</td></tr><tr><td>todo</td><td>任务、分组、标签、版本冲突与完成证据</td></tr><tr><td>focus</td><td>计时、感悟、分组统计及Android强制专注</td></tr><tr><td>mosaic</td><td>生活碎片、草稿和任务／专注关联</td></tr><tr><td>coach</td><td>技能档案、今日训练、原话证据与复核</td></tr></tbody></table></div><p>Android扩展主要位于io.github.nanomuse命名空间，iOS页面与业务代码位于NanoMuse目录。上游包名、沙盒协议与许可继续保留。</p>{link(REPO + "/blob/master/docs/android-code-map.md", "阅读源码地图 ↗")}</section>
+<section><h2>给之后的版本留好位置</h2><p>下载中心由版本清单驱动。每个发行记录保存平台、渠道、版本、架构、日期、安装地址、SHA256、对应源码和说明页。加入新版本即可继续显示历史版本；只有实际可用的文件会显示下载入口。</p><p>Android APK与iOS IPA分别记录。未签名IPA明确说明自行签名要求；TestFlight和App Store只有实际公开入口存在时才会列出。</p></section>
 <section><h2>参与贡献</h2><p>带着具体场景、预期、实际结果和复现步骤提交Issue；日志先脱敏。修改任务或计时逻辑时关注账号隔离、重复请求和中断恢复。代码提交遵循DCO签署及原项目规范。</p>{link(REPO + "/blob/master/CONTRIBUTING.md", "贡献指南 ↗")}</section>
 <section id="origins"><h2>开放，也保留来处</h2><p>本项目在nanoMuse基础上演进，Android底座来自OpenMinis，继续使用GPL-3.0-or-later并保留相关版权和第三方许可。本项目不代表上游官方服务，也不隶属于Meta或其Muse产品。</p><p>{link("https://github.com/nano-muse/nanoMuse", "致谢nanoMuse ↗")} · {link("https://github.com/OpenMinis/OpenMinis", "致谢OpenMinis ↗")} · {link(REPO + "/blob/master/LICENSE", "查看许可 ↗")}</p></section></div>"""
     )
@@ -524,9 +592,10 @@ def generated(root: Path) -> dict[str, str]:
         "index.html": page(
             "index.html",
             "让对话走向行动",
-            "连接AI对话、待办、专注、生活碎片与成长教练的开源Android工作台。",
+            "连接AI对话、待办、专注、生活碎片与成长教练的开源个人工作台。",
             home(),
             "home",
+            releases,
         ),
         "features.html": page(
             "features.html",
@@ -545,7 +614,7 @@ def generated(root: Path) -> dict[str, str]:
         "downloads.html": page(
             "downloads.html",
             "下载与版本记录",
-            "选择Android或iOS，查找正式版本、校验和、源码与更新说明。",
+            "选择Android APK或iOS未签名IPA，查看安装要求、校验和与对应源码。",
             downloads(releases),
             "downloads",
         ),
@@ -566,7 +635,7 @@ def generated(root: Path) -> dict[str, str]:
         "install.html": page(
             "install.html",
             "安装与升级",
-            "Android安装、文件校验和后续平台说明。",
+            "Android安装升级、iOS未签名IPA签名要求与文件校验。",
             installation(),
             "downloads",
         ),

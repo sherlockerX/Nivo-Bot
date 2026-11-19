@@ -11,6 +11,10 @@
     <!-- Mosaic: a voice call routes audio like a phone call (communication mode, earpiece or speaker). -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- nanoMuse: 强制专注使用前台应用元数据和独立守护通知。 -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- T-android-fgs-timeout-crash: switched from dataSync to mediaPlayback.
          dataSync has a hard 6h/24h cumulative cap on Android 14+, after
          which the system throws ForegroundServiceDidNotStopInTimeException
@@ -595,6 +599,22 @@
 
         <!-- nanoMuse: 专注到时结算仅由系统PendingIntent触发，不接收外部广播。 -->
         <receiver android:name="io.github.nanomuse.focus.FocusAlarmReceiver" android:exported="false" />
-        <activity android:name="io.github.nanomuse.ui.focus.FocusImmersiveActivity" android:exported="false" />
+        <activity android:name="io.github.nanomuse.ui.focus.FocusImmersiveActivity" android:exported="false"
+            android:showWhenLocked="true" android:excludeFromRecents="true" android:launchMode="singleInstance" />
+        <service android:name="io.github.nanomuse.focus.lock.LockGuardService" android:exported="false"
+            android:foregroundServiceType="specialUse" android:stopWithTask="false">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User enabled timed focus restriction with application whitelist" />
+        </service>
+        <receiver android:name="io.github.nanomuse.focus.lock.LockAlarmReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

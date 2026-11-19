@@ -203,6 +203,8 @@ data class QueuedPrompt(
     val id: String,
     val text: String,
     val attachments: List<InputAttachment> = emptyList(),
+    // nanoMuse: 入队时固定真实用户来源，转后台或等待落盘不重新申请授权。
+    val userOrigin: io.github.nanomuse.coach.UserTurnOrigin? = null,
 )
 
 /**

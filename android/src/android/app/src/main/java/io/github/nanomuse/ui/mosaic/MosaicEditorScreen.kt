@@ -196,6 +196,12 @@ fun MosaicEditorScreen(
 
     LaunchedEffect(Unit) {
         val id = draftKey ?: MosaicStore.draftId(day, habitId, entryId)
+        // 专注心得在进程重建或从每日草稿继续时也必须校验原账号归属。
+        if (io.github.nanomuse.focus.FocusReflectionDrafts.isReflectionDraft(id) &&
+            (todoStore == null || !io.github.nanomuse.focus.FocusReflectionDrafts.belongsToOwner(id, todoStore.ownerKey))) {
+            lifecycleOwner.withStarted { onClose() }
+            return@LaunchedEffect
+        }
         val row = entryId?.let { store.entryRow(it) }
         val habit = habitId?.let { store.habit(it) }
         val found = store.draft(id)
@@ -700,7 +706,12 @@ fun MosaicEditorScreen(
                             // 先等待旧自动保存退出，再迁移主键，避免旧草稿被重新写回。
                             autosaveJob?.cancelAndJoin()
                             editorOperation.requireCurrent()
-                            val moved = if (todoStore != null) AccountData.withTodoOwnerMutation(todoStore.ownerKey, todoStore.ownerEpoch) {
+                            val moved = if (todoStore != null && io.github.nanomuse.focus.FocusReflectionDrafts.isReflectionDraft(before.id)) {
+                                // 改期同时提交正文与选择，保留专注草稿ID以及防抖期间尚未落盘的关联。
+                                before.copy(day = newDay, updatedAt = System.currentTimeMillis()).also {
+                                    store.putDraftWithTasks(it, taskSelections, todoStore, focusSelections, focusStore)
+                                }
+                            } else if (todoStore != null) AccountData.withTodoOwnerMutation(todoStore.ownerKey, todoStore.ownerEpoch) {
                                 store.redate(before, newDay)
                             } else store.redate(before, newDay)
                             draft = moved

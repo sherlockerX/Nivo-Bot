@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Satu perkara pada satu masa</string>
     <string name="nm_focus_screen_hint">Anda boleh mengunci skrin. Kembali untuk meneruskan sesi yang sama.</string>
     <string name="nm_focus_finish_confirm">Simpan masa yang benar-benar direkodkan dan tamatkan sesi ini? Tugas yang dipautkan tidak berubah.</string>
+    <string name="nm_focus_reflection">Catat refleksi</string>
+    <string name="nm_focus_reflection_hint">Catat refleksi tentang sesi ini. Masa fokus dan tugas yang dipautkan akan disertakan secara automatik.</string>
 </resources>

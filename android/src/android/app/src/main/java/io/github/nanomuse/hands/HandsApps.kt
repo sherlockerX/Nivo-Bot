@@ -67,6 +67,7 @@ object HandsApps {
 
     /** Brings [app] to the front; false when Android refused (the model then finds the icon itself). */
     fun open(context: Context, app: App): Boolean {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
         val pm = context.packageManager
         val intent = pm.getLaunchIntentForPackage(app.packageName) ?: return false
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)

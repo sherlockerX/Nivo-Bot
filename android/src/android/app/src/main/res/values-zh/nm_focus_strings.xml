@@ -61,4 +61,22 @@
     <string name="nm_focus_in_session">此刻，只做这一件事</string>
     <string name="nm_focus_screen_hint">可以熄屏，重新打开后继续当前专注。</string>
     <string name="nm_focus_finish_confirm">保存已经记录的实际时长并结束本次专注？关联待办的状态保持不变。</string>
+    <string name="nm_focus_reflection">记录心得</string>
+    <string name="nm_focus_reflection_hint">记录本次专注的心得，专注时段和关联任务会自动带入。</string>
+    <string name="nm_focus_search_or_new">搜索或新建待办</string>
+    <string name="nm_focus_new_task_group">新待办放进哪个分组</string>
+    <string name="nm_focus_add_task">新建“%1$s”</string>
+    <string name="nm_focus_add_failed">没能添加待办，请再试一次。</string>
+    <string name="nm_focus_no_open_tasks">还没有未完成的待办，在上面输入一个就能开始。</string>
+    <string name="nm_focus_summary_count">共%1$d次 · 平均每次%2$s</string>
+    <string name="nm_focus_group_hint">分组与待办一致。任务换了分组，它过去的专注时间也一起算到新分组；没有关联待办的专注算作未分组。</string>
+    <string name="nm_focus_group_meta">%1$s · %2$d次</string>
+    <string name="nm_focus_task_share">%1$s · 占本组%2$s</string>
+    <string name="nm_focus_total">总专注</string>
+    <string name="nm_focus_take_break">休息%1$d分钟</string>
+    <string name="nm_focus_continue">继续专注：%1$s</string>
+    <string name="nm_focus_started_at">开始于%1$s</string>
+    <string name="nm_focus_by_group">按分组</string>
+    <string name="nm_focus_by_tag">按标签</string>
+    <string name="nm_focus_tag_hint">标签与待办一致。一次专注有多个标签时，时长平均分给这些标签，各项加起来正好是总时长；没有标签的专注算作未标记。</string>
 </resources>

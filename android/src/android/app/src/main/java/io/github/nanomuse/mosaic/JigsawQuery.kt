@@ -12,13 +12,14 @@ internal data class JigsawQuery(
     val offset: Int,
     val format: String,
     val today: Long,
+    /** 日期和时间戳都按手机系统时区解释，与日记页面一致。 */
+    val zone: ZoneId,
 ) {
     val page: MosaicRange get() = MosaicRange(range.start.plusDays(offset.toLong()),
         minOf(range.endExclusive, range.start.plusDays(offset.toLong() + limit)))
     val nextOffset: Int? get() = (offset + page.length).takeIf { it < range.length }
 
     companion object {
-        val ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
         private val COMMANDS = setOf("list", "get", "stats", "export")
 
         /** 严格检查日期、参数和边界，未知或写入请求在访问数据库之前返回错误。 */
@@ -38,7 +39,7 @@ internal data class JigsawQuery(
             val limit = number(options, "limit", 31, 1..366)
             val offset = number(options, "offset", 0, 0..365)
             require(offset < range.length) { "--offset must be smaller than the number of days in the range." }
-            return JigsawQuery(command, range, limit, offset, format, LocalDate.now(clock.withZone(ZONE)).toEpochDay())
+            return JigsawQuery(command, range, limit, offset, format, LocalDate.now(clock).toEpochDay(), clock.zone)
         }
 
         private fun options(argv: List<String>): Map<String, String> {
@@ -62,7 +63,7 @@ internal data class JigsawQuery(
                 val date = date(requireNotNull(options["date"]) { "get requires --date YYYY-MM-DD." })
                 return MosaicRange(date, date.plusDays(1))
             }
-            val end = options["end"]?.let(::date) ?: LocalDate.now(clock.withZone(ZONE))
+            val end = options["end"]?.let(::date) ?: LocalDate.now(clock)
             val days = number(options, "days", 7, 1..366)
             val start = options["start"]?.let(::date) ?: end.minusDays(days - 1L)
             require(!start.isAfter(end)) { "--start must not be after --end." }

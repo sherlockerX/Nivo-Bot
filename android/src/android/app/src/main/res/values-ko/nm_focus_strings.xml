@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">한 번에 한 가지</string>
     <string name="nm_focus_screen_hint">화면을 잠가도 됩니다. 돌아오면 같은 세션을 이어갑니다.</string>
     <string name="nm_focus_finish_confirm">실제로 기록한 시간을 저장하고 종료할까요? 연결된 작업은 변경되지 않습니다.</string>
+    <string name="nm_focus_reflection">소감 기록</string>
+    <string name="nm_focus_reflection_hint">이번 집중 활동의 소감을 남겨 보세요. 집중 시간과 연결된 작업이 자동으로 추가됩니다.</string>
 </resources>

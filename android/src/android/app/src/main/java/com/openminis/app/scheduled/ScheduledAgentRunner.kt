@@ -288,10 +288,12 @@ object ScheduledAgentRunner {
             } catch (failure: IllegalStateException) { // nanoMuse: 边界或绑定失败显式结算，不派发旧提供商。
                 HeadlessChatRunner.PromptResult("Error", failure.message ?: "DISPATCH_NOT_STARTED", false)
             }
-            val failed = result.status in setOf("Error", "Timeout", "Aborted", "Cancelled")
-            val outcome = io.github.nanomuse.routines.ScheduledRunScopes.outcome(scope, failed, result.exitCode,
+            // nanoMuse: 用户停止或账号切换取消的运行不算失败：不累计失败次数、不自动停用、不发失败通知。
+            val failed = !cancelled && result.status in setOf("Error", "Timeout", "Aborted", "Cancelled")
+            val outcome = if (cancelled) io.github.nanomuse.routines.RunOutcome.UNKNOWN else io.github.nanomuse.routines.ScheduledRunScopes.outcome(scope, failed, result.exitCode,
                 task.requireOutput && result.scriptOutput?.stdoutBytes == 0L)
             val reason = when {
+                cancelled -> "RUN_ABORTED" // nanoMuse:
                 failed -> result.responseText?.takeIf { it in setOf("MESSAGE_WRITE_FAILED", "RUN_ABORTED", "TARGET_BUSY", "DISPATCH_NOT_STARTED", "TARGET_ACCOUNT_MISMATCH", "MODEL_BINDING_UNAVAILABLE") } // nanoMuse: 保留可定位的边界失败原因。
                     ?: result.scriptOutput?.captureError ?: if (task.scriptId == null) "MODEL_RUN_FAILED" else "SCRIPT_RUN_FAILED"
                 task.requireOutput && result.scriptOutput?.stdoutBytes == 0L -> "EMPTY_OUTPUT"
@@ -343,7 +345,7 @@ object ScheduledAgentRunner {
                     .onFailure { stateWriteError = true } } // nanoMuse: 已结算时间槽由持久终态兜底，不因诊断错误重放。
                 // nanoMuse: 一次运行最多一条通知；动态任务的帖子由动态页自己告知。
                 val feedTold = !(failedOutcome || task.debug || dryNotify) && io.github.nanomuse.feed.FeedFlow.notifyIfFeed(app, task)
-                if (!feedTold) io.github.nanomuse.routines.ScheduledResultNotifier.deliver(app, task,
+                if (!feedTold && !cancelled) io.github.nanomuse.routines.ScheduledResultNotifier.deliver(app, task, // nanoMuse: 停止的运行不发通知。
                     if (failedOutcome) app.getString(R.string.nm_sched_result_failed, title) else title, body,
                     if (failedOutcome) io.github.nanomuse.routines.ScheduledResult(body, "").hash else produced.hash, made,
                     sessionId.takeUnless { sessionless || failedOutcome }) // Mosaic: 结果通知点开进任务的对话，失败通知进运行记录。

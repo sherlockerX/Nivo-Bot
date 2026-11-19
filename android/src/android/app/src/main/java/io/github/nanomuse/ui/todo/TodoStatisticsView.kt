@@ -112,9 +112,9 @@ private fun statisticsPeriodTitle(period: String, start: LocalDate, end: LocalDa
     else -> "${todoDate(start.toEpochDay())} / ${todoDate(end.minusDays(1).toEpochDay())}"
 }
 
-/** 深色背景提高图表色亮度，标签始终同时保留名称和百分比。 */
+/** 深色背景提高图表色亮度，标签始终同时保留名称和百分比；专注统计共用这套配色。 */
 @Composable
-private fun todoChartColors(): List<Color> {
+internal fun todoChartColors(): List<Color> {
     val primary = MaterialTheme.colorScheme.primary
     return if (MaterialTheme.colorScheme.surface.luminance() < .5f) {
         listOf(primary, Color(0xFFC4B5FD), Color(0xFF5EEAD4), Color(0xFFFDBA74),

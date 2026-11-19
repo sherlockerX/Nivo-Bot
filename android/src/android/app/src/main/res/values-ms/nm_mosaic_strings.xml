@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Foto, refleksi atau tabiat yang diselesaikan akan mengisi satu awan. Ruang lain boleh dibiarkan kosong.</string>
+    <string name="nm_mosaic_action_text">Refleksi</string>
+    <string name="nm_mosaic_photo_hint">Tambah foto atau tulis refleksi.</string>
+    <string name="nm_mosaic_text_label">Refleksi</string>
+    <string name="nm_mosaic_text_hint">Apa yang anda pelajari atau perhatikan?</string>
+    <string name="nm_mosaic_err_empty">Tambah foto atau refleksi dahulu.</string>
+</resources>

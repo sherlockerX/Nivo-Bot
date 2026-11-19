@@ -43,6 +43,80 @@ class TodoToolHostTest {
         assertFalse(opened)
     }
 
+    @Test fun should_readSavedTasksInOrdinaryChat_withoutAllowingCommands() = runTest {
+        val state = allowed.copy(isMain = false)
+        var opened = 0
+        val storage = object : EmptyStorage() {
+            override suspend fun tasks() = listOf(TodoTask(ownerKey = ownerKey, id = "task-1", title = "本机记录"))
+        }
+        val host = TodoToolHost({ state }, { _, _ -> null }, { opened++; storage })
+        val result = host.execute(TodoAgentBridge.QUERY, """{"kind":"tasks"}""")
+        assertTrue(result.output, result.success)
+        assertTrue(result.output.contains("本机记录"))
+        val todoCommand = host.execute(TodoAgentBridge.COMMAND,
+            """{"action":"delete","operationId":"delete-1","targetId":"task-1","expectedRevision":1}""")
+        val focusCommand = host.execute(io.github.nanomuse.focus.FocusAgentBridge.COMMAND,
+            """{"action":"start","operationId":"start-1","title":"不能启动"}""")
+        assertFalse(todoCommand.success)
+        assertFalse(focusCommand.success)
+        assertTrue(todoCommand.output.contains("main_required"))
+        assertTrue(focusCommand.output.contains("main_required"))
+        assertEquals(1, opened)
+    }
+
+    @Test fun should_keepReadAccessBoundToAccountSessionAndSavedUser() = runTest {
+        val ordinary = allowed.copy(isMain = false)
+        val invalid = listOf(
+            ordinary.copy(isAccountCurrent = false), ordinary.copy(isSessionVisible = false),
+            ordinary.copy(isScheduled = true), ordinary.copy(isTaskDispatch = true),
+            ordinary.copy(user = null), ordinary.copy(loopUserId = "old-user"),
+            ordinary.copy(authorization = null), ordinary.copy(sessionId = "other"),
+            ordinary.copy(currentAuthorization = authorization.copy(token = "replacement")),
+            ordinary.copy(user = ordinary.user!!.copy(messageId = "queued_msg_1")),
+        )
+        invalid.forEach { state ->
+            var opened = false
+            val host = TodoToolHost({ state }, { _, _ -> null },
+                { opened = true; error("必须在打开数据前拒绝") },
+                focusFactory = { opened = true; error("必须在打开专注前拒绝") },
+                recordsFactory = { opened = true; error("必须在打开档案前拒绝") })
+            assertFalse(state.toString(), host.execute(TodoAgentBridge.QUERY, "{}").success)
+            assertFalse(state.toString(), host.execute(io.github.nanomuse.focus.FocusAgentBridge.QUERY, "{}").success)
+            assertFalse(state.toString(), host.execute(io.github.nanomuse.records.PersonalRecordsAgentBridge.QUERY, "{}").success)
+            assertFalse(state.toString(), opened)
+        }
+    }
+
+    @Test fun should_dropOrdinaryChatRead_when_AccountOrAuthorizationChangesDuringRead() = runTest {
+        val ordinary = allowed.copy(isMain = false)
+        for (changed in listOf(ordinary.copy(isAccountCurrent = false),
+            ordinary.copy(currentAuthorization = authorization.copy(token = "replacement")),
+            ordinary.copy(isSessionVisible = false))) {
+            var state = ordinary
+            val storage = object : EmptyStorage() {
+                override suspend fun tasks(): List<TodoTask> {
+                    state = changed
+                    return listOf(TodoTask(ownerKey = ownerKey, id = "task-1", title = "不能返回的记录"))
+                }
+            }
+            val result = TodoToolHost({ state }, { _, _ -> null }, { storage })
+                .execute(TodoAgentBridge.QUERY, "{}")
+            assertFalse(result.success)
+            assertFalse(result.output.contains("不能返回的记录"))
+        }
+    }
+
+    @Test fun should_recheckOrdinaryChatRead_afterWaitingForGuard() = runTest {
+        var state = allowed.copy(isMain = false)
+        var opened = false
+        val host = TodoToolHost({ state }, { _, _ ->
+            state = state.copy(currentAuthorization = null)
+            null
+        }, { opened = true; EmptyStorage() })
+        assertFalse(host.execute(TodoAgentBridge.QUERY, "{}").success)
+        assertFalse(opened)
+    }
+
     @Test fun should_rejectNewValidTurn_when_waitingOriginalCallChangesOwner() = runTest {
         var state = allowed
         val newAuthorization = CoachTurnAuthorization("user-2", "main", "token-2")

@@ -43,11 +43,15 @@ fun CoachConversationEntryEffect(
             onConsumed?.invoke(current.requestId)
             return@LaunchedEffect
         }
+        var lessonsBefore = 0
         val lesson = try {
             withContext(Dispatchers.IO) {
                 val state = CoachRuntime.service(context).state.value
                 val topic = state.topics.singleOrNull { it.chatSessionId == current.chatSessionId }
-                state.sessions.firstOrNull { it.id == topic?.activeSessionId && it.topicId == topic?.id }
+                state.sessions.firstOrNull { it.id == topic?.activeSessionId && it.topicId == topic?.id }?.also { found ->
+                    lessonsBefore = state.sessions.count { it.topicId == found.topicId && it.id != found.id &&
+                        it.localDate.isNotBlank() && it.localDate == found.localDate }
+                }
             }
         } catch (failure: Exception) {
             if (failure is CancellationException) throw failure
@@ -63,6 +67,14 @@ fun CoachConversationEntryEffect(
         // 程序发送会共用聊天发送逻辑，存在草稿时不触发，防止文字或附件被消费。
         if (viewModel.inputText.value.isNotBlank() || viewModel.attachments.value.isNotEmpty() ||
             viewModel.pastedTexts.value.isNotEmpty()) return@LaunchedEffect
-        viewModel.nmSendCoachRequest(context.getString(R.string.nm_coach_start), lesson.id)
+        // 每节课的开场带上课节日期，在同一条旁聊里形成按日的分节。
+        val date = runCatching { java.time.LocalDate.parse(lesson.localDate)
+            .format(java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)) }.getOrNull()
+        val opening = when {
+            date == null -> context.getString(R.string.nm_coach_start)
+            lessonsBefore > 0 -> context.getString(R.string.nm_coach_day_opening_more, date, lessonsBefore + 1)
+            else -> context.getString(R.string.nm_coach_day_opening, date)
+        }
+        viewModel.nmSendCoachRequest(opening, lesson.id)
     }
 }

@@ -282,10 +282,13 @@ object AccountData {
             dao.deleteOwnerTasks(owner)
             dao.deleteOwnerCategories(owner)
             val focus = database.focusDao()
+            database.lockDao().deleteOwner(owner)
             focus.deleteLinks(owner); focus.deleteDrafts(owner); focus.deleteOperations(owner)
             focus.deleteSpans(owner); focus.deleteSessions(owner)
         }
         io.github.nanomuse.focus.FocusBackdropStore.deleteOwner(context, owner)
+        io.github.nanomuse.focus.lock.LockSettings.deleteOwner(context, owner)
+        io.github.nanomuse.focus.lock.LockDiagnostics.deleteOwner(context, owner)
     }
 
     private suspend fun deleteChats(ctx: Context, account: String) {

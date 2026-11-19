@@ -31,6 +31,8 @@ object AgentTools {
         coachEnabled: Boolean = false,
         // nanoMuse: 待办独立门禁，教练专题、定时与派发任务不能继承。
         todoEnabled: Boolean = false,
+        // nanoMuse: 同账户真实用户回合可查询全局记录，普通聊天不因此取得写入权限。
+        personalRecordsRead: Boolean = false,
     ): List<AgentToolDefinition> = buildList {
         add(shellExecuteDefinition())
         add(FileReadTool.definition())
@@ -46,7 +48,14 @@ object AgentTools {
         }
         // nanoMuse: 原生受控工具与界面共用教练命令服务。
         if (coachEnabled) addAll(io.github.nanomuse.coach.CoachAgentBridge.definitions())
-        if (todoEnabled) { addAll(io.github.nanomuse.todo.TodoAgentBridge.definitions()); addAll(io.github.nanomuse.focus.FocusAgentBridge.definitions()) } // nanoMuse: 独立注册个人待办。
+        // nanoMuse: 查询和命令独立注册，主聊天同时持有两种能力时不重复声明工具。
+        if (todoEnabled || personalRecordsRead) {
+            val personalTools = io.github.nanomuse.todo.TodoAgentBridge.definitions() +
+                io.github.nanomuse.focus.FocusAgentBridge.definitions()
+            addAll(personalTools.filter { todoEnabled || it.name in setOf(
+                io.github.nanomuse.todo.TodoAgentBridge.QUERY, io.github.nanomuse.focus.FocusAgentBridge.QUERY) })
+        }
+        if (personalRecordsRead) addAll(io.github.nanomuse.records.PersonalRecordsAgentBridge.definitions()) // nanoMuse
     }
 
     // Aligned with iOS AIChatViewModel.swift:4982-4993

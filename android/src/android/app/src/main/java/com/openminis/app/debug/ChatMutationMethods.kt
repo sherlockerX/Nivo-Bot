@@ -55,7 +55,9 @@ internal object ChatMutationMethods {
                     skillRepository = app.skillRepository,
                     mcpRepository = app.mcpRepository,
                 ),
-            )[com.openminis.app.ui.chat.ChatViewModel::class.java].also { it.sendMessage(text) }
+            )[com.openminis.app.ui.chat.ChatViewModel::class.java].also { vm ->
+                vm.nmHeadlessDispatch { vm.sendMessage(text) } // nanoMuse: 可见VM的RPC调用也不是用户点击。
+            }
         }
         return JSONObject().apply {
             put("ok", true)

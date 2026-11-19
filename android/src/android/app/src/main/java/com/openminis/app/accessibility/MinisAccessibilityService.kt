@@ -81,6 +81,7 @@ class MinisAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        io.github.nanomuse.focus.lock.LockController.onAccessibilityEvent(this, event) // nanoMuse: 守护只接收窗口元数据，不读取节点内容。
         if (event == null) return
         val rec = RecordedEvent(
             type = AccessibilityEvent.eventTypeToString(event.eventType),
@@ -101,6 +102,7 @@ class MinisAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        io.github.nanomuse.focus.lock.LockController.onAccessibilityServiceGone(this) // nanoMuse: 撤去强制专注的窗口遮挡。
         super.onDestroy()
         if (_instance === this) _instance = null
         eventRing.clear()

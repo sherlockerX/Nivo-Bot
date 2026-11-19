@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-**Chat AI, tugas, fokus, catatan harian dan pelatihan pengembangan diri dalam satu ruang kerja Android.**
+**Chat AI, tugas, fokus, catatan harian dan pelatihan pengembangan diri di Android dan iOS.**
 
 <p align="center">
   <a href="../../README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">Situs web</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Laporan masalah</a> · <a href="../../OPEN_SOURCE.md">Berkontribusi</a>
+  <a href="https://nivo.8666886.xyz/">Situs web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Laporan masalah</a> · <a href="../../OPEN_SOURCE.md">Berkontribusi</a>
 </p>
 
 Nivo Bot adalah ruang kerja AI untuk keseharian. Mulai dari percakapan, ubah langkah berikutnya menjadi tugas, berikan waktu fokus dan simpan pengalaman untuk ditinjau kembali.
@@ -86,12 +86,13 @@ Pembelajaran, tugas, fokus dan catatan memakai penyimpanan lokal dengan aturan a
 | Sumber | Tautan |
 |---|---|
 | Situs produk | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 ke atas, arm64 | [APK Nivo Bot v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| Sumber yang sesuai dengan APK | [Paket sumber v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android 8.0 ke atas, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS 16 ke atas, perlu penandatanganan pribadi | [IPA tanpa tanda tangan dan log CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Sumber yang sesuai dengan APK | [Paket sumber v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Checksum unduhan | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Detail rilis | [Catatan rilis](../releases/v2.0.0.md) · [Catatan verifikasi](../releases/v2.0.0-verification.json) |
+| Detail rilis | [Catatan rilis](../releases/v2.0.5.md) · [Pemeriksaan build](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Rilis ini mencakup Android dan situs produk. Sumber platform lain tetap tersedia di repositori, tanpa menyatakan adanya rilis Nivo Bot atau kesetaraan fitur pada platform tersebut.
+Rilis ini mencakup Android, iOS dan situs produk. iOS disediakan sebagai IPA tanpa tanda tangan melalui GitHub Actions dan harus ditandatangani sebelum dipasang. Fork ini belum memiliki akun Apple Developer Program dan tidak menyediakan distribusi TestFlight atau App Store. Fokus paksa, jadwal penguncian berulang dan daftar aplikasi yang diizinkan hanya tersedia di Android; iOS menyediakan pengingat fokus dan petunjuk Akses Terpandu, yang dimulai dan diakhiri sendiri oleh pengguna di iOS. Kompilasi CI tidak membuktikan penerimaan saat dijalankan di iPhone.
 
 ID aplikasi tetap `io.github.nanomuse.app`. Instalasi dengan kunci Debug lama atau kunci proyek hulu biasanya tidak dapat diperbarui dengan rilis ini. Periksa cakupan pencadangan dan pemulihan sebelum menghapus aplikasi; lihat [panduan versi dan penandatanganan](../android-development.md#nivo-bot的android版本与签名).
 
@@ -103,8 +104,8 @@ ID aplikasi tetap `io.github.nanomuse.app`. Instalasi dengan kunci Debug lama at
 Klon beserta submodul dependensi native:
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 Gunakan JDK 21, Android SDK 36, NDK 27.2.12479018 dan CMake 3.22.1. Gradle Wrapper 8.11.1 tersedia. Atur toolchain lalu siapkan dependensi native pada Linux atau WSL:
@@ -134,10 +135,11 @@ Lihat [panduan pengembangan Android](../android-development.md) untuk input nati
 | Jalur | Isi |
 |---|---|
 | `android/src/android/` | Aplikasi Android; tambahan Nivo berada di `io.github.nanomuse.*`. |
+| `android/src/ios/` | Aplikasi iOS native; hasil CI tanpa tanda tangan untuk penandatanganan pribadi. |
 | `site/` | Situs produk statis dan metadata unduhan. |
 | `docs/` | Panduan, peta sumber dan catatan rilis. |
 | `scripts/android/`, `scripts/release/` | Alat build, penandatanganan, audit sumber dan pengemasan. |
-| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Sumber iOS, desktop, runtime, relay dan konsol web yang dipertahankan, dengan cakupan rilis dan verifikasi terpisah. |
+| `harness/`, `nanomuse/`, `cloud/`, `web/` | Sumber desktop, runtime, relay dan konsol web yang dipertahankan, dengan cakupan rilis dan verifikasi terpisah. |
 
 Pohon Android mempertahankan struktur, identitas paket dan atribusi hulu. Baca [peta sumber](../android-code-map.md) sebelum mengubah batas modul.
 
@@ -149,13 +151,14 @@ Pohon Android mempertahankan struktur, identitas paket dan atribusi hulu. Baca [
 - [Panduan pengguna Android](../zh/android.md)
 - [Pengembangan Android dan penandatanganan](../android-development.md)
 - [Peta sumber Android](../android-code-map.md)
+- [Fokus, Coach dan informasi build iPhone](../ios-focus-and-coach.md)
 - [Sumber situs dan deployment](../../site/README.md)
 - [Catatan perubahan](../../CHANGELOG.md)
 - [Hak cipta dan asal-usul](../../NOTICE) · [Pemberitahuan pihak ketiga](../../THIRD_PARTY_NOTICES.md)
 
 ## Berkontribusi
 
-Laporkan masalah yang dapat direproduksi melalui [Issues repositori ini](https://github.com/sherlockerX/Nicholasx/issues) dan kirim PR terarah. Ikuti [OPEN_SOURCE.md](../../OPEN_SOURCE.md) dan [CONTRIBUTING.md](../../CONTRIBUTING.md), termasuk Conventional Commits, pengujian sesuai perubahan dan sign-off DCO melalui `git commit -s`.
+Laporkan masalah yang dapat direproduksi melalui [Issues repositori ini](https://github.com/sherlockerX/Nivo-Bot/issues) dan kirim PR terarah. Ikuti [OPEN_SOURCE.md](../../OPEN_SOURCE.md) dan [CONTRIBUTING.md](../../CONTRIBUTING.md), termasuk Conventional Commits, pengujian sesuai perubahan dan sign-off DCO melalui `git commit -s`.
 
 Pertahankan pemberitahuan hak cipta dan lisensi hulu. Jangan memasukkan kunci API, materi penandatanganan atau catatan pribadi ke issue dan commit. OpenMinis memiliki kebijakan kontribusinya sendiri; fork ini tidak mengubahnya.
 

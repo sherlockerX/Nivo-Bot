@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="docs/media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-**AI chat, tasks, focus, daily fragments and growth coaching in one Android workspace.**
+**AI chat, tasks, focus, daily fragments and growth coaching on Android and iOS.**
 
 <p align="center">
   <a href="README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="docs/releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="docs/releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">Website</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Issues</a> · <a href="OPEN_SOURCE.md">Contribute</a>
+  <a href="https://nivo.8666886.xyz/">Website</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Issues</a> · <a href="OPEN_SOURCE.md">Contribute</a>
 </p>
 
 Nivo Bot is an AI workspace for everyday life. Start with a conversation, turn the next step into a task, give it focused time and keep the experience in a record you can return to.
@@ -86,12 +86,13 @@ Learning, tasks, focus records and fragments use local storage with module-speci
 | Resource | Link |
 |---|---|
 | Product website | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0+, arm64 | [Nivo Bot v2.0.0 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| Source corresponding to the APK | [v2.0.0 source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android 8.0+, arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS 16+, personal signing required | [Unsigned IPA and CI logs](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Source corresponding to the APK | [v2.0.5 source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Download checksums | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Release details | [Release notes](docs/releases/v2.0.0.md) · [Verification record](docs/releases/v2.0.0-verification.json) |
+| Release details | [Release notes](docs/releases/v2.0.5.md) · [Build checks](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-This release covers Android and the product website. Other platform source remains in the repository; it does not establish Nivo Bot releases or feature parity on those platforms.
+This release includes Android, iOS and the product website. iOS is delivered as an unsigned IPA from GitHub Actions and must be signed before installation. This fork has no Apple Developer Program account and provides no TestFlight or App Store distribution. Forced focus, recurring lock plans and app whitelists are Android-only; iOS provides focus reminders and Guided Access instructions, which the user starts and ends in iOS. CI compilation does not establish iPhone runtime acceptance.
 
 The application ID remains `io.github.nanomuse.app`. Installations signed with an old Debug or upstream key normally cannot be updated with this release. Check backup and restore coverage before uninstalling anything; see the [version and signing guide](docs/android-development.md#nivo-bot的android版本与签名).
 
@@ -103,8 +104,8 @@ The application ID remains `io.github.nanomuse.app`. Installations signed with a
 Clone with native dependency submodules:
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 Use JDK 21, Android SDK 36, NDK 27.2.12479018 and CMake 3.22.1. The repository includes Gradle Wrapper 8.11.1. Prepare native dependencies on Linux or WSL after configuring the toolchain:
@@ -134,10 +135,11 @@ See the [Android development guide](docs/android-development.md) for native inpu
 | Path | Contents |
 |---|---|
 | `android/src/android/` | Android app; Nivo additions live under `io.github.nanomuse.*`. |
+| `android/src/ios/` | Native iOS app; unsigned CI delivery for personal signing. |
 | `site/` | Static product website and download metadata. |
 | `docs/` | User guides, source map and release records. |
 | `scripts/android/`, `scripts/release/` | Build, signing, source audit and packaging tools. |
-| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Retained iOS, desktop, runtime, relay and web-console source with separate release and verification scopes. |
+| `harness/`, `nanomuse/`, `cloud/`, `web/` | Retained desktop, runtime, relay and web-console source with separate release and verification scopes. |
 
 The Android tree retains its upstream structure, package identities and attribution. Read the [source map](docs/android-code-map.md) before changing module boundaries.
 
@@ -149,13 +151,14 @@ The Android tree retains its upstream structure, package identities and attribut
 - [Android user guide](docs/zh/android.md)
 - [Android development and signing](docs/android-development.md)
 - [Android source map](docs/android-code-map.md)
+- [iPhone focus, Coach and build information](docs/ios-focus-and-coach.md)
 - [Website source and deployment](site/README.md)
 - [Changelog](CHANGELOG.md)
 - [Copyright and provenance](NOTICE) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Contributing
 
-Report reproducible problems in [this repository's Issues](https://github.com/sherlockerX/Nicholasx/issues) and submit focused pull requests. Follow [OPEN_SOURCE.md](OPEN_SOURCE.md) and [CONTRIBUTING.md](CONTRIBUTING.md), including Conventional Commits, tests appropriate to the change and a DCO sign-off with `git commit -s`.
+Report reproducible problems in [this repository's Issues](https://github.com/sherlockerX/Nivo-Bot/issues) and submit focused pull requests. Follow [OPEN_SOURCE.md](OPEN_SOURCE.md) and [CONTRIBUTING.md](CONTRIBUTING.md), including Conventional Commits, tests appropriate to the change and a DCO sign-off with `git commit -s`.
 
 Preserve upstream copyright and license notices. Keep API keys, signing material and personal records out of issues and commits. OpenMinis retains its own contribution policy; accepting work in this fork does not change that policy.
 

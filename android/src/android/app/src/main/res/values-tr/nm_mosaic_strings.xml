@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Bir fotoğraf, bir düşünce veya tamamlanan bir alışkanlık bir bulutu doldurur. Diğerleri boş kalabilir.</string>
+    <string name="nm_mosaic_action_text">Düşünceler</string>
+    <string name="nm_mosaic_photo_hint">Bir fotoğraf ekleyin veya düşüncelerinizi yazın.</string>
+    <string name="nm_mosaic_text_label">Düşünceler</string>
+    <string name="nm_mosaic_text_hint">Ne öğrendiniz veya fark ettiniz?</string>
+    <string name="nm_mosaic_err_empty">Önce bir fotoğraf ekleyin veya düşüncelerinizi yazın.</string>
+</resources>

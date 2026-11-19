@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">ภาพถ่าย ข้อคิด หรือกิจวัตรที่ทำสำเร็จจะเติมเมฆหนึ่งก้อน ส่วนที่เหลือปล่อยว่างไว้ได้</string>
+    <string name="nm_mosaic_action_text">ข้อคิด</string>
+    <string name="nm_mosaic_photo_hint">เพิ่มภาพถ่ายหรือเขียนข้อคิด</string>
+    <string name="nm_mosaic_text_label">ข้อคิด</string>
+    <string name="nm_mosaic_text_hint">ได้เรียนรู้หรือสังเกตเห็นอะไรบ้าง</string>
+    <string name="nm_mosaic_err_empty">เพิ่มภาพถ่ายหรือเขียนข้อคิดก่อน</string>
+</resources>

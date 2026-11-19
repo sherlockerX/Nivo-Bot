@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Une chose à la fois</string>
     <string name="nm_focus_screen_hint">Vous pouvez verrouiller l’écran. Revenez pour poursuivre la même séance.</string>
     <string name="nm_focus_finish_confirm">Enregistrer le temps réellement mesuré et terminer cette séance ? La tâche associée reste inchangée.</string>
+    <string name="nm_focus_reflection">Noter une réflexion</string>
+    <string name="nm_focus_reflection_hint">Notez votre réflexion sur cette séance. Le temps de concentration et la tâche associée seront ajoutés automatiquement.</string>
 </resources>

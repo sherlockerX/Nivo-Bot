@@ -71,6 +71,9 @@ import com.openminis.app.R
 import com.openminis.app.data.db.ChatSessionEntity
 import com.openminis.app.data.repository.ChatRepository
 import com.openminis.app.ui.theme.ChatColors
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import java.text.DateFormat
 import java.util.Date
 
@@ -102,7 +105,10 @@ fun SideChatDrawer(
     onIdeas: (() -> Unit)? = null,
     onTodo: (() -> Unit)? = null,
     onFocus: (() -> Unit)? = null,
+    currentTab: HomeTab = HomeTab.CHAT,
 ) {
+    // 只有聊天页可见时，会话行才表示当前位置；点子、待办和专注各自标出所在页面。
+    val visibleSessionId = currentSessionId.takeIf { currentTab == HomeTab.CHAT }
     // Mosaic: subscribe once; the drawer recomposes on every frame of a drag.
     val sessions by remember(chatRepository) { chatRepository.observeSessions() }.collectAsState(initial = emptyList())
     // nanoMuse: the account's other devices, for the row under the main chat
@@ -154,8 +160,8 @@ fun SideChatDrawer(
                     modifier = Modifier.padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 18.dp),
                 )
 
-                // 主要聊天入口跟随当前会话显示选中状态。
-                val mainSelected = currentSessionId == null || currentSessionId == mainSessionId
+                // 主要聊天入口只在聊天页显示主聊天时选中。
+                val mainSelected = currentTab == HomeTab.CHAT && (currentSessionId == null || currentSessionId == mainSessionId)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -163,6 +169,7 @@ fun SideChatDrawer(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (mainSelected) nmRowSelected else Color.Transparent)
+                        .semantics { selected = mainSelected }
                         .clickable(onClick = onOpenMain)
                         .padding(horizontal = 14.dp, vertical = 13.dp),
                 ) {
@@ -246,6 +253,8 @@ fun SideChatDrawer(
                             .padding(horizontal = 12.dp)
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
+                            .background(if (currentTab == HomeTab.IDEAS) nmRowSelected else Color.Transparent)
+                            .semantics { selected = currentTab == HomeTab.IDEAS }
                             .clickable(onClick = onIdeas)
                             .padding(horizontal = 14.dp, vertical = 13.dp),
                     ) {
@@ -263,7 +272,10 @@ fun SideChatDrawer(
                 onTodo?.let { openTodo ->
                     Row(verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)).clickable(onClick = openTodo)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (currentTab == HomeTab.TODO) nmRowSelected else Color.Transparent)
+                            .semantics { selected = currentTab == HomeTab.TODO }
+                            .clickable(onClick = openTodo)
                             .padding(horizontal = 14.dp, vertical = 13.dp)) {
                         Icon(Icons.Outlined.Checklist, null, Modifier.size(22.dp), tint = nmInk)
                         Spacer(Modifier.size(14.dp))
@@ -274,7 +286,10 @@ fun SideChatDrawer(
                 onFocus?.let { openFocus ->
                     Row(verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp)).clickable(onClick = openFocus)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (currentTab == HomeTab.FOCUS) nmRowSelected else Color.Transparent)
+                            .semantics { selected = currentTab == HomeTab.FOCUS }
+                            .clickable(onClick = openFocus)
                             .padding(horizontal = 14.dp, vertical = 13.dp)) {
                         Icon(Icons.Outlined.Timer, null, Modifier.size(22.dp), tint = nmInk)
                         Spacer(Modifier.size(14.dp))
@@ -325,6 +340,13 @@ fun SideChatDrawer(
                         onFocus = onFocus,
                         onDevices = onDevices,
                         onCoding = onCoding?.takeIf { codingComputers > 0 },
+                        currentLabel = when {
+                            currentTab == HomeTab.IDEAS -> R.string.nm_tab_ideas
+                            currentTab == HomeTab.TODO -> R.string.nm_todo_title
+                            currentTab == HomeTab.FOCUS -> R.string.nm_focus_title
+                            currentTab == HomeTab.CHAT && (currentSessionId == null || currentSessionId == mainSessionId) -> R.string.nm_drawer_main_chat
+                            else -> null
+                        },
                     )
                 } else {
                     IconButton(onClick = { isCreatingGroup = true }) {
@@ -346,7 +368,7 @@ fun SideChatDrawer(
 
             DrawerSessions(
                 sessions = sideChats, repository = chatRepository, providers = providerRepository,
-                currentSessionId = currentSessionId, query = query,
+                currentSessionId = visibleSessionId, query = query,
                 isCreatingGroup = isCreatingGroup, onCreatedGroup = { isCreatingGroup = false },
                 onOpen = onOpenSession, onSetMain = onSetMain,
                 requestSelection = requestChatSelection, onSelectionHandled = { requestChatSelection = false },
@@ -417,6 +439,7 @@ private fun DrawerCompactMenu(
     onFocus: (() -> Unit)?,
     onDevices: (() -> Unit)?,
     onCoding: (() -> Unit)?,
+    currentLabel: Int? = null,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     val entries = listOfNotNull(
@@ -439,10 +462,14 @@ private fun DrawerCompactMenu(
         }
         DropdownMenu(expanded = isExpanded, onDismissRequest = { isExpanded = false }) {
             entries.forEach { (label, icon, action) ->
+                // 菜单中标出当前所在页面，用勾号和读屏选中态表达，不只靠颜色。
+                val isCurrent = label == currentLabel
                 DropdownMenuItem(
-                    text = { Text(stringResource(label)) },
+                    text = { Text(stringResource(label), fontWeight = if (isCurrent) FontWeight.SemiBold else null) },
                     leadingIcon = { Icon(icon, contentDescription = null) },
+                    trailingIcon = if (isCurrent) ({ Icon(Icons.Outlined.Check, contentDescription = null) }) else null,
                     onClick = { isExpanded = false; action() },
+                    modifier = Modifier.semantics { selected = isCurrent },
                 )
             }
         }

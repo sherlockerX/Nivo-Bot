@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -99,7 +100,8 @@ internal fun TodoBadge(text: String, color: Color = MaterialTheme.colorScheme.on
 /** 任务标题优先，元数据为次级；状态入口有独立触摸区，主列表可直接完成或重开。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun TodoTaskRow(task: TodoTask, onOpen: (TodoTask) -> Unit, onToggle: (() -> Unit)? = null, isBusy: Boolean = false) {
+internal fun TodoTaskRow(task: TodoTask, onOpen: (TodoTask) -> Unit, onToggle: (() -> Unit)? = null, isBusy: Boolean = false,
+    onFocus: ((TodoTask) -> Unit)? = null) {
     val tags = remember(task.tagsJson) { task.tags() }
     val statusColor = todoStatusColor(task.status)
     val statusIcon = when (task.status) {
@@ -109,7 +111,8 @@ internal fun TodoTaskRow(task: TodoTask, onOpen: (TodoTask) -> Unit, onToggle: (
     }
     Surface(shape = RoundedCornerShape(18.dp), color = MuseTones.surface,
         border = BorderStroke(1.dp, MuseTones.hairline.copy(alpha = .65f)),
-        modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { onOpen(task) }) {
+        // 先按卡片圆角裁剪再响应点击，按下的水波纹不会露出直角。
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(role = Role.Button) { onOpen(task) }) {
         Row(Modifier.padding(start = 8.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.Top) {
             if (onToggle == null) Icon(statusIcon, null, Modifier.padding(12.dp).size(23.dp), tint = statusColor)
@@ -139,6 +142,11 @@ internal fun TodoTaskRow(task: TodoTask, onOpen: (TodoTask) -> Unit, onToggle: (
                             color = if (isOverdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+            }
+            // 未完成的任务一键去专注，专注页自动选中这一项。
+            if (onFocus != null && task.status != "done") IconButton(onClick = { onFocus(task) }, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Outlined.Timer, stringResource(R.string.nm_focus_for_task) + ": " + task.title, Modifier.size(21.dp),
+                    tint = MaterialTheme.colorScheme.primary)
             }
             if (task.isImportant || task.isUrgent) Icon(Icons.Outlined.Flag,
                 listOfNotNull(stringResource(R.string.nm_todo_important).takeIf { task.isImportant },

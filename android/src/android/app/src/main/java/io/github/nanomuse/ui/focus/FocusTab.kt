@@ -55,12 +55,28 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
     var reload by remember { mutableIntStateOf(0) }
     val rows by remember(store,reload) { store.observe().catch { if(it is CancellationException) throw it;failed=true } }.collectAsState(emptyList())
     val tasks by remember(todo,reload) { todo.observeTasks().catch { if(it is CancellationException) throw it;failed=true } }.collectAsState(emptyList())
+    val locks=remember(store) { io.github.nanomuse.focus.lock.LockStore.get(context) }
+    val lockRuns by remember(locks,reload) { locks.observeRuns().catch { if(it is CancellationException) throw it;failed=true } }.collectAsState(emptyList())
+    val lockBySession=remember(lockRuns) { lockRuns.associateBy { it.sessionId } }
     val view by FocusUi.view.collectAsState()
+    if(view in setOf("lock-permissions","lock-whitelist","lock-settings","lock-plans")) {
+        Column(Modifier.fillMaxSize().background(ChatColors.background)) {
+            header()
+            when(view) {
+                "lock-plans" -> io.github.nanomuse.ui.focus.lock.LockPlanListScreen(locks,bottomInset)
+                "lock-permissions" -> io.github.nanomuse.ui.focus.lock.LockPermissionsScreen(bottomInset)
+                "lock-whitelist" -> io.github.nanomuse.ui.focus.lock.LockWhitelistScreen(locks,bottomInset)
+                else -> io.github.nanomuse.ui.focus.lock.LockSettingsScreen(store,bottomInset)
+            }
+        }
+        return
+    }
     val pendingTask by FocusUi.taskId.collectAsState()
-    var title by rememberSaveable { mutableStateOf("") }
+    val pendingReflection by io.github.nanomuse.ui.home.HomeBus.focusReflection.collectAsState()
     var chosenTask by rememberSaveable { mutableStateOf<String?>(null) }
     var mode by rememberSaveable { mutableStateOf("pomodoro") }
     var minutes by rememberSaveable { mutableStateOf("25") }
+    var isForced by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<FocusSession?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -93,7 +109,11 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
         FocusUi.exportRequested.value=false;exportOwner=Pair(store.ownerKey,store.ownerEpoch)
         exporter.launch("nanomuse-focus-${LocalDate.now()}.json")
     } }
-    val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // 首次开始先问通知权限，回答之后再开表；否则全屏计时会盖住系统授权框。
+    var askedNotifications by rememberSaveable { mutableStateOf(false) }
+    var startAfterPermission by remember { mutableStateOf(false) }
+    var permissionAnswers by remember { mutableIntStateOf(0) }
+    val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { permissionAnswers++ }
     val active=rows.firstOrNull { it.status in setOf("running","paused") }
     val task=tasks.firstOrNull { it.id==chosenTask }
     // 账号切换由外层key(epoch)重建草稿；这里不再清空，否则每次切回本页都会丢掉已输入的标题和已选任务。
@@ -105,16 +125,31 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
     }
     fun perform(action:String,row:FocusSession?=active) {
         if(busy) return
+        // 直接读取请求状态，覆盖Compose尚未重组时再次点击删除的窗口。
+        if(action=="delete" && io.github.nanomuse.ui.home.HomeBus.focusReflection.value!=null) return
         val duration=minutes.toIntOrNull()
-        if(action=="start" && (duration==null || duration !in 1..180 || (task==null && title.isBlank()))) { error=true;return }
-        busy=true;error=false
-        if(action=="start" && android.os.Build.VERSION.SDK_INT>=33 &&
+        if(action=="start" && (duration==null || duration !in 1..180 || (task==null && mode!="break"))) { error=true;return }
+        if(action=="start" && !askedNotifications && android.os.Build.VERSION.SDK_INT>=33 &&
             androidx.core.content.ContextCompat.checkSelfPermission(context,android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            askedNotifications=true;startAfterPermission=true
             notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            return
         }
+        busy=true;error=false
+        // 专注都挂在待办上；只有休息不需要任务，标题用模式名。
+        val startTitle=task?.title ?: context.getString(modeLabel(mode))
         scope.launch {
             try {
-                val saved=store.command(action,UUID.randomUUID().toString(),row?.id,row?.revision,title,task?.id,mode,duration ?: 25)
+                if(action=="start" && isForced) {
+                    // 强制正计时以正计时上限为截止，用户在锁页主动结束。
+                    val lockMs=if(mode=="stopwatch") FocusStore.MAX_SESSION_MS else (duration ?: 25)*60_000L
+                    io.github.nanomuse.focus.lock.LockController.startManual(context,
+                        startTitle,task?.id,lockMs,mode) { sessionId ->
+                        backgrounds.bind(sessionId)
+                    }
+                    return@launch
+                }
+                val saved=store.command(action,UUID.randomUUID().toString(),row?.id,row?.revision,startTitle,task?.id,mode,duration ?: 25)
                 deleting=null
                 if(action=="start") {
                     backgrounds.bind(saved.id)
@@ -126,6 +161,7 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
             finally { busy=false }
         }
     }
+    LaunchedEffect(permissionAnswers) { if(permissionAnswers>0 && startAfterPermission) { startAfterPermission=false;perform("start",null) } }
     Column(Modifier.fillMaxSize().background(ChatColors.background).imePadding()) {
         header()
         LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=14.dp,bottom=bottomInset+24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
@@ -164,12 +200,12 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
                             listOf("pomodoro","stopwatch","break").forEach { choice -> FilterChip(selected=mode==choice,onClick={mode=choice;minutes=if(choice=="break") "5" else "25"},label={Text(stringResource(modeLabel(choice)))}) }
                         }
                         OutlinedButton(onClick={picker=true},modifier=Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Checklist,null);Spacer(Modifier.width(8.dp));Text(task?.title ?: stringResource(R.string.nm_focus_choose_task)) }
-                        if(task==null) OutlinedTextField(title,{title=it.take(500)},label={Text(stringResource(R.string.nm_focus_what))},modifier=Modifier.fillMaxWidth(),minLines=1,maxLines=3)
                         if(mode!="stopwatch") {
-                            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf(5,25,45,60).forEach { value -> FilterChip(selected=minutes==value.toString(),onClick={minutes=value.toString()},label={Text(stringResource(R.string.nm_focus_minutes,value))}) } }
+                            FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { (if(mode=="break") listOf(5,10,15,20) else listOf(5,25,45,60)).forEach { value -> FilterChip(selected=minutes==value.toString(),onClick={minutes=value.toString()},label={Text(stringResource(R.string.nm_focus_minutes,value))}) } }
                             OutlinedTextField(minutes,{minutes=it.filter(Char::isDigit).take(3)},label={Text(stringResource(R.string.nm_focus_custom_minutes))},singleLine=true,modifier=Modifier.fillMaxWidth())
                         }
-                        Button(enabled=!busy && !failed && (task!=null || title.isNotBlank()),onClick={perform("start",null)},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {
+                        io.github.nanomuse.ui.focus.lock.LockManualControls(isForced,true,{isForced=it})
+                        Button(enabled=!busy && !failed && (task!=null || mode=="break"),onClick={perform("start",null)},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {
                             Icon(Icons.Outlined.PlayArrow,null);Spacer(Modifier.width(8.dp));Text(stringResource(R.string.nm_focus_start)) }
                     }
                     if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -179,25 +215,35 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
                     Text(formatFocusDuration(FocusStatistics.duration(spans,LocalDate.now(),LocalDate.now().plusDays(1))),style=MaterialTheme.typography.headlineMedium)
                     TextButton(onClick={FocusUi.view.value="history"}) { Text(stringResource(R.string.nm_focus_history)) } } }
                 item { Text(stringResource(R.string.nm_focus_recent),style=MaterialTheme.typography.titleMedium) }
-                items(rows.filter { it.status=="finished" }.take(3),key={it.id}) { FocusRecord(it,onDelete={deleting=it}) }
+                items(rows.filter { it.status=="finished" }.take(3),key={it.id}) { row ->
+                    FocusRecord(row,lockBySession[row.id],isOpening=pendingReflection?.sessionId==row.id,
+                        canOpen=!busy && pendingReflection==null,onDelete={
+                        if(!busy && io.github.nanomuse.ui.home.HomeBus.focusReflection.value==null) deleting=row
+                    },onReflect={
+                        if(!busy) io.github.nanomuse.ui.home.HomeBus.showFocusReflection(FocusReflectionRequest(store.ownerKey,store.ownerEpoch,row.id))
+                    })
+                }
             } else if(view=="history") {
                 item { Text(stringResource(R.string.nm_focus_history_hint),color=MaterialTheme.colorScheme.onSurfaceVariant) }
                 if(rows.none { it.status=="finished" }) item { Text(stringResource(R.string.nm_focus_empty)) }
-                items(rows.filter { it.status=="finished" },key={it.id}) { FocusRecord(it,onDelete={deleting=it}) }
+                items(rows.filter { it.status=="finished" },key={it.id}) { row ->
+                    FocusRecord(row,lockBySession[row.id],isOpening=pendingReflection?.sessionId==row.id,
+                        canOpen=!busy && pendingReflection==null,onDelete={
+                        if(!busy && io.github.nanomuse.ui.home.HomeBus.focusReflection.value==null) deleting=row
+                    },onReflect={
+                        if(!busy) io.github.nanomuse.ui.home.HomeBus.showFocusReflection(FocusReflectionRequest(store.ownerKey,store.ownerEpoch,row.id))
+                    })
+                }
             } else {
-                item { FocusStats(rows,spans) }
+                item { FocusStats(rows,spans,lockRuns,tasks) }
             }
         }
     }
     if(showBackgrounds) FocusBackdropPicker(backgrounds,{showBackgrounds=false},{backgroundRevision++})
-    if(picker) AlertDialog(onDismissRequest={picker=false},title={Text(stringResource(R.string.nm_focus_choose_task))},text={
-        LazyColumn(Modifier.heightIn(max=400.dp)) {
-            item { TextButton(onClick={chosenTask=null;picker=false}) { Text(stringResource(R.string.nm_focus_without_task)) } }
-            items(tasks.filter { it.status!="done" },key={it.id}) { row -> TextButton(onClick={chosenTask=row.id;picker=false},modifier=Modifier.fillMaxWidth()) { Text(row.title,Modifier.fillMaxWidth()) } }
-        }
-    },confirmButton={TextButton(onClick={picker=false}){Text(stringResource(R.string.nm_todo_close))}})
+    // 选择器里可以就地新建待办，新建的待办直接选中，并出现在待办列表里。
+    if(picker) FocusTaskPicker(tasks,todo,onPick={chosenTask=it;picker=false},onDismiss={picker=false})
     deleting?.let { row -> AlertDialog(onDismissRequest={if(!busy) deleting=null},title={Text(stringResource(R.string.nm_focus_delete))},
-        text={Text(stringResource(R.string.nm_focus_delete_hint))},confirmButton={TextButton(enabled=!busy,onClick={perform("delete",row)}){Text(stringResource(R.string.nm_focus_delete))}},
+        text={Text(stringResource(R.string.nm_focus_delete_hint))},confirmButton={TextButton(enabled=!busy && pendingReflection==null,onClick={perform("delete",row)}){Text(stringResource(R.string.nm_focus_delete))}},
         dismissButton={TextButton(enabled=!busy,onClick={deleting=null}){Text(stringResource(R.string.nm_todo_close))}}) }
 }
 
@@ -218,14 +264,19 @@ private fun FocusClock(row:FocusSession,store:FocusStore) {
                     catch(_:Exception) { delay(2000);continue }
                     break
                 }
-                delay(1000)
+                // 对齐到下一个整秒再刷新：固定等1000毫秒会随处理耗时逐渐漂移，显示上偶尔跳过一秒。
+                delay(1000-elapsed%1000+10)
             }
         }
     }
     val shown=if(row.mode=="stopwatch") elapsed else (row.targetMs-elapsed).coerceAtLeast(0)
     Column(Modifier.fillMaxWidth().padding(vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         Text(formatFocusDuration(shown),fontSize=44.sp,fontWeight=FontWeight.Medium)
-        LinearProgressIndicator(progress={ (elapsed.toFloat()/row.targetMs).coerceIn(0f,1f) },modifier=Modifier.fillMaxWidth().padding(top=20.dp))
+        // 正计时没有目标时长，进度条没有意义；改为显示开始时刻。
+        if(row.mode=="stopwatch") Text(stringResource(R.string.nm_focus_started_at,
+            java.time.Instant.ofEpochMilli(row.startedAt).atZone(java.time.ZoneId.systemDefault()).toLocalTime().withNano(0).toString().take(5)),
+            Modifier.padding(top=12.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)
+        else LinearProgressIndicator(progress={ (elapsed.toFloat()/row.targetMs).coerceIn(0f,1f) },modifier=Modifier.fillMaxWidth().padding(top=20.dp))
         if(row.status=="paused") Text(stringResource(R.string.nm_focus_paused),Modifier.padding(top=12.dp))
     }
 }
@@ -239,12 +290,19 @@ internal fun FocusPanel(content:@Composable ColumnScope.()->Unit) {
 }
 
 @Composable
-private fun FocusRecord(row:FocusSession,onDelete:()->Unit) { FocusPanel {
+private fun FocusRecord(row:FocusSession,lock:io.github.nanomuse.focus.lock.LockRun?,isOpening:Boolean,canOpen:Boolean,onDelete:()->Unit,onReflect:()->Unit) { FocusPanel {
     Row(verticalAlignment=Alignment.CenterVertically) { Text(row.title,Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
-        IconButton(onClick=onDelete) { Icon(Icons.Outlined.DeleteOutline,stringResource(R.string.nm_focus_delete)) } }
+        IconButton(onClick=onDelete,enabled=canOpen) { Icon(Icons.Outlined.DeleteOutline,stringResource(R.string.nm_focus_delete)) } }
     Text(formatFocusRange(row.startedAt,row.endedAt ?: row.startedAt),style=MaterialTheme.typography.bodySmall)
     Text(formatFocusDuration(row.elapsedMs)+" · "+stringResource(modeLabel(row.mode)),fontWeight=FontWeight.SemiBold)
     if(row.groupName.isNotBlank()) Text(row.groupName,style=MaterialTheme.typography.labelMedium)
+    io.github.nanomuse.ui.focus.lock.LockRecordBadge(lock)
+    if(row.mode!="break") TextButton(onClick=onReflect,enabled=canOpen) {
+        if(isOpening) CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)
+        else Icon(Icons.Outlined.EditNote,null,Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.nm_focus_reflection))
+    }
 } }
 
 internal fun modeLabel(mode:String):Int=when(mode){"stopwatch"->R.string.nm_focus_stopwatch;"break"->R.string.nm_focus_break;else->R.string.nm_focus_pomodoro}

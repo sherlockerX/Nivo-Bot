@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Ein Foto, ein Gedanke oder eine erledigte Gewohnheit füllt jeweils eine Wolke. Der Rest kann leer bleiben.</string>
+    <string name="nm_mosaic_action_text">Gedanken</string>
+    <string name="nm_mosaic_photo_hint">Füge ein Foto hinzu oder halte deine Gedanken fest.</string>
+    <string name="nm_mosaic_text_label">Gedanken</string>
+    <string name="nm_mosaic_text_hint">Was hast du gelernt oder bemerkt?</string>
+    <string name="nm_mosaic_err_empty">Füge zuerst ein Foto oder deine Gedanken hinzu.</string>
+</resources>

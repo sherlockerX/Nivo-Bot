@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Zdjęcie, refleksja lub wykonany nawyk wypełnia jedną chmurę. Pozostałe mogą zostać puste.</string>
+    <string name="nm_mosaic_action_text">Refleksja</string>
+    <string name="nm_mosaic_photo_hint">Dodaj zdjęcie lub zapisz refleksję.</string>
+    <string name="nm_mosaic_text_label">Refleksja</string>
+    <string name="nm_mosaic_text_hint">Czego udało się nauczyć lub co zwróciło twoją uwagę?</string>
+    <string name="nm_mosaic_err_empty">Najpierw dodaj zdjęcie lub refleksję.</string>
+</resources>

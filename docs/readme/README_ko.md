@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-<strong>AI 채팅, 할 일, 집중, 일상 기록과 성장 코칭을 하나의 Android 작업 공간에서 사용하세요.</strong>
+<strong>AI 채팅, 할 일, 집중, 일상 기록과 성장 코칭을 Android와 iOS에서 사용하세요.</strong>
 
 <p align="center">
   <a href="../../README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">제품 사이트</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">문제 보고</a> · <a href="../../OPEN_SOURCE.md">기여하기</a>
+  <a href="https://nivo.8666886.xyz/">제품 사이트</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">문제 보고</a> · <a href="../../OPEN_SOURCE.md">기여하기</a>
 </p>
 
 Nivo Bot은 일상을 위한 AI 작업 공간입니다. 대화에서 시작해 다음 단계를 할 일로 만들고, 집중할 시간을 정한 뒤 돌아볼 수 있는 기록으로 경험을 남깁니다.
@@ -86,12 +86,13 @@ AI는 앱 도구를 통해 할 일 변경을 저장합니다. 대화 답변만�
 | 자료 | 링크 |
 |---|---|
 | 제품 사이트 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 이상, arm64 | [Nivo Bot v2.0.0 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| APK에 대응하는 소스 | [v2.0.0 소스 묶음](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android 8.0 이상, arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS 16 이상, 개인 서명 필요 | [서명되지 않은 IPA 및 CI 로그](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| APK에 대응하는 소스 | [v2.0.5 소스 묶음](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | 다운로드 체크섬 | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| 릴리스 정보 | [릴리스 노트](../releases/v2.0.0.md) · [검증 기록](../releases/v2.0.0-verification.json) |
+| 릴리스 정보 | [릴리스 노트](../releases/v2.0.5.md) · [빌드 검사](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-이번 릴리스는 Android와 제품 사이트를 포함합니다. 다른 플랫폼 소스는 보관하지만 Nivo Bot의 출시나 해당 플랫폼의 기능 동기화를 의미하지 않습니다.
+이번 릴리스는 Android, iOS와 제품 사이트를 포함합니다. iOS는 GitHub Actions에서 서명되지 않은 IPA로 제공되며 설치 전에 서명해야 합니다. 이 포크에는 Apple Developer Program 계정이 없어 TestFlight 또는 App Store 배포를 제공하지 않습니다. 강제 집중, 반복 잠금 일정과 앱 허용 목록은 Android 전용입니다. iOS는 집중 알림과 사용법 유도 안내를 제공하며, 사용자가 iOS에서 직접 시작하고 종료합니다. CI 컴파일은 iPhone 실행 검증을 의미하지 않습니다.
 
 앱 ID는 `io.github.nanomuse.app`입니다. 이전 Debug 키나 원본 프로젝트 키로 서명한 설치는 보통 이 버전으로 덮어쓰지 못합니다. 삭제 전에 백업과 복원 범위를 확인하세요. [버전 및 서명 안내](../android-development.md#nivo-bot的android版本与签名)를 참고하세요.
 
@@ -103,8 +104,8 @@ AI는 앱 도구를 통해 할 일 변경을 저장합니다. 대화 답변만�
 네이티브 의존성 하위 모듈도 함께 복제합니다:
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 JDK 21, Android SDK 36, NDK 27.2.12479018, CMake 3.22.1을 사용합니다. Gradle Wrapper 8.11.1이 포함되어 있습니다. 도구를 설정한 다음 Linux 또는 WSL에서 네이티브 의존성을 준비하세요:
@@ -134,10 +135,11 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 | 경로 | 내용 |
 |---|---|
 | `android/src/android/` | Android 앱. Nivo 추가 모듈은 `io.github.nanomuse.*`에 있습니다. |
+| `android/src/ios/` | 네이티브 iOS 앱. 개인 서명을 위한 서명되지 않은 CI 빌드입니다. |
 | `site/` | 정적 제품 사이트와 다운로드 메타데이터. |
 | `docs/` | 사용 안내, 소스 지도와 릴리스 기록. |
 | `scripts/android/`, `scripts/release/` | 빌드, 서명, 소스 감사와 패키징 도구. |
-| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | 보관된 iOS, 데스크톱, 런타임, 릴레이와 웹 콘솔 소스. 릴리스와 검증 범위는 각각 독립적입니다. |
+| `harness/`, `nanomuse/`, `cloud/`, `web/` | 보관된 데스크톱, 런타임, 릴레이와 웹 콘솔 소스. 릴리스와 검증 범위는 각각 독립적입니다. |
 
 Android 트리는 원본 구조, 패키지 ID와 출처 표시를 유지합니다. 모듈 경계를 바꾸기 전에 [소스 지도](../android-code-map.md)를 읽으세요.
 
@@ -149,13 +151,14 @@ Android 트리는 원본 구조, 패키지 ID와 출처 표시를 유지합니�
 - [Android 사용자 안내](../zh/android.md)
 - [Android 개발과 서명](../android-development.md)
 - [Android 소스 지도](../android-code-map.md)
+- [iPhone 집중, Coach 및 빌드 정보](../ios-focus-and-coach.md)
 - [웹사이트 소스와 배포](../../site/README.md)
 - [변경 기록](../../CHANGELOG.md)
 - [저작권과 출처](../../NOTICE) · [서드파티 고지](../../THIRD_PARTY_NOTICES.md)
 
 ## 기여하기
 
-재현 가능한 문제를 [이 저장소의 Issues](https://github.com/sherlockerX/Nicholasx/issues)에 보고하고 범위가 명확한 PR을 보내세요. [OPEN_SOURCE.md](../../OPEN_SOURCE.md)와 [CONTRIBUTING.md](../../CONTRIBUTING.md)를 따르며, Conventional Commits, 변경에 맞는 테스트와 `git commit -s`를 통한 DCO 서명을 사용합니다.
+재현 가능한 문제를 [이 저장소의 Issues](https://github.com/sherlockerX/Nivo-Bot/issues)에 보고하고 범위가 명확한 PR을 보내세요. [OPEN_SOURCE.md](../../OPEN_SOURCE.md)와 [CONTRIBUTING.md](../../CONTRIBUTING.md)를 따르며, Conventional Commits, 변경에 맞는 테스트와 `git commit -s`를 통한 DCO 서명을 사용합니다.
 
 원본 저작권과 라이선스 고지를 보존하세요. API 키, 서명 자료와 개인 기록을 issue나 커밋에 넣지 마세요. OpenMinis는 자체 기여 정책을 유지하며 이 포크가 이를 변경하지 않습니다.
 

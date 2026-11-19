@@ -38,7 +38,7 @@
     <string name="nm_focus_month">Month</string>
     <string name="nm_focus_year">Year</string>
     <string name="nm_focus_stats_hint">Completed focus time only. Breaks, unfinished and deleted sessions are excluded.</string>
-    <string name="nm_focus_distribution">Time by group</string>
+    <string name="nm_focus_distribution">Where the time went</string>
     <string name="nm_focus_select_sessions">Link focus sessions (%1$d)</string>
     <string name="nm_focus_select_title">Choose finished sessions</string>
     <string name="nm_focus_all_days">Show all dates</string>
@@ -61,4 +61,22 @@
     <string name="nm_focus_in_session">One thing at a time</string>
     <string name="nm_focus_screen_hint">You can lock the screen. Return to continue this same session.</string>
     <string name="nm_focus_finish_confirm">Save the time actually recorded and end this session? The linked task stays unchanged.</string>
+    <string name="nm_focus_reflection">Record reflection</string>
+    <string name="nm_focus_reflection_hint">Reflect on this session. Its focus time and linked task are included automatically.</string>
+    <string name="nm_focus_search_or_new">Search or add a task</string>
+    <string name="nm_focus_new_task_group">Put the new task in a group</string>
+    <string name="nm_focus_add_task">Add “%1$s”</string>
+    <string name="nm_focus_add_failed">The task was not added. Try again.</string>
+    <string name="nm_focus_no_open_tasks">No open tasks yet. Type one above to start.</string>
+    <string name="nm_focus_summary_count">Sessions: %1$d · %2$s on average</string>
+    <string name="nm_focus_group_hint">Grouped as in Tasks. A task moved to another group takes its past focus time with it; focus without a task counts as ungrouped.</string>
+    <string name="nm_focus_group_meta">%1$s · sessions: %2$d</string>
+    <string name="nm_focus_task_share">%1$s · %2$s of the group</string>
+    <string name="nm_focus_total">Total focus</string>
+    <string name="nm_focus_take_break">Take a %1$d-minute break</string>
+    <string name="nm_focus_continue">Focus again: %1$s</string>
+    <string name="nm_focus_started_at">Started at %1$s</string>
+    <string name="nm_focus_by_group">By group</string>
+    <string name="nm_focus_by_tag">By tag</string>
+    <string name="nm_focus_tag_hint">Tags as in Tasks. A session with several tags is split evenly among them, so the shares add up to the whole; focus without tags counts as no tag.</string>
 </resources>

@@ -25,9 +25,9 @@ Tasks and their links belong to the current local account. Existing daily fragme
 
 ## Coach exploration
 
-The Coach home uses the chat canvas, compact upper-right actions and themed vector scenes: bamboo for principles and judgment, a round-table debate for perspectives, an exchange window for English, a speaking stage for expression, a shared workbench for leadership and a trail for execution. Custom courses use a compass. The illustrations are drawn locally and do not animate continuously.
+The Coach page uses the chat canvas and compact upper-right actions; course and practice pages show themed vector scenes: bamboo for principles and judgment, a round-table debate for perspectives, an exchange window for English, a speaking stage for expression, a shared workbench for leadership and a trail for execution. Custom courses use a compass. The illustrations are drawn locally and do not animate continuously.
 
-The continuation card shows the current unit and verified unit count. Each course card opens its lesson archive, where practice continues in the existing Daily practice conversation. Courses, conversation records and results remain available in the header; calendar and settings are in its More menu. Scene cards and session archives are loaded as individual list items. Progress comes from saved evidence; viewing a card never marks a unit complete.
+The Coach page is one skill's profile at a time. A row of chips at the top switches the skill; switching only shows that skill's records, and the app remembers the last skill viewed for each account. *All skills* opens course management. Below the chips the page shows the goal and current unit, today's training, current performance, the training plan, knowledge and material, and past lessons by date. Only the training button opens a conversation. Courses, conversation records and results remain available in the header; calendar and settings are in its More menu. Progress comes from saved evidence; viewing the page never marks a unit complete.
 
 Local Nicholasx builds: [provider setup, timing, sandbox and CLI fixes](android-local-fixes.md).
 
@@ -289,6 +289,8 @@ now, not used up* and that what is left stays as it is. The sentences are
 `NanoMuseCloud.describe`'s, the same ones the sign-in and account pages use, in all 17 locales
 (`nm_cloud_err_*`). Unit tests: `RelayRefusalTest`, `GuidanceTest`.
 
+Before any of these reaches the chat, a failed model request is retried on the same model up to six times, waiting 1, 2, 4, 8, 15 and 20 seconds, and the reply shows *retrying (n/6)* meanwhile. This covers dropped connections, timeouts, 5xx, 429, streams that stop with nothing in them and other provider errors, at every step of a task, including the steps between tool calls. It does not retry what another try cannot change: a stop by the person, a rejected key (401, 403), a content check, a model that does not exist and other 4xx answers about the request itself. Only then does a model group move to its next model, or the chat show the error. The rule is `ModelRetryPolicy`; unit test `ModelRetryPolicyTest`.
+
 **Settings → Network** (`net/OwnProviderProxy.kt`, `ui/net/NetworkScreen.kt`,
 `minis://settings/network`). The HTTP proxy for own providers: host, port, optional user name
 and password, off by default, on this phone only: the settings in `SharedPreferences`, the
@@ -459,7 +461,7 @@ minis-jigsaw-cli stats --start 2026-10-01 --end 2026-10-31
 minis-jigsaw-cli export --start 2026-10-01 --end 2026-10-31 --format md
 ```
 
-Ranges include both endpoints, cover at most 366 days and accept --from/--to aliases. Defaults are today in Asia/Shanghai and the preceding six days. The diary date is the calendar date chosen in the app, including a manually changed date; it is not reconstructed from creation time. Creation and update timestamps use ISO format in Asia/Shanghai.
+Ranges include both endpoints, cover at most 366 days and accept --from/--to aliases. Defaults are today in the phone's time zone and the preceding six days. The diary date is the calendar date chosen in the app, including a manually changed date; it is not reconstructed from creation time. Creation and update timestamps use ISO format in the phone's time zone, which the output names in `timezone`.
 
 JSON returns an ascending `days` array including empty dates. Every day includes `text`, `mood`, `mood_label`, `mood_score`, `habits`, `created_at`, `updated_at` and `records`. Missing values are explicit nulls. `records` preserves each entry and its complete text, timestamps and mood; day-level text joins the entries with newlines. Day-level mood preserves the daily setting, including a cleared value, or uses the last record when no daily setting exists. Raw moods retain the app scale of 1 (great) to 5 (bad); energy reverses that scale, with 5 highest. Habits distinguish done, skipped and unmarked states using the schedule in effect on that date.
 
@@ -482,11 +484,19 @@ The diary toolbar calendar and record-date editor use the same green/red recordi
 
 ## Local Coach practice
 
-The Coach tab is the course map and archive. Its upper-right controls open evidence, course records and course management. Starting a unit opens its topic conversation in the Daily practice group. One topic keeps the same conversation across days, while each explicitly started lesson has a separate record. Ending a lesson closes that record; greetings, corrections and follow-up questions do not automatically start another lesson. Existing scores and legacy exercises remain available without conversion to new mastery.
+The Coach tab is the skill profile and archive. Its upper-right controls open evidence, course records and course management. Each skill has one long-term training conversation in the Daily practice group: moving to the next unit or a new case keeps the same conversation, and the unit and case are recorded on each lesson. Each explicitly started lesson has a separate record. Ending a lesson closes that record; greetings, corrections and follow-up questions do not automatically start another lesson. Existing scores and legacy exercises remain available without conversion to new mastery.
 
 Teaching supports connected explanations, mechanisms, examples, competing theories, counterexamples and free questions before practice. Psychology, psychoanalysis and philosophy have distinct evidence boundaries: interpretations of a case are hypotheses, not proof of another person's hidden motives. The app supplies this protocol to the user's model; teaching quality still depends on that model and needs real-provider evaluation.
 
 Understanding and application are checked separately using exact saved user quotations. A formal independent attempt needs a question saved before the answer. Hinted answers, simulated responses, reported real actions and delayed reviews remain distinguishable. Final demonstrated status requires both dimensions and a valid review at least 24 hours later, timed by the host. Ending a lesson does not certify mastery or automatically advance the unit.
+
+### Daily lessons and lesson plans {#coach-daily-lessons}
+
+Each lesson keeps the local date and time zone it started in; midnight and a time-zone change do not split a lesson that has started. The opening message of each lesson carries its date, so the long conversation reads as one section per day. Today's training offers one button: *Start today's training*, *Continue training*, or *View today's result* with *Practise more today*. When an earlier day's lesson is unfinished, the page offers *Continue that lesson* or *Start today*; starting today sets the earlier lesson aside with its draft and any answer still waiting for feedback, and it stays readable in past lessons. A real-life action keeps waiting across days. Tapping a button again, retrying or reopening the app continues the same lesson.
+
+Before a new lesson the coach prepares a lesson plan with a separate model call: a preparation role that has no tools and sees only this skill's goal, unit criteria, recent answers, lesson summaries and waiting actions, plus the course's skill and the learning-coach skill. It returns the task, the reason, what to observe, concepts, material, hints, at least one path that changes with the answer, an independent check, the criteria it covers, when to re-check, and notes for the coach only. The app checks every field, the criteria IDs and that each cited answer is an exact quote of a saved answer, asks for one correction if a check fails, and otherwise uses the course's basic exercise and says why. A plan that arrives after a newer one for the same day is discarded. The lesson keeps the plan it started with. You can shorten the time or describe today's real need or material before starting; changing them prepares a new plan.
+
+Current performance lists understanding, application and the delayed check for the current unit, each with its latest supporting answer, date, hint use and whether it was a simulation or a reported real event. *Next time* follows fixed rules: done on your own leads to a new situation or, after 24 hours, a delayed check; done with hints leads to a smaller task without help; no answers yet leads to a diagnosis; a waiting real action or a disputed assessment comes first. Earlier plans stay listed with their status.
 
 The main chat does not display the Coach archive bar. Open archives from Coach or from a Daily practice topic.
 
@@ -532,12 +542,32 @@ Focus tool responses include `view_url`, `sampledAt`, `currentElapsedMs` and `re
 
 Task tools support `create_category` and `delete_category` for reusable groups and tags. Deletion requires the exact category name, kind and `expectedCreatedAt` from a fresh category query. It removes current category assignments, increments affected task revisions and preserves tasks and completed history. Exact retries cannot delete a subsequently recreated category. Category command receipts use an additional backup field compatible with older task backups.
 
-Open **Focus** below Tasks in the sidebar. Choose a task or name what you are working on, then start a countdown, stopwatch or break. Pause time is excluded. The stopwatch has a 12-hour limit; countdowns accept 1–180 minutes. The timer survives page changes and process recreation within the same boot. After a device reboot, an unfinished timer pauses conservatively. System power saving may delay alerts; elapsed countdown time is still capped.
+Open **Focus** below Tasks in the sidebar. Choose a task or name what you are working on, then start a countdown, stopwatch or break. Pause time is excluded. The stopwatch has a 12-hour limit; countdowns accept 1–180 minutes. The timer survives page changes and process recreation within the same boot. After a device reboot, an unfinished timer pauses conservatively. System power saving may delay alerts; elapsed countdown time is still capped. When a focus ends, the full-screen timer offers a 5-minute break, 15 minutes after every fourth focus of the day; when the break ends, it offers to focus again on the same task for the same length. The stopwatch shows the time it started instead of a progress bar.
 
-The top-right controls open records, day/week/month/year statistics, and JSON export. Statistics count finished focus intervals, split across local calendar boundaries, and exclude breaks and deleted records. A finished timer never marks a task done. Task details also show related focus time.
+The top-right controls open records, day/week/month/year statistics, and JSON export. Statistics count finished focus intervals, split across local calendar boundaries, and exclude breaks and deleted records. The share of time can be viewed by task group or by tag; a session with several tags is split evenly among them, as in task statistics. Leaving the full-screen timer always returns to the Focus page. A finished timer never marks a task done. Task details also show related focus time.
 
 In a daily record, choose finished focus sessions to describe what the time was spent on. Selections survive drafts and are committed atomically with the record. Diary snapshots remain available after deleting a focus record.
 
-The main chat offers `focus_query` and `focus_command` through the same current-user and account gate as Tasks. Commands start, pause, resume, finish or delete actual timers; callers cannot fabricate past duration. JSON export is available; focus JSON import is not included.
+Ordinary chats, including a newly created chat, can use `focus_query` and `todo_query` to review saved records for the current account. The main chat also offers `focus_command` and task commands. Commands start, pause, resume, finish or delete actual timers; callers cannot fabricate past duration. JSON export is available; focus JSON import is not included.
 
 In **Tasks → Groups and tags → Browse and create**, delete a group or tag after reviewing the confirmation. Tasks remain; group deletion moves them to Ungrouped, and tag deletion removes current associations. Historical completion snapshots remain unchanged.
+
+### Reflect after focus {#focus-reflections}
+
+After a countdown ends or you finish a session, choose **Record reflection** on the immersive screen or a recent/history card. The daily-record editor opens with that completed focus session and its existing linked task selected. The initial date is the session's local end date. Linking the task does not mark it done; task status changes remain an explicit choice in the editor. Breaks have no reflection shortcut.
+
+Long immersive titles use at most two lines. The screen-resume hint disappears after completion, leaving more room for the reflection and return actions.
+
+Each focus session has its own recoverable draft. Opening it again keeps the text, date and associations you changed, including a focus or task you deselected. It does not replace a separate diary draft for the same day. Saving commits the reflection and associations together. Going back or recreating the screen does not repeat the navigation or reopen the immersive timer.
+
+The daily-record text action and editor now use **Reflection**. A record can retain text, mood, habits, selected tasks and measured focus intervals. Saved association snapshots preserve their original title/status/timing when a task is later renamed or a focus record is deleted.
+
+### Review records from any ordinary chat {#personal-record-queries}
+
+Ask a new chat to review recent focus time, compare it with task progress or summarize saved reflections. The model receives read-only tools for the authorized user turn. Reading does not require moving the chat into the main group. Mutating tasks or timers still requires the main conversation and the existing explicit-user-request checks; Coach writes retain their main/topic scope.
+
+`personal_records_query` exposes a catalogue, reflection date-range discovery, reflection text and statistics, Coach history, goals and scheduled-task history. Queries are bounded and paginated. Coach, goals and routines support exact-ID detail; reflection pages preserve complete days and full saved text. The model must follow pagination for a complete review and distinguish a failed query from an empty result. Focus and tasks continue to use their dedicated query tools.
+
+Diary text and habits retain the existing device-local storage model. Their linked task/focus snapshots, focus and task records, Coach, goals and routines use the current account. A query does not read photo files or metadata, credentials or unsaved diary drafts. Changing accounts or cancelling a turn invalidates the request. Recorded time is not proof of task completion or attention quality, and a saved reflection is the user's report. Model analysis quality still depends on the selected provider.
+
+For Windows debug builds, `-Pnm.bash=<absolute-path-to-Git-Bash>` selects the Bash executable used to stage debug assets. This avoids the Windows WSL launcher on machines without a Linux distribution. The default remains `bash`.

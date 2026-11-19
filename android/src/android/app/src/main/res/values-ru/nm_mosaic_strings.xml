@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Фотография, размышление или выполненная привычка заполняет одно облако. Остальные могут остаться пустыми.</string>
+    <string name="nm_mosaic_action_text">Размышления</string>
+    <string name="nm_mosaic_photo_hint">Добавьте фотографию или запишите свои мысли.</string>
+    <string name="nm_mosaic_text_label">Размышления</string>
+    <string name="nm_mosaic_text_hint">Чему вы научились или что заметили?</string>
+    <string name="nm_mosaic_err_empty">Сначала добавьте фотографию или запишите свои мысли.</string>
+</resources>

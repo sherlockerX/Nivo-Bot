@@ -95,6 +95,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             return NativeOffloadResult(if (args.positional.isEmpty()) 2 else 0, TOP_HELP)
         }
         val sub = args.positional[0]
+        if (sub !in setOf("service", "--version") && io.github.nanomuse.focus.lock.LockAutomation.isBlocked(context)) return err(args, "focus_locked", context.getString(com.openminis.app.R.string.nm_lock_ai_blocked)) // nanoMuse: 强制期间暂停AI屏幕操作。
         io.github.nanomuse.status.KeepAwake.a11yTouched() // nanoMuse: the screen stays on while this runs
         // T330: tri-state agent gate via OffloadPermissionManager. `service`
         // and `--version` are diagnostic and pass through so the agent (or
@@ -187,6 +188,8 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
                 "--version" -> NativeOffloadResult(0, "android-a11y-cli 0.1\n")
                 else        -> NativeOffloadResult(2, "$TOOL: unknown subcommand '$sub'\n$TOP_HELP")
             }
+        } catch (e: io.github.nanomuse.focus.lock.FocusLockedException) { // nanoMuse: 长操作中途进入强制也保留固定拒绝码。
+            err(args, "focus_locked", context.getString(com.openminis.app.R.string.nm_lock_ai_blocked))
         } catch (e: NotRunning) {
             err(args, "SERVICE_NOT_RUNNING",
                 e.message ?: "Accessibility service is not running. Enable Nicholasx under Settings → Accessibility.",
@@ -481,6 +484,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             val r = Rect(); n.getBoundsInScreen(r)
             return tapXYRaw(svc, r.centerX(), r.centerY(), args)
         }
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return if (n.performAction(action))
             ok(args, JSONObject().put("nodeId", nodeId).put("action", "click"))
         else err(args, "ACTION_FAILED", "performAction($action) returned false")
@@ -521,6 +525,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         val n = matches.getOrNull(index)
             ?: return err(args, "NODE_NOT_FOUND",
                 "no node with text${if (contains) " containing " else "="}\"$text\" (matches: ${matches.size})")
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         if (n.isClickable) n.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         else {
             val r = Rect(); n.getBoundsInScreen(r)
@@ -552,6 +557,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         for (root in svc.rootNodes()) findByResourceId(root, rid, 30, 0, matches)
         val n = matches.firstOrNull()
             ?: return err(args, "NODE_NOT_FOUND", "no node with resource-id=$rid")
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return if (n.performAction(AccessibilityNodeInfo.ACTION_CLICK))
             ok(args, JSONObject().put("resourceId", rid).put("action", "click"))
         else err(args, "ACTION_FAILED", "performAction(CLICK) returned false")
@@ -607,6 +613,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         val svc = svcOrThrow()
         val keyName = args.positional.getOrNull(2)
             ?: return NativeOffloadResult(2, "$TOOL input key: missing <keycode>\n")
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return when (keyName.uppercase()) {
             "BACK" -> { svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); ok(args, JSONObject().put("key", "BACK")) }
             "HOME" -> { svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME); ok(args, JSONObject().put("key", "HOME")) }
@@ -652,7 +659,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             else -> return err(args, "INVALID_ARGS", "--direction must be up|down|left|right")
         }
         var done = 0
-        repeat(times) { if (n.performAction(action)) done++ }
+        repeat(times) { io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context); if (n.performAction(action)) done++ } // nanoMuse: 连续滚动逐次复核。
         return ok(args, JSONObject().put("scrolled", done).put("direction", direction))
     }
 
@@ -673,6 +680,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             else -> return err(args, "INVALID_ARGS", "--direction must be up|down|left|right")
         }
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()); lineTo((x + dx).toFloat(), (y + dy).toFloat()) }
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return if (svc.dispatchSimpleGesture(path, 0L, duration))
             ok(args, JSONObject().put("direction", direction).put("distance", distance))
         else err(args, "GESTURE_FAILED", "scroll gesture cancelled")
@@ -698,6 +706,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             if (hit != null) return ok(args, JSONObject()
                 .put("found", true)
                 .put("node", nodeToJson(svc.nodeRegistry, hit, 0, compact = true)))
+            io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
             val scrolled = container?.performAction(action) ?: run {
                 var any = false
                 for (root in svc.rootNodes()) {
@@ -739,6 +748,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         val y2 = args.positional.getOrNull(5)?.toIntOrNull() ?: return NativeOffloadResult(2, "$TOOL gesture swipe: missing <y2>\n")
         val duration = args.getLong("duration") ?: 300L
         val path = Path().apply { moveTo(x1.toFloat(), y1.toFloat()); lineTo(x2.toFloat(), y2.toFloat()) }
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return if (svc.dispatchSimpleGesture(path, 0L, duration))
             ok(args, JSONObject().put("from", JSONArray().put(x1).put(y1)).put("to", JSONArray().put(x2).put(y2)))
         else err(args, "GESTURE_FAILED", "swipe cancelled")
@@ -750,6 +760,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         val cy = args.positional.getOrNull(3)?.toFloatOrNull() ?: return NativeOffloadResult(2, "$TOOL gesture pinch: missing <cy>\n")
         val scale = args.getDouble("scale")?.toFloat() ?: 0.5f
         val duration = args.getLong("duration") ?: 300L
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return if (svc.dispatchPinch(cx, cy, scale, duration))
             ok(args, JSONObject().put("center", JSONArray().put(cx).put(cy)).put("scale", scale))
         else err(args, "GESTURE_FAILED", "pinch cancelled")
@@ -769,6 +780,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             for (i in 1 until pts.size) lineTo(pts[i].first, pts[i].second)
         }
         val duration = args.getLong("duration") ?: (pts.size * 100L)
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
         return if (svc.dispatchSimpleGesture(path, 0L, duration))
             ok(args, JSONObject().put("points", pts.size))
         else err(args, "GESTURE_FAILED", "path cancelled")
@@ -796,6 +808,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         val targetId = args.get("id")
         val targetClass = args.get("class")
         while (System.currentTimeMillis() < deadline) {
+            io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 长循环每次复核强制状态。
             for (root in svc.rootNodes()) {
                 val matches = ArrayList<AccessibilityNodeInfo>()
                 if (targetText != null) findByTextOrDesc(root, targetText, contains = containsOnly, 30, 0, matches)
@@ -829,6 +842,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         var lastSig = treeSignature(svc)
         var stableSince = System.currentTimeMillis()
         while (System.currentTimeMillis() < deadline) {
+            io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 长循环每次复核强制状态。
             Thread.sleep(interval)
             val sig = treeSignature(svc)
             if (sig != lastSig) { lastSig = sig; stableSince = System.currentTimeMillis() }
@@ -859,6 +873,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         val act = args.get("activity")
         val deadline = System.currentTimeMillis() + timeout
         while (System.currentTimeMillis() < deadline) {
+            io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 长循环每次复核强制状态。
             val (p, c) = svc.foregroundPackage()
             val pkgOk = pkg == null || p == pkg
             val actOk = act == null || c == act || (act.startsWith(".") && (c?.endsWith(act) == true))
@@ -893,6 +908,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
         svc.addEventListener(listener)
         try {
             while (System.currentTimeMillis() < deadline) {
+                io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 长循环每次复核强制状态。
                 while (true) {
                     val ev = collected.poll() ?: break
                     val typeName = ev.type.lowercase().removePrefix("typeview").removePrefix("type")
@@ -1000,6 +1016,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             for (root in svc.rootNodes()) findByTextOrDesc(root, label, contains = false, 30, 0, matches)
             val btn = matches.firstOrNull { it.isClickable } ?: matches.firstOrNull()
             if (btn != null) {
+                io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
                 val clicked = if (btn.isClickable) btn.performAction(AccessibilityNodeInfo.ACTION_CLICK) else {
                     val r = Rect(); btn.getBoundsInScreen(r)
                     svc.dispatchSimpleGesture(
@@ -1078,6 +1095,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
                 if (items.size >= maxItems) break
             }
             if (!autoScroll || items.size >= maxItems) break
+            io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 实际动作前复核，入口授权不能跨锁定。
             val scrolled = container.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             if (!scrolled) break
             Thread.sleep(400)
@@ -1114,9 +1132,11 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
 
     private class NotRunning(msg: String) : RuntimeException(msg)
 
-    private fun svcOrThrow(): MinisAccessibilityService =
-        MinisAccessibilityService.getInstance()
+    private fun svcOrThrow(): MinisAccessibilityService {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 每次取得操作服务前复核持久锁定。
+        return MinisAccessibilityService.getInstance()
             ?: throw NotRunning("Accessibility service is not running. Enable Nicholasx under Settings → Accessibility.")
+    }
 
     private fun ok(args: OffloadArgs, data: Any): NativeOffloadResult {
         val body = JSONObject().put("ok", true).put("data", data).toString()

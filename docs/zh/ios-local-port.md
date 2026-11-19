@@ -1,12 +1,18 @@
-# Nivo的iOS本地适配
+# Nivo Bot的iOS适配
 
-本页记录把安卓新增功能迁移到iOS原生应用的进展。源码位于`android/src/ios/NanoMuse/`。这些工作仍在开发中，尚未发布。下方构建证据仅适用于标明的提交，应用测试和手机交互尚未验收。
+本页记录Nivo Bot待办、专注、生活碎片与教练的iOS原生实现。源码位于`android/src/ios/NanoMuse/`。版本**2.0.5(56)**通过GitHub Actions交付未签名IPA。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发，安装前需要自行签名。
 
-## 当前验证，2026年11月17日 {#current-validation}
+## 当前验证，2026年11月19日 {#current-validation}
+
+**2.0.5(56)**的本轮发布CI待完成。[iOS工作流](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)完成对应发布提交后，再记录运行链接及最终结果。下方旧构建和测试数量只适用于各自标明的提交，不能作为本次发布的验证结果。应用测试编译、应用XCTest执行与iPhone真机验收分别检查。
+
+工作流在编译测试目标前保留未签名设备应用，使用独立副本生成供自行签名的IPA。IPA产物可能先于后续测试目标编译完成，请分别检查各项最终状态。iPhone通知、引导式访问、登录、真实模型回复、CloudKit、音频和页面切换仍未验收。iOS不提供Android的强制锁定计划与应用白名单。
+
+## 早期验证，2026年11月17日
 
 提交`a53fe85`在macOS通过682项便携测试，0失败，无签名应用构建成功，`NanoMuse/`零警告。应用测试目标在`build-for-testing`阶段失败，原因是6份独立命令行测试脚本被纳入应用测试模块。本地已修正文件归属，并补齐测试模块对应用内主机信息辅助类型的引用，仍须由下一次Apple运行确认测试目标编译结果。应用XCTest执行和完整应用验收仍未完成。
 
-本地iOS工程的12组target/configuration已按用户授权对齐为**2.0.0(51)**。`python scripts/rebrand.py --ios-version-only`只更新iOS版本字段，完整iOS生成流程复用该函数。`python -m pytest tests/test_rebrand.py -q --noconftest`的4项生成器测试全部通过，覆盖版本应用、标识及显示名保留和重复生成一致性。这些本地版本修改晚于`a53fe85`，不在该次Apple运行的验证范围内。
+iOS版本生成器将指定版本应用到12组target/configuration。`python scripts/rebrand.py --ios-version-only`只更新iOS版本字段，完整iOS生成流程复用该函数。在这一早期快照中，`python -m pytest tests/test_rebrand.py -q --noconftest`的4项生成器测试全部通过，覆盖版本应用、标识及显示名保留和重复生成一致性。这是生成器证据，不能证明当前发布的Apple构建结果。
 
 最终心得与目标、定时任务查询修改合并后，Windows完整便携回归通过672项，0失败，退出码0，日志为`swift-core-ios-parity-final-20261117.log`。覆盖心得保存、明确任务选择及日期更正、独立草稿、重复提交、备份冲突、历史关联、目标与定时任务查询、分页和真实用户回合授权。新复现的两处失败，即完成日期更正被忽略、普通定时任务结果被隐藏，均在修复后通过。831个Swift文件语法解析、22项资源测试和两项目录生成器检查也已通过。便携测试和语法解析不会编译SwiftUI、UIKit或Apple Security集成。
 
@@ -14,7 +20,9 @@
 
 FFmpeg下载现在校验固定发行版摘要、执行有界重试，并使用经过校验的镜像和源码缓存。根文件系统宿主工具根据Intel或Apple Silicon选择受支持的guest架构，设备文件系统仍为ARM64。5项离线下载测试通过；架构测试在子模块存在时6项通过，缺失时5项通过、1项源码覆盖检查明确跳过。
 
-提供商持久化、Keychain、ChatStore和个人记录宿主集成的应用测试仍待Apple平台执行。工作流另用`build-for-testing`编译应用测试目标，编译本身不会运行测试。iPhone呈现、真实模型查询、登录、CloudKit事件、音频中断和独立语音通话读取仍未验证。下方保留实现说明及先前快照的阶段证据，当前验证边界以本节为准。
+提供商持久化、Keychain、ChatStore和个人记录宿主集成的应用测试仍待Apple平台执行。工作流另用`build-for-testing`编译应用测试目标，编译本身不会运行测试。iPhone呈现、真实模型查询、登录、CloudKit事件、音频中断和独立语音通话读取仍未验证。下方保留实现说明及先前快照的阶段证据，本次发布的验证边界以上方「当前验证」为准。
+
+工作流在`build-for-testing`向宿主嵌入XCTest前，保存独立的未签名设备应用副本。打包使用该副本并拒绝包含应用测试模块的产物，应用测试编译仍是必需检查。生成的IPA仍须经过有效的个人签名才能安装。
 
 ## 导航和每日使用 {#navigation-and-daily-work}
 

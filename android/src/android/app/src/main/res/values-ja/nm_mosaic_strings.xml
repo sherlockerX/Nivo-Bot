@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">写真や振り返り、達成した習慣を記録するたびに雲が一つ埋まります。残りは空いたままでかまいません。</string>
+    <string name="nm_mosaic_action_text">振り返り</string>
+    <string name="nm_mosaic_photo_hint">写真を追加するか、振り返りを書きましょう。</string>
+    <string name="nm_mosaic_text_label">振り返り</string>
+    <string name="nm_mosaic_text_hint">どんな学びや気づきがありましたか？</string>
+    <string name="nm_mosaic_err_empty">まず写真を追加するか、振り返りを書いてください。</string>
+</resources>

@@ -10,4 +10,5 @@
     android:canRequestFilterKeyEvents="false"
     android:description="@string/a11y_service_description"
     android:summary="@string/a11y_service_summary"
-    android:notificationTimeout="100" />
+    android:notificationTimeout="30" />
+<!-- nanoMuse: notificationTimeout was 100; forced focus covers a home screen or a small window as soon as it appears. -->

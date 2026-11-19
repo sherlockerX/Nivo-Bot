@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-**Trò chuyện AI, công việc, tập trung, ghi chép hằng ngày và huấn luyện phát triển trong một không gian Android.**
+**Trò chuyện AI, công việc, tập trung, ghi chép hằng ngày và huấn luyện phát triển trên Android và iOS.**
 
 <p align="center">
   <a href="../../README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
+  <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
 
 Nivo Bot là không gian AI cho cuộc sống hằng ngày. Bắt đầu bằng trò chuyện, chuyển bước tiếp theo thành công việc, dành thời gian tập trung và lưu trải nghiệm để xem lại.
@@ -86,12 +86,13 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 | Tài nguyên | Liên kết |
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS 16 trở lên, cần tự ký | [IPA chưa ký và nhật ký CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Mã kiểm tra tải xuống | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.0.md) · [Hồ sơ kiểm chứng](../releases/v2.0.0-verification.json) |
+| Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.5.md) · [Kiểm tra bản dựng](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Bản này gồm Android và trang sản phẩm. Mã nguồn nền tảng khác vẫn được giữ, nhưng không khẳng định Nivo Bot đã phát hành hay đồng bộ chức năng trên các nền tảng đó.
+Bản này gồm Android, iOS và trang sản phẩm. iOS được cung cấp dưới dạng IPA chưa ký từ GitHub Actions và cần được ký trước khi cài đặt. Fork này chưa có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
 
 ID ứng dụng vẫn là `io.github.nanomuse.app`. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
 
@@ -103,8 +104,8 @@ ID ứng dụng vẫn là `io.github.nanomuse.app`. Bản này thường không 
 Sao chép cả các mô-đun con phụ thuộc native:
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 Dùng JDK 21, Android SDK 36, NDK 27.2.12479018 và CMake 3.22.1. Có sẵn Gradle Wrapper 8.11.1. Cấu hình công cụ rồi chuẩn bị phụ thuộc native trên Linux hoặc WSL:
@@ -134,10 +135,11 @@ Xem [hướng dẫn phát triển Android](../android-development.md) về đầ
 | Đường dẫn | Nội dung |
 |---|---|
 | `android/src/android/` | Ứng dụng Android; phần bổ sung Nivo nằm trong `io.github.nanomuse.*`. |
+| `android/src/ios/` | Ứng dụng iOS native; bản CI chưa ký để người dùng tự ký. |
 | `site/` | Trang sản phẩm tĩnh và siêu dữ liệu tải xuống. |
 | `docs/` | Hướng dẫn, bản đồ mã nguồn và hồ sơ phát hành. |
 | `scripts/android/`, `scripts/release/` | Công cụ biên dịch, ký, kiểm tra nguồn và đóng gói. |
-| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Mã iOS, máy tính, runtime, relay và bảng điều khiển web được giữ, có phạm vi phát hành và kiểm chứng riêng. |
+| `harness/`, `nanomuse/`, `cloud/`, `web/` | Mã máy tính, runtime, relay và bảng điều khiển web được giữ, có phạm vi phát hành và kiểm chứng riêng. |
 
 Cây Android giữ cấu trúc, định danh gói và ghi nhận nguồn gốc. Đọc [bản đồ mã nguồn](../android-code-map.md) trước khi đổi ranh giới mô-đun.
 
@@ -149,13 +151,14 @@ Cây Android giữ cấu trúc, định danh gói và ghi nhận nguồn gốc. 
 - [Hướng dẫn người dùng Android](../zh/android.md)
 - [Phát triển Android và ký ứng dụng](../android-development.md)
 - [Bản đồ mã nguồn Android](../android-code-map.md)
+- [Tập trung, Coach và thông tin bản dựng iPhone](../ios-focus-and-coach.md)
 - [Mã nguồn trang web và triển khai](../../site/README.md)
 - [Lịch sử thay đổi](../../CHANGELOG.md)
 - [Bản quyền và nguồn gốc](../../NOTICE) · [Thông báo bên thứ ba](../../THIRD_PARTY_NOTICES.md)
 
 ## Đóng góp
 
-Báo vấn đề tái hiện được trong [Issues của kho này](https://github.com/sherlockerX/Nicholasx/issues) và gửi PR có phạm vi rõ. Tuân thủ [OPEN_SOURCE.md](../../OPEN_SOURCE.md) và [CONTRIBUTING.md](../../CONTRIBUTING.md), gồm Conventional Commits, kiểm thử phù hợp và xác nhận DCO bằng `git commit -s`.
+Báo vấn đề tái hiện được trong [Issues của kho này](https://github.com/sherlockerX/Nivo-Bot/issues) và gửi PR có phạm vi rõ. Tuân thủ [OPEN_SOURCE.md](../../OPEN_SOURCE.md) và [CONTRIBUTING.md](../../CONTRIBUTING.md), gồm Conventional Commits, kiểm thử phù hợp và xác nhận DCO bằng `git commit -s`.
 
 Giữ thông báo bản quyền và giấy phép gốc. Không đưa khóa API, tài liệu ký hay dữ liệu cá nhân vào issue hoặc commit. OpenMinis giữ chính sách đóng góp riêng; fork này không thay đổi chính sách đó.
 

@@ -1,11 +1,14 @@
 # Nivo Bot开源入口
 
-Nivo Bot是基于nanoMuse与OpenMinis持续开发的Android应用。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。根README与九份翻译介绍本分支，文末致谢nanoMuse并保留上游贡献者名单。上游的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
+Nivo Bot是基于nanoMuse与OpenMinis持续开发的Android与iOS应用。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。根README与九份翻译介绍本分支，文末致谢nanoMuse并保留上游贡献者名单。上游的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
+
+2.0.5(56)包含Android安装包、iOS源码及通过GitHub Actions构建的未签名IPA。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发；iOS安装前需要自行签名。CI测试与编译结果仅适用于对应提交，不能替代iPhone真机验收。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在系统中手动开启和结束。
 
 - 产品网站源码：[site/](site/README.md)。纯静态、无需Node依赖，可部署到GitHub Pages或其他静态主机。
 - Android构建：[docs/android-development.md](docs/android-development.md)。
+- iOS功能与构建：[专注及教练](docs/zh/ios-focus-and-coach.md)、[当前验证状态](docs/zh/ios-local-port.md#current-validation)、[CI工作流](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)。
 - 源码地图：[docs/android-code-map.md](docs/android-code-map.md)。
-- 项目仓库：[sherlockerX/Nicholasx](https://github.com/sherlockerX/Nicholasx)。
+- 项目仓库：[sherlockerX/Nivo-Bot](https://github.com/sherlockerX/Nivo-Bot)。
 - 许可与来源：[LICENSE](LICENSE)、[NOTICE](NOTICE)、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 贡献方式
@@ -18,8 +21,8 @@ Nivo Bot是基于nanoMuse与OpenMinis持续开发的Android应用。此分支聚
 
 1. 工作树和候选包的LICENSE、第三方说明、Room迁移schema及运行资源齐全。
 2. `source_audit.py`没有未处理的凭据命中；另行检查Git历史，发现真实泄露须轮换凭据，不能只删当前文件。
-3. 发布签名、包名和升级路径确定。当前应用ID沿用`io.github.nanomuse.app`，与上游可能冲突；正式分发前决定是否独立ID，并评估本地数据迁移，不能直接替换字符串。
-4. 版本号与APK、源码提交、校验和对应。这个分支未建立独立公共发布记录时，不引用上游发行版作自己的下载。
+3. 发布签名、包名和升级路径确定。Android应用ID沿用`io.github.nanomuse.app`，与上游可能冲突；改变标识前评估本地数据迁移，不能直接替换字符串。iOS未签名IPA须明确个人签名前提。
+4. 版本号与APK、IPA、源码提交、校验和对应。下载和发布记录使用本分支的[正式仓库](https://github.com/sherlockerX/Nivo-Bot/releases)，不引用上游发行版作自己的下载。
 5. 在新环境验证依赖可获得、子模块齐全、arm64原生构建和测试。已有缓存上的构建成功不等于新机器可复现。
 6. 真机检查安装升级、聊天配置、待办、专注、生活记录、教练恢复；明确未经验证的设备和服务。
 7. 更换或审核上游服务地址、隐私说明、支持渠道和营销文案。不要承诺未运营的免费服务。

@@ -85,4 +85,6 @@
     <string name="nm_todo_import_summary">Imported %1$d task records. Kept %2$d existing records. %3$d linked daily fragments are missing or deleted, so those links were not restored. Task completion history was kept.</string>
     <string name="nm_todo_unlink">Unlink task</string>
     <string name="nm_external_prompt_review_draft">Your current draft or edit is kept. Review it in chat before starting this request.</string>
+    <string name="nm_todo_added">Added “%1$s”</string>
+    <string name="nm_todo_start_focus">Start focus</string>
 </resources>

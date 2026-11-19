@@ -250,6 +250,9 @@ fun AppNavigation(
     // below already see it. Wide windows keep the upstream list/detail behaviour.
     val nmHomeActive = !shouldUseTwoPane()
     io.github.nanomuse.ui.home.HomeShell.active = nmHomeActive
+    io.github.nanomuse.ui.focus.lock.LockNavigationGuard(navController) // nanoMuse: 强制期间遮住非聊天内容，保留导航图接收锁页请求。
+    // nanoMuse: 专注心得跨窗口点击由主导航统一消费，并在打开前持久化草稿关联。
+    io.github.nanomuse.ui.focus.FocusReflectionEffect(navController)
 
     // App-icon quick action (New chat / Voice / Camera): the draft's id, decided once per
     // launch, with the voice / camera action seeded so ChatScreen consumes it on its first
@@ -364,6 +367,11 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         val hasDeepLink = initialDeepLink != null && initialDeepLink !is DeepLinkAction.Unknown
         if (hasDeepLink) return@LaunchedEffect
+        // nanoMuse: 系统恢复的独立记录页及编辑器已有去向，启动偏好不能覆盖恢复栈。
+        if (navController.currentDestination?.route in setOf(io.github.nanomuse.ui.home.ROUTE_HOME_TAB,
+                io.github.nanomuse.ui.mosaic.ROUTE_MOSAIC_EDIT)) return@LaunchedEffect
+        // nanoMuse: 专注心得已是明确去向，不再用启动偏好跳到另一段聊天。
+        if (io.github.nanomuse.ui.home.HomeBus.focusReflection.value != null) return@LaunchedEffect
         if (nmHomeActive) return@LaunchedEffect // nanoMuse
         val hasPendingShare =
             com.openminis.app.share.ShareCoordinator.bufferVersion.value > 0
@@ -611,6 +619,26 @@ fun AppNavigation(
                 memoryRepository = memoryRepository,
                 skillRepository = skillRepository,
                 mcpRepository = mcpRepository,
+            )
+        }
+
+        // nanoMuse: 宽屏显式记录链接使用独立页面，保留SESSION_LIST原有双栏聊天及返回栈。
+        composable(
+            route = io.github.nanomuse.ui.home.ROUTE_HOME_TAB,
+            arguments = listOf(navArgument("tab") { type = NavType.StringType }),
+        ) { entry ->
+            val requestedTab = io.github.nanomuse.ui.home.HomeTab.entries
+                .firstOrNull { it.name == entry.arguments?.getString("tab") }
+                ?: io.github.nanomuse.ui.home.HomeTab.MOSAIC
+            io.github.nanomuse.ui.home.NanoMuseHome(
+                navController = navController,
+                chatRepository = chatRepository,
+                providerRepository = providerRepository,
+                memoryRepository = memoryRepository,
+                skillRepository = skillRepository,
+                mcpRepository = mcpRepository,
+                initialTab = requestedTab,
+                onLeaveStandalone = { navController.safePopBackStack() },
             )
         }
 

@@ -1,6 +1,8 @@
 package io.github.nanomuse.mosaic
 
 import com.openminis.app.sandbox.NativeOffloadResult
+import io.github.nanomuse.focus.FocusEntryLink
+import io.github.nanomuse.todo.TodoEntryLink
 import java.time.Clock
 import org.json.JSONObject
 
@@ -11,6 +13,8 @@ data class JigsawSnapshot(
     val habits: List<MosaicHabit> = emptyList(),
     val schedules: List<MosaicHabitSchedule> = emptyList(),
     val marks: List<MosaicHabitDay> = emptyList(),
+    val todoLinks: List<TodoEntryLink> = emptyList(),
+    val focusLinks: List<FocusEntryLink> = emptyList(),
 )
 
 /** 拼图的只读命令入口，时钟和数据源分离以验证日期边界。 */
@@ -42,10 +46,12 @@ Usage:
   minis-jigsaw-cli export [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--limit 31] [--offset 0] --format json|md
 
 Ranges include both dates, at most 366 days. --from/--to are aliases for --start/--end.
-Dates default to Asia/Shanghai today and the previous 6 days. The chosen diary date is preserved.
+Dates default to today in the phone's time zone and the previous 6 days. The chosen diary date is preserved.
 --limit pages whole days (1..366); follow next_offset until null. Text is never shortened.
-JSON includes empty days and explicit null fields. Timestamps use Asia/Shanghai.
-Only text, time, mood and habits are returned. No pictures, picture metadata or paths are read.
+JSON includes empty days and explicit null fields. Timestamps use the phone's time zone, named in "timezone".
+Results include text, time, mood, habits and saved Todo/Focus association snapshots.
+Mosaic scope is device_local; associations are limited to current_account. Links do not prove completion or attention.
+No pictures, picture metadata or paths are returned.
 All results go to stdout. No write/delete commands, --out, network requests or content logging.
 """
     }

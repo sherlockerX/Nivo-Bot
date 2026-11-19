@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">一つのことに集中</string>
     <string name="nm_focus_screen_hint">画面をロックできます。戻ると同じセッションを続けられます。</string>
     <string name="nm_focus_finish_confirm">実際に計測した時間を保存して終了しますか？関連タスクは変更されません。</string>
+    <string name="nm_focus_reflection">振り返りを記録</string>
+    <string name="nm_focus_reflection_hint">今回の集中を振り返りましょう。集中時間と関連タスクが自動で追加されます。</string>
 </resources>

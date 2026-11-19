@@ -499,13 +499,19 @@ class MainActivity : ComponentActivity() {
         // while inside a chat, synthesise an OpenSession deep-link so
         // the navigation stack lands on that chat instead of the
         // sessions list. T166.
+        // nanoMuse: 显式心得点击先交给主导航，移除Intent参数后重建不会再次打开。
+        val hasFocusReflection = io.github.nanomuse.ui.focus.FocusReflectionNavigation.consume(this, intent, savedInstanceState)
         // nanoMuse: the launch intent stays with the activity, so a recreation (dark mode, font size,
         // a return from recents after the process was killed) must not follow its link a second time.
         val isFirstDelivery = savedInstanceState == null &&
             ((intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
         val explicitDeepLink = if (isFirstDelivery) DeepLinkHandler.parse(intent?.data) else DeepLinkAction.Unknown
+        // nanoMuse: 重建时导航栈已保存记录页或编辑器，不再重放最初的标签链接并弹出编辑器。
+        val isRestoredHomeLink = savedInstanceState != null && DeepLinkHandler.parse(intent?.data) is DeepLinkAction.OpenHomeTab
         val launchDeepLink = if (explicitDeepLink !is DeepLinkAction.Unknown) {
             explicitDeepLink
+        } else if (hasFocusReflection || isRestoredHomeLink) {
+            DeepLinkAction.Unknown
         } else {
             restoredChatSessionId
                 ?.let { DeepLinkAction.OpenSession(it) }
@@ -622,6 +628,8 @@ class MainActivity : ComponentActivity() {
      */
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        // nanoMuse: 重建原始启动Intent时也保留心得请求的已消费状态。
+        io.github.nanomuse.ui.focus.FocusReflectionNavigation.saveState(outState)
         currentChatSessionId?.let {
             outState.putString(KEY_CURRENT_CHAT_SESSION_ID, it)
         }
@@ -655,6 +663,10 @@ class MainActivity : ComponentActivity() {
         // nanoMuse: the home shell opens on the main chat by itself and the cold-start resolver
         // already steps aside for it; a warm return must not push the upstream chat on top.
         if (io.github.nanomuse.ui.home.HomeShell.active) return
+        // nanoMuse: 明确打开的宽屏记录页及心得编辑器返回前台时保持原去向。
+        if (io.github.nanomuse.ui.home.HomeBus.focusReflection.value != null ||
+            nav.currentDestination?.route in setOf(io.github.nanomuse.ui.home.ROUTE_HOME_TAB,
+                io.github.nanomuse.ui.mosaic.ROUTE_MOSAIC_EDIT)) return
         val newRoute = Routes.chat("__new__${java.util.UUID.randomUUID()}")
         AppLogger.info("LaunchSession", "resume → mode=NewChat, navigating to $newRoute")
         nav.safeNavigate(newRoute) {
@@ -706,6 +718,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // nanoMuse: 沉浸窗口只传持久专注ID，普通深链不覆盖待处理的心得导航。
+        if (io.github.nanomuse.ui.focus.FocusReflectionNavigation.consume(this, intent)) {
+            setIntent(intent)
+            return
+        }
         // T51: warm-start share — ShareReceiverActivity re-launches with
         // FLAG_ACTIVITY_CLEAR_TOP, which delivers the new intent here when
         // MainActivity is already alive. Process the buffered share before

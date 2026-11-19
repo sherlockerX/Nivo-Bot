@@ -83,7 +83,7 @@ object HubActions {
                 "file.get" -> call.result(fileGet(context, call.args.optString("path")))
                 "file.put" -> call.result(filePut(context, call.args.optString("path"), call.args.optString("data"), call.args.optBoolean("force")))
                 "open" -> call.result(open(context, call.args.optString("url")))
-                "screen" -> call.result(screen())
+                "screen" -> call.result(screen(context))
                 "notify" -> call.result(notify(context, call.args.optString("text"), call.args.optString("title").ifBlank { "nanoMuse" }, call.senderName))
                 "task" -> task(context, call)
                 "approve" -> approve(call)
@@ -235,7 +235,8 @@ object HubActions {
         }
     }
 
-    private fun screen(): JSONObject {
+    private fun screen(context: Context): JSONObject {
+        if (io.github.nanomuse.focus.lock.LockAutomation.isBlocked(context)) throw Refused("focus_locked", "Screen access is paused during forced focus")
         val svc = MinisAccessibilityService.getInstance() ?: throw Refused("no_screen", "the phone's accessibility service is off; turn on Hands in Settings")
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) throw Refused("no_screen", "screenshots need Android 11")
         val shot = svc.captureScreenshot(timeoutMs = 6_000)

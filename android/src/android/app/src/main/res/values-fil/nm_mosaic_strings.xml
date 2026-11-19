@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Isang larawan, pagninilay o nakumpletong gawi ang pupuno sa bawat ulap. Maaaring manatiling walang laman ang iba.</string>
+    <string name="nm_mosaic_action_text">Pagninilay</string>
+    <string name="nm_mosaic_photo_hint">Magdagdag ng larawan o isulat ang iyong pagninilay.</string>
+    <string name="nm_mosaic_text_label">Pagninilay</string>
+    <string name="nm_mosaic_text_hint">Ano ang natutuhan o napansin mo?</string>
+    <string name="nm_mosaic_err_empty">Magdagdag muna ng larawan o pagninilay.</string>
+</resources>

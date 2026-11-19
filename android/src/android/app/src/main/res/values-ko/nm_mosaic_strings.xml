@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">사진이나 소감을 남기거나 습관을 완료할 때마다 구름 하나가 채워집니다. 나머지는 비워 두어도 괜찮아요.</string>
+    <string name="nm_mosaic_action_text">소감</string>
+    <string name="nm_mosaic_photo_hint">사진을 추가하거나 소감을 적어 보세요.</string>
+    <string name="nm_mosaic_text_label">소감</string>
+    <string name="nm_mosaic_text_hint">무엇을 배우거나 느꼈나요?</string>
+    <string name="nm_mosaic_err_empty">먼저 사진을 추가하거나 소감을 적어 주세요.</string>
+</resources>

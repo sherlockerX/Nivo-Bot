@@ -5,6 +5,7 @@
 #   scripts/release-bump.sh 0.1.40 0.1.41 41 42            # the apps and the runtime
 #   scripts/release-bump.sh 0.1.40 0.1.41 41 42 0.22.0 0.23.0   # and the relay, when it changed
 #   scripts/release-bump.sh --check 0.1.40 0.1.41 41 42    # only say what would move
+#   scripts/release-bump.sh --rebrand-old 2.0.0 1.0.6 2.0.5 51 56  # 显式对齐手机版本基线
 #
 # Edits, in place: scripts/rebrand.py (VERSION_NAME / VERSION_CODE; run it afterwards, it writes
 # the Android versionName/versionCode and the iOS MARKETING_VERSION), nanomuse/__init__.py,
@@ -17,20 +18,39 @@
 # that has already moved, or changed shape, stops the run with its name and the pattern, and
 # no file is touched. --check runs that pass alone.
 set -euo pipefail
-usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; }
 
-check=0
-case "${1:-}" in
-  -h|--help) usage; exit 0 ;;
-  --check) check=1; shift ;;
-esac
-case "${1:-}" in -*) echo "unknown option $1 (try --help)" >&2; exit 2 ;; esac
+check=0; rebrand_old=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --check) check=1; shift ;;
+    --rebrand-old)
+      [ $# -ge 2 ] && [ -n "$2" ] || { echo "--rebrand-old needs a version" >&2; exit 2; }
+      rebrand_old="$2"; shift 2 ;;
+    -*) echo "unknown option $1 (try --help)" >&2; exit 2 ;;
+    *) break ;;
+  esac
+done
 [ $# -eq 4 ] || [ $# -eq 6 ] || { usage >&2; exit 2; }
 old="$1"; new="$2"; oc="$3"; nc="$4"; rold="${5:-}"; rnew="${6:-}"
+rebrand_old="${rebrand_old:-$old}"
 [ -f pyproject.toml ] && [ -f scripts/rebrand.py ] || { echo "run from the repository root" >&2; exit 2; }
-for v in "$old" "$new" "$rold" "$rnew"; do
+for v in "$old" "$new" "$rold" "$rnew" "$rebrand_old"; do
   [ -z "$v" ] || [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a version: $v (x.y.z)" >&2; exit 2; }
 done
+
+# Windows Git Bash可能只有python；显式PYTHON优先，解释器在写入前验证。
+python_cmd="${PYTHON:-}"
+if [ -z "$python_cmd" ]; then
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; assert sys.version_info.major == 3' >/dev/null 2>&1; then
+      python_cmd="$candidate"; break
+    fi
+  done
+fi
+[ -n "$python_cmd" ] || { echo "Python 3 is required (set PYTHON)" >&2; exit 2; }
+"$python_cmd" -c 'import sys; assert sys.version_info.major == 3' || exit 2
 for c in "$oc" "$nc"; do
   [[ "$c" =~ ^[0-9]+$ ]] || { echo "not a version code: $c (an integer)" >&2; exit 2; }
 done
@@ -38,7 +58,7 @@ done
 # in-place sed on GNU (Linux) and BSD (macOS) alike: BSD's -i wants a suffix argument
 if sed --version >/dev/null 2>&1; then sedi() { sed -i -E "$@"; }; else sedi() { sed -i '' -E "$@"; }; fi
 # a version as a literal inside an extended regular expression
-old_re="${old//./\\.}"; rold_re="${rold//./\\.}"
+old_re="${old//./\\.}"; rold_re="${rold//./\\.}"; rebrand_old_re="${rebrand_old//./\\.}"
 
 # bump FILE REGEX REPLACEMENT: the one line matching REGEX becomes REPLACEMENT. In the count
 # pass a file whose match count is not one is reported and the run fails before any write.
@@ -62,7 +82,7 @@ bump() {
 # A lock file names its own package twice (the root entry and packages[""]) and may list
 # dependencies that happen to carry the same version string, so only those two lines move.
 lock() {
-  python3 - "$1" "$old" "$new" "$mode" <<'EOF'
+  "$python_cmd" - "$1" "$old" "$new" "$mode" <<'EOF'
 import sys
 
 path, old, new, mode = sys.argv[1:5]
@@ -77,12 +97,12 @@ if moved != 2:
     sys.exit(f'{path}: {moved} own version lines found, expected 2 (the root entry and packages[""])')
 print(f"{path}: 2 own version lines")
 if mode == "write":
-    open(path, "w", encoding="utf-8").write("\n".join(lines))
+    open(path, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
 EOF
 }
 
 plan() {
-  bump scripts/rebrand.py "^VERSION_NAME = \"$old_re\"$" "VERSION_NAME = \"$new\""
+  bump scripts/rebrand.py "^VERSION_NAME = \"$rebrand_old_re\"$" "VERSION_NAME = \"$new\""
   bump scripts/rebrand.py "^VERSION_CODE = $oc$" "VERSION_CODE = $nc"
   bump nanomuse/__init__.py "^__version__ = \"$old_re\"$" "__version__ = \"$new\""
   bump pyproject.toml "^version = \"$old_re\"$" "version = \"$new\""
@@ -112,4 +132,4 @@ plan
 
 echo "lock files: $(git diff --numstat -- web/package-lock.json harness/desktop/package-lock.json | awk '{print $1" lines in "$3}' | paste -sd ',' -) (expect 2 each)"
 grep -n "^VERSION_NAME\|^VERSION_CODE" scripts/rebrand.py
-echo "next: python scripts/rebrand.py  (must print 'clean' on a second run), then scripts/release-docs.py"
+echo "next: python scripts/rebrand.py --versions-only (second run changes 0 files), then scripts/release-docs.py"

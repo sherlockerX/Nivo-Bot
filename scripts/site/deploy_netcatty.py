@@ -54,6 +54,34 @@ def unpack(archive: Path, destination: Path) -> None:
             target.write_bytes(stream.read())
 
 
+def retained_verification(previous: dict) -> dict:
+    """继承搜索证据，并把上一版公网验收移入带版本身份的历史。"""
+    history = previous.get("public_verification_history", [])
+    if not isinstance(history, list):
+        raise ValueError("Invalid public verification history")
+    history = list(history)
+    if "public_verification" in previous or previous.get("public_verified") is True:
+        history.append(
+            {
+                key: previous[key]
+                for key in (
+                    "site_release",
+                    "release",
+                    "deployed_at",
+                    "public_verified",
+                    "public_verification",
+                )
+                if key in previous
+            }
+        )
+    retained = {}
+    if "search_submission" in previous:
+        retained["search_submission"] = previous["search_submission"]
+    if history or "public_verification_history" in previous:
+        retained["public_verification_history"] = history
+    return retained
+
+
 def deploy(root: Path, archive: Path, release_id: str) -> dict:
     """验证新文件后原子切换站点，保留旧版本、下载文件及回滚配置。"""
     if not re.fullmatch(r"site-[A-Za-z0-9._-]{1,80}", release_id):
@@ -66,6 +94,12 @@ def deploy(root: Path, archive: Path, release_id: str) -> dict:
     downloads = (previous / "downloads").resolve(strict=True)
     if not downloads.is_relative_to((root / "www").resolve()):
         raise ValueError("Unexpected download location")
+    deployment_file = root / "deployment-manifest.json"
+    previous_bytes = deployment_file.read_bytes() if deployment_file.exists() else None
+    previous_manifest = json.loads(previous_bytes) if previous_bytes is not None else {}
+    if not isinstance(previous_manifest, dict):
+        raise ValueError("Invalid deployment manifest")
+    verification = retained_verification(previous_manifest)
     download_hashes = {
         p.name: hashlib.sha256(p.read_bytes()).hexdigest()
         for p in downloads.iterdir()
@@ -86,9 +120,8 @@ def deploy(root: Path, archive: Path, release_id: str) -> dict:
     backup = root / "backups" / release_id
     backup.mkdir(parents=True, exist_ok=False)
     (backup / "Caddyfile").write_bytes(before)
-    deployment_file = root / "deployment-manifest.json"
-    if deployment_file.exists():
-        (backup / "deployment-manifest.json").write_bytes(deployment_file.read_bytes())
+    if previous_bytes is not None:
+        (backup / "deployment-manifest.json").write_bytes(previous_bytes)
     command(
         "docker",
         "exec",
@@ -157,6 +190,7 @@ def deploy(root: Path, archive: Path, release_id: str) -> dict:
         raise
     app_release = json.loads((release / "release.json").read_text(encoding="utf-8"))
     result = {
+        **verification,
         "url": "https://nivo.8666886.xyz/",
         "site_release": release_id,
         "release": str(release),

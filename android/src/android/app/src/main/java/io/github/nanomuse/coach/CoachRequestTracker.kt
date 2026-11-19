@@ -183,6 +183,12 @@ class CoachRequestTracker {
     @Synchronized fun ownerForUser(id: String?): CoachRequestOwner? =
         currentOwner()?.takeIf { mutableState.value?.isRunning == true && it.userId == id }
 
+    /** 用户接着发普通消息时，撤下上一次已结束教练请求的错误提示；进行中或等待确认的请求不受影响。 */
+    @Synchronized fun dismissSettled() {
+        val current = mutableState.value ?: return
+        if (!current.isRunning && !current.isAwaitingConfirmation) clear()
+    }
+
     /** 销毁聊天或切换账户时清除临时授权状态。 */
     @Synchronized fun clear() { userId = null; before = null; lastFailure = null; failedMutations.clear(); mutableState.value = null }
 }

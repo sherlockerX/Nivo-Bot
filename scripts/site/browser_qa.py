@@ -107,16 +107,29 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         )
         page.screenshot(path=str(output / "guide-scrolled-desktop.png"))
         record("教程锚点跳转位于常驻导航下方")
+        catalogue = context.request.get(base + "releases.json").json()
+        android = sorted(
+            (
+                release
+                for release in catalogue["releases"]
+                if release["platform"] == "android" and release["channel"] == "stable"
+            ),
+            key=lambda release: (
+                tuple(int(part) for part in release["version"].split(".")[:3]),
+                release.get("versionCode", 0),
+            ),
+            reverse=True,
+        )
         page.goto(base + "downloads.html", wait_until="networkidle")
-        expect(page.locator("#release-message")).to_contain_text("1个可用版本")
+        expect(page.locator("#release-message")).to_contain_text(f"{len(android)}个可用版本")
         expect(page.locator("#release-content a.button")).to_have_attribute(
-            "href", "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk"
+            "href", android[0]["downloadUrl"]
         )
         expect(page.locator("#release-history")).to_have_count(0)
         page.screenshot(path=str(output / "downloads-desktop.png"), full_page=True)
         page.get_by_role("navigation", name="当前栏目").get_by_role("link", name="版本历史").click()
         expect(page).to_have_url(base + "versions.html")
-        expect(page.locator("#release-history")).to_contain_text("2.0.0")
+        expect(page.locator("#release-history")).to_contain_text(android[0]["version"])
         page.get_by_role("navigation", name="当前栏目").get_by_role(
             "link", name="安装与升级"
         ).click()
@@ -128,21 +141,27 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         expect(page).to_have_url(base + "downloads.html")
         record("下载、版本历史与安装说明独立页面及后退恢复")
         page.get_by_role("tab", name="iOS").click()
-        expect(page.locator("#release-content")).to_contain_text("尚未公开发布")
-        expect(page.locator("#release-content a.button")).to_have_count(0)
+        ios_releases = [
+            release
+            for release in catalogue["releases"]
+            if release["platform"] == "ios" and release["channel"] == "stable"
+        ]
+        if ios_releases:
+            expect(page.locator("#release-content a.button")).to_have_count(1)
+        else:
+            expect(page.locator("#release-content")).to_contain_text("尚未公开发布")
+            expect(page.locator("#release-content a.button")).to_have_count(0)
         assert "platform=ios" in page.url
         page.go_back(wait_until="networkidle")
         expect(page.locator("#release-content a.button")).to_have_count(1)
         page.locator("#release-channel").select_option("beta")
         expect(page.locator("#release-content")).to_contain_text("当前渠道暂无版本")
         expect(page.locator("#release-channel")).to_be_enabled()
-        record("下载平台、未发布iOS、空渠道与浏览器返回")
+        record("真实平台发行状态、空渠道与浏览器返回")
 
         # 未来版本仅通过网络拦截构造，不修改或发布真实发行清单。
-        response = context.request.get(base + "releases.json")
-        catalogue = response.json()
         future = copy.deepcopy(catalogue)
-        older = copy.deepcopy(future["releases"][0])
+        older = copy.deepcopy(android[0])
         newer = copy.deepcopy(older)
         older.update(id="android-2.9.0-fixture", version="2.9.0", versionCode=59)
         newer.update(id="android-2.10.0-fixture", version="2.10.0", versionCode=60)
@@ -169,6 +188,37 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         expect(page.locator("#platform-ios")).to_contain_text("已发布")
         expect(page.locator("#release-content .checksum")).to_have_count(0)
         record("未来多版本数字排序、旧版选择与iOS商店分发")
+        context.unroute("**/releases.json")
+        unsigned = copy.deepcopy(future)
+        unsigned["releases"][-1].update(
+            distribution="ipa",
+            signing="unsigned",
+            sizeBytes=123456,
+            sha256="a" * 64,
+            downloadUrl="https://example.com/nivo-unsigned.ipa",
+        )
+        context.route("**/releases.json", lambda route: route.fulfill(json=unsigned))
+        page.goto(base + "downloads.html?platform=ios", wait_until="networkidle")
+        expect(page.locator("#release-content .chip")).to_have_text("未签名IPA")
+        expect(page.locator("#release-content a.button")).to_have_text("下载未签名IPA ↓")
+        expect(page.locator("#release-content")).to_contain_text("不能下载后直接安装到iPhone")
+        expect(page.locator("#release-content")).to_contain_text(
+            "本文件没有TestFlight或App Store安装入口"
+        )
+        expect(page.locator("#release-content .checksum")).to_have_count(1)
+        record("未签名IPA按钮、文件校验与自行签名安装提示")
+        context.unroute("**/releases.json")
+        unavailable = copy.deepcopy(catalogue)
+        unavailable["platforms"][1]["status"] = "unreleased"
+        unavailable["platforms"][1]["message"] = "此测试平台尚未公开发布。"
+        unavailable["releases"] = [
+            release for release in unavailable["releases"] if release["platform"] != "ios"
+        ]
+        context.route("**/releases.json", lambda route: route.fulfill(json=unavailable))
+        page.goto(base + "downloads.html?platform=ios", wait_until="networkidle")
+        expect(page.locator("#release-content")).to_contain_text("尚未公开发布")
+        expect(page.locator("#release-content a.button")).to_have_count(0)
+        record("未发布平台无虚构下载入口")
         context.unroute("**/releases.json")
         context.route("**/releases.json", lambda route: route.abort())
         page.goto(base + "downloads.html", wait_until="networkidle")

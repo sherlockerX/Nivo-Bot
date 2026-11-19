@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-<strong>將AI聊天、待辦、專注、生活片段與成長教練放在同一個Android工作臺。</strong>
+<strong>在Android與iOS使用AI聊天、待辦、專注、生活片段與成長教練。</strong>
 
 <p align="center">
   <a href="../../README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">產品網站</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">問題回報</a> · <a href="../../OPEN_SOURCE.md">參與貢獻</a>
+  <a href="https://nivo.8666886.xyz/">產品網站</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題回報</a> · <a href="../../OPEN_SOURCE.md">參與貢獻</a>
 </p>
 
 Nivo Bot是面向日常生活的AI工作臺。從一句想法開始，把下一步變成待辦，留一段時間專注，再把經歷保存在可以回顧的記錄裡。
@@ -86,12 +86,13 @@ AI透過應用程式工具儲存任務變更，聊天裡說「建好了」不等
 | 資源 | 連結 |
 |---|---|
 | 產品網站 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android8.0及以上，arm64 | [Nivo Bot v2.0.0安裝檔](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| 與安裝檔對應的原始碼 | [v2.0.0原始碼套件](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android8.0及以上，arm64 | [Nivo Bot v2.0.5安裝檔](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS16及以上，需自行簽章 | [未簽章IPA與CI記錄](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| 與安裝檔對應的原始碼 | [v2.0.5原始碼套件](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | 下載校驗碼 | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| 發行詳情 | [發行說明](../releases/v2.0.0.md)·[驗證記錄](../releases/v2.0.0-verification.json) |
+| 發行詳情 | [發行說明](../releases/v2.0.5.md)·[建置檢查](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-本次發行範圍是Android與產品網站。儲存庫保留其他平台原始碼，不據此宣稱這些平台已發行Nivo Bot或實現功能同步。
+本次發行包含Android、iOS與產品網站。iOS透過GitHub Actions提供未簽章IPA，安裝前需要自行簽章。本分支目前沒有Apple Developer Program帳號，不提供TestFlight或App Store散布。強制專注、週期鎖定計畫與應用程式白名單僅限Android；iOS提供專注提醒與引導使用說明，由使用者在iOS中手動開啟和結束。CI編譯成功不等於iPhone實機驗收。
 
 應用程式ID仍為`io.github.nanomuse.app`。舊Debug簽章或上游簽章的安裝通常不能直接覆蓋升級。解除安裝前請核對備份與還原範圍，詳見[版本與簽章指南](../android-development.md#nivo-bot的android版本与签名)。
 
@@ -103,8 +104,8 @@ AI透過應用程式工具儲存任務變更，聊天裡說「建好了」不等
 複製儲存庫時同時取得原生相依項目的子模組：
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 工具鏈為JDK21、Android SDK36、NDK27.2.12479018與CMake3.22.1，附帶Gradle Wrapper8.11.1。設定工具鏈後，在Linux或WSL準備原生相依項目：
@@ -134,10 +135,11 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 | 路徑 | 內容 |
 |---|---|
 | `android/src/android/` | Android應用程式，Nivo新增模組位於`io.github.nanomuse.*`。 |
+| `android/src/ios/` | 原生iOS應用程式，透過CI提供未簽章IPA供自行簽章。 |
 | `site/` | 靜態產品網站與下載中繼資料。 |
 | `docs/` | 使用指南、原始碼地圖與發行記錄。 |
 | `scripts/android/`、`scripts/release/` | 建置、簽章、原始碼稽核與封裝工具。 |
-| `android/src/ios/`、`harness/`、`nanomuse/`、`cloud/`、`web/` | 保留的iOS、桌面、執行環境、中繼與Web控制臺原始碼，發行與驗證範圍各自獨立。 |
+| `harness/`、`nanomuse/`、`cloud/`、`web/` | 保留的桌面、執行環境、中繼與Web控制臺原始碼，發行與驗證範圍各自獨立。 |
 
 Android目錄保留上游結構、套件識別與來源聲明。修改模組邊界前，請先閱讀[原始碼地圖](../android-code-map.md)。
 
@@ -149,13 +151,14 @@ Android目錄保留上游結構、套件識別與來源聲明。修改模組邊�
 - [Android使用指南](../zh/android.md)
 - [Android開發與簽章](../android-development.md)
 - [Android原始碼地圖](../android-code-map.md)
+- [iPhone專注、教練與建置說明](../zh/ios-focus-and-coach.md)
 - [網站原始碼與部署](../../site/README.md)
 - [更新記錄](../../CHANGELOG.md)
 - [版權與來源](../../NOTICE)·[第三方說明](../../THIRD_PARTY_NOTICES.md)
 
 ## 參與貢獻
 
-在[本儲存庫Issues](https://github.com/sherlockerX/Nicholasx/issues)報告可重現的問題，提交範圍明確的PR。遵循[OPEN_SOURCE.md](../../OPEN_SOURCE.md)與[CONTRIBUTING.md](../../CONTRIBUTING.md)，沿用Conventional Commits、適合變更的測試，以及`git commit -s`新增的DCO簽署。
+在[本儲存庫Issues](https://github.com/sherlockerX/Nivo-Bot/issues)報告可重現的問題，提交範圍明確的PR。遵循[OPEN_SOURCE.md](../../OPEN_SOURCE.md)與[CONTRIBUTING.md](../../CONTRIBUTING.md)，沿用Conventional Commits、適合變更的測試，以及`git commit -s`新增的DCO簽署。
 
 保留上游版權和授權聲明。不要在Issue或提交中包含API金鑰、簽章材料與個人記錄。OpenMinis仍有自己的貢獻政策，本分支接受變更不改變該政策。
 

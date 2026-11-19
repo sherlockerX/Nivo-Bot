@@ -26,7 +26,7 @@ Nivo Bot站点采用独立HTML页面，目录页支持浏览器搜索、后退�
 
 Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器写入页面的`head`，发布检查会阻止标签遗漏。完成所有权验证后仍需保留此标签；站点地图地址为`https://nivo.8666886.xyz/sitemap.xml`。
 
-首页的WebSite与SoftwareApplication结构化数据描述网站名和Android应用。不得虚构评分、评价或已发布iOS版本；结构化数据也不保证富结果或排名。sitemap列出38个内容页面，`lastmod`依据内容维护日期，不能为催抓取而伪造日期。发布新版本时应同步更新应用结构化信息与版本目录。
+首页的WebSite与SoftwareApplication结构化数据描述网站名及版本清单中已提供的各平台稳定发行，并从清单读取版本与最低系统要求。未签名IPA的结构化信息保留自行签名要求。不得虚构评分、评价或商店发行；结构化数据也不保证富结果或排名。sitemap随内容页面和发行说明生成，`lastmod`依据内容维护日期，不能为催抓取而伪造日期。
 
 站点所有权验证、sitemap提交、抓取请求、搜索引擎收录是不同状态。Google Search Console和Bing Webmaster Tools的结果应分别记录，IndexNow的200或202只代表通知被接受，不代表已收录。Edge是浏览器，默认搜索通常由Bing提供。参考[Google站点地图说明](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap)、[请求抓取](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl)与[IndexNow协议](https://www.indexnow.org/documentation)。
 
@@ -43,6 +43,7 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 |`version`、`versionCode`|展示版本和内部编号；按数字比较版本|
 |`channel`|`stable`或`beta`，下载页也可查看全部|
 |`distribution`|`apk`、`ipa`、`app-store`或`testflight`|
+|`signing`|IPA必须填写`unsigned`或`signed`；`unsigned`仅适用于iOS IPA|
 |`releasedAt`|ISO日期|
 |`minimumOs`、`architecture`|系统要求与可选架构说明|
 |`downloadUrl`|实际可用的HTTPS文件或官方商店入口|
@@ -55,7 +56,11 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 
 新增版本时，先上传实际文件并核对大小、SHA256和证书，再添加记录；不要覆盖同名历史文件。需要源码归档时，一并保存该安装包的对应源码。重新生成站点后，旧版说明不会随推荐版本改变。
 
-iOS真正公开分发时，将平台状态改为`available`，填写实际分发方式、最低系统、官方入口和对应源码。没有直链IPA时不编造文件大小或SHA256。切勿仅因为仓库有iOS源码就标为已发布。
+iOS实际提供发行文件后，将平台状态改为`available`，填写实际分发方式、最低系统、文件入口和对应源码。未签名IPA使用`distribution: "ipa"`和`signing: "unsigned"`，卡片、独立说明页与禁用JavaScript时的入口都会说明需自行签名，不能直接安装到iPhone。只有实际存在的TestFlight或App Store入口才使用对应分发类型。没有直链IPA时不编造文件大小或SHA256。
+
+2.0.5的文件名为`Nivo-Bot-v2.0.5-arm64.apk`与`Nivo-Bot-v2.0.5-unsigned.ipa`，Android版本号与iOS构建号均为56。真实大小、SHA256、最低系统和源码归档以最终产物核验后填入，旧版记录与下载文件继续保留。填写完成后同时更新兼容入口`site/release.json`，重新运行生成器与站点检查。
+
+功能内容以两端源码为依据。普通专注、背景、任务关联、分组时长统计、专注感悟、技能档案和个人记录查询按各平台实际实现描述。强制专注、允许应用与自动锁机计划明确限定为Android11及以上；iOS仅提供普通计时、本机提醒和系统引导式访问说明，提醒不自动启动计时，引导式访问由用户在系统中开启与结束。
 
 ## 验证与回滚
 

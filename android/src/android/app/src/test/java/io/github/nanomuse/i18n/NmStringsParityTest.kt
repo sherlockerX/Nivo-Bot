@@ -42,7 +42,9 @@ class NmStringsParityTest {
         assertTrue("expected the sixteen locale files, found ${locales.size}", locales.size >= 16)
         for (f in locales) {
             val keys = names(f)
-            val missing = en - keys
+            // 本期强制专注按已确认范围仅提供英文和简体中文，其他键仍保持全部语言校验。
+            val required = if (f.locale == "values-zh") en else en.filterNot { it.startsWith("string:nm_lock_") }.toSet()
+            val missing = required - keys
             val extra = keys - en
             assertEquals("${f.locale} lacks ${missing.size} key(s): ${missing.sorted().take(8)}", emptySet<String>(), missing)
             assertEquals("${f.locale} has ${extra.size} key(s) English does not: ${extra.sorted().take(8)}", emptySet<String>(), extra)

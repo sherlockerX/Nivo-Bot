@@ -111,8 +111,10 @@ object DeepLinkHandler {
             "share" -> DeepLinkAction.OpenShare
             "views" -> when (path) {
                 "/alarm" -> DeepLinkAction.OpenAlarmList
-                // nanoMuse: 专注工具和通知共用明确的页面入口。
+                // nanoMuse: 记录查询结果使用真实页面入口，点击后沿用应用现有导航。
                 "/focus" -> DeepLinkAction.OpenHomeTab(io.github.nanomuse.ui.home.HomeTab.FOCUS)
+                "/mosaic" -> DeepLinkAction.OpenHomeTab(io.github.nanomuse.ui.home.HomeTab.MOSAIC)
+                "/goals" -> DeepLinkAction.OpenHomeTab(io.github.nanomuse.ui.home.HomeTab.GOALS)
                 else -> DeepLinkAction.Unknown
             }
             "open_terminal" -> DeepLinkAction.OpenTerminal(

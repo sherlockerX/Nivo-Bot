@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Satu hal dalam satu waktu</string>
     <string name="nm_focus_screen_hint">Anda dapat mengunci layar. Kembali untuk melanjutkan sesi yang sama.</string>
     <string name="nm_focus_finish_confirm">Simpan waktu yang benar-benar tercatat dan akhiri sesi ini? Tugas tertaut tidak berubah.</string>
+    <string name="nm_focus_reflection">Catat refleksi</string>
+    <string name="nm_focus_reflection_hint">Catat refleksi sesi ini. Waktu fokus dan tugas tertaut akan disertakan secara otomatis.</string>
 </resources>

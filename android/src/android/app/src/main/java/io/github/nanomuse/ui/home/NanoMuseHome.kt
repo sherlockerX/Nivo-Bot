@@ -94,6 +94,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+/** 进程内已经检查过沉浸专注恢复的账号代次；进程被系统回收后归零，才会再恢复一次。 */
+private var restoredImmersiveEpoch: Long? = null
+
 /**
  * nanoMuse's home, in Muse's shape: the app opens on a conversation, not a list. A bottom bar
  * switches between the chat and the Ideas / Goals / Library pages, a drawer holds the main chat
@@ -112,17 +115,24 @@ fun NanoMuseHome(
     memoryRepository: MemoryRepository?,
     skillRepository: SkillRepository?,
     mcpRepository: MCPRepository?,
+    initialTab: HomeTab = HomeTab.CHAT,
+    onLeaveStandalone: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    var tab by rememberSaveable { mutableStateOf(HomeTab.CHAT) }
+    var tab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     val focusOwnerEpoch by io.github.nanomuse.account.AccountData.epoch.collectAsState()
     LaunchedEffect(focusOwnerEpoch) {
         // 用户主动收起不会再弹出，系统回收后才从同一会话恢复沉浸窗口。
-        // 每个进程每个账号代次只检查一次：从设置等页面返回时首页会重新进入组合，不能再把人拉回专注全屏。
-        if (!focusRestoreChecked.add(focusOwnerEpoch)) return@LaunchedEffect
+        // 每个进程、每个账号代次只恢复一次：首页从碎片编辑等子页面返回时会重新组合，
+        // 而主界面是 singleTask，从桌面或通知回来会直接销毁沉浸窗口、留下未清除的标记，
+        // 不加这道限制，保存一条碎片后就会被拉回专注页。
+        if (restoredImmersiveEpoch == focusOwnerEpoch) return@LaunchedEffect
+        restoredImmersiveEpoch = focusOwnerEpoch
+        // 明确的心得点击优先，不能在主导航打开编辑器前重新弹出计时窗口。
+        if (HomeBus.focusReflection.value != null) return@LaunchedEffect
         try {
             val focusStore=io.github.nanomuse.focus.FocusStore.get(context)
             val backgrounds=io.github.nanomuse.focus.FocusBackdropStore(context,focusStore.ownerKey,focusStore.ownerEpoch)
@@ -187,15 +197,32 @@ fun NanoMuseHome(
     fun openPractice(courseId: String) {
         if (isOpeningPractice) return
         isOpeningPractice = true
-        scope.launch {
+        val fromTab = tab
+        val fromSession = chatSessionId
+        val request = io.github.nanomuse.ui.coach.CoachUi.takeStart(courseId)
+        io.github.nanomuse.ui.coach.CoachUi.prepJob = scope.launch {
             try {
+                // 要开新课节时先由备课角色准备今天的教案；续上已有课节直接进入。
+                if (io.github.nanomuse.coach.CoachLessonPrep.startsNewLesson(context, courseId, request.choice)) {
+                    io.github.nanomuse.ui.coach.CoachUi.preparing.value = courseId
+                    io.github.nanomuse.coach.CoachLessonPrep.ensureToday(context, providerRepository, courseId,
+                        request.minutes, request.need)
+                }
+                io.github.nanomuse.ui.coach.CoachUi.preparing.value = null
                 val id = io.github.nanomuse.coach.CoachConversationCoordinator.open(
-                    context, chatRepository, providerRepository, courseId)
+                    context, chatRepository, providerRepository, courseId, request.choice)
+                // 等待落盘期间已经离开教练页、换了技能或换了对话，就不再把人拉过去；练习留在抽屉里。
+                if (tab != fromTab || chatSessionId != fromSession ||
+                    io.github.nanomuse.ui.coach.CoachUi.selectedCourseId.value != courseId) {
+                    Toast.makeText(context, R.string.nm_home_ready_in_drawer, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
                 showCoachConversation(id, null, shouldStartLesson = true)
             } catch (failure: Exception) {
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
                 Toast.makeText(context, failure.message ?: context.getString(R.string.nm_coach_failed), Toast.LENGTH_LONG).show()
             } finally {
+                io.github.nanomuse.ui.coach.CoachUi.preparing.value = null
                 isOpeningPractice = false
             }
         }
@@ -216,7 +243,11 @@ fun NanoMuseHome(
     LaunchedEffect(Unit) {
         HomeBus.requests.collect { req ->
             when (req) {
-                is HomeBus.Request.ShowTab -> tab = req.tab
+                is HomeBus.Request.ShowTab -> {
+                    // 从聊天里的卡片或通知切到别的页面时先收起键盘，免得盖住新页面。
+                    if (req.tab != HomeTab.CHAT) focusManager.clearFocus(force = true)
+                    tab = req.tab
+                }
                 is HomeBus.Request.ShowSession -> if (req.returnToCoach || req.messageId != null) {
                     showCoachConversation(req.sessionId, req.messageId)
                 } else showSession(req.sessionId)
@@ -370,6 +401,8 @@ fun NanoMuseHome(
 
     /** A side chat titled [title] that opens with [opener] as the first message. */
     fun startSideChat(title: String, opener: String) {
+        val fromTab = tab
+        val fromSession = chatSessionId
         scope.launch {
             val app = context.applicationContext as? com.openminis.app.MinisApp ?: return@launch
             val id = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -378,7 +411,9 @@ fun NanoMuseHome(
                 Toast.makeText(context, R.string.nm_growth_routine_needs_model, Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            showSession(id)
+            // 创建期间已经离开原页面，就只在后台开始这段旁聊，不打断当前页面。
+            if (tab == fromTab && chatSessionId == fromSession) showSession(id)
+            else Toast.makeText(context, R.string.nm_home_ready_in_drawer, Toast.LENGTH_SHORT).show()
             com.openminis.app.debug.HeadlessChatRunner.prompt(
                 context = app, sessionId = id, text = opener, wait = false, timeoutMs = 10 * 60 * 1000L,
             )
@@ -419,7 +454,7 @@ fun NanoMuseHome(
             io.github.nanomuse.ui.todo.TodoUi.back()
         } else if (tab == HomeTab.FOCUS && io.github.nanomuse.ui.focus.FocusUi.view.value != "timer") {
             io.github.nanomuse.ui.focus.FocusUi.view.value = "timer"
-        } else tab = HomeTab.CHAT
+        } else if (onLeaveStandalone != null) onLeaveStandalone() else tab = HomeTab.CHAT
     }
     BackHandler(enabled = homeShown && !drawerState.isOpen && tab == HomeTab.CHAT && (!isMainChat || coachReturnSessionId == chatSessionId) && mainSessionId != null) { leaveConversation() }
 
@@ -427,6 +462,7 @@ fun NanoMuseHome(
     // and still be one branch of the phase switch below.
     // nanoMuse: the frosted pill bar blurs this shell's content; the shell is the haze source.
     val hazeState = rememberHazeState()
+    if (!io.github.nanomuse.ui.focus.lock.LockHomeGuard()) return
     val homeShell: @Composable () -> Unit = {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -463,6 +499,7 @@ fun NanoMuseHome(
                         focusManager.clearFocus(force = true)
                         tab = HomeTab.IDEAS
                     },
+                    currentTab = tab,
                 )
             }
         },
@@ -809,6 +846,3 @@ private fun TabHeader(
         },
     )
 }
-
-/** 已检查过专注全屏恢复的账号代次；进程存活期间每个代次只检查一次。 */
-private val focusRestoreChecked: MutableSet<Any?> = java.util.Collections.synchronizedSet(mutableSetOf<Any?>())

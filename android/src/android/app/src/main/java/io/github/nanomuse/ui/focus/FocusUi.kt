@@ -27,15 +27,27 @@ object FocusUi {
 @Composable
 fun FocusHeader(onOpenDrawer:()->Unit) {
     val view by FocusUi.view.collectAsState()
+    var more by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().background(com.openminis.app.ui.theme.ChatColors.background).statusBarsPadding()
         .padding(horizontal=12.dp,vertical=10.dp).heightIn(min=56.dp),verticalAlignment=Alignment.CenterVertically) {
         IconButton(onClick={if(view=="timer") onOpenDrawer() else FocusUi.view.value="timer"}) {
             Icon(if(view=="timer") Icons.Outlined.Menu else Icons.AutoMirrored.Outlined.ArrowBack,stringResource(if(view=="timer") R.string.nm_focus_menu else R.string.nm_focus_back))
         }
-        Text(stringResource(when(view){"history"->R.string.nm_focus_history;"stats"->R.string.nm_focus_stats;else->R.string.nm_focus_title}),
+        Text(stringResource(when(view){"history"->R.string.nm_focus_history;"stats"->R.string.nm_focus_stats;
+            "lock-permissions"->R.string.nm_lock_permissions;"lock-whitelist"->R.string.nm_lock_whitelist;
+            "lock-settings"->R.string.nm_lock_settings;"lock-plans"->R.string.nm_lock_plans;else->R.string.nm_focus_title}),
             Modifier.weight(1f),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold)
         IconButton(onClick={FocusUi.view.value="history"}) { Icon(Icons.Outlined.History,stringResource(R.string.nm_focus_history)) }
         IconButton(onClick={FocusUi.view.value="stats"}) { Icon(Icons.Outlined.BarChart,stringResource(R.string.nm_focus_stats)) }
-        IconButton(onClick={FocusUi.exportRequested.value=true}) { Icon(Icons.Outlined.FileDownload,stringResource(R.string.nm_focus_export)) }
+        Box {
+            IconButton(onClick={more=true}) { Icon(Icons.Outlined.MoreVert,stringResource(R.string.nm_lock_more)) }
+            DropdownMenu(expanded=more,onDismissRequest={more=false}) {
+                DropdownMenuItem(text={Text(stringResource(R.string.nm_lock_plans))},onClick={more=false;FocusUi.view.value="lock-plans"})
+                DropdownMenuItem(text={Text(stringResource(R.string.nm_lock_whitelist))},onClick={more=false;FocusUi.view.value="lock-whitelist"})
+                DropdownMenuItem(text={Text(stringResource(R.string.nm_lock_permissions))},onClick={more=false;FocusUi.view.value="lock-permissions"})
+                DropdownMenuItem(text={Text(stringResource(R.string.nm_lock_settings))},onClick={more=false;FocusUi.view.value="lock-settings"})
+                DropdownMenuItem(text={Text(stringResource(R.string.nm_focus_export))},onClick={more=false;FocusUi.view.value="timer";FocusUi.exportRequested.value=true})
+            }
+        }
     }
 }

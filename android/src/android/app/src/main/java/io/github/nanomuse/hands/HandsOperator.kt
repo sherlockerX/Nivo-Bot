@@ -67,6 +67,8 @@ class HandsOperator(private val context: Context) {
         data class Stopped(val message: String) : Outcome("stopped")
         data class NeedsUser(val question: String) : Outcome("needs_user")
         data class Failed(val message: String) : Outcome("failed")
+        /** 强制专注拒绝是固定边界，不作为临时工具故障重试。 */
+        data class FocusLocked(val message: String) : Outcome("focus_locked")
     }
 
     data class Result(
@@ -129,6 +131,7 @@ class HandsOperator(private val context: Context) {
         capsule.onDeny = { ownPendingRequest()?.let { RiskGate.decide(it.id, RiskDecision.DENY) } }
         val started = System.currentTimeMillis()
         try {
+            io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
             val svc = MinisAccessibilityService.getInstance()
                 ?: return finish(Outcome.Failed("the accessibility service is not running"), steps, runId, lastScreen, traceDir, log, model?.label)
             if (Build.VERSION.SDK_INT < Hands.MIN_SDK) {
@@ -157,6 +160,7 @@ class HandsOperator(private val context: Context) {
             }
 
             while (opts.maxSteps <= 0 || steps < opts.maxSteps) {
+                io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
                 if (stop.get()) return finish(Outcome.Stopped(stopReason.get() ?: "stopped"), steps, runId, lastScreen, traceDir, log, model.label)
                 if (System.currentTimeMillis() - started > MAX_RUN_MS) {
                     return finish(Outcome.Stopped("the run hit its time limit"), steps, runId, lastScreen, traceDir, log, model.label)
@@ -232,6 +236,7 @@ class HandsOperator(private val context: Context) {
                     HandsLoopWatch.Verdict.FINE -> loopNote = null
                 }
 
+                io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
                 // ── act ──
                 when (action) {
                     is HandsAction.Status -> {
@@ -340,12 +345,14 @@ class HandsOperator(private val context: Context) {
                     }
                     HandsAction.Back -> {
                         capsule.stage.say(fxLabel(action))
+                        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
                         svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
                         lastResult = "pressed Back."
                         Thread.sleep(TAP_SETTLE_MS)
                     }
                     HandsAction.Home -> {
                         capsule.stage.say(fxLabel(action))
+                        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
                         svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
                         lastResult = "went to the home screen."
                         Thread.sleep(TAP_SETTLE_MS)
@@ -360,6 +367,9 @@ class HandsOperator(private val context: Context) {
                 trace(traceDir, steps, parsed.thought, reply, lastResult ?: "", lastScreen)
             }
             return finish(Outcome.Infeasible("the step limit (${opts.maxSteps}) was reached before the task was done"), steps, runId, lastScreen, traceDir, log, model.label)
+        } catch (_: io.github.nanomuse.focus.lock.FocusLockedException) {
+            return finish(Outcome.FocusLocked(context.getString(R.string.nm_lock_ai_blocked)),
+                steps, runId, lastScreen, traceDir, log, model?.label)
         } catch (t: Throwable) {
             AppLogger.warning(TAG, "run failed: ${t.javaClass.simpleName} ${t.message}")
             return finish(Outcome.Failed("${t.javaClass.simpleName}: ${t.message}"), steps, runId, lastScreen, traceDir, log, model?.label)
@@ -368,7 +378,7 @@ class HandsOperator(private val context: Context) {
             Hands.current = null
             Hands.setActive(false)
             SessionActivityTracker.setCameraSuppressActive(false)
-            capsule.bringAppToFront(opts.sessionId)
+            if (!io.github.nanomuse.focus.lock.LockAutomation.isBlocked(context)) capsule.bringAppToFront(opts.sessionId)
         }
     }
 
@@ -457,11 +467,13 @@ class HandsOperator(private val context: Context) {
     // ── the hand ───────────────────────────────────────────────────────────
 
     private fun tap(svc: MinisAccessibilityService, x: Int, y: Int, durationMs: Long): Boolean {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()); lineTo(x + 0.5f, y + 0.5f) }
         return svc.dispatchSimpleGesture(path, 0L, durationMs)
     }
 
     private fun swipe(svc: MinisAccessibilityService, x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long): Boolean {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
         val path = Path().apply { moveTo(x1.toFloat(), y1.toFloat()); lineTo(x2.toFloat(), y2.toFloat()) }
         return svc.dispatchSimpleGesture(path, 0L, durationMs)
     }
@@ -506,6 +518,7 @@ class HandsOperator(private val context: Context) {
 
     /** Types into the field with the cursor; [HANDOFF] when that field is a secret. */
     private fun typeText(svc: MinisAccessibilityService, action: HandsAction.InputText): String {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
         if (TapWords.looksSecret(action.field)) return HANDOFF
         val node = focusedField(svc) ?: return "no text field has the cursor; tap the field first, then type in the next turn."
         if (node.isPassword) return HANDOFF
@@ -516,6 +529,7 @@ class HandsOperator(private val context: Context) {
     }
 
     private fun pressEnter(svc: MinisAccessibilityService): String {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
         val node = focusedField(svc) ?: return "no text field has the cursor, so there is nothing to submit; tap the search or send button instead."
         val ok = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             node.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
@@ -526,6 +540,7 @@ class HandsOperator(private val context: Context) {
     // ── the eyes ───────────────────────────────────────────────────────────
 
     private fun screenshot(svc: MinisAccessibilityService): Bitmap? {
+        io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context)
         capsule.hideForCapture()
         try {
             repeat(2) { attempt ->

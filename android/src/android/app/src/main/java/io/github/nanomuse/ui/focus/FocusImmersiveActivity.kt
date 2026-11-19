@@ -27,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -98,10 +99,19 @@ class FocusImmersiveActivity : ComponentActivity() {
         private const val EXTRA_SESSION = "focus_session"
         /** 只接受已落盘会话ID，不通过Intent传递计时或任务内容。 */
         fun open(context: Context, owner: String, session: String) {
-            context.startActivity(Intent(context, FocusImmersiveActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                .putExtra(EXTRA_OWNER, owner).putExtra(EXTRA_SESSION, session))
+            context.startActivity(intent(context, owner, session))
         }
+        /** 回到应用内的专注页，与计时结束通知使用同一条深链。 */
+        fun openFocusPage(context: Context) {
+            val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+            context.startActivity(launch.setAction(Intent.ACTION_VIEW).setData(android.net.Uri.parse("nanomuse://views/focus"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION))
+        }
+        /** 服务与通知复用同一窗口身份，不创建第二种全屏Activity。 */
+        fun intent(context: Context, owner: String, session: String): Intent =
+            Intent(context, FocusImmersiveActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                .putExtra(EXTRA_OWNER, owner).putExtra(EXTRA_SESSION, session)
     }
 }
 
@@ -121,11 +131,56 @@ private fun ImmersiveFocus(store: FocusStore, sessionId: String, onClose: () -> 
     var busy by remember { mutableStateOf(false) }
     var confirmFinish by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
-    fun minimize() { scope.launch {
-        try { backgrounds.rememberImmersive(null); onClose() }
-        catch(cancelled:CancellationException) { throw cancelled }
-        catch(_:Exception) { failed=true }
-    } }
+    val lockStore = remember(store) { io.github.nanomuse.focus.lock.LockStore.get(context) }
+    val lockRuns by remember(lockStore) { lockStore.observeRuns() }.collectAsState(initial = null)
+    val lockRun = lockRuns?.firstOrNull { it.sessionId == sessionId && it.status == io.github.nanomuse.focus.lock.LockRunStatus.ACTIVE }
+    fun minimize() {
+        // 返回与心得跳转共用忙状态，避免关闭窗口时取消正在提交的导航请求。
+        if (busy) return
+        busy = true
+        scope.launch {
+            // 全屏页单独成一个任务，直接关闭时系统可能退回桌面；先打开应用内的专注页再关闭。
+            try { backgrounds.rememberImmersive(null); FocusImmersiveActivity.openFocusPage(context); onClose() }
+            catch(cancelled:CancellationException) { throw cancelled }
+            catch(_:Exception) { failed=true; busy=false }
+        }
+    }
+    /**
+     * 番茄链路：一段专注结束后接休息，休息结束后接下一段专注，都在同一个全屏窗口里切换。
+     * 休息不挂任务，统计照旧排除；下一段专注沿用休息前那段专注的任务和时长。
+     */
+    fun startNext(mode: String, minutes: Int, taskId: String?, title: String) {
+        if (busy) return
+        busy = true; failed = false
+        scope.launch {
+            try {
+                val next = try {
+                    store.command("start", UUID.randomUUID().toString(), title = title, taskId = taskId, mode = mode, minutes = minutes)
+                } catch (missing: IllegalStateException) {
+                    // 待办在休息期间被删了，就按原标题继续，不挂任务。
+                    if (missing.message != "task_not_found") throw missing
+                    store.command("start", UUID.randomUUID().toString(), title = title, mode = mode, minutes = minutes)
+                }
+                backgrounds.bind(next.id)
+                FocusImmersiveActivity.open(context, store.ownerKey, next.id)
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { failed = true }
+            finally { busy = false }
+        }
+    }
+    fun reflect() {
+        val current = row ?: return
+        if (busy || current.status != "finished" || current.mode == "break") return
+        busy = true
+        scope.launch {
+            try {
+                backgrounds.rememberImmersive(null)
+                FocusReflectionNavigation.openHome(context, FocusReflectionRequest(store.ownerKey, store.ownerEpoch, current.id))
+                onClose()
+            } catch (cancelled: CancellationException) { throw cancelled
+            } catch (_: Exception) { failed = true; busy = false }
+        }
+    }
     LaunchedEffect(epoch) { if (epoch != store.ownerEpoch) onClose() }
     LaunchedEffect(store, sessionId) {
         lifecycle.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -135,6 +190,16 @@ private fun ImmersiveFocus(store: FocusStore, sessionId: String, onClose: () -> 
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { failed = true }
         }
+    }
+    if (lockRuns == null) {
+        BackHandler { }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White) }
+        return
+    }
+    if (lockRun != null) {
+        io.github.nanomuse.ui.focus.lock.LockImmersiveContent(lockStore, lockRun, row?.title.orEmpty(), background, keepScreen,
+            isStopwatch = row?.mode == "stopwatch")
+        return
     }
     DisposableEffect(keepOn, row?.status) {
         keepScreen(keepOn && row?.status == "running")
@@ -159,7 +224,7 @@ private fun ImmersiveFocus(store: FocusStore, sessionId: String, onClose: () -> 
         val isCompact = maxHeight < 480.dp
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp, vertical = 16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = ::minimize) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.nm_focus_minimize), tint = Color.White) }
+                IconButton(onClick = ::minimize, enabled = !busy) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.nm_focus_minimize), tint = Color.White) }
                 Text(stringResource(R.string.nm_focus_title), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
                 IconToggleButton(checked = keepOn, onCheckedChange = { next -> scope.launch {
                     try { backgrounds.setKeepScreenOn(next); keepOn = next }
@@ -176,7 +241,9 @@ private fun ImmersiveFocus(store: FocusStore, sessionId: String, onClose: () -> 
                         TextButton(onClick=::minimize) { Text(stringResource(R.string.nm_focus_back)) }
                     } else CircularProgressIndicator(color = Color.White)
                 } else {
+                    // 长标题保留两行，避免挤占计时控制和完成后的心得入口。
                     Text(row.title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.widthIn(max = 600.dp).padding(top = if (isCompact) 8.dp else 24.dp))
                     Text(stringResource(modeLabel(row.mode)), Modifier.padding(top = 10.dp), color = Color.White.copy(alpha = .8f))
                     ImmersiveClock(row, store, if (isCompact) 60 else 82)
@@ -187,7 +254,47 @@ private fun ImmersiveFocus(store: FocusStore, sessionId: String, onClose: () -> 
                     if (busy) LinearProgressIndicator(Modifier.widthIn(max = 320.dp).fillMaxWidth())
                     if (row.status == "finished") {
                         Text(stringResource(R.string.nm_focus_finished_hint), textAlign = TextAlign.Center)
-                        Button(onClick = ::minimize, modifier = Modifier.padding(top = 18.dp).heightIn(min = 52.dp)) { Text(stringResource(R.string.nm_focus_back)) }
+                        val sessions = rows.orEmpty()
+                        // 锁机计划到点自动开始的时段（如整晚锁机）结束时不接休息。
+                        val isPlanLock = lockRuns.orEmpty().any { it.sessionId == row.id && it.planIds.isNotEmpty() }
+                        if (row.mode != "break" && !isPlanLock) {
+                            // 每完成4个番茄休息15分钟，其余休息5分钟。
+                            val today = java.time.LocalDate.now()
+                            val doneToday = sessions.count { it.mode != "break" && it.status == "finished" && it.deletedAt == null &&
+                                java.time.Instant.ofEpochMilli(it.endedAt ?: it.updatedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == today }
+                            val breakMinutes = if (doneToday > 0 && doneToday % 4 == 0) 15 else 5
+                            FilledTonalButton(onClick = { startNext("break", breakMinutes, null, context.getString(R.string.nm_focus_break)) },
+                                enabled = !busy, modifier = Modifier.padding(top = 18.dp).heightIn(min = 52.dp)) {
+                                Icon(Icons.Outlined.Coffee, null); Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.nm_focus_take_break, breakMinutes))
+                            }
+                        } else if (row.mode == "break") {
+                            val previous = sessions.filter { it.mode != "break" && it.status == "finished" && it.deletedAt == null &&
+                                (it.endedAt ?: 0L) <= row.startedAt + 1_000 }.maxByOrNull { it.endedAt ?: 0L }
+                            if (previous != null) Button(onClick = {
+                                val minutes = if (previous.mode == "stopwatch") 25 else ((previous.targetMs + 30_000L) / 60_000L).toInt().coerceIn(1, 180)
+                                startNext(if (previous.mode == "stopwatch") "stopwatch" else "pomodoro", minutes, previous.taskId, previous.title)
+                            }, enabled = !busy, modifier = Modifier.padding(top = 18.dp).heightIn(min = 52.dp)) {
+                                Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.nm_focus_continue, previous.title), maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            }
+                        }
+                        if (row.mode != "break") {
+                            Text(stringResource(R.string.nm_focus_reflection_hint),
+                                modifier = Modifier.padding(top = 12.dp).widthIn(max = 320.dp),
+                                style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                            Button(onClick = ::reflect, enabled = !busy,
+                                modifier = Modifier.padding(top = 18.dp).heightIn(min = 52.dp)) {
+                                Icon(Icons.Outlined.EditNote, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.nm_focus_reflection))
+                            }
+                        }
+                        TextButton(onClick = ::minimize, enabled = !busy,
+                            modifier = Modifier.padding(top = 8.dp).heightIn(min = 48.dp)) {
+                            Text(stringResource(R.string.nm_focus_back))
+                        }
                     } else {
                         // 状态变化重建操作区，避免按钮内容复用旧状态的组合闭包。
                         key(row.id, row.revision, row.status) {
@@ -205,7 +312,7 @@ private fun ImmersiveFocus(store: FocusStore, sessionId: String, onClose: () -> 
                     Spacer(Modifier.height(20.dp))
                 }
             }
-            if (!isCompact) Text(stringResource(R.string.nm_focus_screen_hint), style = MaterialTheme.typography.bodySmall,
+            if (!isCompact && row?.status in setOf("running", "paused")) Text(stringResource(R.string.nm_focus_screen_hint), style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center, color = Color.White.copy(alpha = .72f), modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
         }
     }
@@ -230,7 +337,8 @@ private fun ImmersiveClock(row: FocusSession, store: FocusStore, textSize: Int) 
                     catch(cancelled:CancellationException) { throw cancelled }
                     catch(_:Exception) { delay(2000);continue }
                 }
-                delay(1000)
+                // 对齐到下一个整秒再刷新：固定等1000毫秒会随处理耗时逐渐漂移，钟面偶尔跳过一秒。
+                delay(1000 - elapsed % 1000 + 10)
             }
         }
     }

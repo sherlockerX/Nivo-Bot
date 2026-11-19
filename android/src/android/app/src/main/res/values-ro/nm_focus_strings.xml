@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Un singur lucru odată</string>
     <string name="nm_focus_screen_hint">Poți bloca ecranul. Revino pentru a continua aceeași sesiune.</string>
     <string name="nm_focus_finish_confirm">Salvezi timpul măsurat efectiv și închei sesiunea? Sarcina asociată rămâne neschimbată.</string>
+    <string name="nm_focus_reflection">Notează o reflecție</string>
+    <string name="nm_focus_reflection_hint">Reflectează asupra acestei sesiuni. Timpul de concentrare și sarcina asociată vor fi incluse automat.</string>
 </resources>

@@ -677,6 +677,7 @@ class MinisApp : Application(), ImageLoaderFactory {
         io.github.nanomuse.avatar.AvatarStore.init(this) // nanoMuse: the user's own face, if any
         // Mosaic: no ProfileSync; the name and face stay on this phone.
         io.github.nanomuse.account.AccountData.init(this) // nanoMuse: whose chat is whose (contract C12)
+        io.github.nanomuse.focus.lock.LockController.init(this) // nanoMuse: 按当前账号恢复强制专注守护。
         io.github.nanomuse.sync.ConversationSync.init(this) // nanoMuse: the conversations, the same on every device
         io.github.nanomuse.avatar.AvatarStudio.init(this) // nanoMuse: the feed's files and its built-in routine
         val nmRiskNotifier = io.github.nanomuse.guard.RiskApprovalNotifier(this, ::isAppForeground)

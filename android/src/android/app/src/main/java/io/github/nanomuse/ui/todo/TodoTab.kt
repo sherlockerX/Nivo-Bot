@@ -154,6 +154,16 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
         if (backupAction != null) TodoUi.backupAction.value = null
     }
 
+    // 新建之后提示框里直接给出“开始专注”，点了就到专注页并选中这条待办。
+    fun offerFocus(task: TodoTask) {
+        scope.launch {
+            snackbars.currentSnackbarData?.dismiss()
+            val result = snackbars.showSnackbar(context.getString(R.string.nm_todo_added, task.title),
+                actionLabel = context.getString(R.string.nm_todo_start_focus), withDismissAction = true,
+                duration = SnackbarDuration.Long)
+            if (result == SnackbarResult.ActionPerformed) onOpenFocus(task.id)
+        }
+    }
     fun addQuickTask() {
         if (isAdding || quickTitle.isBlank()) return
         val title = quickTitle
@@ -162,7 +172,8 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
         isAdding = true
         scope.launch {
             try {
-                store.saveTask(TodoTask(ownerKey = store.ownerKey, title = title), quickOperationId)
+                val saved = store.saveTask(TodoTask(ownerKey = store.ownerKey, title = title), quickOperationId)
+                offerFocus(saved)
                 quickTitle = ""
                 attemptedTitle = null
                 quickOperationId = UUID.randomUUID().toString()
@@ -191,8 +202,9 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 18.dp, end = 18.dp,
                 top = 14.dp, bottom = bottomInset + footerHeight + 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (isLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                if (hasLoadFailed) item {
+                // 顶部各项带固定key：加载条或错误提示出现、消失时，下面的搜索框不会被当成另一项重建而丢掉焦点。
+                if (isLoading) item(key = "loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                if (hasLoadFailed) item(key = "failed") {
                     TodoPanel {
                         Text(stringResource(R.string.nm_todo_load_failed), color = MaterialTheme.colorScheme.error)
                         TextButton(onClick = { isLoading = true; hasLoadFailed = false; reloadVersion++ }) {
@@ -201,8 +213,8 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
                     }
                 }
                 if (view == TodoView.LIST) {
-                    item { TodoOverview(tasks, selectedStatus) { selectedStatus = it } }
-                    item {
+                    item(key = "overview") { TodoOverview(tasks, selectedStatus) { selectedStatus = it } }
+                    item(key = "search") {
                         OutlinedTextField(query, { query = it }, placeholder = { Text(stringResource(R.string.nm_todo_search)) },
                             leadingIcon = { Icon(Icons.Outlined.Search, null, Modifier.size(20.dp)) },
                             singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
@@ -213,7 +225,10 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
                         ?: stringResource(R.string.nm_todo_list), filtered.size) }
                     if (filtered.isEmpty() && !isLoading && !hasLoadFailed) item { TodoPanel { TodoEmptyState(stringResource(
                         if (tasks.isEmpty()) R.string.nm_todo_no_tasks else R.string.nm_todo_empty)) } }
-                    items(filtered, key = { it.id }, contentType = { "todo_task" }) { task -> TodoTaskRow(task, onOpen = { selectedId = it.id }, onToggle = { toggleTask(task) }, isBusy = task.id in changingTaskIds) }
+                    // 勾选完成后任务会换位置，带上位移动画，不再瞬间跳到列表底部。
+                    items(filtered, key = { it.id }, contentType = { "todo_task" }) { task -> Box(Modifier.animateItem()) {
+                        TodoTaskRow(task, onOpen = { selectedId = it.id }, onToggle = { toggleTask(task) }, isBusy = task.id in changingTaskIds,
+                            onFocus = { onOpenFocus(it.id) }) } }
                 } else item {
                     when (view) {
                         TodoView.CALENDAR -> TodoCalendar(tasks) { selectedId = it.id }
@@ -247,8 +262,9 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
         }
         SnackbarHost(snackbars, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset + footerHeight))
     }
-    editTask?.let { task -> TodoEditDialog(task, store, onDismiss = { editTask = null }, onSaved = {
+    editTask?.let { task -> TodoEditDialog(task, store, onDismiss = { editTask = null }, onSaved = { saved ->
         editTask = null
+        if (task.id.isEmpty()) offerFocus(saved)
         if (task.id.isEmpty() && quickTitle == task.title) quickTitle = ""
     }) }
     if (selectedTask != null && editTask == null) TodoDetailDialog(selectedTask, store,

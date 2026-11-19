@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">此刻，只做這一件事</string>
     <string name="nm_focus_screen_hint">可以熄屏，回來後繼續本次專注。</string>
     <string name="nm_focus_finish_confirm">保存實際記錄的時間並結束本次專注？關聯待辦不會被自動完成。</string>
+    <string name="nm_focus_reflection">記錄心得</string>
+    <string name="nm_focus_reflection_hint">記錄這次專注的心得，專注時段和關聯任務會自動帶入。</string>
 </resources>

@@ -45,7 +45,7 @@
     <string name="nm_mosaic_day_title_past">这一天的生活碎片</string>
     <string name="nm_mosaic_day_title_past_empty">这天没有记录</string>
     <string name="nm_mosaic_day_title_future">还没到来</string>
-    <string name="nm_mosaic_day_empty_body">一张照片、一句话或一次完成，都会填进一朵云。其余的位置可以空着。</string>
+    <string name="nm_mosaic_day_empty_body">一张照片、一段心得或一次完成，都会填进一朵云。其余的位置可以空着。</string>
     <string name="nm_mosaic_day_past_empty_body">还可以给这一天补记。</string>
     <string name="nm_mosaic_day_future_body">下面是这一天计划的习惯，到了那天才能记录。</string>
     <plurals name="nm_mosaic_entries">
@@ -54,7 +54,7 @@
     <string name="nm_mosaic_habits_done">%1$d / %2$d 项习惯已完成</string>
     <string name="nm_mosaic_action_camera">拍照</string>
     <string name="nm_mosaic_action_album">相册</string>
-    <string name="nm_mosaic_action_text">一句话</string>
+    <string name="nm_mosaic_action_text">心得</string>
     <string name="nm_mosaic_habits_today">今日习惯</string>
     <string name="nm_mosaic_habits_of_day">这一天的习惯</string>
     <string name="nm_mosaic_habits_none">还没有习惯。添加之后，它会在你选的日子里留出位置。</string>
@@ -147,7 +147,7 @@
 
     <string name="nm_mosaic_editor_title">留下一条记录</string>
     <string name="nm_mosaic_editor_title_edit">编辑记录</string>
-    <string name="nm_mosaic_photo_hint">加一张照片，或者只写一句话。</string>
+    <string name="nm_mosaic_photo_hint">加一张照片，或者只记录心得。</string>
     <string name="nm_mosaic_photo_importing">正在导入照片…</string>
     <string name="nm_mosaic_photo_failed">这张图片读不出来。可以换一张，或只保存文字。</string>
     <string name="nm_mosaic_photo_replace">换一张</string>
@@ -157,8 +157,8 @@
     <string name="nm_mosaic_adjust">裁切</string>
     <string name="nm_mosaic_crop_hint">拖动调整位置，双指缩放。</string>
     <string name="nm_mosaic_crop_reset">重置</string>
-    <string name="nm_mosaic_text_label">一句话</string>
-    <string name="nm_mosaic_text_hint">发生了什么？</string>
+    <string name="nm_mosaic_text_label">心得</string>
+    <string name="nm_mosaic_text_hint">有什么体会或收获？</string>
     <string name="nm_mosaic_text_count">%1$d / %2$d</string>
     <string name="nm_mosaic_mark_habit">同时标记「%1$s」完成</string>
     <string name="nm_mosaic_mood">心情</string>
@@ -174,7 +174,7 @@
     <string name="nm_mosaic_saved_locally">照片保存在本机。</string>
     <string name="nm_mosaic_saved">已保存</string>
     <string name="nm_mosaic_marked_done">已标记完成</string>
-    <string name="nm_mosaic_err_empty">先加一张照片或写一句话。</string>
+    <string name="nm_mosaic_err_empty">先加一张照片或记录心得。</string>
     <string name="nm_mosaic_err_future">还没到来的日期不能记录。</string>
     <string name="nm_mosaic_err_photo_missing">这份草稿的照片已被清理，请重新选择。</string>
     <string name="nm_mosaic_err_storage">照片没能保存，请检查剩余空间后重试。</string>

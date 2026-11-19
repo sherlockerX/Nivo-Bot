@@ -64,6 +64,10 @@ data class CoachSession(
     val topicId: String = "", val teachingProtocol: String = "legacy", val mode: String = "explain",
     val assessment: CoachAssessment? = null, val startedAt: Long = 0, val endedAt: Long = 0,
     val lessonSummary: CoachLessonSummary? = null,
+    // 课节建立时的本地日期与时区；午夜和时区变化不改写已开始的课节。
+    val localDate: String = "", val zoneId: String = "",
+    // 开课时采用的教案；之后改动只影响新课节。
+    val planId: String = "", val sealedAt: Long = 0,
 )
 
 /** 摘要引用已落盘回合，来源消息标识由宿主填写。 */
@@ -129,6 +133,30 @@ data class CoachState(
     val drafts: List<CoachDraft> = emptyList(), val actions: List<CoachAction> = emptyList(),
     val operations: Map<String, String> = emptyMap(), val selectedCourseId: String = "expression",
     val topics: List<CoachTopic> = emptyList(),
+    val plans: List<CoachLessonPlan> = emptyList(),
+)
+
+/** 教案依据只能引用已保存的用户原话。 */
+@Serializable
+data class CoachPlanBasis(val sessionId: String, val turnId: String, val quote: String)
+
+/** 材料标明来自课程、用户或教学自拟；备课角色不能自称已核查。 */
+@Serializable
+data class CoachPlanMaterial(val title: String, val origin: String)
+
+/** 一份当天教案：页面显示任务说明，旁聊另读参考做法；宿主校验后才采用。 */
+@Serializable
+data class CoachLessonPlan(
+    val id: String, val courseId: String, val unitId: String, val courseVersion: String,
+    val localDate: String, val zoneId: String, val minutes: Int, val need: String = "",
+    val nextKind: String, val task: String, val reason: String = "", val observe: String = "",
+    val concepts: List<String> = emptyList(), val materials: List<CoachPlanMaterial> = emptyList(),
+    val hints: List<String> = emptyList(), val branches: List<String> = emptyList(),
+    val check: String = "", val criteriaIds: List<String> = emptyList(), val review: String = "",
+    val coachNotes: String = "", val basis: List<CoachPlanBasis> = emptyList(),
+    val source: String = "base", val model: String = "", val degradeReason: String = "",
+    val status: String = "adopted", val createdAt: Long = 0, val inputRevision: Long = 0,
+    val elapsedMs: Long = 0, val attempts: Int = 0, val skills: List<String> = emptyList(),
 )
 
 /** 由聊天宿主传入，模型不能自己伪造当前用户消息。 */

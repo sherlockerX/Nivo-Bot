@@ -68,6 +68,9 @@ class HandsOffloadHandler(private val context: Context) : NativeOffloadHandler {
     private fun blocker(code: String): JSONObject = JSONObject().put("code", code).put("settings", Hands.DEEP_LINK)
 
     private fun run(args: MediaOffloadHandler.Args, sessionId: String?): NativeOffloadResult {
+        if (io.github.nanomuse.focus.lock.LockAutomation.isBlocked(context)) return NativeOffloadResult(3,
+            JSONObject().put("ok",false).put("error","focus_locked")
+                .put("message",context.getString(com.openminis.app.R.string.nm_lock_ai_blocked)).toString())
         val task = args.get("task")?.trim().orEmpty()
         if (task.isEmpty()) return NativeOffloadResult(2, "nanomuse-hands run: --task is required\n")
         if (!Hands.enabled(context)) return refused("off", "Operating the screen is switched off in Settings → Hands.")
@@ -115,6 +118,8 @@ class HandsOffloadHandler(private val context: Context) : NativeOffloadHandler {
                 .put("tell_user", "Ask the user this question in their language and wait; then run again with the answer in the task.")
             is HandsOperator.Outcome.Failed -> body.put("message", o.message)
                 .put("tell_user", "Tell the user what went wrong in their language; the settings are at ${Hands.DEEP_LINK}.")
+            is HandsOperator.Outcome.FocusLocked -> body.put("error", "focus_locked").put("message", o.message)
+                .put("tell_user", "Forced focus is active. Do not retry, end the timer or use another screen-control tool.")
         }
         val code = when (result.outcome) {
             is HandsOperator.Outcome.Done -> 0

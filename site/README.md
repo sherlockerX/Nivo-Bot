@@ -30,7 +30,11 @@ python -m http.server 8783 --bind 127.0.0.1 --directory site
 
 `releases.json`采用版本2清单，字段说明见[产品站维护指南](../docs/product-site.md)。新增发行记录后重新生成页面即可扩展版本历史，不覆盖旧安装文件。`release.json`继续保留旧入口兼容。
 
-当前保留Android v2.0.0（51）的正式APK与对应源码原文件。iOS状态为`unreleased`，没有虚构下载链接。未来可配置`apk`、`ipa`、`app-store`或`testflight`发行方式；商店入口不要求填写不存在的IPA文件哈希。
+本轮目标版本为2.0.5(56)，Android文件为`Nivo-Bot-v2.0.5-arm64.apk`，iOS文件为`Nivo-Bot-v2.0.5-unsigned.ipa`。最终产物核验后，在`releases.json`填写真实大小、SHA256、最低系统与对应源码，并更新Android兼容入口`release.json`。Android v2.0.0(51)及其对应源码原文件继续保留，不能覆盖同名历史文件。
+
+iOS未签名IPA使用`distribution: "ipa"`和`signing: "unsigned"`，只有实际文件准备好后才将平台状态改为`available`。文件需用户使用自己的Apple开发签名与适用安装工具重新签名，不能下载后直接安装到iPhone，也不代表提供TestFlight或App Store入口。商店分发只记录真实入口，不填写不存在的IPA大小或哈希。
+
+功能说明核对两端源码，强制专注、允许应用与自动锁机计划仅限Android11及以上。iOS提供普通计时、本机提醒和系统引导式访问说明；提醒后由用户开始计时，引导式访问也由用户自行开启与结束。
 
 ## 检查与构建
 
@@ -49,10 +53,12 @@ python scripts/site/build_site.py --root site --output build/product-site
 python scripts/site/browser_qa.py --url http://127.0.0.1:8783/ --output build/site-qa --full
 ```
 
-检查包含轮播、服务商搜索、手机导航、复制、平台和渠道切换、浏览器返回、网络失败，以及隔离数据下的多版本排序和iOS商店分发。真实发行清单不会被测试数据修改。
+检查包含轮播、服务商搜索、手机导航、复制、平台和渠道切换、浏览器返回、网络失败，以及隔离数据下的多版本排序、未签名IPA安装说明和iOS商店分发。真实发行清单不会被测试数据修改。真实产物元数据填入后须重新生成、检查和构建，不能直接发布填清单前的预构建目录。
 
 ## 部署
 
 现站运行在Netcatty管理的独立`nivo-site`容器，入口为`/opt/nivo-site/www/current`。新前端发布使用独立目录和原子符号链接切换，保留旧版及现有下载文件，公网Caddy代理继续使用原域名。
+
+`scripts/site/deploy_netcatty.py`备份旧配置与`deployment-manifest.json`，并原样继承其中的`search_submission`，保留既有Google与Bing搜索验证记录。上一版的`public_verification`和`public_verified`连同版本身份移入`public_verification_history`，已有历史继续累积。新部署始终设置`public_verified: false`，只有本轮公网浏览器、路由和下载校验完成后才能写入新验收证据；旧版验证不能证明新版已通过。源站检查失败仍恢复旧链接与配置，原部署清单不变。搜索验证标签和文件继续由生成器保留，不因普通版本发布重置。
 
 仓库的Pages工作流仍保持手动触发；不会因普通推送自动改变公网托管位置。许可与上游归属保留GPL-3.0-or-later、nanoMuse和OpenMinis说明。

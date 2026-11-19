@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Her seferinde tek bir iş</string>
     <string name="nm_focus_screen_hint">Ekranı kilitleyebilirsiniz. Döndüğünüzde aynı oturuma devam edin.</string>
     <string name="nm_focus_finish_confirm">Gerçekte ölçülen süre kaydedilip oturum sonlandırılsın mı? Bağlı görev değişmez.</string>
+    <string name="nm_focus_reflection">Düşünceleri kaydet</string>
+    <string name="nm_focus_reflection_hint">Bu oturumla ilgili düşüncelerinizi yazın. Odak süresi ve bağlı görev otomatik olarak eklenecek.</string>
 </resources>

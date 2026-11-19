@@ -92,7 +92,8 @@ object CoachTeachingProtocol {
         val reviewId = if (data.isNull("reviewOfSessionId")) "" else data.optString("reviewOfSessionId") // null 表示不是复习题
         val isDelayed = if (reviewId.isBlank()) false else {
             val previous = state.session(reviewId)
-            require(previous.id != session.id && previous.topicId == session.topicId && previous.status == "complete") {
+            require(previous.id != session.id && previous.topicId == session.topicId && previous.unitId == session.unitId &&
+                previous.status == "complete") {
                 "A delayed review must reference an earlier completed lesson in this topic"
             }
             require(previous.endedAt > 0 && now - previous.endedAt >= MIN_DELAY_MILLIS) {
@@ -106,16 +107,17 @@ object CoachTeachingProtocol {
         return CoachAssessment(UUID.randomUUID().toString(), turn.id, dimension, reviewId, isDelayed)
     }
 
-    private fun hasImmediateEvidence(session: CoachSession, dimension: String): Boolean = session.evidence.any { evidence ->
+    internal fun hasImmediateEvidence(session: CoachSession, dimension: String): Boolean = session.evidence.any { evidence ->
         evidence.met && !evidence.disputed && session.turns.any {
             it.id == evidence.turnId && it.dimension == dimension && it.reviewKind == "immediate"
         } && runCatching { validateEvidence(session, evidence) }.isSuccess
     }
 
-    private fun isValidDelayedReview(state: CoachState, session: CoachSession, turn: CoachTurn): Boolean {
+    internal fun isValidDelayedReview(state: CoachState, session: CoachSession, turn: CoachTurn): Boolean {
         if (turn.reviewKind != "delayed") return false
         val previous = state.sessions.singleOrNull { it.id == turn.reviewOfSessionId } ?: return false
-        return previous.topicId == session.topicId && previous.status == "complete" && previous.endedAt > 0 &&
+        return previous.topicId == session.topicId && previous.unitId == session.unitId &&
+            previous.status == "complete" && previous.endedAt > 0 &&
             turn.createdAt - previous.endedAt >= MIN_DELAY_MILLIS && previous.course.version == session.course.version &&
             !previous.requiresCourseReview && hasImmediateEvidence(previous, turn.dimension)
     }
@@ -130,7 +132,7 @@ object CoachTeachingProtocol {
         }
     }
 
-    private fun validateEvidence(session: CoachSession, evidence: CoachEvidence) {
+    internal fun validateEvidence(session: CoachSession, evidence: CoachEvidence) {
         val criterion = session.course.units.single { it.id == session.unitId }.criteria.singleOrNull {
             it.id == evidence.criterionId } ?: error("Unknown evidence criterion")
         val turn = session.turns.singleOrNull { it.id == evidence.turnId && it.role == "user" }
@@ -165,8 +167,9 @@ object CoachTeachingProtocol {
         if (topic.status != "active") return CoachTopicProgress(false, false, false, false)
         val course = state.track(topic.courseId).course
         val criteria = course.units.singleOrNull { it.id == topic.unitId }?.criteria.orEmpty()
+        // 一项技能的长期专题会跨单元，进度只汇总当前单元的课节。
         val sessions = state.sessions.filter { it.topicId == topicId && it.teachingProtocol == VERSION &&
-            it.course.version == course.version && !it.requiresCourseReview }
+            it.unitId == topic.unitId && it.course.version == course.version && !it.requiresCourseReview }
         val met = criteria.filter { criterion -> sessions.any { session -> session.evidence.any { evidence ->
             evidence.criterionId == criterion.id && evidence.met && !evidence.disputed &&
                 runCatching { validateEvidence(session, evidence) }.isSuccess

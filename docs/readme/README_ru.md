@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-**Чат с ИИ, задачи, фокус, ежедневные заметки и обучение в одном рабочем пространстве Android.**
+**Чат с ИИ, задачи, фокус, ежедневные заметки и обучение на Android и iOS.**
 
 <p align="center">
   <a href="../../README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
+  <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
 </p>
 
 Nivo Bot, пространство ИИ для повседневной жизни. Начните с беседы, превратите следующий шаг в задачу, уделите ей время и сохраните опыт, к которому можно вернуться.
@@ -86,12 +86,13 @@ Nivo Bot, пространство ИИ для повседневной жизн
 | Ресурс | Ссылка |
 |---|---|
 | Сайт продукта | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| Исходный код, соответствующий APK | [Архив исходников v2.0.0](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA и журналы CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Исходный код, соответствующий APK | [Архив исходников v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | Контрольные суммы | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Сведения о выпуске | [Примечания к выпуску](../releases/v2.0.0.md) · [Результаты проверки](../releases/v2.0.0-verification.json) |
+| Сведения о выпуске | [Примечания к выпуску](../releases/v2.0.5.md) · [Проверки сборки](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Этот выпуск включает Android и сайт продукта. Исходники других платформ сохранены, но это не означает выпуск Nivo Bot или совпадение функций на этих платформах.
+Этот выпуск включает Android, iOS и сайт продукта. iOS поставляется как неподписанный IPA из GitHub Actions; перед установкой его нужно подписать. У этого форка нет учётной записи Apple Developer Program, поэтому распространение через TestFlight или App Store не предоставляется. Принудительный фокус, повторяющиеся планы блокировки и списки разрешённых приложений доступны только на Android. iOS предоставляет напоминания и инструкции по Гид-доступу, который пользователь запускает и завершает в iOS. Компиляция в CI не подтверждает работу на iPhone.
 
 ID приложения остаётся `io.github.nanomuse.app`. Обычно этот выпуск не может обновить установку со старой подписью Debug или исходного проекта. До удаления проверьте резервное копирование и восстановление; см. [руководство по версиям и подписи](../android-development.md#nivo-bot的android版本与签名).
 
@@ -103,8 +104,8 @@ ID приложения остаётся `io.github.nanomuse.app`. Обычно 
 Клонируйте репозиторий вместе с подмодулями нативных зависимостей:
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 Используйте JDK 21, Android SDK 36, NDK 27.2.12479018 и CMake 3.22.1. Включён Gradle Wrapper 8.11.1. Настройте инструменты и подготовьте нативные зависимости в Linux или WSL:
@@ -134,10 +135,11 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 | Путь | Содержимое |
 |---|---|
 | `android/src/android/` | Приложение Android; дополнения Nivo находятся в `io.github.nanomuse.*`. |
+| `android/src/ios/` | Нативное приложение iOS; неподписанная сборка CI для личной подписи. |
 | `site/` | Статический сайт продукта и метаданные загрузок. |
 | `docs/` | Руководства, карта исходников и история выпусков. |
 | `scripts/android/`, `scripts/release/` | Инструменты сборки, подписи, аудита и упаковки исходников. |
-| `android/src/ios/`, `harness/`, `nanomuse/`, `cloud/`, `web/` | Сохранённые исходники iOS, настольного приложения, runtime, relay и веб-консоли с отдельными границами выпуска и проверки. |
+| `harness/`, `nanomuse/`, `cloud/`, `web/` | Сохранённые исходники настольного приложения, runtime, relay и веб-консоли с отдельными границами выпуска и проверки. |
 
 Дерево Android сохраняет исходную структуру, идентификаторы пакетов и указание авторства. Перед изменением границ модулей прочитайте [карту исходников](../android-code-map.md).
 
@@ -149,13 +151,14 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 - [Руководство пользователя Android](../zh/android.md)
 - [Разработка Android и подпись](../android-development.md)
 - [Карта исходников Android](../android-code-map.md)
+- [Фокус, Coach и сборка для iPhone](../ios-focus-and-coach.md)
 - [Исходники сайта и развёртывание](../../site/README.md)
 - [История изменений](../../CHANGELOG.md)
 - [Авторские права и происхождение](../../NOTICE) · [Уведомления третьих сторон](../../THIRD_PARTY_NOTICES.md)
 
 ## Участие
 
-Сообщайте о воспроизводимых проблемах в [Issues этого репозитория](https://github.com/sherlockerX/Nicholasx/issues) и предлагайте небольшие целевые PR. Следуйте [OPEN_SOURCE.md](../../OPEN_SOURCE.md) и [CONTRIBUTING.md](../../CONTRIBUTING.md): Conventional Commits, необходимые тесты и подтверждение DCO через `git commit -s`.
+Сообщайте о воспроизводимых проблемах в [Issues этого репозитория](https://github.com/sherlockerX/Nivo-Bot/issues) и предлагайте небольшие целевые PR. Следуйте [OPEN_SOURCE.md](../../OPEN_SOURCE.md) и [CONTRIBUTING.md](../../CONTRIBUTING.md): Conventional Commits, необходимые тесты и подтверждение DCO через `git commit -s`.
 
 Сохраняйте исходные уведомления об авторских правах и лицензии. Не включайте ключи API, материалы подписи и личные записи в issues и коммиты. OpenMinis сохраняет собственные правила участия; этот форк их не изменяет.
 

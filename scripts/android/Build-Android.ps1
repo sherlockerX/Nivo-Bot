@@ -78,6 +78,9 @@ try {
     $env:ANDROID_SDK_ROOT=$SdkRoot
     if ($GradleHome) { $env:GRADLE_USER_HOME=$GradleHome }
     $arguments=@('--no-daemon','--console=plain','--max-workers=2',"-Pnm.abi=$Abi")
+    # 与CI使用相同编译内存，避免大型Compose页面落入默认小堆的Kotlin守护进程。
+    $arguments+=@('-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8',
+        '-Pkotlin.compiler.execution.strategy=in-process')
     if ($Offline) { $arguments+='--offline' }
     if ($RequireReleaseKey) { $arguments+='-Pnm.requireReleaseKey=true' }
     if ($Isolated) { $arguments+='-Pnm.uiTest=true' }

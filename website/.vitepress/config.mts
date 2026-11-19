@@ -1,20 +1,12 @@
-// The nanoMuse docs site: VitePress over ../docs. Nothing is copied — the pages under
-// docs/ are the source, and this file only says how they are arranged and where the
-// links that leave docs/ go.
-//
-//   npm run docs:dev      # http://127.0.0.1:5173/<base>
-//   npm run docs:build    # .vitepress/dist, also the dead-link check
-//   DOCS_BASE=/docs/ npm run docs:build   # for nanomuse.cn/docs/
-//
-// DOCS_BASE defaults to /nanoMuse/docs/ — the project pages at nano-muse.github.io keep
-// site/index.html (the redirect to nanomuse.cn) and site/legacy.html at the root, and the
-// docs sit beside them under /docs/.
+// Nivo Bot文档站直接读取docs/中的页面，本文件只配置页面组织与链接。
+// npm run docs:dev启动预览；npm run docs:build构建并检查死链。
+// 默认用于GitHub项目页；独立域名可用DOCS_BASE=/docs/覆盖部署路径。
 import { posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type DefaultTheme } from 'vitepress'
 
-const REPO = 'https://github.com/nano-muse/nanoMuse'
-const base = process.env.DOCS_BASE ?? '/nanoMuse/docs/'
+const REPO = 'https://github.com/sherlockerX/Nivo-Bot'
+const base = process.env.DOCS_BASE ?? '/Nivo-Bot/docs/'
 
 // Directories under docs/ that are not pages of the site: task briefs and traces are
 // working notes, the archive is the Python line's record, the release notes and the
@@ -41,7 +33,7 @@ function githubFor(href: string, fromPage: string): string | undefined {
     const inRepo = posix.normalize(posix.join('docs', inDocs))
     if (inRepo.startsWith('../')) return undefined
     const kind = inRepo.endsWith('/') || !posix.extname(inRepo) ? 'tree' : 'blob'
-    return `${REPO}/${kind}/main/${inRepo}${rest}`
+    return `${REPO}/${kind}/master/${inRepo}${rest}`
   }
   // `zh/calls.md` is the same excluded page as `calls.md`; there is no Chinese twin of a
   // page that is not on the site, so the GitHub link goes to the English file.
@@ -53,7 +45,7 @@ function githubFor(href: string, fromPage: string): string | undefined {
   if (excluded || notMarkdown || directory) {
     const kind = directory ? 'tree' : 'blob'
     const target = excluded ? inLocale : inDocs
-    return `${REPO}/${kind}/main/docs/${target}${rest}`
+    return `${REPO}/${kind}/master/docs/${target}${rest}`
   }
   return undefined
 }
@@ -75,8 +67,8 @@ function placeholderOrHtml(raw: string): string {
 
 const getStarted: DefaultTheme.SidebarItem[] = [
   { text: 'Android', link: '/android' },
-  { text: 'iPhone and iPad', link: '/ios' },
-  { text: 'iOS local port status', link: '/ios-local-port' },
+  { text: 'iPhone and iPad', link: '/ios-focus-and-coach' },
+  { text: 'iOS build and validation', link: '/ios-local-port' },
   { text: 'The desktop app', link: '/desktop' },
   { text: 'The web console', link: '/web' },
   { text: 'One account, all your devices', link: '/trial' },
@@ -86,6 +78,7 @@ const getStarted: DefaultTheme.SidebarItem[] = [
 
 const useIt: DefaultTheme.SidebarItem[] = [
   { text: 'Every device', link: '/every-device' },
+  { text: 'Forced focus on Android', link: '/focus-lock' },
   { text: 'The screen as a hand', link: '/gui' },
   { text: 'Computer use, on the desktop', link: '/desktop-muse#computer-use' },
   { text: 'Feed, Ideas, Goals, Library', link: '/desktop-muse#rail-rooms' },
@@ -121,21 +114,21 @@ const understandIt: DefaultTheme.SidebarItem[] = [
 ]
 
 const contribute: DefaultTheme.SidebarItem[] = [
-  { text: 'Contributing', link: `${REPO}/blob/main/CONTRIBUTING.md` },
-  { text: 'AGENTS.md', link: `${REPO}/blob/main/AGENTS.md` },
-  { text: 'README', link: `${REPO}/blob/main/README.md` },
+  { text: 'Contributing', link: `${REPO}/blob/master/CONTRIBUTING.md` },
+  { text: 'AGENTS.md', link: `${REPO}/blob/master/AGENTS.md` },
+  { text: 'README', link: `${REPO}/blob/master/README.md` },
   { text: 'Roadmap', link: '/roadmap' },
   { text: 'Parity between the clients', link: '/parity' },
   { text: 'Release notes', link: `${REPO}/releases` },
-  { text: 'Changelog', link: `${REPO}/blob/main/CHANGELOG.md` },
+  { text: 'Changelog', link: `${REPO}/blob/master/CHANGELOG.md` },
 ]
 
 // The same pages in Chinese, under /zh/. The group and item names follow what the apps'
 // Chinese screens call things (CONTRIBUTING.md, "Translating the docs", has the glossary).
 const zhGetStarted: DefaultTheme.SidebarItem[] = [
   { text: 'Android', link: '/zh/android' },
-  { text: 'iPhone 和 iPad', link: '/zh/ios' },
-  { text: 'iOS本地适配进展', link: '/zh/ios-local-port' },
+  { text: 'iPhone与iPad', link: '/zh/ios-focus-and-coach' },
+  { text: 'iOS构建与验证', link: '/zh/ios-local-port' },
   { text: '桌面版', link: '/zh/desktop' },
   { text: '网页控制台', link: '/zh/web' },
   { text: '一个账号，所有设备', link: '/zh/trial' },
@@ -145,6 +138,7 @@ const zhGetStarted: DefaultTheme.SidebarItem[] = [
 
 const zhUseIt: DefaultTheme.SidebarItem[] = [
   { text: '每一台设备', link: '/zh/every-device' },
+  { text: 'Android强制专注', link: '/zh/focus-lock' },
   { text: '「手」：把屏幕当手用', link: '/zh/gui' },
   { text: '桌面版的电脑操作', link: '/zh/desktop-muse#computer-use' },
   { text: '动态、点子、目标、资源库', link: '/zh/desktop-muse#rail-rooms' },
@@ -180,18 +174,18 @@ const zhUnderstandIt: DefaultTheme.SidebarItem[] = [
 ]
 
 const zhContribute: DefaultTheme.SidebarItem[] = [
-  { text: '参与贡献（英文）', link: `${REPO}/blob/main/CONTRIBUTING.md` },
-  { text: 'AGENTS.md（英文）', link: `${REPO}/blob/main/AGENTS.md` },
-  { text: '中文 README', link: `${REPO}/blob/main/docs/readme/README_zh.md` },
+  { text: '参与贡献（英文）', link: `${REPO}/blob/master/CONTRIBUTING.md` },
+  { text: 'AGENTS.md（英文）', link: `${REPO}/blob/master/AGENTS.md` },
+  { text: '中文 README', link: `${REPO}/blob/master/docs/readme/README_zh.md` },
   { text: '路线图', link: '/zh/roadmap' },
   { text: '各客户端的功能对照', link: '/zh/parity' },
   { text: '发布说明', link: `${REPO}/releases` },
-  { text: '更新日志', link: `${REPO}/blob/main/CHANGELOG.md` },
+  { text: '更新日志', link: `${REPO}/blob/master/CHANGELOG.md` },
 ]
 
 export default defineConfig({
-  title: 'nanoMuse',
-  description: 'An open-source personal agent for every device you own.',
+  title: 'Nivo Bot',
+  description: 'Nivo Bot documentation for Android and iOS: chat, tasks, focus, reflections and Coach.',
   lang: 'en',
   base,
   srcDir: '../docs',
@@ -206,11 +200,11 @@ export default defineConfig({
       label: 'English',
       lang: 'en',
       themeConfig: {
-        siteTitle: 'nanoMuse docs',
-        // Home and Try it are the project site and the demo, the same two the homepage's bar has.
+        siteTitle: 'Nivo Bot docs',
+        // 首页与下载入口对应本分支实际提供的产品网站。
         nav: [
-          { text: 'Home', link: 'https://nanomuse.cn/' },
-          { text: 'Try it', link: 'https://demo.nanomuse.dev/' },
+          { text: 'Home', link: 'https://nivo.8666886.xyz/' },
+          { text: 'Downloads', link: 'https://nivo.8666886.xyz/downloads.html' },
           { text: 'Get started', link: '/android' },
           { text: 'Run it yourself', link: '/self-hosting' },
           { text: 'Roadmap', link: '/roadmap' },
@@ -223,10 +217,10 @@ export default defineConfig({
           { text: 'Contribute', collapsed: true, items: contribute },
         ],
         outline: { level: [2, 3], label: 'On this page' },
-        editLink: { pattern: `${REPO}/edit/main/docs/:path`, text: 'Edit this page on GitHub' },
+        editLink: { pattern: `${REPO}/edit/master/docs/:path`, text: 'Edit this page on GitHub' },
         footer: {
-          message: 'GPL-3.0-or-later. nanoMuse is an independent community project, not affiliated with Meta.',
-          copyright: 'The nanoMuse contributors',
+          message: 'GPL-3.0-or-later. Nivo Bot builds on <a href="https://github.com/nano-muse/nanoMuse">nanoMuse</a> and <a href="https://github.com/OpenMinis/OpenMinis">OpenMinis</a>.',
+          copyright: 'Nivo Bot and upstream contributors',
         },
         langMenuLabel: 'Change language',
       },
@@ -235,13 +229,13 @@ export default defineConfig({
       label: '简体中文',
       lang: 'zh-Hans',
       link: '/zh/',
-      title: 'nanoMuse',
-      description: '开源的个人智能体，面向你的每一台设备。',
+      title: 'Nivo Bot',
+      description: 'Nivo Bot的Android与iOS文档：聊天、待办、专注、反思与教练。',
       themeConfig: {
-        siteTitle: 'nanoMuse 文档',
+        siteTitle: 'Nivo Bot文档',
         nav: [
-          { text: '首页', link: 'https://nanomuse.cn/' },
-          { text: '试一试', link: 'https://demo.nanomuse.dev/' },
+          { text: '首页', link: 'https://nivo.8666886.xyz/' },
+          { text: '下载', link: 'https://nivo.8666886.xyz/downloads.html' },
           { text: '上手', link: '/zh/android' },
           { text: '自己部署', link: '/zh/self-hosting' },
           { text: '路线图', link: '/zh/roadmap' },
@@ -255,7 +249,7 @@ export default defineConfig({
         ],
         outline: { level: [2, 3], label: '本页目录' },
         docFooter: { prev: '上一页', next: '下一页' },
-        editLink: { pattern: `${REPO}/edit/main/docs/:path`, text: '在 GitHub 上编辑此页' },
+        editLink: { pattern: `${REPO}/edit/master/docs/:path`, text: '在 GitHub 上编辑此页' },
         lastUpdatedText: '最后更新',
         darkModeSwitchLabel: '外观',
         lightModeSwitchTitle: '切换到浅色',
@@ -272,8 +266,8 @@ export default defineConfig({
           code: '404',
         },
         footer: {
-          message: 'GPL-3.0-or-later。nanoMuse 是独立的社区项目，与 Meta 无关。',
-          copyright: 'nanoMuse 贡献者',
+          message: 'GPL-3.0-or-later。Nivo Bot基于<a href="https://github.com/nano-muse/nanoMuse">nanoMuse</a>与<a href="https://github.com/OpenMinis/OpenMinis">OpenMinis</a>。',
+          copyright: 'Nivo Bot与上游贡献者',
         },
       },
     },
@@ -336,7 +330,6 @@ export default defineConfig({
   themeConfig: {
     logo: '/nanomuse-icon.svg',
     socialLinks: [
-      { icon: 'discord', link: 'https://discord.gg/bkTySmm28X' },
     ],
     search: {
       provider: 'local',

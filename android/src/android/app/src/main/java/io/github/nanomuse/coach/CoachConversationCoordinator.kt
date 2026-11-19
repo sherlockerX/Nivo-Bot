@@ -21,6 +21,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
+/** 打开训练时对昨天未完课节的处理；默认接着原课节。 */
+enum class CoachOpenChoice { CONTINUE, START_TODAY }
+
 /** 专题、会话和课次的可恢复入口；导航与首次教学发送由界面宿主负责。 */
 object CoachConversationCoordinator {
     const val GROUP_ID = "daily-practice"
@@ -29,16 +32,16 @@ object CoachConversationCoordinator {
 
     /** 主动打开课程时建立或复用专题聊天，并开始或恢复课次。 */
     suspend fun open(context: Context, repo: ChatRepository, providers: ProviderRepository,
-        courseId: String): String = withContext(Dispatchers.IO) {
+        courseId: String, choice: CoachOpenChoice = CoachOpenChoice.CONTINUE): String = withContext(Dispatchers.IO) {
         opening.withLock {
             ConversationSync.exclusive {
-                openInAccount(context.applicationContext, repo, providers, courseId)
+                openInAccount(context.applicationContext, repo, providers, courseId, choice)
             }
         }
     }
 
     private suspend fun openInAccount(context: Context, repo: ChatRepository,
-        providers: ProviderRepository, courseId: String): String {
+        providers: ProviderRepository, courseId: String, choice: CoachOpenChoice): String {
         repo.attachCoachContext(context)
         val owner = AccountData.key(context)
         val epoch = CoachRuntime.epoch.value
@@ -71,6 +74,18 @@ object CoachConversationCoordinator {
             execute(service, "resume_session", currentLesson.id)
         }
         CoachConversationArchive.retryLocked(context, repo, chatId)?.let { error(it) }
+        val zone = java.time.ZoneId.systemDefault()
+        val today = CoachDay.key(System.currentTimeMillis(), zone)
+        val bound = service.state.value.topics.single { it.id == topic.id }
+        val open = bound.activeSessionId?.let { id -> service.state.value.sessions.find { it.id == id } }
+            ?.takeIf { it.status in CoachSkillProfile.OPEN_STATUSES }
+        // 「开始今天」只封存更早日期的课节；同一天的课节始终续上，重复点击不产生第二节。
+        if (choice == CoachOpenChoice.START_TODAY && open != null && CoachDay.of(open, zone).let { it.isNotBlank() && it != today }) {
+            execute(service, "seal_lesson", open.id)
+        }
+        val stillOpen = service.state.value.topics.single { it.id == topic.id }.activeSessionId
+            ?.let { id -> service.state.value.sessions.find { it.id == id } }?.takeIf { it.status in CoachSkillProfile.OPEN_STATUSES }
+        if (stillOpen == null) execute(service, "retarget_topic", topic.id)
         val lessonId = execute(service, "start_lesson", topic.id)
         if (service.state.value.sessions.single { it.id == lessonId }.status == "paused") {
             execute(service, "resume_session", lessonId)
@@ -100,9 +115,11 @@ object CoachConversationCoordinator {
         require(!track.course.needsCriteriaReview && track.course.units.none { it.needsCriteriaReview }) {
             "Review the course criteria before opening its topic"
         }
-        state.topics.lastOrNull { it.courseId == courseId && it.unitId == track.currentUnitId &&
-            it.status == "active" }?.let { return it }
-        val id = execute(service, "start_topic", courseId)
+        // 一项技能只有一个长期专题和一条旁聊；单元和案例是课节的属性。
+        CoachSkillProfile.topic(state, courseId)?.let { return it }
+        val id = checked(service.execute(CoachCommand("start_topic", "host-open:${UUID.randomUUID()}",
+            service.state.value.revision, courseId,
+            payload = JSONObject().put("title", track.course.title).toString())))
         return service.state.value.topics.single { it.id == id }
     }
 

@@ -138,6 +138,8 @@
       if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(release.version) || !['stable', 'beta'].includes(release.channel)) throw new Error('版本信息不完整');
       const distribution = release.distribution || 'apk';
       if (!['apk', 'ipa', 'app-store', 'testflight'].includes(distribution)) throw new Error('发行方式不支持');
+      if (distribution === 'ipa' && !['signed', 'unsigned'].includes(release.signing)) throw new Error('IPA需要注明签名状态');
+      if (release.signing === 'unsigned' && (distribution !== 'ipa' || release.platform !== 'ios')) throw new Error('未签名发行仅适用于iOS IPA');
       if (['apk', 'ipa'].includes(distribution) && (!/^[a-f\d]{64}$/i.test(release.sha256) || !Number.isInteger(release.sizeBytes) || release.sizeBytes <= 0)) throw new Error('安装文件信息不完整');
       safeUrl(release.downloadUrl); safeUrl(release.sourceUrl); safeUrl(release.notesUrl, true);
       ids.add(release.id);
@@ -152,20 +154,27 @@
     heading.append(node('span', '↗', 'platform-symbol'));
     const title = node('div'); title.append(node('p', `${release.platform.toUpperCase()} / ${release.channel.toUpperCase()}`, 'eyebrow'), node('h2', `Nivo Bot v${release.version}`));
     const distribution = release.distribution || 'apk';
-    const method = {apk:'正式签名', ipa:'IPA', 'app-store':'App Store', testflight:'TestFlight'}[distribution];
+    const isUnsigned = release.signing === 'unsigned';
+    const method = isUnsigned ? '未签名IPA' : {apk:'正式签名', ipa:'IPA', 'app-store':'App Store', testflight:'TestFlight'}[distribution];
     heading.append(title, node('span', method, 'chip')); card.append(heading, node('p', release.summary, 'release-summary'));
     const facts = node('div', undefined, 'release-facts');
-    [`${release.platform === 'android' ? 'Android' : 'iOS'} ${release.minimumOs}+`, release.architecture, release.sizeBytes ? `${(release.sizeBytes / 1024 / 1024).toFixed(1)}MB` : '', release.releasedAt].filter(Boolean).forEach(value => facts.append(node('span', value)));
+    [`${release.platform === 'android' ? 'Android' : 'iOS'} ${release.minimumOs}+`, release.architecture, release.versionCode ? `构建${release.versionCode}` : '', release.sizeBytes ? `${(release.sizeBytes / 1024 / 1024).toFixed(1)}MB` : '', release.releasedAt].filter(Boolean).forEach(value => facts.append(node('span', value)));
     card.append(facts);
+    if (isUnsigned) {
+      const installation = node('aside', undefined, 'callout');
+      installation.append(node('h3', '安装前需要自行签名'), node('p', '这是未签名IPA，不能下载后直接安装到iPhone。需要使用自己的Apple开发签名与适用的安装工具重新签名；能否安装、签名有效期和可用权限取决于你的账户与签名方式。本文件没有TestFlight或App Store安装入口。'));
+      installation.append(anchor('查看iOS安装说明 ↗', 'install.html', 'text-link', true)); card.append(installation);
+    }
     const actions = node('div', undefined, 'actions');
-    actions.append(anchor(release.platform === 'android' ? '下载APK ↓' : '打开官方安装入口 ↗', release.downloadUrl, 'button primary'), anchor('查看更新说明 ↗', release.notesUrl, 'text-link', true));
+    const downloadLabel = {apk:'下载APK ↓', ipa:`下载${method} ↓`}[distribution] || '打开官方安装入口 ↗';
+    actions.append(anchor(downloadLabel, release.downloadUrl, 'button primary'), anchor('查看更新说明 ↗', release.notesUrl, 'text-link', true));
     card.append(actions);
     if (release.sha256) {
       const checksum = node('div', undefined, 'checksum'), copy = node('button', '复制校验和', 'copy-button');
       copy.type = 'button'; copy.dataset.copy = release.sha256; copy.setAttribute('aria-label', '复制安装文件SHA256');
       checksum.append(node('span', '安装文件 SHA256'), node('code', release.sha256), copy); card.append(checksum);
     }
-    const links = node('div', undefined, 'release-links'); links.append(anchor('下载本版对应源码ZIP ↗', release.sourceUrl)); card.append(links);
+    const links = node('div', undefined, 'release-links'); links.append(anchor('本版对应源码 ↗', release.sourceUrl)); card.append(links);
     return card;
   }
 

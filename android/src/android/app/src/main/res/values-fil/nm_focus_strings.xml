@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Isa-isang gawain</string>
     <string name="nm_focus_screen_hint">Maaari mong i-lock ang screen. Bumalik upang ipagpatuloy ang parehong sesyon.</string>
     <string name="nm_focus_finish_confirm">I-save ang aktuwal na naitalang oras at tapusin ang sesyon? Hindi magbabago ang naka-link na gawain.</string>
+    <string name="nm_focus_reflection">Isulat ang pagninilay</string>
+    <string name="nm_focus_reflection_hint">Pagnilayan ang sesyong ito. Awtomatikong isasama ang oras ng pagtuon at ang kaugnay na gawain.</string>
 </resources>

@@ -5,9 +5,18 @@ import com.openminis.app.ui.navigation.Routes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import io.github.nanomuse.ui.focus.FocusReflectionRequest
 
 /** Route of the full OpenMinis session list when opened from the drawer's archive glyph. */
 const val ROUTE_ALL_CHATS = "nanomuse/all_chats"
+
+/** 宽屏记录页面独立入栈，日常聊天仍由原有双栏承载。 */
+const val ROUTE_HOME_TAB = "nanomuse/views/{tab}"
+
+/** 仅从枚举生成站内路由，不接受外部传入任意导航地址。 */
+fun homeTabRoute(tab: HomeTab): String = "nanomuse/views/${tab.name}"
 
 /**
  * Requests to the home shell from places that cannot see it (a card inside a chat message, an
@@ -27,6 +36,18 @@ object HomeBus {
 
     private val _requests = MutableSharedFlow<Request>(replay = 1, extraBufferCapacity = 8)
     val requests: SharedFlow<Request> = _requests
+    private val _focusReflection = MutableStateFlow<FocusReflectionRequest?>(null)
+    val focusReflection: StateFlow<FocusReflectionRequest?> = _focusReflection
+
+    /** 心得请求独立保留，普通切换标签不会覆盖尚未消费的跨窗口点击。 */
+    fun showFocusReflection(request: FocusReflectionRequest) {
+        _focusReflection.compareAndSet(null, request)
+    }
+
+    /** 导航成功或拒绝后只消费本次请求，页面返回时不会再次弹出。 */
+    fun handledFocusReflection(request: FocusReflectionRequest) {
+        _focusReflection.compareAndSet(request, null)
+    }
 
     fun showTab(tab: HomeTab) { _requests.tryEmit(Request.ShowTab(tab)) }
 
@@ -77,14 +98,17 @@ object HomeShell {
         return true
     }
 
-    /**
-     * Shows [tab] in the shell (the Feed, from the feed's notification), popping whatever sits on
-     * top. Returns false in wide windows, where there is no shell; the request stays on the bus
-     * for a shell that mounts later, which is what a cold start from the notification does.
-     */
+    /** 窄屏回到主页标签，宽屏挂载独立记录页，均提供实际可消费的导航目标。 */
     fun openTab(nav: NavController, tab: HomeTab): Boolean {
         HomeBus.showTab(tab)
-        if (!active) return false
+        if (!active) {
+            val hasStandalonePage = runCatching { nav.getBackStackEntry(ROUTE_HOME_TAB) }.isSuccess
+            nav.navigate(homeTabRoute(tab)) {
+                if (hasStandalonePage) popUpTo(ROUTE_HOME_TAB) { inclusive = false }
+                launchSingleTop = true
+            }
+            return true
+        }
         val shellRoute = Routes.SESSION_LIST
         val onStack = try {
             nav.getBackStackEntry(shellRoute); true

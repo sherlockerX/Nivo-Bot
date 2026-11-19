@@ -30,8 +30,8 @@ object CoachDebugRequests {
                     app.memoryRepository, app.skillRepository, app.mcpRepository))[ChatViewModel::class.java]
             vm.nmAwaitSessionReady()
             when (action) {
-                "send" -> vm.nmSendCoachRequest(params.getString("prompt"), params.optString("sessionId").ifBlank { null })
-                "chat" -> vm.sendMessage(params.getString("prompt"))
+                "send" -> vm.nmHeadlessDispatch { vm.nmSendCoachRequest(params.getString("prompt"), params.optString("sessionId").ifBlank { null }) }
+                "chat" -> vm.nmHeadlessDispatch { vm.sendMessage(params.getString("prompt")) }
                 "end" -> vm.nmEndCoachLesson(params.getString("sessionId"))
                 "retry_archive" -> vm.nmRetryCoachArchive()
                 "open" -> io.github.nanomuse.ui.home.HomeBus.showSession(chatId)

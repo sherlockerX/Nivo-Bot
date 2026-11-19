@@ -92,7 +92,7 @@ internal fun TodoDetailDialog(task: TodoTask, store: TodoStore, onDismiss: () ->
             task.completedDay?.let { Text(stringResource(R.string.nm_todo_completed_value, todoDate(it))) }
             }
             TodoPanel {
-            OutlinedButton(enabled = !isBusy, onClick = { onOpenFocus(task.id) }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(enabled = !isBusy && task.status != "done", onClick = { onOpenFocus(task.id) }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Outlined.Timer, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.nm_focus_for_task))
             }
             io.github.nanomuse.ui.focus.FocusTaskSummary(task.id)

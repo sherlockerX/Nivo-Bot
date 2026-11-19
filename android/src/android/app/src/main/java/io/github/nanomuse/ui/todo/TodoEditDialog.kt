@@ -28,7 +28,7 @@ import java.util.UUID
 
 /** 编辑保留打开时的修订号，冲突或保存失败时不清空用户文字。 */
 @Composable
-internal fun TodoEditDialog(task: TodoTask, store: TodoStore, onDismiss: () -> Unit, onSaved: () -> Unit) {
+internal fun TodoEditDialog(task: TodoTask, store: TodoStore, onDismiss: () -> Unit, onSaved: (TodoTask) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var title by rememberSaveable(task.id) { mutableStateOf(task.title) }
@@ -85,7 +85,7 @@ internal fun TodoEditDialog(task: TodoTask, store: TodoStore, onDismiss: () -> U
                 isSaving = true
                 error = null
                 scope.launch {
-                    try { store.saveTask(updated, operationId); onSaved() }
+                    try { onSaved(store.saveTask(updated, operationId)) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { error = context.getString(R.string.nm_todo_save_failed) }
                     finally { isSaving = false }

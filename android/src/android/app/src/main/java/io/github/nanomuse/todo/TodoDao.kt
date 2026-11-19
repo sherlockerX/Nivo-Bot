@@ -70,6 +70,10 @@ interface TodoDao {
     @Query("SELECT * FROM todo_entry_links WHERE ownerKey = :owner AND entryId = :entryId ORDER BY linkedAt, taskId")
     suspend fun entryLinks(owner: String, entryId: String): List<TodoEntryLink>
 
+    /** nanoMuse: 一批日记的历史任务快照只读取当前账号，避免逐条查询。 */
+    @Query("SELECT * FROM todo_entry_links WHERE ownerKey = :owner AND entryId IN (:entryIds) ORDER BY entryId, linkedAt, taskId")
+    suspend fun entryLinksForEntries(owner: String, entryIds: List<String>): List<TodoEntryLink>
+
     /** 任务详情只列出未删除碎片，保留内部历史快照。 */
     @Query("SELECT l.* FROM todo_entry_links l INNER JOIN entries e ON e.id = l.entryId WHERE l.ownerKey = :owner AND l.taskId = :taskId AND e.deletedAt IS NULL ORDER BY e.day DESC, l.linkedAt DESC")
     suspend fun taskLinks(owner: String, taskId: String): List<TodoEntryLink>

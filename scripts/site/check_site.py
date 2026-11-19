@@ -99,6 +99,12 @@ def validate_releases(data: dict) -> list[str]:
         kind = release.get("distribution", "apk")
         if kind not in {"apk", "ipa", "app-store", "testflight"}:
             errors.append("Invalid distribution method")
+        if kind == "ipa" and release.get("signing") not in {"signed", "unsigned"}:
+            errors.append("IPA release requires signing status")
+        if release.get("signing") == "unsigned" and (
+            kind != "ipa" or release.get("platform") != "ios"
+        ):
+            errors.append("Unsigned release must be an iOS IPA")
         if kind in {"apk", "ipa"}:
             if not re.fullmatch("[a-fA-F0-9]{64}", release.get("sha256", "")):
                 errors.append("Binary release requires SHA256")

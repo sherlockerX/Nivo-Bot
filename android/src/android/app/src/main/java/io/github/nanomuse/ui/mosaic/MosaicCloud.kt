@@ -220,6 +220,9 @@ fun rememberPuzzlePhotos(store: MosaicStore, paths: List<String>, px: Int): Map<
     val context = LocalContext.current
     val images = remember { mutableStateMapOf<String, ImageBitmap>() }
     LaunchedEffect(paths, px) {
+        // Mosaic: 翻到别的周、月后放掉不再显示的缩略图；一直留着会随翻页越积越多，图片加载器的缓存也无法淘汰它们。
+        // 新范围的数据还没到时列表是空的，这时不清，免得同一批图片先清后载。
+        if (paths.isNotEmpty()) images.keys.retainAll(paths.toSet())
         if (px > 0) loadPhotos(context, store, paths.filter { it !in images }, px) { path, bitmap -> images[path] = bitmap }
     }
     return images

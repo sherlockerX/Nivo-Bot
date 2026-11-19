@@ -73,6 +73,12 @@ class CoachTurnRouting {
 
     companion object {
         private const val MAX_TRACKED_IDS = 256
+
+        /** 个人记录读取可由普通聊天发起；这里只签发前台回合凭证，不授予教练命令范围。 */
+        fun canAuthorizePersonalRead(isAccountCurrent: Boolean, isSessionVisible: Boolean,
+            isScheduled: Boolean, isTaskDispatch: Boolean, isForeground: Boolean): Boolean =
+            isAccountCurrent && isSessionVisible && !isScheduled && !isTaskDispatch && isForeground
+
         /** 主聊天或可信绑定专题的用户回合可访问，任务派发不继承授权。 */
         fun canAccess(isMain: Boolean, isScheduled: Boolean, isTaskDispatch: Boolean,
             hasUserMessage: Boolean, isForeground: Boolean = true, isBoundPractice: Boolean = false): Boolean =

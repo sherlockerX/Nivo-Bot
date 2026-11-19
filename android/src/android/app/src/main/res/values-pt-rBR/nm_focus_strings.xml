@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Uma coisa de cada vez</string>
     <string name="nm_focus_screen_hint">Você pode bloquear a tela. Volte para continuar a mesma sessão.</string>
     <string name="nm_focus_finish_confirm">Salvar o tempo realmente registrado e encerrar esta sessão? A tarefa vinculada permanece igual.</string>
+    <string name="nm_focus_reflection">Registrar reflexão</string>
+    <string name="nm_focus_reflection_hint">Reflita sobre esta sessão. O tempo de foco e a tarefa vinculada serão incluídos automaticamente.</string>
 </resources>

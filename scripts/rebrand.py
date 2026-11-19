@@ -31,6 +31,7 @@ Anything else is a hand edit marked `// nanoMuse:` in the file.
     python scripts/rebrand.py --android-brand-only  # 仅更新Android品牌与版本
     python scripts/rebrand.py --ios-brand-only      # 仅更新iOS可见品牌，不更改版本或数据标识
     python scripts/rebrand.py --ios-version-only    # 仅更新iOS版本，不更改品牌、图像或数据标识
+    python scripts/rebrand.py --versions-only       # 仅更新Android和iOS版本
 """
 
 from __future__ import annotations
@@ -51,11 +52,11 @@ IOS = ROOT / "android" / "src" / "ios"
 
 APP_ID = "io.github.nanomuse.app"
 NAME = "Nicholasx"  # Mosaic: the personal build's product name
-VERSION_NAME = "2.0.0"
-VERSION_CODE = 51
-# 两个平台独立保存版本；当前按用户要求对齐品牌版本，不代表平台功能已同步。
-ANDROID_VERSION_NAME = "2.0.0"
-ANDROID_VERSION_CODE = 51
+VERSION_NAME = "2.0.5"
+VERSION_CODE = 56
+# 手机版本使用同一发布来源，完整品牌生成也不能恢复旧的Android版本。
+ANDROID_VERSION_NAME = VERSION_NAME
+ANDROID_VERSION_CODE = VERSION_CODE
 ANDROID_NAME = "Nivo Bot"
 REPO = "sherlockerX/Nicholasx"  # Nicholasx：本分支的源码与反馈入口
 REPO_URL = f"https://github.com/{REPO}"
@@ -77,15 +78,21 @@ def edit(path: Path, subs: list[tuple[str, str]], count: int = 0) -> None:
         changed.append(str(path.relative_to(ROOT)))
 
 
-def gradle() -> None:
+def android_versions_only() -> None:
+    """仅生成Android版本字段，保留包名、品牌、图像与签名配置。"""
     edit(
         APP / "build.gradle.kts",
         [
-            (r'applicationId = "[^"]+"', f'applicationId = "{APP_ID}"'),
             (r"versionCode = \d+", f"versionCode = {ANDROID_VERSION_CODE}"),
             (r'versionName = "[^"]+"', f'versionName = "{ANDROID_VERSION_NAME}"'),
         ],
     )
+
+
+def gradle() -> None:
+    """完整品牌生成复用版本入口，再更新应用标识。"""
+    android_versions_only()
+    edit(APP / "build.gradle.kts", [(r'applicationId = "[^"]+"', f'applicationId = "{APP_ID}"')])
 
 
 def package_ids() -> None:
@@ -651,6 +658,11 @@ def main(argv: list[str] | None = None) -> int:
     if args == ["--ios-version-only"]:
         ios_versions_only()
         print(f"{len(set(changed))} iOS version files changed")
+        return 0
+    if args == ["--versions-only"]:
+        android_versions_only()
+        ios_versions_only()
+        print(f"{len(set(changed))} version files changed")
         return 0
     if args not in ([], ["--check"]):
         print(f"usage: {sys.argv[0]} [--check]  (unknown: {' '.join(args)})", file=sys.stderr)

@@ -14,6 +14,7 @@ class CoachCommandService(
     legacyPaused: Set<String> = emptySet(),
     legacyNotes: Map<String, String> = emptyMap(),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val zone: () -> java.time.ZoneId = java.time.ZoneId::systemDefault,
 ) {
     private val json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
     private val mutableState = MutableStateFlow(loadInitialState(courses, legacyPaused, legacyNotes))
@@ -297,7 +298,8 @@ class CoachCommandService(
 
     private fun reduce(state: CoachState, command: CoachCommand, user: CoachUserInput?): Pair<CoachState, String> =
         when (command.action) {
-            "start_topic", "start_lesson", "end_lesson" -> CoachTopicCommands.apply(state, command, clock())
+            "start_topic", "start_lesson", "end_lesson", "retarget_topic", "seal_lesson", "adopt_plan" ->
+                CoachTopicCommands.apply(state, command, clock(), zone())
             "start" -> start(state, command.targetId)
             "pause_course", "resume_course", "advance" -> changeCourse(state, command)
             "save_input", "answer", "lesson_message", "coach_reply", "pause_session", "resume_session", "request_hint", "dispute" ->

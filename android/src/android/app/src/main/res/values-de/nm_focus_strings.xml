@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Eine Sache nach der anderen</string>
     <string name="nm_focus_screen_hint">Du kannst den Bildschirm sperren. Kehre zur selben Sitzung zurück.</string>
     <string name="nm_focus_finish_confirm">Die tatsächlich erfasste Zeit speichern und diese Sitzung beenden? Die verknüpfte Aufgabe bleibt unverändert.</string>
+    <string name="nm_focus_reflection">Gedanken festhalten</string>
+    <string name="nm_focus_reflection_hint">Halte deine Gedanken zu dieser Sitzung fest. Fokuszeit und verknüpfte Aufgabe werden automatisch übernommen.</string>
 </resources>

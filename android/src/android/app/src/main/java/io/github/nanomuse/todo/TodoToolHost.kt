@@ -18,11 +18,13 @@ data class TodoToolAccess(
     val authorization: CoachTurnAuthorization?,
     val currentAuthorization: CoachTurnAuthorization?,
     val user: TodoToolUser?,
+    val isSessionVisible: Boolean = true,
 ) {
-    /** 只复用精确的前台用户授权，不继承教练专题或新回合的权限。 */
-    fun denialReason(): String? = when {
+    /** 只读可跨普通聊天；命令仍要求主要聊天，两者均固定同一账户与已落盘用户回合。 */
+    fun denialReason(isReadOnly: Boolean = false): String? = when {
         !isAccountCurrent -> "account_changed"
-        !isMain -> "main_required"
+        !isSessionVisible -> "session_unavailable"
+        !isReadOnly && !isMain -> "main_required"
         isScheduled -> "scheduled_forbidden"
         isTaskDispatch -> "dispatch_forbidden"
         else -> userDenial()
@@ -49,24 +51,34 @@ class TodoToolHost(
     private val guard: suspend (String, String) -> String?,
     private val storageFactory: suspend () -> TodoToolStorage,
     private val focusFactory: (suspend () -> io.github.nanomuse.focus.FocusStore)? = null,
+    private val recordsFactory: ((suspend () -> Unit) -> io.github.nanomuse.records.PersonalRecordsAgentBridge)? = null,
 ) {
     /** 等待审批和真实写入结束后才返回成功，取消直接传给模型循环。 */
     suspend fun execute(name: String, arguments: String): ToolExecutionResult { return try {
         currentCoroutineContext().ensureActive()
-        require(name in setOf(TodoAgentBridge.QUERY, TodoAgentBridge.COMMAND, io.github.nanomuse.focus.FocusAgentBridge.QUERY, io.github.nanomuse.focus.FocusAgentBridge.COMMAND)) { "Unknown Todo tool" }
+        val isReadOnly = name in setOf(TodoAgentBridge.QUERY, io.github.nanomuse.focus.FocusAgentBridge.QUERY,
+            io.github.nanomuse.records.PersonalRecordsAgentBridge.QUERY)
+        require(isReadOnly || name in setOf(TodoAgentBridge.COMMAND, io.github.nanomuse.focus.FocusAgentBridge.COMMAND)) { "Unknown Todo tool" }
         val initial = access()
-        requireAccess(initial)
+        requireAccess(initial, isReadOnly)
         guard(name, arguments)?.let { return failure(it) }
-        requireSameAccess(initial)
+        val checkSameAccess: suspend () -> Unit = { requireSameAccess(initial, isReadOnly) }
+        checkSameAccess()
+        if (name == io.github.nanomuse.records.PersonalRecordsAgentBridge.QUERY) {
+            val bridge = checkNotNull(recordsFactory) { "Personal records are unavailable" }.invoke(checkSameAccess)
+            val result = bridge.execute(arguments)
+            checkSameAccess()
+            return result
+        }
         if (name == io.github.nanomuse.focus.FocusAgentBridge.QUERY || name == io.github.nanomuse.focus.FocusAgentBridge.COMMAND) {
             val store = checkNotNull(focusFactory) { "Focus is unavailable" }.invoke()
-            return io.github.nanomuse.focus.FocusAgentBridge(store) { requireSameAccess(initial) }.execute(name, arguments)
+            return io.github.nanomuse.focus.FocusAgentBridge(store, checkSameAccess).execute(name, arguments)
         }
-        val storage = GuardedStorage(storageFactory()) { requireSameAccess(initial) }
+        val storage = GuardedStorage(storageFactory(), checkSameAccess)
         val bridge = TodoAgentBridge(storage)
         val result = if (name == TodoAgentBridge.QUERY) bridge.query(arguments)
             else bridge.command(arguments, initial.user)
-        requireSameAccess(initial)
+        checkSameAccess()
         result
     } catch (cancelled: CancellationException) {
         throw cancelled
@@ -76,14 +88,14 @@ class TodoToolHost(
 
     }
 
-    private fun requireAccess(state: TodoToolAccess) {
-        state.denialReason()?.let { error("Todo access denied: $it") }
+    private fun requireAccess(state: TodoToolAccess, isReadOnly: Boolean) {
+        state.denialReason(isReadOnly)?.let { error("Todo access denied: $it") }
     }
 
-    private suspend fun requireSameAccess(initial: TodoToolAccess) {
+    private suspend fun requireSameAccess(initial: TodoToolAccess, isReadOnly: Boolean) {
         currentCoroutineContext().ensureActive()
         val current = access()
-        requireAccess(current)
+        requireAccess(current, isReadOnly)
         check(current.authorization == initial.authorization && current.user == initial.user &&
             current.sessionId == initial.sessionId) { "Todo access denied: user_turn_changed" }
     }

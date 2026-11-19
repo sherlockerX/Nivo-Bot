@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">Uma foto, uma reflexão ou um hábito concluído preenche uma nuvem. O restante pode ficar vazio.</string>
+    <string name="nm_mosaic_action_text">Reflexão</string>
+    <string name="nm_mosaic_photo_hint">Adicione uma foto ou escreva uma reflexão.</string>
+    <string name="nm_mosaic_text_label">Reflexão</string>
+    <string name="nm_mosaic_text_hint">O que você aprendeu ou percebeu?</string>
+    <string name="nm_mosaic_err_empty">Adicione primeiro uma foto ou uma reflexão.</string>
+</resources>

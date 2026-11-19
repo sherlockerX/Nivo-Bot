@@ -21,4 +21,5 @@
     <string name="nm_calendar_grid">显示日历</string>
     <string name="nm_calendar_date_hint">YYYY-MM-DD</string>
     <string name="nm_calendar_invalid">请输入可选择的有效日期</string>
+    <string name="nm_home_ready_in_drawer">已准备好，可以在抽屉里打开。</string>
 </resources>

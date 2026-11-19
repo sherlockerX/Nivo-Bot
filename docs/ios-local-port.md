@@ -1,12 +1,18 @@
-# Nivo iOS local port
+# Nivo Bot iOS port
 
-This page describes the local port of Android additions to the native iOS app. Source lives under `android/src/ios/NanoMuse/`. This work is in development and has not been published. Build evidence below applies to its stated commit; application tests and phone interactions have not been accepted.
+This page describes the native iOS implementation of Nivo Bot's tasks, focus, daily fragments and Coach. Source lives under `android/src/ios/NanoMuse/`. Version **2.0.5 (56)** uses an unsigned IPA delivery path through GitHub Actions. This fork has no Apple Developer Program account and provides no TestFlight or App Store distribution; installation requires personal signing.
 
-## Current validation, 2026-11-17 {#current-validation}
+## Current validation, 2026-11-19 {#current-validation}
+
+The release CI for **2.0.5 (56)** is pending completion. Its run and final results will be recorded after the matching release commit finishes the [iOS workflow](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml). Earlier successful builds and test counts below are evidence for their stated commits, not this release. Application-test compilation, application XCTest execution and iPhone runtime acceptance remain separate checks.
+
+The workflow preserves the unsigned device app before compiling its test target, then packages that independent copy for personal signing. An IPA artifact may be available before the later test-target compilation completes; check each job's final status. iPhone notifications, Guided Access, login, real model responses, CloudKit, audio and screen transitions remain unverified. Android forced lock plans and app whitelists are not implemented on iOS.
+
+## Earlier validation, 2026-11-17
 
 Commit `a53fe85` passed 682 portable tests on macOS with zero failures, and the unsigned application build succeeded with zero warnings in `NanoMuse/`. The application-test target failed during `build-for-testing` because six standalone command-line test scripts were included in the application test bundle. Their target exclusions and a missing reference to the application's provider host-tag helper have been corrected locally; the next Apple run must verify the application test build. Application XCTest execution and full application acceptance remain pending.
 
-The local iOS project configuration now matches the user's authorized version, **2.0.0 (51)**, across all 12 target/configuration pairs. `python scripts/rebrand.py --ios-version-only` updates only the iOS version fields; the full iOS generator reuses this function. All four generator tests passed with `python -m pytest tests/test_rebrand.py -q --noconftest`, covering version application, preserved identifiers and display names, and repeatable generation. These local version changes are later than `a53fe85` and are not covered by that Apple run.
+The iOS version generator applies the requested version across all 12 target/configuration pairs. `python scripts/rebrand.py --ios-version-only` updates only the iOS version fields; the full iOS generator reuses this function. At this earlier snapshot, all four generator tests passed with `python -m pytest tests/test_rebrand.py -q --noconftest`, covering version application, preserved identifiers and display names, and repeatable generation. This is generator evidence and does not validate the current release's Apple build.
 
 The Windows portable suite passed 672 tests with zero failures and exit code 0 after the final reflection and planning-query changes. The log is `swift-core-ios-parity-final-20261117.log`. The suite covers saved reflections, explicit task choices and date corrections, independent drafts, repeated submissions, backup conflicts, historical links, goal and routine queries, pagination and user-turn authorization. Two newly reproduced failures, ignored completion-date corrections and omitted ordinary routine results, passed after their fixes. Parsing all 831 Swift files, the 22 resource tests and both catalogue generator checks also passed. Portable tests and syntax parsing do not compile SwiftUI, UIKit or Apple Security integration.
 
@@ -14,7 +20,9 @@ In the earlier [Apple run 44027601418](https://github.com/sherlockerX/Nivo-Bot/a
 
 FFmpeg downloads now verify the pinned release digest, retry within bounds and use a verified mirror and source cache. The root filesystem's host tool selects a supported guest architecture on Intel and Apple Silicon Macs while retaining the ARM64 device filesystem. Five offline download tests passed; the architecture suite passed six tests with the submodule present, and five with one explicit source-coverage skip when it was absent.
 
-Application tests for provider persistence, Keychain, ChatStore and personal-record host integration still await Apple execution. The workflow separately compiles the application test target with `build-for-testing`; compilation alone does not run these tests. iPhone presentation, real model queries, login, CloudKit events, audio interruption and standalone voice-call access remain unverified. Lower sections retain implementation and dated evidence from earlier snapshots; this section defines the current validation boundary.
+Application tests for provider persistence, Keychain, ChatStore and personal-record host integration still await Apple execution. The workflow separately compiles the application test target with `build-for-testing`; compilation alone does not run these tests. iPhone presentation, real model queries, login, CloudKit events, audio interruption and standalone voice-call access remain unverified. Lower sections retain implementation and dated evidence from earlier snapshots; the current validation section above defines this release's boundary.
+
+The workflow preserves the unsigned device application before `build-for-testing` embeds XCTest into its host. Packaging uses that independent copy and rejects application test bundles, while test compilation remains a required check. The resulting IPA still needs a valid personal signature before installation.
 
 ## Navigation and daily work
 

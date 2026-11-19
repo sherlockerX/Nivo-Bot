@@ -1,0 +1,8 @@
+<resources>
+    <string name="nm_mosaic_day_empty_body">一張照片、一段心得或一次完成，都會填進一朵雲。其餘的位置可以空著。</string>
+    <string name="nm_mosaic_action_text">心得</string>
+    <string name="nm_mosaic_photo_hint">加一張照片，或只記錄心得。</string>
+    <string name="nm_mosaic_text_label">心得</string>
+    <string name="nm_mosaic_text_hint">有什麼體會或收穫？</string>
+    <string name="nm_mosaic_err_empty">先加一張照片或記錄心得。</string>
+</resources>

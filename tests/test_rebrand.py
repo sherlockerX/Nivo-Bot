@@ -107,6 +107,9 @@ def test_ios_version_only_updates_versions_preserves_other_files_and_is_idempote
     ios = tmp_path / "ios"
     monkeypatch.setattr(rebrand, "ROOT", tmp_path)
     monkeypatch.setattr(rebrand, "IOS", ios)
+    # 本用例只固定iOS读取的版本常量，不验证导入时绑定的Android版本别名。
+    monkeypatch.setattr(rebrand, "VERSION_NAME", "9.8.7")
+    monkeypatch.setattr(rebrand, "VERSION_CODE", 987)
     project = ios / "Minis.xcodeproj/project.pbxproj"
     project.parent.mkdir(parents=True)
     original = (
@@ -123,10 +126,10 @@ def test_ios_version_only_updates_versions_preserves_other_files_and_is_idempote
     android.write_text('versionName = "2.0.0"\nversionCode = 51\n', encoding="utf-8")
     assert rebrand.main(["--ios-version-only"]) == 0
     expected = (
-        original.replace("MARKETING_VERSION = 1.0.6;", "MARKETING_VERSION = 2.0.0;")
-        .replace("MARKETING_VERSION = 1.13;", "MARKETING_VERSION = 2.0.0;")
-        .replace("CURRENT_PROJECT_VERSION = 49;", "CURRENT_PROJECT_VERSION = 51;")
-        .replace("CURRENT_PROJECT_VERSION = 1;", "CURRENT_PROJECT_VERSION = 51;")
+        original.replace("MARKETING_VERSION = 1.0.6;", "MARKETING_VERSION = 9.8.7;")
+        .replace("MARKETING_VERSION = 1.13;", "MARKETING_VERSION = 9.8.7;")
+        .replace("CURRENT_PROJECT_VERSION = 49;", "CURRENT_PROJECT_VERSION = 987;")
+        .replace("CURRENT_PROJECT_VERSION = 1;", "CURRENT_PROJECT_VERSION = 987;")
     )
     assert project.read_text(encoding="utf-8") == expected
     assert image.read_bytes() == b"unchanged-image-fixture"

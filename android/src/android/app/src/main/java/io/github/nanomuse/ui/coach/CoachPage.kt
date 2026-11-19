@@ -103,7 +103,7 @@ fun CoachPage(header: @Composable () -> Unit, bottomInset: Dp, onChat: (String) 
     val spaceEpoch by CoachRuntime.epoch.collectAsState()
     LaunchedEffect(context, spaceEpoch) {
         runCatching { withContext(Dispatchers.IO) { CoachRuntime.service(context.applicationContext) } }
-            .onSuccess { service = it }.onFailure { error = it.message ?: context.getString(R.string.nm_coach_failed) }
+            .onSuccess { service = it; CoachUi.restore(context) }.onFailure { error = it.message ?: context.getString(R.string.nm_coach_failed) }
     }
     val actions = PageActions(isPending, coachRequest?.isRunning == true) { action, target, text, payload, user, after ->
         val current = service
@@ -164,7 +164,8 @@ fun CoachPage(header: @Composable () -> Unit, bottomInset: Dp, onChat: (String) 
                 }) { Text(stringResource(R.string.nm_coach_cancel_request)) }
             } }
             if (view !in setOf("courses", "training", "results")) {
-                coachExploreItems(state, selected, isOpeningPractice, onOpenPractice)
+                coachProfileItems(state, selected, isOpeningPractice, onOpenPractice, onOpenConversation,
+                    onResume = { courseId -> actions.run("resume_course", courseId) })
             } else if (view == "courses") {
                 item(key = "course_library") { LibraryPanel(state, selected, actions, onChat, onOpenPractice) }
             } else {
@@ -194,14 +195,14 @@ private class PageActions(
 }
 
 @Composable
-private fun Panel(content: @Composable () -> Unit) {
+internal fun Panel(content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), color = MuseTones.surface, border = BorderStroke(1.dp, MuseTones.hairline.copy(alpha = .65f))) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) = Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+internal fun SectionTitle(text: String) = Text(text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -423,7 +424,7 @@ private fun EvidenceSummary(session: CoachSession, onOpenConversation: (String, 
 
 /** 旧档案没有原消息定位时明确显示边界，仍保留已保存的原文摘录。 */
 @Composable
-private fun SourceMessageLink(
+internal fun SourceMessageLink(
     chatSessionId: String,
     messageId: String,
     onOpenConversation: (String, String?) -> Unit,
@@ -445,7 +446,7 @@ private fun SourceMessageLink(
 
 /** 一份档案展示原文、课程快照和证据，纠正与继续交回专题聊天。 */
 @Composable
-private fun SessionArchive(
+internal fun SessionArchive(
     state: CoachState,
     session: CoachSession,
     track: CoachTrack?,
@@ -464,6 +465,7 @@ private fun SessionArchive(
             session.status == "waiting_real" -> R.string.nm_coach_waiting_real
             session.status == "complete" -> R.string.nm_coach_completed
             session.status == "paused" -> R.string.nm_coach_paused
+            session.status == "sealed" -> R.string.nm_coach_profile_sealed
             else -> R.string.nm_coach_unfinished
         }))
         Text(session.course.units.firstOrNull { it.id == session.unitId }?.title ?: session.unitId)

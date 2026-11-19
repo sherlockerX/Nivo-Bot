@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Una cosa a la vez</string>
     <string name="nm_focus_screen_hint">Puedes bloquear la pantalla. Vuelve para continuar la misma sesión.</string>
     <string name="nm_focus_finish_confirm">¿Guardar el tiempo registrado y terminar esta sesión? La tarea vinculada no cambia.</string>
+    <string name="nm_focus_reflection">Anotar reflexión</string>
+    <string name="nm_focus_reflection_hint">Reflexiona sobre esta sesión. El tiempo de concentración y la tarea vinculada se incluirán automáticamente.</string>
 </resources>

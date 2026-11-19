@@ -174,13 +174,14 @@ fun MuseRoundButton(
     badge: Boolean = false,
 ) {
     Box(modifier = modifier) {
-        // Muse's disc has no rule around it — a soft shadow lifts it off the page.
+        // A shadow under a translucent disc shows through it, and the system draws that shadow from a
+        // polygon outline, so in light mode the disc looked octagonal. A hairline lifts it instead.
         Surface(
             onClick = onClick,
             shape = CircleShape,
-            color = MuseTones.surface.copy(alpha = if (MuseTones.isDark) 0.58f else 0.5f),
-            border = BorderStroke(0.5.dp, MuseTones.hairline.copy(alpha = 0.35f)),
-            shadowElevation = 1.dp,
+            color = MuseTones.surface.copy(alpha = if (MuseTones.isDark) 0.58f else 0.72f),
+            border = BorderStroke(0.75.dp, MuseTones.hairline.copy(alpha = if (MuseTones.isDark) 0.35f else 0.6f)),
+            shadowElevation = 0.dp,
             modifier = Modifier.size(44.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {

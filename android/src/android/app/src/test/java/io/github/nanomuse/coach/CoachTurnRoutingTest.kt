@@ -5,6 +5,24 @@ import org.junit.Test
 
 /** 验证教练语音约束绑定具体消息，不泄漏到后续普通聊天。 */
 class CoachTurnRoutingTest {
+    @Test fun should_issuePersonalReadAuthorization_onlyForCurrentVisibleForegroundUserHosts() {
+        assertTrue(CoachTurnRouting.canAuthorizePersonalRead(true, true, false, false, true))
+        assertFalse(CoachTurnRouting.canAuthorizePersonalRead(false, true, false, false, true))
+        assertFalse(CoachTurnRouting.canAuthorizePersonalRead(true, false, false, false, true))
+        assertFalse(CoachTurnRouting.canAuthorizePersonalRead(true, true, true, false, true))
+        assertFalse(CoachTurnRouting.canAuthorizePersonalRead(true, true, false, true, true))
+        assertFalse(CoachTurnRouting.canAuthorizePersonalRead(true, true, false, false, false))
+    }
+
+    @Test fun should_notGrantCoachScope_when_OrdinaryChatReceivesReadAuthorization() {
+        val routing = CoachTurnRouting()
+        val authorization = routing.authorize("ordinary-user", "ordinary-chat")!!
+        assertEquals(authorization, routing.currentAuthorization("ordinary-user"))
+        assertEquals("main_required", routing.denialReason("ordinary-user", "ordinary-chat", false, false, false, true))
+        routing.revoke(authorization)
+        assertNull(routing.currentAuthorization("ordinary-user"))
+    }
+
     @Test fun should_authorize_only_host_bound_practice_conversations() {
         val routing = CoachTurnRouting()
         routing.authorize("practice-user", "practice-chat")

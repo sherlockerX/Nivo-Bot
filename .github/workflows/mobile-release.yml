@@ -1,0 +1,31 @@
+name: Mobile · publish verified release
+
+# 官网先部署已核验文件，只有正式版本标签会触发GitHub发行。
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'sherlockerX/Nivo-Bot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: 验证发布边界
+        run: python3 -m unittest discover -s scripts/release -p test_publish_mobile.py -v
+      - name: 校验官网文件并创建发行
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/release/publish_mobile.py --tag "$RELEASE_TAG"

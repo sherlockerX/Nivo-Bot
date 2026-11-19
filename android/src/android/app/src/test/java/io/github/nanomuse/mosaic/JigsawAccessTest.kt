@@ -1,5 +1,7 @@
 package io.github.nanomuse.mosaic
 
+import io.github.nanomuse.focus.FocusEntryLink
+import io.github.nanomuse.todo.TodoEntryLink
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -7,7 +9,6 @@ import org.junit.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 
 /** 验证真实命令协议、完整日记内容和日历状态边界。 */
 class JigsawAccessTest {
@@ -20,7 +21,8 @@ class JigsawAccessTest {
         assertEquals(4, root.getJSONArray("days").getJSONObject(1).getInt("energy"))
         assertEquals(4, root.getJSONArray("days").getJSONObject(1).getJSONArray("records").getJSONObject(0).getInt("energy"))
     }
-    private val clock = Clock.fixed(Instant.parse("2026-10-27T17:00:00Z"), ZoneOffset.UTC)
+    // 手机设在上海时区；记录工具跟随手机时区。
+    private val clock = Clock.fixed(Instant.parse("2026-10-27T17:00:00Z"), java.time.ZoneId.of("Asia/Shanghai"))
     private val date = LocalDate.parse("2026-10-27").toEpochDay()
     private val sentence = "日常的感悟\n".repeat(180)
     private val entry = MosaicEntry("e1", date, "America/Chicago", 1_798_927_200_000L,
@@ -100,10 +102,18 @@ class JigsawAccessTest {
         assertEquals("2024-02-01", next.getJSONArray("days").getJSONObject(0).getString("date"))
     }
 
-    @Test fun `default dates use Shanghai rather than the device clock zone`() = runBlocking {
-        val output = JSONObject(command().execute(listOf("list", "--days", "1")).output)
-        assertEquals("2026-10-28", output.getString("start"))
-        assertEquals("2026-10-28", output.getString("end"))
+    @Test fun `default dates and timestamps follow the phone time zone`() = runBlocking {
+        val shanghai = JSONObject(command().execute(listOf("list", "--days", "1")).output)
+        assertEquals("2026-10-28", shanghai.getString("start"))
+        assertEquals("Asia/Shanghai", shanghai.getString("timezone"))
+        // 同一时刻在芝加哥还是10月27日中午，记录工具按手机所在时区给出今天和时间戳。
+        val chicagoClock = Clock.fixed(Instant.parse("2026-10-27T17:00:00Z"), java.time.ZoneId.of("America/Chicago"))
+        val chicago = JSONObject(JigsawCommand(chicagoClock) { _, _ -> JigsawSnapshot(entries = listOf(entry)) }
+            .execute(listOf("list", "--days", "1")).output)
+        assertEquals("2026-10-27", chicago.getString("start"))
+        assertEquals("America/Chicago", chicago.getString("timezone"))
+        val createdAt = chicago.getJSONArray("days").getJSONObject(0).getJSONArray("records").getJSONObject(0).getString("created_at")
+        assertTrue(createdAt, createdAt.endsWith("-05:00") || createdAt.endsWith("-06:00"))
     }
 
     @Test fun `bad dates missing values unknown arguments and writes fail before touching data`() = runBlocking {
@@ -163,6 +173,72 @@ class JigsawAccessTest {
         val command = JigsawCommand(clock) { start, end -> requested = start to end; JigsawSnapshot() }
         command.execute(listOf("list", "--start", "2026-01-01", "--end", "2026-12-31", "--limit", "31", "--offset", "31"))
         assertEquals(LocalDate.parse("2026-02-01").toEpochDay() to LocalDate.parse("2026-03-04").toEpochDay(), requested)
+    }
+
+    @Test fun should_preserveAssociationSnapshots_withoutInferringCompletion() = runBlocking {
+        val snapshot = JigsawSnapshot(entries = listOf(entry),
+            todoLinks = listOf(TodoEntryLink("owner", entry.id, "task", "保存时任务名", "doing", 100L)),
+            focusLinks = listOf(FocusEntryLink("owner", entry.id, "focus", "保存时专注名", 10L, 90L, 60L)))
+        val output = JSONObject(command(snapshot).execute(listOf("get", "--date", "2026-10-27")).output)
+        assertEquals("device_local", output.getString("scope"))
+        assertEquals("current_account", output.getString("linked_records_scope"))
+        assertEquals("saved_snapshots_no_completion_inference", output.getString("association_semantics"))
+        val record = output.getJSONArray("days").getJSONObject(0).getJSONArray("records").getJSONObject(0)
+        val task = record.getJSONArray("todo_links").getJSONObject(0)
+        assertEquals("task", task.getString("task_id"))
+        assertEquals("保存时任务名", task.getString("title_snapshot"))
+        assertEquals("doing", task.getString("status_snapshot"))
+        assertEquals(100L, task.getLong("linked_at_ms"))
+        assertFalse(task.has("done"))
+        assertFalse(task.has("completed"))
+        assertFalse(task.has("ownerKey"))
+        val focus = record.getJSONArray("focus_links").getJSONObject(0)
+        assertEquals("focus", focus.getString("session_id"))
+        assertEquals("保存时专注名", focus.getString("title_snapshot"))
+        assertEquals(10L, focus.getLong("started_at_ms"))
+        assertEquals(90L, focus.getLong("ended_at_ms"))
+        assertEquals(60L, focus.getLong("duration_ms"))
+        assertFalse(focus.has("completed"))
+        assertFalse(focus.has("ownerKey"))
+        // 关联的专注时段就是这条记录的实测用时。
+        assertEquals("focused_activity", record.getString("kind"))
+        assertEquals(60L, record.getLong("measured_focus_ms"))
+    }
+
+    @Test fun should_emitOnlyMatchingLinks_andKeepDefaultEmptySnapshotsCompatible() = runBlocking {
+        val snapshot = JigsawSnapshot(entries = listOf(entry),
+            todoLinks = listOf(TodoEntryLink("owner", "unrequested", "task", "范围外任务", "done", 100L)),
+            focusLinks = listOf(FocusEntryLink("owner", "unrequested", "focus", "范围外专注", 10L, 90L, 60L)))
+        val result = command(snapshot).execute(listOf("get", "--date", "2026-10-27"))
+        val record = JSONObject(result.output).getJSONArray("days").getJSONObject(0)
+            .getJSONArray("records").getJSONObject(0)
+        assertEquals(0, record.getJSONArray("todo_links").length())
+        assertEquals(0, record.getJSONArray("focus_links").length())
+        assertEquals("daily_note", record.getString("kind"))
+        assertEquals(0L, record.getLong("measured_focus_ms"))
+        assertFalse(result.output.contains("范围外"))
+        val legacy = JSONObject(command().execute(listOf("get", "--date", "2026-10-27")).output)
+            .getJSONArray("days").getJSONObject(0).getJSONArray("records").getJSONObject(0)
+        assertEquals(0, legacy.getJSONArray("todo_links").length())
+        assertEquals(0, legacy.getJSONArray("focus_links").length())
+    }
+
+    @Test fun should_includeAssociationSnapshotsInMarkdown_withoutChangingOriginalText() = runBlocking {
+        val snapshot = JigsawSnapshot(entries = listOf(entry),
+            todoLinks = listOf(TodoEntryLink("owner", entry.id, "task", "保存时任务名", "doing", 100L)),
+            focusLinks = listOf(FocusEntryLink("owner", entry.id, "focus", "保存时专注名", 10L, 90L, 60L)))
+        val result = command(snapshot).execute(listOf("get", "--date", "2026-10-27", "--format", "md"))
+        assertEquals(0, result.exitCode)
+        assertTrue(result.output.contains(sentence))
+        assertTrue(result.output.contains("device_local"))
+        assertTrue(result.output.contains("current_account"))
+        assertTrue(result.output.contains("保存时任务名"))
+        assertTrue(result.output.contains("status_snapshot: doing"))
+        assertTrue(result.output.contains("保存时专注名"))
+        assertTrue(result.output.contains("duration_ms: 60"))
+        assertTrue(result.output.contains("Time spent (measured focus)"))
+        assertTrue(result.output.contains("never use it as time spent"))
+        assertFalse(result.output.contains("[x]"))
     }
 
 }

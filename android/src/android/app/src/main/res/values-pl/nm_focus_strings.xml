@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Jedna rzecz naraz</string>
     <string name="nm_focus_screen_hint">Możesz zablokować ekran. Po powrocie kontynuujesz tę samą sesję.</string>
     <string name="nm_focus_finish_confirm">Zapisać faktycznie zmierzony czas i zakończyć sesję? Powiązane zadanie pozostanie bez zmian.</string>
+    <string name="nm_focus_reflection">Zapisz refleksję</string>
+    <string name="nm_focus_reflection_hint">Zapisz refleksję z tej sesji. Czas skupienia i powiązane zadanie zostaną dodane automatycznie.</string>
 </resources>

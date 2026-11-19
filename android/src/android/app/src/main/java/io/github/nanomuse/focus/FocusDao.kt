@@ -25,6 +25,10 @@ interface FocusDao {
     @Insert suspend fun putOperation(operation: FocusOperation)
     @Query("SELECT * FROM focus_entry_links WHERE ownerKey=:owner AND entryId=:entryId ORDER BY startedAt")
     suspend fun entryLinks(owner: String, entryId: String): List<FocusEntryLink>
+
+    /** nanoMuse: 一批日记的专注快照只读取当前账号，不关联当前会话状态。 */
+    @Query("SELECT * FROM focus_entry_links WHERE ownerKey=:owner AND entryId IN (:entryIds) ORDER BY entryId, startedAt, sessionId")
+    suspend fun entryLinksForEntries(owner: String, entryIds: List<String>): List<FocusEntryLink>
     @Query("SELECT * FROM focus_entry_links WHERE ownerKey=:owner AND entryId=:entryId ORDER BY startedAt")
     fun observeEntryLinks(owner: String, entryId: String): Flow<List<FocusEntryLink>>
     @Query("SELECT * FROM focus_draft_links WHERE ownerKey=:owner AND draftId=:draftId")

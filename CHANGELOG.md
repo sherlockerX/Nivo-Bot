@@ -4,7 +4,61 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-11-19 · Cadence
+
+- Released Android and iOS as Nivo Bot 2.0.5 (56), with the product website and source links pointing to the official `sherlockerX/Nivo-Bot` repository. iOS is delivered as an unsigned IPA for personal signing; this fork does not provide TestFlight or App Store distribution.
+- Kept forced focus, recurring lock plans and app whitelists exclusive to Android. iOS added focus reminders and Guided Access instructions, with manual activation and exit in iOS.
+- Corrected the iOS copy-test resource loader and changed OAuth tests to import the actual device application module instead of duplicating application dependencies in the test target.
+
+The entries below retain development-stage test counts and limitations at their stated commits. See the [release notes](docs/releases/v2.0.5.md#verification) for this release's delivery and verification boundary.
+
 - Added task search and creation, pomodoro breaks, time by tag, focus reminders and Guided Access guidance to iOS. Coach now shows skill profiles, and personal record queries distinguish a saved note from measured focus time.
+
+- Rebuilt the Android Coach page as one skill's profile at a time: chips at the top switch the skill and the page shows the goal, today's training, current performance with its supporting answers, the plan and the reason for the next step, material, and past lessons by date. The last skill viewed is remembered per account.
+- Gave each Coach skill one long-term training conversation: a new unit or case continues in it, each lesson records its date and time zone, and an unfinished lesson from an earlier day can be continued or set aside when a new day starts.
+- Added Coach lesson plans: before a new lesson a separate, tool-less model call prepares the task, hints, paths and an independent check from the skill's records; the app checks it and falls back to the course's basic exercise when no model answers or the plan fails the checks.
+- Marked the page you are on in the Android side menu: Focus, Tasks and Ideas are highlighted when open, and the main chat is highlighted only while the chat is shown.
+- Added a forced Android stopwatch: it counts up on the lock screen for up to 12 hours and ends when you tap End focus, which saves the time so far and unlocks the phone.
+- Let Android focus statistics show the share of time by task group or by tag; a session with several tags is split evenly among them.
+- Made leaving the full-screen focus timer always return to the Focus page; it sometimes went to the home screen.
+- Made the AI's diary records use the phone's time zone instead of a fixed Asia/Shanghai.
+
+- Made Android chats retry a failed model request on the same model up to six times over about 50 seconds, at every step of a task, before falling back or showing the error. Rate limits, cut-off streams and provider errors are now retried too; a stop, a rejected key, a content check and errors about the request itself are not.
+
+- Fixed Android lock plans that never released: a failing settlement no longer keeps the lock screen after its end time, and plans that run past midnight, such as 21:00 to 06:00, end at 06:00 and stay unlocked for the rest of the day.
+- Chained Android pomodoros and breaks: a finished focus offers a five-minute break, fifteen minutes after every fourth focus of the day, and a finished break offers to focus again on the same task for the same length. Breaks offer 5, 10, 15 or 20 minutes, and a stopwatch shows when it started instead of an empty progress bar.
+- Made the AI read diary time from linked focus: each record says whether it is a focused activity with its measured focus time or a daily note without one, and the time a note was saved is no longer read as time spent.
+- Drew the chat's corner buttons as circles in light mode; they had looked octagonal.
+
+- Linked Android tasks and focus: every open task has a focus shortcut, a newly added task offers Start focus, and the focus page searches tasks or adds a new one in a chosen group in place of the free-text title. Focus statistics now follow the task groups, with each group's share of focus time, sessions, average length and a per-task breakdown for any day, week, month or year.
+
+- Merged the Android focus reflections into the forced-focus build: Record reflection appears again after a timer ends and on recent and past sessions, and the diary's text entry is called Reflection.
+
+- Made Android forced focus cover forbidden windows the moment they appear, including the home screen, small windows, split screen and Settings, so Nivo cannot be uninstalled while the lock screen returns; the lock screen now returns without an animation, the notification shade is collapsed and vendor control centres are swiped closed. Removed the Nivo chat option from Allowed apps.
+
+- Kept a paused focus session's end time at the moment it was paused, asked for the notification permission before the full-screen timer opens, and stopped offering focus on a completed task.
+
+- Added Android reflection entry points after focus sessions, with the completed session and linked task preselected in a recoverable diary draft. Renamed the diary text entry to Reflection across supported languages.
+- Enabled read-only personal record queries in ordinary Android chats, including focus, tasks, reflections, Coach archives, goals and routines, with current-user authorization, bounded pagination and saved reflection links.
+- Preserved timer second alignment, task search focus and list movement, keyboard dismissal on page changes, and bounded diary thumbnail caching from the local Android interaction updates.
+- Kept a newly sent message active when an older cancelled retry finished preparing, and prevented return or delete actions from interrupting a pending focus reflection.
+- Limited long immersive focus titles to two lines and hid the screen-resume hint after a session finished, leaving more room for reflection and return actions.
+
+- Refreshed the active keyboard identity when its input window appears, prepared the selected focus background before opening the forced-focus screen, preserved completion notifications after clock changes, and cleared account-owned lock settings and diagnostics during account deletion.
+
+- Added Android forced-focus emergency exit with a persistent ten-minute wait and confirmation, restricted in-app navigation and AI screen actions, and added measured forced-focus statistics, exit markers and wake settings. Phone acceptance remains pending.
+
+- Added Android recurring lock plans with multiple time periods, task links, permission retries and overlap restrictions.
+
+- Added Android forced-focus monitoring, bounded diagnostics, a locked full-screen view and independent expiry and recovery alarms with a manual opt-in switch. Phone enforcement remains unverified.
+
+- Added Android forced-focus permission setup, persistent app selection, system-role exclusions and configuration restore from focus settings. Verified 294 forced-focus tests and a Debug build; phone permission flows remain pending device validation.
+
+- Added account-scoped Android forced-focus storage with an explicit database migration, blocked timer mutations before command replay while a lock is active, and saved measured intervals with throttled checkpoints. Extended focus JSON backups with plans and whitelists; restoration imports configuration only and leaves restored plans disabled. The P2 unit run passed all 272 forced-focus tests; Room device tests and device enforcement remain unverified.
+
+- Added the Android forced-focus calculation layer for calendar plans, stable occurrence identities, whitelist decisions, fixed-deadline countdowns and launch deduplication. This initial calculation stage introduced no forced-focus controls; device enforcement remains unverified.
+
+- Preserved the unsigned device app before compiling its tests, so the personal-signing IPA excludes XCTest bundles and the test runtime embedded by `build-for-testing`.
 
 - Corrected application-test membership for six standalone Swift scripts, reused the real provider host-tag implementation and kept database assertions within Swift 6 actor boundaries. The scripts and application XCTest suites were preserved; the next Apple test build will verify the configuration.
 

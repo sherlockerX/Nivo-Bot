@@ -27,6 +27,25 @@ class FocusProtocolInstrumentedTest {
         bridge=FocusAgentBridge(store) {}
     }
     @After fun close() { FocusAlarm.schedule(context,null);database.close() }
+    @Test fun should_readExistingFocusThroughOrdinaryChatHost_withoutStartingAnotherTimer()=runBlocking {
+        val row=store.command("start","existing-start",title="已有专注")
+        val authorization=io.github.nanomuse.coach.CoachTurnAuthorization("ordinary-user","ordinary-chat")
+        val access=io.github.nanomuse.todo.TodoToolAccess(
+            isAccountCurrent=true,isMain=false,isScheduled=false,isTaskDispatch=false,
+            sessionId="ordinary-chat",loopUserId="ordinary-user",authorization=authorization,
+            currentAuthorization=authorization,
+            user=io.github.nanomuse.todo.TodoToolUser("ordinary-user","查询全部专注记录","ordinary-chat"))
+        val host=io.github.nanomuse.todo.TodoToolHost({ access },{ _,_->null },
+            { error("不应访问待办存储") },focusFactory={ store })
+        val result=host.execute(FocusAgentBridge.QUERY,"""{"kind":"sessions"}""")
+        assertTrue(result.output,result.success)
+        val items=JSONObject(result.output).getJSONObject("data").getJSONArray("items")
+        assertEquals(1,items.length())
+        assertEquals(row.id,items.getJSONObject(0).getString("id"))
+        assertFalse(host.execute(FocusAgentBridge.COMMAND,
+            """{"action":"start","operationId":"forbidden-start","title":"不允许的新计时"}""").success)
+        assertEquals(listOf(row.id),store.sessions().map { it.id })
+    }
     @Test fun should_pauseThreeMinuteTimerBeforeDeadline_andQuerySameActiveSession()=runBlocking {
         val start=bridge.execute(FocusAgentBridge.COMMAND,"""{"action":"start","operationId":"start","title":"协议验收","minutes":3}""")
         assertTrue(start.output,start.success)

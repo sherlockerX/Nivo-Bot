@@ -61,4 +61,6 @@
     <string name="nm_focus_in_session">Одно дело за раз</string>
     <string name="nm_focus_screen_hint">Можно заблокировать экран. Вернувшись, вы продолжите тот же сеанс.</string>
     <string name="nm_focus_finish_confirm">Сохранить фактически измеренное время и завершить сеанс? Связанная задача не изменится.</string>
+    <string name="nm_focus_reflection">Записать мысли</string>
+    <string name="nm_focus_reflection_hint">Запишите мысли об этом сеансе. Время фокусировки и связанная задача будут добавлены автоматически.</string>
 </resources>

@@ -363,7 +363,7 @@ internal object HeadlessChatRunner {
         // caller-supplied id (covers a freshly-reloaded session whose bubble id
         // IS the DB row id).
         val liveAssistantId = vm.assistantMessageIdForToolBlock(blockId) ?: assistantMessageId
-        val accepted = vm.rerunFromToolBlock(liveAssistantId, blockId)
+        val accepted = vm.nmHeadlessDispatch { vm.rerunFromToolBlock(liveAssistantId, blockId) } // nanoMuse: RPC重跑不签发真实用户凭证。
         if (!accepted) {
             return@withContext PromptResult(
                 status = "Error",

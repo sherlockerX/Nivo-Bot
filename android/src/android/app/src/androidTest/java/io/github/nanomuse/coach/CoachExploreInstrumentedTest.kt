@@ -19,7 +19,7 @@ import com.openminis.app.ui.theme.MinisTheme
 import io.github.nanomuse.ui.coach.CoachHeader
 import io.github.nanomuse.ui.coach.CoachSceneCard
 import io.github.nanomuse.ui.coach.CoachUi
-import io.github.nanomuse.ui.coach.coachExploreItems
+import io.github.nanomuse.ui.coach.coachProfileItems
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -43,11 +43,14 @@ class CoachExploreInstrumentedTest {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 scenario.onActivity { activity -> activity.setContent {
                     MinisTheme(darkTheme = false) {
-                        Column { CoachHeader {}; LazyColumn { coachExploreItems(CoachState(tracks = tracks), tracks.first(), false, {}) } }
+                        Column { CoachHeader {}; LazyColumn { coachProfileItems(CoachState(tracks = tracks), tracks.first(), false, {}, { _, _ -> }, {}) } }
                     }
                 } }
-                waitForText(label("nm_coach_explore_title"))
+                waitForText(label("nm_coach_profile_today"))
                 screenshot("coach-explore-light")
+                // 切换技能只改变浏览的档案，不打开对话。
+                clickText(tracks[1].course.title)
+                waitFor { CoachUi.selectedCourseId.value == tracks[1].course.id }
                 tracks.forEach { track ->
                     scenario.onActivity { activity -> activity.setContent {
                         MinisTheme(darkTheme = false) { Column(Modifier.padding(top = 48.dp)) { CoachSceneCard(track) { CoachUi.selectedCourseId.value = track.course.id } } }
@@ -66,11 +69,11 @@ class CoachExploreInstrumentedTest {
             scenario.onActivity { activity -> activity.setContent {
                 MinisTheme(darkTheme = true) {
                     CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.5f)) {
-                        Column { CoachHeader {}; LazyColumn { coachExploreItems(CoachState(tracks = tracks), tracks.first(), false, {}) } }
+                        Column { CoachHeader {}; LazyColumn { coachProfileItems(CoachState(tracks = tracks), tracks.first(), false, {}, { _, _ -> }, {}) } }
                     }
                 }
             } }
-            waitForText(label("nm_coach_explore_title"))
+            waitForText(label("nm_coach_profile_today"))
             screenshot("coach-explore-dark-large")
             clickText(label("nm_coach_explore_more"), allowScroll = true)
             waitForText(label("nm_growth_calendar"))

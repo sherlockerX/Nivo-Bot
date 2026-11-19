@@ -4,7 +4,7 @@
   <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
 </p>
 
-<strong>AIチャット、タスク、集中、日々の記録と成長コーチを1つのAndroidワークスペースに。</strong>
+<strong>AIチャット、タスク、集中、日々の記録と成長コーチをAndroidとiOSで。</strong>
 
 <p align="center">
   <a href="../../README.md">English</a> |
@@ -22,9 +22,9 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.0.md"><img src="https://img.shields.io/badge/release-v2.0.0-blue" alt="Android v2.0.0"></a>
+  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
   <br>
-  <a href="https://nivo.8666886.xyz/">製品サイト</a> · <a href="https://github.com/sherlockerX/Nicholasx/issues">問題報告</a> · <a href="../../OPEN_SOURCE.md">開発への参加</a>
+  <a href="https://nivo.8666886.xyz/">製品サイト</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題報告</a> · <a href="../../OPEN_SOURCE.md">開発への参加</a>
 </p>
 
 Nivo Botは日常生活のためのAIワークスペースです。会話から始め、次の一歩をタスクにし、集中する時間を確保して、経験を振り返れる記録に残します。
@@ -86,12 +86,13 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 | リソース | リンク |
 |---|---|
 | 製品サイト | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android8.0以上、arm64 | [Nivo Bot v2.0.0 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-arm64.apk) |
-| APKに対応するソース | [v2.0.0ソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.0-source.zip) |
+| Android8.0以上、arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| iOS16以上、個人署名が必要 | [未署名IPAとCIログ](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| APKに対応するソース | [v2.0.5ソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
 | ダウンロードのチェックサム | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| リリース情報 | [リリースノート](../releases/v2.0.0.md) · [検証記録](../releases/v2.0.0-verification.json) |
+| リリース情報 | [リリースノート](../releases/v2.0.5.md) · [ビルド検証](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-このリリースはAndroidと製品サイトが対象です。他のプラットフォームのソースは残っていますが、Nivo Botの配布や機能の同等性を示すものではありません。
+このリリースはAndroid、iOSと製品サイトが対象です。iOSはGitHub Actionsから未署名IPAとして提供され、インストール前に署名が必要です。このフォークにはApple Developer Programのアカウントがなく、TestFlightやApp Storeでの配布はありません。強制集中、繰り返しロック予定とアプリ許可リストはAndroid専用です。iOSには集中リマインダーとアクセスガイドの手順があり、ユーザーがiOSで開始・終了します。CIでのコンパイル成功はiPhone実機での動作確認を意味しません。
 
 アプリIDは`io.github.nanomuse.app`のままです。古いDebug鍵や上流の鍵で署名したアプリは通常この版で上書き更新できません。削除前にバックアップと復元範囲を確認してください。[バージョンと署名ガイド](../android-development.md#nivo-bot的android版本与签名)を参照できます。
 
@@ -103,8 +104,8 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 ネイティブ依存関係のサブモジュールも取得します。
 
 ```bash
-git clone --recurse-submodules https://github.com/sherlockerX/Nicholasx.git
-cd Nicholasx
+git clone --recurse-submodules https://github.com/sherlockerX/Nivo-Bot.git
+cd Nivo-Bot
 ```
 
 JDK21、Android SDK36、NDK27.2.12479018、CMake3.22.1を使用します。Gradle Wrapper8.11.1が含まれています。ツールを設定し、LinuxまたはWSLでネイティブ依存関係を準備します。
@@ -134,10 +135,11 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 | パス | 内容 |
 |---|---|
 | `android/src/android/` | Androidアプリ。Nivoの追加機能は`io.github.nanomuse.*`にあります。 |
+| `android/src/ios/` | ネイティブiOSアプリ。個人署名向けにCIで未署名IPAを生成します。 |
 | `site/` | 静的な製品サイトとダウンロード情報。 |
 | `docs/` | ガイド、ソースマップとリリース記録。 |
 | `scripts/android/`、`scripts/release/` | ビルド、署名、ソース監査とパッケージ作成ツール。 |
-| `android/src/ios/`、`harness/`、`nanomuse/`、`cloud/`、`web/` | 保持されているiOS、デスクトップ、ランタイム、リレー、Webコンソールのソース。配布と検証の範囲はそれぞれ独立しています。 |
+| `harness/`, `nanomuse/`, `cloud/`, `web/` | 保持されているデスクトップ、ランタイム、リレー、Webコンソールのソース。配布と検証の範囲はそれぞれ独立しています。 |
 
 Androidツリーは上流の構造、パッケージIDと出典表示を保ちます。モジュール境界を変更する前に[ソースマップ](../android-code-map.md)を確認してください。
 
@@ -149,13 +151,14 @@ Androidツリーは上流の構造、パッケージIDと出典表示を保ち�
 - [Android利用ガイド](../zh/android.md)
 - [Android開発と署名](../android-development.md)
 - [Androidソースマップ](../android-code-map.md)
+- [iPhoneの集中、Coachとビルド情報](../ios-focus-and-coach.md)
 - [サイトのソースと配備](../../site/README.md)
 - [変更履歴](../../CHANGELOG.md)
 - [著作権と出典](../../NOTICE)・[第三者の通知](../../THIRD_PARTY_NOTICES.md)
 
 ## 開発への参加
 
-再現可能な問題は[このリポジトリのIssues](https://github.com/sherlockerX/Nicholasx/issues)へ報告し、範囲の明確なPRを送ってください。[OPEN_SOURCE.md](../../OPEN_SOURCE.md)と[CONTRIBUTING.md](../../CONTRIBUTING.md)に従い、Conventional Commits、変更に必要なテスト、`git commit -s`で付けるDCO署名を使います。
+再現可能な問題は[このリポジトリのIssues](https://github.com/sherlockerX/Nivo-Bot/issues)へ報告し、範囲の明確なPRを送ってください。[OPEN_SOURCE.md](../../OPEN_SOURCE.md)と[CONTRIBUTING.md](../../CONTRIBUTING.md)に従い、Conventional Commits、変更に必要なテスト、`git commit -s`で付けるDCO署名を使います。
 
 上流の著作権とライセンス表示を保持します。IssueやコミットにAPI鍵、署名情報、個人の記録を含めないでください。OpenMinisの貢献方針は独立しており、このフォークでの受付はその方針を変更しません。
 

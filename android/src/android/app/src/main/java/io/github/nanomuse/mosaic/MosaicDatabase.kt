@@ -153,8 +153,15 @@ data class MosaicEntryRow(
 /** 日期选择器只需要已保存记录的数量，不加载文字或图片。 */
 data class MosaicRecordCount(val day: Long, val entryCount: Int)
 
+/** nanoMuse: 仅聚合有效日记的日期边界和数量，不加载正文。 */
+data class MosaicRecordRange(val earliestDay: Long?, val latestDay: Long?, val entryCount: Long)
+
 @Dao
 interface MosaicDao {
+    /** nanoMuse: 设备本地日记没有账号列，范围只描述尚未删除的记录。 */
+    @Query("SELECT MIN(day) AS earliestDay, MAX(day) AS latestDay, COUNT(*) AS entryCount FROM entries WHERE deletedAt IS NULL")
+    suspend fun agentRecordRange(): MosaicRecordRange
+
     /** 日历弹窗与列表视图共用记录判定，删除后数量自动更新。 */
     @Query("SELECT day, COUNT(*) AS entryCount FROM entries WHERE deletedAt IS NULL AND day >= :start AND day < :end GROUP BY day ORDER BY day")
     fun observeRecordCounts(start: Long, end: Long): Flow<List<MosaicRecordCount>>
@@ -295,7 +302,7 @@ interface MosaicDao {
 }
 
 /**
- * 版本6增加按账号隔离的专注记录与日记关联，保留日记与任务历史。
+ * 版本7增加按账号隔离的锁机计划、白名单与运行记录，保留专注、日记与任务历史。
  * 结构由KSP导出至app/schemas，每次升级使用显式迁移，禁止破坏性回退。
  */
 @Database(
@@ -305,6 +312,9 @@ interface MosaicDao {
         io.github.nanomuse.focus.FocusOperation::class,
         io.github.nanomuse.focus.FocusEntryLink::class,
         io.github.nanomuse.focus.FocusDraftLink::class,
+        io.github.nanomuse.focus.lock.LockPlanEntity::class,
+        io.github.nanomuse.focus.lock.LockWhitelistEntity::class,
+        io.github.nanomuse.focus.lock.LockRunEntity::class,
         MosaicHabit::class,
         MosaicHabitSchedule::class,
         MosaicHabitDay::class,
@@ -319,7 +329,7 @@ interface MosaicDao {
         io.github.nanomuse.todo.TodoOperation::class,
         io.github.nanomuse.todo.TodoEvent::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class MosaicDatabase : RoomDatabase() {
@@ -329,6 +339,9 @@ abstract class MosaicDatabase : RoomDatabase() {
     abstract fun todoDao(): io.github.nanomuse.todo.TodoDao
 
     abstract fun focusDao(): io.github.nanomuse.focus.FocusDao
+
+    /** 锁机与专注共享数据库事务，查询始终显式限定账号。 */
+    abstract fun lockDao(): io.github.nanomuse.focus.lock.LockDao
 
     companion object {
         @Volatile private var instance: MosaicDatabase? = null
@@ -350,7 +363,7 @@ abstract class MosaicDatabase : RoomDatabase() {
 
         fun get(context: Context): MosaicDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, MosaicDatabase::class.java, "mosaic.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, io.github.nanomuse.todo.TodoMigration.MIGRATION_3_4, io.github.nanomuse.todo.TodoMigration.MIGRATION_4_5, io.github.nanomuse.focus.FocusMigration.MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, io.github.nanomuse.todo.TodoMigration.MIGRATION_3_4, io.github.nanomuse.todo.TodoMigration.MIGRATION_4_5, io.github.nanomuse.focus.FocusMigration.MIGRATION_5_6, io.github.nanomuse.focus.lock.LockMigration.MIGRATION_6_7)
                 .build()
                 .also { instance = it }
         }
