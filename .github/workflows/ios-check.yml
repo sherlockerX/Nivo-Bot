@@ -161,6 +161,25 @@ jobs:
           mkdir -p build/unsigned/Payload
           ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/unsigned/Payload/Minis.app
 
+      # 先交付设备应用，稍后的测试编译仍独立决定整次检查是否通过。
+      - name: Package unsigned iOS app
+        working-directory: android/src/ios/build/unsigned
+        run: |
+          set -euo pipefail
+          test -z "$(find Payload -name '*.xctest' -print -quit)"
+          zip -qry ../Nivo-Bot-unsigned.ipa Payload
+          cd ..
+          shasum -a 256 Nivo-Bot-unsigned.ipa > Nivo-Bot-unsigned.sha256
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nivo-ios-unsigned-${{ github.run_number }}
+          path: |
+            android/src/ios/build/Nivo-Bot-unsigned.ipa
+            android/src/ios/build/Nivo-Bot-unsigned.sha256
+          retention-days: 14
+          if-no-files-found: error
+
       # 编译真实应用测试目标，系统Keychain及UI运行仍需设备或模拟器的独立验收。
       - name: Compile application tests, unsigned
         working-directory: android/src/ios
@@ -184,28 +203,6 @@ jobs:
             echo "::error::warnings in NanoMuse/ (see above)"
             exit 1
           fi
-
-      # 仅供个人重新签名，未签名产物不能直接安装或上传App Store。
-      - name: Package unsigned iOS app
-        working-directory: android/src/ios
-        run: |
-          if find build/unsigned/Payload -name '*.xctest' -print | grep -q .; then
-            echo "::error::application test bundle found in unsigned app snapshot"
-            exit 1
-          fi
-          cd build/unsigned
-          zip -qry ../Nivo-Bot-unsigned.ipa Payload
-          cd ..
-          shasum -a 256 Nivo-Bot-unsigned.ipa > Nivo-Bot-unsigned.sha256
-
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: nivo-ios-unsigned-${{ github.run_number }}
-          path: |
-            android/src/ios/build/Nivo-Bot-unsigned.ipa
-            android/src/ios/build/Nivo-Bot-unsigned.sha256
-          retention-days: 14
-          if-no-files-found: error
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()

@@ -271,9 +271,7 @@
 		E5K000001 /* SelectableMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5K000011 /* SelectableMarkdownView.swift */; };
 		E5K000002 /* ChatTurnScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5K000012 /* ChatTurnScreenshot.swift */; };
 		E5KIMI0A1 /* KimiOAuthRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIR01 /* KimiOAuthRefreshCoordinator.swift */; };
-		E5KIMI0A2 /* KimiOAuthRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIR01 /* KimiOAuthRefreshCoordinator.swift */; };
 		E5KIMI0B1 /* KimiDeviceFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIR02 /* KimiDeviceFlow.swift */; };
-		E5KIMI0B2 /* KimiDeviceFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIR02 /* KimiDeviceFlow.swift */; };
 		E5KIMI0C1 /* KimiOAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIR03 /* KimiOAuthManager.swift */; };
 		E5KIMI0D1 /* KimiModelsAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIR04 /* KimiModelsAPI.swift */; };
 		E5KIMIUI1 /* KimiDeviceLoginSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5KIMIUI2 /* KimiDeviceLoginSheet.swift */; };
@@ -341,12 +339,8 @@
 		E5N0000052F3B941A00049557 /* SessionMemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5N0000152F3B941A00049557 /* SessionMemoryView.swift */; };
 		E5N0000062F3B941A00049557 /* AlarmListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5N0000162F3B941A00049557 /* AlarmListView.swift */; };
 		E5OARC001 /* ClaudeOAuthRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5OARC010 /* ClaudeOAuthRefreshCoordinator.swift */; };
-		E5OARC002 /* ClaudeOAuthRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5OARC010 /* ClaudeOAuthRefreshCoordinator.swift */; };
-		E5OARC003 /* LLMError.swift in Sources */ = {isa = PBXBuildFile; fileRef = E52000012 /* LLMError.swift */; };
 		E5OARC021 /* OAuthRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5OARC030 /* OAuthRefreshCoordinator.swift */; };
-		E5OARC022 /* OAuthRefreshCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5OARC030 /* OAuthRefreshCoordinator.swift */; };
 		E5OARC023 /* OAuthRefreshSingleFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5OARC031 /* OAuthRefreshSingleFlight.swift */; };
-		E5OARC024 /* OAuthRefreshSingleFlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5OARC031 /* OAuthRefreshSingleFlight.swift */; };
 		E5P000001 /* EnvVarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5P000011 /* EnvVarStore.swift */; };
 		E5P000002 /* EnvironmentVariablesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5P000012 /* EnvironmentVariablesView.swift */; };
 		E5P000003 /* DeepLinkCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5P000013 /* DeepLinkCoordinator.swift */; };
@@ -2680,12 +2674,6 @@
 				E5CCB1001 /* CorrectionContextBuilder.swift in Sources */,
 				E5VC1000D /* CorrectionSignalSource.swift in Sources */,
 				E5VC1001A /* ConversationContextTruncator.swift in Sources */,
-				E5OARC002 /* ClaudeOAuthRefreshCoordinator.swift in Sources */,
-				E5OARC022 /* OAuthRefreshCoordinator.swift in Sources */,
-				E5OARC024 /* OAuthRefreshSingleFlight.swift in Sources */,
-				E5KIMI0A2 /* KimiOAuthRefreshCoordinator.swift in Sources */,
-				E5KIMI0B2 /* KimiDeviceFlow.swift in Sources */,
-				E5OARC003 /* LLMError.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
