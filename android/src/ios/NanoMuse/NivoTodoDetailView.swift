@@ -84,7 +84,7 @@ struct NivoTodoDetailView: View {
             Button {
                 onOpenFocus(NivoLifeItemTarget(id: task.id, scope: access))
             } label: { Label(AppLocalized("Focus on this task"), systemImage: "timer") }
-                .disabled(model.isBusy)
+                .disabled(model.isBusy || (task.status == .done && model.activeFocus?.taskId != task.id))
             if !sessions.isEmpty {
                 LabeledContent(AppLocalized("Focused time"), value: NivoFocusFormat.clock(sessions.reduce(0) { $0 + $1.elapsedMs }))
                 ForEach(Array(sessions.prefix(3))) { session in

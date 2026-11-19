@@ -454,10 +454,10 @@ final class NivoProviderPersistenceTests: XCTestCase {
             echoTiming: nil, label: "imported", createdAt: 1, updatedAt: 2)
         try await database.nmRestoreSnapshot(from: saved, expectedURL: live)
         let restored = await database.dumpProviderConfig()
-        let rules = await database.thinkingRuleRow(id: "rule")
+        let rules = await database.testThinkingRuleInfo(id: "rule")
         XCTAssertEqual(restored.instances.map(\.id), original.instances.map(\.id))
         XCTAssertEqual(restored.agentLoopModelEntryIds, original.agentLoopModelEntryIds)
-        XCTAssertEqual(rules?["label"] as? String, "original")
+        XCTAssertEqual(rules.label, "original")
     }
 
     func testExplicitRestoreWaitsForJSONAndRejectsSyncPublicationDuringRestore() async throws {
@@ -540,8 +540,8 @@ final class NivoProviderPersistenceTests: XCTestCase {
         XCTAssertFalse(saved)
         XCTAssertFalse(deleted)
         XCTAssertFalse(reordered)
-        let remaining = await database.thinkingRuleRow(id: original.id)
-        XCTAssertEqual(remaining?["label"] as? String, "original")
+        let remaining = await database.testThinkingRuleInfo(id: original.id)
+        XCTAssertEqual(remaining.label, "original")
     }
 
     func testInboundProviderUpdateRetainsExistingModelsAndSkipsOlderVersion() async throws {
@@ -637,8 +637,8 @@ final class NivoProviderPersistenceTests: XCTestCase {
         let repeated = try await inboundThinkingRule(database)
         XCTAssertTrue(applied)
         XCTAssertFalse(repeated)
-        let row = await database.thinkingRuleRow(id: "inbound-rule")
-        XCTAssertNotNil(row)
+        let row = await database.testThinkingRuleInfo(id: "inbound-rule")
+        XCTAssertTrue(row.exists)
     }
 
     func testDatabaseRefreshDoesNotRewriteProviderRowsOrTheirTimestamps() async throws {
@@ -656,9 +656,9 @@ final class NivoProviderPersistenceTests: XCTestCase {
         let store = ProviderConfigStore(fileURL: root.appendingPathComponent("mirror.json"), database: database)
         try await store.nmRefreshFromDatabase()
         XCTAssertEqual(store.config.instances.map(\.id), ["provider"])
-        let row = await database.instanceRow(id: "provider")
-        XCTAssertEqual(row?["updated_at"] as? Double, 123)
-        XCTAssertEqual(row?["extras_json"] as? String, "{\"future\":true}")
+        let row = await database.testInstanceMetadata(id: "provider")
+        XCTAssertEqual(row.updatedAt, 123)
+        XCTAssertEqual(row.extrasJSON, "{\"future\":true}")
         let saved = try JSONDecoder().decode(ProviderConfig.self,
             from: Data(contentsOf: root.appendingPathComponent("mirror.json")))
         XCTAssertEqual(saved, store.config)
@@ -1080,6 +1080,18 @@ final class NivoProviderPersistenceTests: XCTestCase {
 
 /// 在数据库actor内读取真实行，只将断言所需的可发送值传回主actor。
 private extension ProviderConfigDB {
+    /// 在数据库内部提取断言值，不把动态行字典跨actor传递。
+    func testThinkingRuleInfo(id: String) -> (exists: Bool, label: String?) {
+        let row = thinkingRuleRow(id: id)
+        return (row != nil, row?["label"] as? String)
+    }
+
+    /// 保留时间戳和原始扩展文本，以检测不应发生的数据库重写。
+    func testInstanceMetadata(id: String) -> (updatedAt: Double?, extrasJSON: String?) {
+        let row = instanceRow(id: id)
+        return (row?["updated_at"] as? Double, row?["extras_json"] as? String)
+    }
+
     /// 检查模型行是否仍然存在，不向测试调用方传递原始字典。
     func hasTestEntryRow(id: String) -> Bool {
         entryRow(id: id) != nil

@@ -96,6 +96,12 @@ actor NivoLifeRepository {
         return current
     }
 
+    /// 待办读取只取当前账号的已保存记录，不触发无关的专注结算。
+    func todoRecords(scope requested: NivoLifeScope) throws -> (tasks: [NivoTodoTask], categories: [NivoTodoCategory]) {
+        let current = try requireState(requested)
+        return (current.tasks, current.categories)
+    }
+
     /// 碎片查询复用账户代次检查，不另建可与待办错开的内存副本。
     func mosaicSnapshot(scope requested: NivoLifeScope) throws -> NivoMosaicState {
         let current = try requireState(requested)

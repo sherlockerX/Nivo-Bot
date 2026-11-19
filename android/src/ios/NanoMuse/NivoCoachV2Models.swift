@@ -173,6 +173,10 @@ struct NivoCoachSession: Codable, Equatable, Identifiable, Sendable {
     var startedAt: Int64 = 0
     var endedAt: Int64 = 0
     var lessonSummary: NivoCoachLessonSummary?
+    var localDate: String? = nil
+    var zoneID: String? = nil
+    var planID: String? = nil
+    var sealedAt: Int64? = nil
 
     private enum CodingKeys: String, CodingKey {
         case id, course
@@ -183,6 +187,7 @@ struct NivoCoachSession: Codable, Equatable, Identifiable, Sendable {
         case requiresCourseReview
         case topicID = "topicId"
         case teachingProtocol, mode, assessment, startedAt, endedAt, lessonSummary
+        case localDate, zoneID = "zoneId", planID = "planId", sealedAt
     }
 }
 
@@ -281,11 +286,12 @@ struct NivoCoachState: Codable, Equatable, Sendable {
     var operations: [String: String] = [:]
     var selectedCourseID = "expression"
     var topics: [NivoCoachTopic] = []
+    var plans: [NivoCoachLessonPlan]? = nil
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, revision, tracks, sessions, drafts, actions, operations
         case selectedCourseID = "selectedCourseId"
-        case topics
+        case topics, plans
     }
 }
 

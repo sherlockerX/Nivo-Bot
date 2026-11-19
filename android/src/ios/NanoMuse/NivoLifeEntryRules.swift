@@ -42,13 +42,13 @@ enum NivoLifeEntryRules {
         }
         if let target = requestedTask {
             guard target.scope == scope,
-                  tasks.contains(where: { $0.id == target.id && $0.ownerKey == scope.ownerKey && $0.deletedAt == nil }) else {
+                  let task = tasks.first(where: { $0.id == target.id && $0.ownerKey == scope.ownerKey && $0.deletedAt == nil }) else {
                 return .unavailable
             }
             if let active = visible.first(where: \.isActive) {
                 return active.taskId == target.id ? .session(active.id) : .busy
             }
-            return .task(target.id)
+            return task.status == .done ? .unavailable : .task(target.id)
         }
         guard shouldRestore else { return .none }
         if !storedID.isEmpty {

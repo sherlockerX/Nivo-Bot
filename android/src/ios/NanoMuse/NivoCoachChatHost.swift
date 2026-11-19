@@ -117,7 +117,7 @@ struct NivoCoachChatHost: ViewModifier {
 
     @ViewBuilder
     private func lessonAction(topic: NivoCoachTopic, lesson: NivoCoachSession?, scope: NivoLifeScope?) -> some View {
-        if lesson?.status == "complete" || lesson == nil {
+        if lesson?.status == "complete" || lesson?.sealedAt != nil || lesson == nil {
             Button(AppLocalized("Continue learning")) { perform("start_lesson", targetID: topic.id, scope: scope, beginTeaching: true) }
                 .buttonStyle(.bordered)
         } else if lesson?.status == "paused", let lesson {
@@ -144,7 +144,11 @@ struct NivoCoachChatHost: ViewModifier {
         Task { @MainActor in
             defer { isBusy = false }
             do {
-                try await NivoCoachConversationCoordinator.shared.command(action, targetID: targetID, scope: scope)
+                if action == "start_lesson", let topic = context.topic(for: chatID), topic.id == targetID {
+                    try await NivoCoachConversationCoordinator.shared.startFromChat(topic: topic, scope: scope)
+                } else {
+                    try await NivoCoachConversationCoordinator.shared.command(action, targetID: targetID, scope: scope)
+                }
                 await context.refresh(sessionID: chatID)
                 guard life.accessScope == scope, vm.sessionId == chatID else { return }
                 if beginTeaching { vm.nmSendNow(AppLocalized("Continue learning"), userOrigin: origin) }

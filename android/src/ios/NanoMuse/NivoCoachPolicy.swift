@@ -3,7 +3,7 @@ import Foundation
 /// 主聊天可以管理课程，专题只可读取和修改宿主绑定的案例。
 enum NivoCoachPolicy {
     static let courseActions = ["start", "pause_course", "resume_course", "advance"]
-    static let topicActions = ["start_topic", "start_lesson", "end_lesson"]
+    static let topicActions = ["start_topic", "start_lesson", "end_lesson", "start_today", "adopt_plan"]
     static let draftActions = ["new_draft", "revise_draft", "propose", "activate"]
     static let sessionActions = ["save_input", "answer", "lesson_message", "coach_reply", "pause_session", "resume_session", "request_hint", "dispute"]
     static let actionActions = ["action_plan", "action_update", "action_defer", "action_resume", "action_report"]
@@ -20,6 +20,7 @@ enum NivoCoachPolicy {
         result.sessions = state.sessions.filter { $0.topicID == topic.id }
         let lessonIDs = Set(result.sessions.map(\.id))
         result.actions = state.actions.filter { lessonIDs.contains($0.sessionID) }
+        result.plans = nil
         result.drafts = []
         result.operations = [:]
         result.selectedCourseID = topic.courseID
@@ -30,6 +31,9 @@ enum NivoCoachPolicy {
     static func authorize(_ command: NivoCoachCommand, context: NivoCoachCommandContext, state: NivoCoachState) throws {
         guard actions.contains(command.action), command.text.utf16.count <= 40_000,
               command.payload.utf16.count <= 200_000 else { throw NivoLifeError.invalidField("coach_command") }
+        if ["start_today", "adopt_plan"].contains(command.action), !context.isHost {
+            throw NivoLifeError.invalidField("coach_host_action")
+        }
         if !context.isHost {
             guard let user = context.user, !user.id.isEmpty, user.ownerKey == context.ownerKey,
                   user.chatSessionID == context.chatSessionID, !context.chatSessionID.isEmpty else { throw NivoLifeError.accountChanged }

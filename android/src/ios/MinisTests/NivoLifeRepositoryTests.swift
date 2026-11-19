@@ -120,6 +120,30 @@ final class NivoLifeRepositoryTests: XCTestCase {
         } catch { XCTAssertEqual(error as? NivoLifeError, .accountChanged) }
     }
 
+    func testTodoRecordsReadDoesNotReconcileFocusAndRejectsStaleScope() async throws {
+        let root = try folder()
+        let repository = NivoLifeRepository(directory: root)
+        let scope = try await repository.open(ownerKey: "local", clock: clock())
+        let saved = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read", groupName: "Study"),
+            operationID: "create-task", scope: scope, now: 1, today: 10)
+        let timer = try await repository.startFocus(title: "Timer", taskID: nil, mode: .pomodoro, minutes: 1,
+            operationID: "start-focus", scope: scope, clock: clock())
+
+        let records = try await repository.todoRecords(scope: scope)
+        XCTAssertEqual(records.tasks, [saved])
+        XCTAssertEqual(records.categories.map(\.name), ["Study"])
+        let reloaded = NivoLifeRepository(directory: root)
+        let sameAccount = try await reloaded.open(ownerKey: "local", clock: clock())
+        let snapshot = try await reloaded.snapshot(scope: sameAccount, clock: clock())
+        XCTAssertEqual(snapshot.focusSessions, [timer])
+        XCTAssertTrue(snapshot.focusSpans.isEmpty)
+        _ = try await repository.open(ownerKey: "other", clock: clock())
+        do {
+            _ = try await repository.todoRecords(scope: scope)
+            XCTFail("待办查询必须拒绝旧账号代次")
+        } catch { XCTAssertEqual(error as? NivoLifeError, .accountChanged) }
+    }
+
     func testFailedDiskWriteDoesNotPublishTaskOrOperation() async throws {
         let repository = NivoLifeRepository(directory: try folder(), writer: { _, _ in
             throw CocoaError(.fileWriteOutOfSpace)
@@ -175,6 +199,49 @@ final class NivoLifeRepositoryTests: XCTestCase {
         let reopened = try await reloaded.open(ownerKey: "local", clock: clock(190_000))
         let restored = try await reloaded.snapshot(scope: reopened, clock: clock(190_000))
         XCTAssertEqual(restored, finished)
+    }
+
+    func testFourthPomodoroBreakAndContinuationPreserveSourceAcrossReopen() async throws {
+        let root = try folder()
+        let repository = NivoLifeRepository(directory: root)
+        let scope = try await repository.open(ownerKey: "local", clock: clock())
+        let task = try await repository.saveTask(NivoTodoTask(ownerKey: "local", title: "Read"),
+            operationID: "task", scope: scope, now: 1, today: 10)
+        let timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        var completed: [NivoFocusSession] = []
+        for round in 0..<4 {
+            let start = Int64(round) * 600_000
+            let session = try await repository.startFocus(title: "Read", taskID: task.id, mode: .pomodoro,
+                minutes: 7, operationID: "focus-\(round)", scope: scope, clock: clock(start))
+            let finished = try await repository.controlFocus(action: "finish", id: session.id, expectedRevision: session.revision,
+                operationID: "finish-\(round)", scope: scope, clock: clock(start + 420_000))
+            completed.append(finished)
+        }
+        let first = try XCTUnwrap(completed.first)
+        XCTAssertEqual(NivoFocusPresentationRules.followUp(after: first, sessions: completed, timeZone: timeZone)?.minutes, 5)
+        let fourth = try XCTUnwrap(completed.last)
+        let rest = try await repository.startFocusFollowUp(after: fourth, breakTitle: "Break", scope: scope,
+            clock: clock(2_250_000), timeZone: timeZone)
+        XCTAssertEqual(rest.mode, .rest)
+        XCTAssertEqual(rest.targetMs, 900_000)
+        XCTAssertNil(rest.taskId)
+        let replay = try await repository.startFocusFollowUp(after: fourth, breakTitle: "Pause", scope: scope,
+            clock: clock(2_260_000), timeZone: timeZone)
+        XCTAssertEqual(replay.id, rest.id)
+        let endedRest = try await repository.controlFocus(action: "finish", id: rest.id, expectedRevision: rest.revision,
+            operationID: "finish-rest", scope: scope, clock: clock(2_300_000))
+        let reopenedRepository = NivoLifeRepository(directory: root)
+        let reopened = try await reopenedRepository.open(ownerKey: "local", clock: clock(2_301_000))
+        let resumed = try await reopenedRepository.startFocusFollowUp(after: endedRest, breakTitle: "Break",
+            scope: reopened, clock: clock(2_301_000), timeZone: timeZone)
+        XCTAssertEqual(resumed.mode, .pomodoro)
+        XCTAssertEqual(resumed.targetMs, fourth.targetMs)
+        XCTAssertEqual(resumed.taskId, task.id)
+        let result = try await reopenedRepository.snapshot(scope: reopened, clock: clock(2_301_000))
+        XCTAssertEqual(result.focusSessions.count, 6)
+        XCTAssertEqual(result.focusSessions.filter(\.isActive).map(\.id), [resumed.id])
+        XCTAssertEqual(result.focusSpans.count, 5)
+        XCTAssertEqual(result.tasks.first?.revision, task.revision)
     }
 
     func testRecreatedCategoryRejectsOldDeletionEvenWhenClockDoesNotMove() async throws {

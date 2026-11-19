@@ -7,12 +7,14 @@ struct NivoFocusImmersiveView: View {
     var backgroundID: String
     let access: NivoLifeScope
     var onReflection: () -> Void
+    var onFollowUp: (NivoFocusSession) -> Void
     var onClose: () -> Void
     @Environment(\.scenePhase) private var scenePhase
     @State private var keepAwake = false
     @State private var isConfirmingFinish = false
     @State private var previousIdleSetting = false
     @State private var isOpeningReflection = false
+    @State private var isStartingFollowUp = false
 
     private var session: NivoFocusSession? {
         guard model.accessScope == access else { return nil }
@@ -25,8 +27,14 @@ struct NivoFocusImmersiveView: View {
             Color.black.opacity(0.22).ignoresSafeArea()
             LinearGradient(colors: [.black.opacity(0.45), .clear, .black.opacity(0.65)],
                            startPoint: .top, endPoint: .bottom).ignoresSafeArea()
-            if let session { content(session) }
-            else {
+            if let session {
+                GeometryReader { geometry in
+                    ScrollView {
+                        content(session).frame(minHeight: geometry.size.height)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            } else {
                 VStack(spacing: 20) {
                     Text(AppLocalized("This session is no longer available."))
                     Button(AppLocalized("Close"), action: onClose).buttonStyle(.bordered)
@@ -68,8 +76,9 @@ struct NivoFocusImmersiveView: View {
             HStack {
                 Button(action: onClose) { Image(systemName: "chevron.down").frame(width: 44, height: 44) }
                     .accessibilityLabel(AppLocalized(session.isActive ? "Keep running in background" : "Close"))
-                    .disabled(isOpeningReflection)
+                    .disabled(isOpeningReflection || isStartingFollowUp)
                 Spacer()
+                NivoFocusGuidedAccess()
                 Toggle(isOn: $keepAwake) { Image(systemName: keepAwake ? "sun.max.fill" : "sun.max") }
                     .toggleStyle(.button).accessibilityLabel(AppLocalized("Keep screen awake"))
             }
@@ -95,20 +104,33 @@ struct NivoFocusImmersiveView: View {
 
     @ViewBuilder private func controls(_ session: NivoFocusSession) -> some View {
         if session.status == .finished {
+            if model.activeFocus == nil,
+               let next = NivoFocusPresentationRules.followUp(after: session, sessions: model.focusSessions) {
+                Button { Task { await startFollowUp(after: session) } } label: {
+                    if next.mode == .rest {
+                        let minutes = String(format: AppLocalized("%lld min"), Int64(next.minutes))
+                        Label(AppLocalized("Start break") + " · " + minutes, systemImage: "cup.and.saucer")
+                    } else {
+                        Label(AppLocalized("Continue focusing"), systemImage: "play.fill")
+                    }
+                }.buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(isStartingFollowUp || isOpeningReflection || model.isBusy)
+            }
             if NivoFocusReflectionRules.canReflect(session) {
                 Text(AppLocalized("Reflect on this session. Its focus time and linked task are included automatically."))
                     .font(.subheadline).multilineTextAlignment(.center).frame(maxWidth: 360)
                 Button {
-                    guard !isOpeningReflection, model.accessScope == access, model.isMosaicReady else { return }
+                    guard !isStartingFollowUp, !isOpeningReflection, model.accessScope == access, model.isMosaicReady else { return }
                     isOpeningReflection = true
                     onReflection()
                 } label: {
                     Label(AppLocalized("Record reflection"), systemImage: "square.and.pencil")
                 }.buttonStyle(.borderedProminent).controlSize(.large)
-                    .disabled(isOpeningReflection || model.isBusy || !model.isMosaicReady || model.accessScope != access)
+                    .disabled(isStartingFollowUp || isOpeningReflection || model.isBusy || !model.isMosaicReady
+                              || model.accessScope != access)
             }
             Button(AppLocalized("Done"), action: onClose).buttonStyle(.bordered).controlSize(.large)
-                .disabled(isOpeningReflection)
+                .disabled(isOpeningReflection || isStartingFollowUp)
         } else {
             HStack(spacing: 16) {
                 Button { Task { _ = await model.controlFocus(session, action: session.status == .paused ? "resume" : "pause", scope: access) } } label: {
@@ -121,6 +143,16 @@ struct NivoFocusImmersiveView: View {
                 }.buttonStyle(.bordered).tint(.white)
             }.disabled(model.isBusy || model.accessScope != access)
         }
+    }
+
+    private func startFollowUp(after source: NivoFocusSession) async {
+        guard !isStartingFollowUp, !isOpeningReflection, model.accessScope == access else { return }
+        isStartingFollowUp = true
+        defer { isStartingFollowUp = false }
+        guard let next = await model.startFocusFollowUp(after: source, scope: access), model.accessScope == access else { return }
+        NivoFocusPreferences.bindBackground(backgroundID, sessionID: next.id, owner: access.ownerKey)
+        onFollowUp(next)
+        await NivoFocusNotifications.shared.requestPermission()
     }
 
     private func updateIdleTimer() {

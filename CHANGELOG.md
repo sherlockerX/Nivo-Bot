@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Added task search and creation, pomodoro breaks, time by tag, focus reminders and Guided Access guidance to iOS. Coach now shows skill profiles, and personal record queries distinguish a saved note from measured focus time.
+
 - Corrected application-test membership for six standalone Swift scripts, reused the real provider host-tag implementation and kept database assertions within Swift 6 actor boundaries. The scripts and application XCTest suites were preserved; the next Apple test build will verify the configuration.
 
 - Aligned the local iOS configuration with the user's authorized version 2.0.0 (51) and added an iOS-only version generator. Four generator tests passed; identifiers, display names and images were preserved. These local version changes are not covered by the Apple run at `a53fe85`.

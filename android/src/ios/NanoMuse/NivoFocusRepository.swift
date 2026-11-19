@@ -46,6 +46,29 @@ extension NivoLifeRepository {
         }
     }
 
+    /// 从同一个已结束会话只创建一次后继计时，重试读取原结果。
+    func startFocusFollowUp(after source: NivoFocusSession, breakTitle: String, scope: NivoLifeScope,
+                            clock: NivoFocusClockSample, timeZone: TimeZone = .current) throws -> NivoFocusSession {
+        guard source.ownerKey == scope.ownerKey else { throw NivoLifeError.accountChanged }
+        let operationID = "focus.follow-up." + NivoFocusPreferences.ownerHash(source.id)
+        let request = NivoFocusRequest(action: "focus_follow_up", id: source.id, expectedRevision: source.revision)
+        return try transaction(operationID: operationID, request: request, scope: scope) { state in
+            guard let current = state.focusSessions.first(where: { $0.id == source.id && $0.deletedAt == nil }) else {
+                throw NivoLifeError.notFound("focus")
+            }
+            try NivoTodoRules.requireRevision(source.revision, actual: current.revision)
+            guard let next = NivoFocusPresentationRules.followUp(after: current, sessions: state.focusSessions, timeZone: timeZone) else {
+                throw NivoLifeError.invalidTransition("focus_follow_up_unavailable")
+            }
+            let taskID = next.taskID.flatMap { identifier in
+                state.tasks.first { $0.id == identifier && $0.deletedAt == nil }?.id
+            }
+            return try applyStart(title: next.title ?? breakTitle, taskID: taskID, mode: next.mode,
+                                  minutes: next.minutes, owner: scope.ownerKey, state: &state, clock: clock,
+                                  followUpFromID: current.id)
+        }
+    }
+
     /// 控制计时器只结算真实区间，不接收外部elapsedMs或endedAt。
     func controlFocus(
         action: String, id: String, expectedRevision: Int64,
@@ -58,7 +81,8 @@ extension NivoLifeRepository {
     }
 
     private func applyStart(title: String, taskID: String?, mode: NivoFocusMode, minutes: Int,
-                            owner: String, state: inout NivoLifeState, clock: NivoFocusClockSample) throws -> NivoFocusSession {
+                            owner: String, state: inout NivoLifeState, clock: NivoFocusClockSample,
+                            followUpFromID: String? = nil) throws -> NivoFocusSession {
         _ = try reconcileFocus(state: &state, clock: clock)
         guard !state.focusSessions.contains(where: \.isActive) else { throw NivoLifeError.activeSessionExists }
         let task = try taskID.map { identifier in
@@ -67,8 +91,9 @@ extension NivoLifeRepository {
             }
             return task
         }
-        let result = try NivoFocusRules.start(owner: owner, id: UUID().uuidString, title: title, task: task,
+        var result = try NivoFocusRules.start(owner: owner, id: UUID().uuidString, title: title, task: task,
             mode: mode, minutes: minutes, clock: clock)
+        result.followUpFromID = followUpFromID
         state.focusSessions.append(result)
         return result
     }

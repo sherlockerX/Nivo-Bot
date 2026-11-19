@@ -3,6 +3,60 @@ import XCTest
 
 /// 对照可见消息来源验证topic-v3，不把模型工具中的隐藏内容视为已完成教学。
 final class NivoCoachTeachingTests: XCTestCase {
+    func testStartingLessonRecordsItsLocalDate() throws {
+        var state = state()
+        state.topics[0].activeSessionID = nil
+        let now: Int64 = 1_700_000_000_000
+        let lesson = try NivoCoachReducer.startLesson(topicID: "topic", state: &state, now: now)
+        let encoded = try JSONEncoder().encode(lesson)
+        let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        XCTAssertNotNil(fields["localDate"] as? String)
+        XCTAssertEqual(fields["zoneId"] as? String, TimeZone.current.identifier)
+    }
+
+    func testStartingTodaySetsAsideEarlierLessonAndKeepsItsPlan() throws {
+        var state = state()
+        let now: Int64 = 1_700_000_000_000
+        let zone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        state.sessions[0].localDate = "2023-11-13"
+        state.sessions[0].draft = "Draft for the earlier lesson"
+        state.sessions[0].planID = "earlier-plan"
+        state.plans = [try NivoCoachLessonPlanRules.base(state, courseID: "course", now: now, zone: zone,
+            minutes: 15, need: "Use my example")]
+        let adoptedID = try XCTUnwrap(state.plans?.first?.id)
+        let lesson = try NivoCoachReducer.startToday(topicID: "topic", state: &state, now: now, zone: zone)
+        XCTAssertEqual(lesson.topicID, "topic")
+        XCTAssertEqual(lesson.chatSessionID, "chat")
+        XCTAssertEqual(lesson.planID, adoptedID)
+        XCTAssertEqual(state.sessions.first?.status, "sealed")
+        XCTAssertEqual(state.sessions.first?.draft, "Draft for the earlier lesson")
+        XCTAssertEqual(state.sessions.first?.planID, "earlier-plan")
+        XCTAssertEqual(state.topics.first?.activeSessionID, lesson.id)
+    }
+
+    func testPrepCannotAdoptInventedQuoteOrChangePlanIdentity() throws {
+        var state = state()
+        try prompt(&state)
+        let turn = try attempted(&state)
+        let zone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let base = try NivoCoachLessonPlanRules.base(state, courseID: "course", now: 1_700_000_000_000,
+            zone: zone, minutes: 15, need: "")
+        let fields: [String: Any] = [
+            "task": "Explain a boundary", "reason": "Check the previous response",
+            "observe": "Describe the choice", "hints": ["Name the decision"],
+            "branches": ["If unclear, ask who decides"], "check": "Apply it in a different situation",
+            "criteriaIds": ["understanding"], "courseId": "another-course", "minutes": 120,
+            "basis": [["sessionId": "lesson", "turnId": turn.id, "quote": "invented quote"]]
+        ]
+        let answer = String(decoding: try JSONSerialization.data(withJSONObject: fields), as: UTF8.self)
+        var parsed = try NivoCoachLessonPlanRules.parse(answer, base: base)
+        XCTAssertEqual(parsed.courseId, base.courseId)
+        XCTAssertEqual(parsed.minutes, base.minutes)
+        XCTAssertThrowsError(try NivoCoachLessonPlanRules.validate(parsed, state: state))
+        parsed.basis[0].quote = "my responsibility"
+        XCTAssertNoThrow(try NivoCoachLessonPlanRules.validate(parsed, state: state))
+    }
+
     private func state() -> NivoCoachState {
         let criteria = [
             NivoCoachCriterion(id: "understanding", description: "Explain responsibility", dimension: "understanding"),

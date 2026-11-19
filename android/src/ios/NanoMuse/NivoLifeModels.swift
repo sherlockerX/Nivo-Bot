@@ -102,6 +102,8 @@ struct NivoFocusSession: Codable, Equatable, Identifiable, Sendable {
     var bootID: String
     var revision: Int64 = 1
     var deletedAt: Int64?
+    /// 休息和下一轮专注保存触发它们的已结束会话，旧档案可缺省。
+    var followUpFromID: String?
     var isActive: Bool { deletedAt == nil && status != .finished }
 }
 

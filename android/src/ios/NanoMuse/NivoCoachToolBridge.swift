@@ -10,7 +10,7 @@ enum NivoCoachToolBridge {
     static let query = "coach_query"
     static let command = "coach_command"
     private static let queryKinds = ["overview", "courses", "sessions", "drafts", "actions", "topics"]
-    private static var actions: [String] { NivoCoachPolicy.actions }
+    private static var actions: [String] { NivoCoachPolicy.actions.filter { !["start_today", "adopt_plan"].contains($0) } }
 
     static func definitions(includeCommands: Bool = true) -> [AgentToolDefinition] {
         let tools = [

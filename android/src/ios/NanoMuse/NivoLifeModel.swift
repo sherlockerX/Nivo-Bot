@@ -245,6 +245,16 @@ final class NivoLifeModel: ObservableObject {
         }
     }
 
+    /// 切换账户或已完成后继计时时，不再切换到旧的计时页面。
+    func startFocusFollowUp(after source: NivoFocusSession, scope expectedScope: NivoLifeScope) async -> NivoFocusSession? {
+        let breakTitle = NivoFocusMode.rest.title
+        let created = await performResult(scope: expectedScope) { repository, scope, clock in
+            try await repository.startFocusFollowUp(after: source, breakTitle: breakTitle, scope: scope, clock: clock)
+        }
+        guard let created, accessScope == expectedScope, activeFocus?.id == created.id else { return nil }
+        return activeFocus
+    }
+
     /// 操作使用界面所见版本，计时到期或其他入口已修改时不会覆盖新状态。
     func controlFocus(_ session: NivoFocusSession, action: String, scope expectedScope: NivoLifeScope) async -> Bool {
         await controlFocusResult(session, action: action, scope: expectedScope) != nil

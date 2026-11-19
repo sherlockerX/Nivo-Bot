@@ -122,7 +122,9 @@ enum NivoJigsawOutput {
         var root: [String: Any] = ["timezone": query.zoneID, "date_semantics": "saved_local_calendar_day",
             "start": NivoJigsawQuery.date(query.startDay),
             "end": NivoJigsawQuery.date(query.endDay), "computed_at": ISO8601DateFormatter().string(from: now),
-            "habits_configured": !state.habits.isEmpty, "view_url": "minis://views/mosaic"]
+            "habits_configured": !state.habits.isEmpty, "view_url": "minis://views/mosaic",
+            "focus_measurement_semantics": "saved_link_durations_by_record",
+            "created_at_semantics": "note_saved_at"]
         root["queried"] = ["start": NivoJigsawQuery.date(start), "end": NivoJigsawQuery.date(end), "inclusive": true, "timezone": query.zoneID]
         // 每日数据由日期单独过滤，避免同一天跨页或正文被摘要截断。
         let grouped = Dictionary(grouping: entries, by: \.day)
@@ -164,21 +166,27 @@ enum NivoJigsawOutput {
             let mark = state.habitDays?.first { $0.day == day && $0.habitID == habit.id }
             return ["name": habit.title, "done": mark?.status == .done, "state": mark.map { $0.status.rawValue as Any } ?? NSNull()]
         }
-        let records = entries.map(recordJSON)
+        let measurements = entries.map(focusMeasurement)
+        let totals = focusTotals(measurements)
+        let records = zip(entries, measurements).map { recordJSON($0.0, measurement: $0.1) }
         let text = entries.map(\.text).filter { !$0.isEmpty }.joined(separator: "\n")
         return ["date": NivoJigsawQuery.date(day), "text": text.isEmpty ? NSNull() : text as Any,
                 "mood": mood.map { $0.rawValue as Any } ?? NSNull(),
                 "mood_label": mood.map { ["great", "good", "okay", "low", "bad"][$0.rawValue - 1] as Any } ?? NSNull(),
                 "energy": mood.map { (6 - $0.rawValue) as Any } ?? NSNull(),
+                "measured_focus_ms": totals.duration,
+                "records_with_unknown_focus_duration": totals.unknownCount,
                 "habits_configured": !state.habits.isEmpty, "habits": habits, "records": records]
     }
 
     /// 关联只输出同账户仓库保存的语义快照，不读取照片路径、草稿或现有任务状态。
-    private static func recordJSON(_ entry: NivoMosaicEntry) -> [String: Any] {
+    private static func recordJSON(_ entry: NivoMosaicEntry, measurement: FocusMeasurement) -> [String: Any] {
         var result: [String: Any] = ["id": entry.id, "text": entry.text,
             "mood": entry.mood.map { $0.rawValue as Any } ?? NSNull(),
             "energy": entry.mood.map { (6 - $0.rawValue) as Any } ?? NSNull(),
             "has_photo": entry.mediaPath != nil, "habit": entry.habitTitle.map { $0 as Any } ?? NSNull(),
+            "kind": measurement.isLinked ? "focused_activity" : "daily_note",
+            "measured_focus_ms": measurement.isComplete ? measurement.knownMs as Any : NSNull(),
             "created_at_ms": entry.createdAt, "updated_at_ms": entry.updatedAt]
         result["taskIDs"] = entry.taskIDs
         result["focusIDs"] = entry.focusIDs
@@ -194,6 +202,28 @@ enum NivoJigsawOutput {
         }
         result["linkEvidence"] = "saved_snapshot_not_current_completion_proof"
         return result
+    }
+
+    /// 旧记录可能只有关联ID，必须区分缺失时长、实际0ms和没有计时关联。
+    private struct FocusMeasurement {
+        var isLinked: Bool
+        var isComplete: Bool
+        var knownMs: Int64
+    }
+
+    private static func focusMeasurement(_ entry: NivoMosaicEntry) -> FocusMeasurement {
+        let ids = Set(entry.focusIDs)
+        var measured: [String: Int64] = [:]
+        for link in entry.focusSnapshots ?? [] where ids.contains(link.id) {
+            guard measured[link.id] == nil, (0...NivoFocusRules.maximumSessionMs).contains(link.elapsedMs) else { continue }
+            measured[link.id] = link.elapsedMs
+        }
+        return FocusMeasurement(isLinked: !ids.isEmpty, isComplete: ids.count == measured.count,
+                                knownMs: measured.values.reduce(0, +))
+    }
+
+    private static func focusTotals(_ measurements: [FocusMeasurement]) -> (duration: Int64, unknownCount: Int) {
+        (measurements.reduce(0) { $0 + $1.knownMs }, measurements.count { !$0.isComplete })
     }
 
     private static func stats(query: NivoJigsawQuery, entries: [NivoMosaicEntry], state: NivoMosaicState) throws -> [String: Any] {
@@ -212,19 +242,25 @@ enum NivoJigsawOutput {
                 if done.contains("\(habit.id):\(day)") { doneCount += 1 }
             }
         }
+        let measurements = entries.map(focusMeasurement)
+        let totals = focusTotals(measurements)
         return ["days": count, "recorded_days": recorded, "missing_days": count - recorded - future,
                 "future_days": future, "records": entries.count, "mood_records": energy.count,
                 "average_energy": energy.isEmpty ? NSNull() : (Double(energy.reduce(0, +)) / Double(energy.count)) as Any,
+                "measured_focus_ms": totals.duration, "focused_records": measurements.count { $0.isLinked },
+                "records_with_unknown_focus_duration": totals.unknownCount,
                 "habit_planned": plannedCount, "habit_done": doneCount]
     }
 
     private static func markdown(_ root: [String: Any], days: [[String: Any]]) -> String {
-        var lines = ["# Mosaic \(root["start"] ?? "") to \(root["end"] ?? "")", "Timezone: \(root["timezone"] ?? "")"]
+        var lines = ["# Mosaic \(root["start"] ?? "") to \(root["end"] ?? "")", "Timezone: \(root["timezone"] ?? "")",
+                     "Linked durations are device measurements saved with each record. A note's save time only describes when it was written."]
         if let stats = root["stats"] as? [String: Any] {
             lines += stats.keys.sorted().map { "- \($0): \(stats[$0] ?? "")" }
         } else {
             for day in days {
-                lines += ["", "## \(day["date"] ?? "")", "Mood: \(day["mood_label"] ?? ""); energy: \(day["energy"] ?? "")"]
+                lines += ["", "## \(day["date"] ?? "")", "Mood: \(day["mood_label"] ?? ""); energy: \(day["energy"] ?? "")",
+                          "Known linked focus this day: \(day["measured_focus_ms"] ?? 0) ms"]
                 for record in day["records"] as? [[String: Any]] ?? [] {
                     lines += markdownRecord(record)
                 }
@@ -240,6 +276,10 @@ enum NivoJigsawOutput {
     /// 每条心得保留自己的正文和关联，不能合并同日正文后丢失任务、时段对应关系。
     private static func markdownRecord(_ record: [String: Any]) -> [String] {
         var lines = ["", "### Record \(record["id"] ?? "")", record["text"] as? String ?? ""]
+        lines.append("Note saved (Unix milliseconds): \(recordedTime(record["created_at_ms"]))")
+        if record["kind"] as? String == "daily_note" { lines.append("Daily note: no linked focus or measured time.") }
+        else if let duration = record["measured_focus_ms"] as? Int64 { lines.append("Time spent (measured focus): \(duration) ms") }
+        else { lines.append("Measured focus duration is incomplete because a linked duration is unavailable.") }
         let taskIDs = record["taskIDs"] as? [String] ?? []
         let focusIDs = record["focusIDs"] as? [String] ?? []
         lines += ["Task IDs: \(taskIDs.joined(separator: ", "))", "Focus IDs: \(focusIDs.joined(separator: ", "))"]

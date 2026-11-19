@@ -42,6 +42,27 @@ final class NivoFocusStatisticsTests: XCTestCase {
         XCTAssertEqual(NivoFocusStatistics.distribution(sessions: sessions, spans: spans, startMs: 2_000, endMs: 1_000).totalMs, 0)
     }
 
+    func testTagSharesUseLiveTaskAndKeepEveryMillisecond() throws {
+        var focus = try session("s", group: "old")
+        focus.taskId = "t"
+        focus.tags = ["snapshot"]
+        var task = NivoTodoTask(ownerKey: "local", id: "t", groupName: "new", tags: ["B", "A", "A"])
+        let spans = [span("s", start: 0, duration: 5), span("s", start: 8, duration: 2)]
+        func summary(_ by: NivoFocusShareBy) -> NivoFocusDistribution {
+            NivoFocusStatistics.distribution(sessions: [focus], spans: spans, startMs: 0, endMs: 10, tasks: [task], by: by)
+        }
+        XCTAssertEqual(summary(.group).groups.first?.group, "new")
+        XCTAssertEqual(summary(.tag).groups, [.init(group: "A", durationMs: 4), .init(group: "B", durationMs: 3)])
+        XCTAssertEqual(summary(.tag).sessionCount, 1)
+        task.tags = []
+        XCTAssertEqual(summary(.tag).groups, [.init(group: "", durationMs: 7)])
+        task.deletedAt = 1
+        XCTAssertEqual(summary(.tag).groups, [.init(group: "snapshot", durationMs: 7)])
+        task.deletedAt = nil
+        task.ownerKey = "other"
+        XCTAssertEqual(summary(.group).groups.first?.group, "old")
+    }
+
     private func session(_ identifier: String, group: String) throws -> NivoFocusSession {
         var session = try NivoFocusRules.start(owner: "local", id: identifier, title: "Read", task: nil,
             mode: .pomodoro, minutes: 3, clock: NivoFocusClockSample(wallMs: 1_000, elapsedMs: 0, bootID: "boot"))

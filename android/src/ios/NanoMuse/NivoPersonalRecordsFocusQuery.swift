@@ -14,4 +14,18 @@ enum NivoPersonalRecordsFocusQuery {
                 && (startDay == nil || day >= startDay!) && (endDay == nil || day <= endDay!)
         }.sorted { ($0.startedAt, $0.id) > ($1.startedAt, $1.id) }
     }
+
+    /// 用本地公历边界计算整段和分组时长，使用全部区间而不是查询页。
+    static func statistics(_ sessions: [NivoFocusSession], spans: [NivoFocusSpan], tasks: [NivoTodoTask],
+                           startDay: Int64, endDay: Int64, timeZone: TimeZone = .current) throws -> NivoFocusDistribution {
+        guard endDay >= startDay, endDay - startDay <= 3_660 else {
+            throw NivoJigsawQuery.QueryError("statistics requires a valid range of at most 3661 days")
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let start = calendar.startOfDay(for: NivoLifeDay.date(startDay, timeZone: timeZone))
+        let end = calendar.startOfDay(for: NivoLifeDay.date(endDay + 1, timeZone: timeZone))
+        return NivoFocusStatistics.distribution(sessions: sessions, spans: spans,
+            startMs: Int64(start.timeIntervalSince1970 * 1_000), endMs: Int64(end.timeIntervalSince1970 * 1_000), tasks: tasks)
+    }
 }

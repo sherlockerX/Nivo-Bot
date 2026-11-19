@@ -44,7 +44,7 @@ struct NivoCoachLessonDetail: View {
                     heading(lesson)
                     NivoCoachLessonSummarySection(lesson: lesson, onOpenChat: onOpenChat)
                     if loadError == nil, isCurrentCourse(lesson), lesson.teachingProtocol == "topic-v3", !lesson.topicID.isEmpty {
-                        NivoCoachProgressSection(progress: NivoCoachTeaching.progress(state, topicID: lesson.topicID))
+                        NivoCoachProgressSection(progress: NivoCoachTeaching.progress(state, topicID: lesson.topicID, unitID: lesson.unitID))
                     }
                     NivoCoachEvidenceSection(lesson: lesson, onOpenChat: onOpenChat)
                     NivoCoachActionsSection(actions: state.actions.filter { $0.sessionID == lesson.id },
@@ -72,6 +72,10 @@ struct NivoCoachLessonDetail: View {
             Text(lesson.course.title).font(.subheadline).foregroundStyle(.secondary)
             Text(lesson.course.units.first(where: { $0.id == lesson.unitID })?.title ?? lesson.unitID)
             Text(NivoCoachDisplay.status(lesson.status)).foregroundStyle(.secondary)
+            if lesson.sealedAt != nil {
+                Text(AppLocalized("This lesson was set aside. Its draft and saved answers are kept here."))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             if !isCurrentCourse(lesson) {
                 Label(AppLocalized("This record used earlier requirements. It remains available but does not count toward the updated unit."),
                       systemImage: "clock.arrow.circlepath").font(.footnote).foregroundStyle(.secondary)
@@ -98,6 +102,7 @@ struct NivoCoachLessonDetail: View {
 struct NivoCoachCourseDetail: View {
     let course: NivoCoachCourse
     var demonstrated: Set<String> = []
+    var currentUnitID: String?
     var onStart: (NivoCoachUnit) -> Void
     var onReview: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -123,8 +128,10 @@ struct NivoCoachCourseDetail: View {
                         Label(criterion.description, systemImage: criterion.requiresRealAction ? "figure.walk" : "checkmark.circle")
                             .font(.subheadline)
                     }
-                    Button(AppLocalized("Start unit")) { onStart(unit) }
-                        .buttonStyle(.borderedProminent).disabled(needsReview)
+                    if unit.id == currentUnitID {
+                        Button(AppLocalized("Start unit")) { onStart(unit) }
+                            .buttonStyle(.borderedProminent).disabled(needsReview)
+                    }
                   }.padding(.vertical, 6)
                 }
             }

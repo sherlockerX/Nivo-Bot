@@ -152,6 +152,13 @@ jobs:
             2>&1 | tee build/xcodebuild.log | grep -E "error:|/NanoMuse/.*warning:|BUILD|Compiling|Linking" || true
           grep -q "\*\* BUILD SUCCEEDED \*\*" build/xcodebuild.log
 
+      # nanoMuse: 测试编译会向宿主App嵌入XCTest，提前保存独立副本供安装包使用。
+      - name: Preserve unsigned app before test embedding
+        working-directory: android/src/ios
+        run: |
+          mkdir -p build/unsigned/Payload
+          ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/unsigned/Payload/Minis.app
+
       # 编译真实应用测试目标，系统Keychain及UI运行仍需设备或模拟器的独立验收。
       - name: Compile application tests, unsigned
         working-directory: android/src/ios
@@ -180,8 +187,10 @@ jobs:
       - name: Package unsigned iOS app
         working-directory: android/src/ios
         run: |
-          mkdir -p build/unsigned/Payload
-          ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/unsigned/Payload/Minis.app
+          if find build/unsigned/Payload -name '*.xctest' -print | grep -q .; then
+            echo "::error::application test bundle found in unsigned app snapshot"
+            exit 1
+          fi
           cd build/unsigned
           zip -qry ../Nivo-Bot-unsigned.ipa Payload
           cd ..

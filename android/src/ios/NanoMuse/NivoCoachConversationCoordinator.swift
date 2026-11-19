@@ -8,7 +8,8 @@ final class NivoCoachConversationCoordinator: ObservableObject {
     @Published private(set) var isOpening = false
 
     /// 从课程页进入当前单元的专题，显式操作才开始或恢复课次。
-    func open(courseID: String, unitID: String, scope: NivoLifeScope) async throws -> String {
+    func open(courseID: String, unitID: String, scope: NivoLifeScope, startToday: Bool = false,
+              minutes: Int = 15, need: String = "") async throws -> String {
         guard !isOpening else { throw NivoCoachConversationError.opening }
         try requireScope(scope)
         let ownerKey = scope.ownerKey
@@ -22,7 +23,22 @@ final class NivoCoachConversationCoordinator: ObservableObject {
         try requireScope(scope)
         try await NivoCoachV2Store.shared.bindTopicConversation(topicID: topic.id, chatSessionID: chatID, ownerKey: ownerKey, generation: generation)
         try requireScope(scope)
-        let result = try await command("start_lesson", targetID: topic.id, scope: scope)
+        if let failure = try await NivoCoachArchiveRecovery.retry(chatID: chatID, scope: scope, generation: generation) {
+            throw NivoCoachConversationError.archive(failure)
+        }
+        try await NivoCoachReconciliation.reconcile(chatSessionID: chatID, scope: scope, generation: generation)
+        try requireScope(scope)
+        let snapshot = try await NivoCoachV2Store.shared.snapshot(ownerKey: ownerKey)
+        let now = Self.now()
+        let zone = TimeZone.current
+        let today = NivoCoachSkillProfile.today(snapshot, courseID: courseID, day: NivoCoachDay.key(now, zone: zone), zone: zone)
+        let shouldCreate = today.status == .notStarted || today.status == .done ||
+            (today.status == .earlierUnfinished && startToday)
+        if shouldCreate {
+            try await preparePlan(courseID: courseID, chatID: chatID, scope: scope,
+                                  generation: generation, minutes: minutes, need: need)
+        }
+        let result = try await command(shouldCreate ? "start_today" : "start_lesson", targetID: topic.id, scope: scope)
         try requireScope(scope)
         let state = try await NivoCoachV2Store.shared.snapshot(ownerKey: ownerKey)
         try requireScope(scope)
@@ -35,6 +51,59 @@ final class NivoCoachConversationCoordinator: ObservableObject {
         NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
         return chatID
     }
+
+    /// 专题页继续学习与技能页使用同一个备课入口。
+    func startFromChat(topic: NivoCoachTopic, scope: NivoLifeScope) async throws {
+        let state = try await NivoCoachV2Store.shared.snapshot(ownerKey: scope.ownerKey)
+        try requireScope(scope)
+        guard NivoCoachSkillProfile.topic(state, courseID: topic.courseID)?.id == topic.id else {
+            throw NivoLifeError.invalidTransition("coach_topic")
+        }
+        let track = try state.track(topic.courseID)
+        _ = try await open(courseID: track.id, unitID: track.currentUnitID, scope: scope)
+    }
+
+    private func preparePlan(courseID: String, chatID: String, scope: NivoLifeScope, generation: UUID,
+                             minutes: Int, need: String) async throws {
+        try requireScope(scope)
+        let store = NivoCoachV2Store.shared
+        let snapshot = try await store.snapshot(ownerKey: scope.ownerKey)
+        let track = try snapshot.track(courseID)
+        let now = Self.now()
+        let zone = TimeZone.current
+        let boundedNeed = NivoCoachLessonPlanRules.trimmedNeed(need)
+        let desiredMinutes = min(120, max(3, minutes))
+        let day = NivoCoachDay.key(now, zone: zone)
+        if NivoCoachLessonPlanRules.reusable(snapshot, courseID: courseID, unitID: track.currentUnitID,
+            version: track.course.version, day: day, minutes: desiredMinutes, need: boundedNeed) != nil { return }
+        let base = try NivoCoachLessonPlanRules.base(snapshot, courseID: courseID, now: now, zone: zone,
+            minutes: desiredMinutes, need: boundedNeed)
+        let providerStore = ProviderConfigStore.shared
+        let selected = providerStore.binding(for: chatID).flatMap {
+            providerStore.entry(for: $0.primarySource.preferredReference)
+        }
+        var plan = try await NivoCoachLessonPrep.prepare(state: snapshot, base: base,
+            entry: selected ?? providerStore.nmLatestChatEntry)
+        try requireScope(scope)
+        let current = try await store.snapshot(ownerKey: scope.ownerKey)
+        let currentTrack = try current.track(courseID)
+        guard currentTrack.currentUnitID == track.currentUnitID, currentTrack.course.version == track.course.version,
+              !currentTrack.paused else { throw NivoLifeError.invalidTransition("stale_plan_course") }
+        if NivoCoachDay.key(Self.now(), zone: .current) != plan.localDate ||
+            (try? NivoCoachLessonPlanRules.validate(plan, state: current)) == nil {
+            plan = try NivoCoachLessonPlanRules.base(current, courseID: courseID, now: Self.now(), zone: .current,
+                minutes: desiredMinutes, need: boundedNeed)
+            plan.degradeReason = "invalid"
+        }
+        let data = try JSONEncoder().encode(plan)
+        let request = NivoCoachCommand(action: "adopt_plan", operationID: "plan:\(plan.id)",
+            expectedRevision: current.revision, targetID: courseID, payload: String(decoding: data, as: UTF8.self))
+        let context = NivoCoachCommandContext(ownerKey: scope.ownerKey, generation: generation, isHost: true)
+        _ = try await store.execute(request, context: context)
+        try requireScope(scope)
+    }
+
+    private static func now() -> Int64 { Int64(Date().timeIntervalSince1970 * 1_000) }
 
     /// 本地按钮与模型共用同一个事务入口，排队期间不得借用恢复后的新账户代次。
     @discardableResult
@@ -50,7 +119,7 @@ final class NivoCoachConversationCoordinator: ObservableObject {
             try requireScope(scope)
         }
         var snapshot = try await NivoCoachV2Store.shared.snapshot(ownerKey: ownerKey)
-        if action == "start_lesson", let topic = snapshot.topics.first(where: { $0.id == targetID }),
+        if ["start_lesson", "start_today"].contains(action), let topic = snapshot.topics.first(where: { $0.id == targetID }),
            !topic.chatSessionID.isEmpty {
             try requireScope(scope)
             if let failure = try await NivoCoachArchiveRecovery.retry(chatID: topic.chatSessionID,
@@ -77,10 +146,11 @@ final class NivoCoachConversationCoordinator: ObservableObject {
         try requireScope(scope)
         guard let track = snapshot.tracks.first(where: { $0.id == courseID }), !track.paused,
               !track.course.needsCriteriaReview,
+              track.currentUnitID == unitID,
               let unit = track.course.units.first(where: { $0.id == unitID }), !unit.needsCriteriaReview else {
             throw NivoLifeError.invalidField("course_review")
         }
-        if let existing = snapshot.topics.last(where: { $0.courseID == courseID && $0.unitID == unitID && $0.status == "active" }) {
+        if let existing = NivoCoachSkillProfile.topic(snapshot, courseID: courseID) {
             return existing
         }
         let created = try await command("start_topic", targetID: courseID, scope: scope,

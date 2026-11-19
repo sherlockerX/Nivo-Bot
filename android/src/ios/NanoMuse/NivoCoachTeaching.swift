@@ -139,7 +139,8 @@ enum NivoCoachTeaching {
         }
     }
 
-    private static func hasImmediateEvidence(_ session: NivoCoachSession, dimension: String) -> Bool {
+    /// 延迟复核需要可回查的即时作答。
+    static func hasImmediateEvidence(_ session: NivoCoachSession, dimension: String) -> Bool {
         session.evidence.contains { evidence in
             evidence.met && !evidence.disputed && (try? validate(evidence, session: session)) != nil &&
                 session.turns.contains { $0.id == evidence.turnID && $0.dimension == dimension && $0.reviewKind == "immediate" }
@@ -148,19 +149,23 @@ enum NivoCoachTeaching {
 
     private static func validReviewSource(_ previous: NivoCoachSession, for session: NivoCoachSession,
                                           at now: Int64, dimension: String) -> Bool {
-        previous.id != session.id && previous.topicID == session.topicID && previous.status == "complete" &&
+        previous.id != session.id && previous.topicID == session.topicID && previous.unitID == session.unitID &&
+            previous.status == "complete" &&
             previous.endedAt > 0 && now >= previous.endedAt && now - previous.endedAt >= MIN_REVIEW_DELAY &&
             !previous.requiresCourseReview && previous.course.version == session.course.version &&
             hasImmediateEvidence(previous, dimension: dimension)
     }
 
     /// 从一个一致快照计算理解、应用及延迟复核，避免并行读取拼成不同版本。
-    static func progress(_ state: NivoCoachState, topicID: String) -> NivoCoachTopicProgress {
+    static func progress(_ state: NivoCoachState, topicID: String, unitID: String? = nil) -> NivoCoachTopicProgress {
         let empty = NivoCoachTopicProgress(hasUnderstanding: false, hasApplication: false, hasDelayedReview: false, isDemonstrated: false)
         guard let topic = state.topics.first(where: { $0.id == topicID }), topic.status == "active",
               let course = state.tracks.first(where: { $0.id == topic.courseID })?.course,
-              let unit = course.units.first(where: { $0.id == topic.unitID }) else { return empty }
-        let sessions = state.sessions.filter { $0.topicID == topicID && $0.teachingProtocol == "topic-v3" && !$0.requiresCourseReview && $0.course.version == course.version }
+              let unit = course.units.first(where: { $0.id == unitID ?? topic.unitID }) else { return empty }
+        let sessions = state.sessions.filter {
+            $0.topicID == topicID && $0.unitID == unit.id && $0.teachingProtocol == "topic-v3" &&
+                !$0.requiresCourseReview && $0.course.version == course.version
+        }
         let met = Set(sessions.flatMap { session in session.evidence.filter {
             $0.met && !$0.disputed && (try? validate($0, session: session)) != nil
         }.map(\.criterionID) })
@@ -176,9 +181,15 @@ enum NivoCoachTeaching {
     private static func hasDelayedEvidence(_ session: NivoCoachSession, state: NivoCoachState) -> Bool {
         session.evidence.contains { evidence in
             guard evidence.met, !evidence.disputed, (try? validate(evidence, session: session)) != nil,
-                  let turn = session.turns.first(where: { $0.id == evidence.turnID }), turn.reviewKind == "delayed",
-                  let previous = state.sessions.first(where: { $0.id == turn.reviewOfSessionID }) else { return false }
-            return validReviewSource(previous, for: session, at: turn.createdAt, dimension: turn.dimension)
+                  let turn = session.turns.first(where: { $0.id == evidence.turnID }) else { return false }
+            return isValidDelayedReview(turn, session: session, state: state)
         }
+    }
+
+    /// 通过原课次、原维度和宿主时间再次检验延迟复核。
+    static func isValidDelayedReview(_ turn: NivoCoachTurn, session: NivoCoachSession, state: NivoCoachState) -> Bool {
+        guard turn.reviewKind == "delayed",
+              let previous = state.sessions.first(where: { $0.id == turn.reviewOfSessionID }) else { return false }
+        return validReviewSource(previous, for: session, at: turn.createdAt, dimension: turn.dimension)
     }
 }

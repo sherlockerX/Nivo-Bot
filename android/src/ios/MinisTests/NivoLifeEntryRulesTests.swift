@@ -30,10 +30,28 @@ final class NivoLifeEntryRulesTests: XCTestCase {
         XCTAssertEqual(destination(sessions: [try session("running")], restore: false), .none)
     }
 
-    func testCompletedTaskCanPrepareFocusWithoutChangingTaskStatus() {
+    func testCompletedTaskCannotStartAnotherFocusFromTaskDetails() {
         let target = NivoLifeItemTarget(id: task.id, scope: scope)
-        XCTAssertEqual(destination(target: target, sessions: []), .task(task.id))
+        XCTAssertEqual(destination(target: target, sessions: []), .unavailable)
         XCTAssertEqual(task.status, .done)
+    }
+
+    func testPickerSearchDoesNotLeakClosedDeletedOrForeignTasks() {
+        var open = task
+        open.id = "open"
+        open.title = " Read science "
+        open.status = .inProgress
+        var foreign = open
+        foreign.ownerKey = "other"
+        var removed = open
+        removed.deletedAt = 2
+        let tasks = [task, foreign, removed, open]
+        let result = NivoFocusTaskChoices(tasks: tasks, owner: scope.ownerKey, query: "  READ   ")
+        XCTAssertEqual(result.matches.map(\.id), ["open"])
+        XCTAssertTrue(result.canCreate)
+        XCTAssertFalse(NivoFocusTaskChoices(tasks: tasks, owner: scope.ownerKey, query: "read SCIENCE").canCreate)
+        XCTAssertFalse(NivoFocusTaskChoices(tasks: [], owner: scope.ownerKey, query: "   ").canCreate)
+        XCTAssertFalse(NivoFocusTaskChoices(tasks: [], owner: scope.ownerKey, query: String(repeating: "x", count: 501)).canCreate)
     }
 
     func testTaskEntryReturnsMatchingPausedTimerAndRejectsAnotherTaskTimer() throws {

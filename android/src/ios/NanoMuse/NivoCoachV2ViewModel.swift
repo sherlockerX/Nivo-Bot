@@ -79,7 +79,8 @@ final class NivoCoachV2ViewModel: ObservableObject {
     }
 
     /// 进入的是专题聊天ID，不能把内部课次ID误当成聊天会话ID。
-    func start(courseID: String, unitID: String, scope: NivoLifeScope, openChat: (String) -> Void) async {
+    func start(courseID: String, unitID: String, scope: NivoLifeScope, startToday: Bool = false,
+               minutes: Int = 15, need: String = "", openChat: (String) -> Void) async {
         guard !isMutating, owner == scope.ownerKey, loadedScope == scope,
               NivoLifeModel.shared.accessScope == scope else { return }
         let token = UUID()
@@ -87,7 +88,8 @@ final class NivoCoachV2ViewModel: ObservableObject {
         isMutating = true
         defer { if mutationID == token { isMutating = false } }
         do {
-            let chatID = try await NivoCoachConversationCoordinator.shared.open(courseID: courseID, unitID: unitID, scope: scope)
+            let chatID = try await NivoCoachConversationCoordinator.shared.open(courseID: courseID, unitID: unitID, scope: scope,
+                startToday: startToday, minutes: minutes, need: need)
             guard mutationID == token, NivoLifeModel.shared.accessScope == scope else { return }
             await reload(ownerKey: scope.ownerKey)
             guard mutationID == token, owner == scope.ownerKey, NivoLifeModel.shared.accessScope == scope,

@@ -44,6 +44,15 @@ enum NivoCoachReducer {
         case "start_lesson":
             let session = try startLesson(topicID: command.targetID, state: &state, now: now)
             return try NivoCoachApplied(id: session.id, value: session)
+        case "start_today":
+            let session = try startToday(topicID: command.targetID, state: &state, now: now)
+            return try NivoCoachApplied(id: session.id, value: session)
+        case "adopt_plan":
+            var plan = try JSONDecoder().decode(NivoCoachLessonPlan.self, from: Data(command.payload.utf8))
+            guard plan.courseId == command.targetID else { throw NivoLifeError.invalidField("plan_course") }
+            plan.status = "adopted"
+            try adopt(plan, state: &state)
+            return try NivoCoachApplied(id: plan.id, value: plan)
         case "end_lesson":
             let session = try endLesson(command, payload: payload, state: &state, now: now)
             return try NivoCoachApplied(id: session.id, value: session)
@@ -71,7 +80,8 @@ enum NivoCoachReducer {
     }
 
     /// 继续同一课次包括waiting_real，不会因为等待现实反馈而另开平行记录。
-    static func startLesson(topicID: String, state: inout NivoCoachState, now: Int64) throws -> NivoCoachSession {
+    static func startLesson(topicID: String, state: inout NivoCoachState, now: Int64,
+                            zone: TimeZone = .current) throws -> NivoCoachSession {
         let topic = try state.topic(topicID)
         let track = try state.track(topic.courseID)
         try requireStartable(track)
@@ -85,10 +95,63 @@ enum NivoCoachReducer {
             topicID: topic.id, teachingProtocol: "topic-v3")
         session.chatSessionID = topic.chatSessionID
         session.startedAt = now
+        let day = NivoCoachDay.key(now, zone: zone)
+        session.localDate = day
+        session.zoneID = zone.identifier
+        session.planID = state.plans?.last {
+            $0.courseId == track.id && $0.unitId == topic.unitID && $0.courseVersion == track.course.version &&
+                $0.localDate == day && $0.status == "adopted" &&
+                (try? NivoCoachLessonPlanRules.validate($0, state: state)) != nil
+        }?.id
         state.sessions.append(session)
         if let index = state.topics.firstIndex(where: { $0.id == topicID }) { state.topics[index].activeSessionID = session.id }
         if let index = state.tracks.firstIndex(where: { $0.id == track.id }) { state.tracks[index].lastPracticedAt = now }
         return session
+    }
+
+    /// 封存旧课和开启今天的课在同一个事务中完成，保留等待现实反馈的行动。
+    static func startToday(topicID: String, state: inout NivoCoachState, now: Int64,
+                           zone: TimeZone = .current) throws -> NivoCoachSession {
+        let topic = try state.topic(topicID)
+        let track = try state.track(topic.courseID)
+        try requireStartable(track)
+        guard let index = state.topics.firstIndex(where: { $0.id == topicID }),
+              let unit = track.course.units.first(where: { $0.id == track.currentUnitID }),
+              topic.status == "active" else { throw NivoLifeError.invalidTransition("coach_topic") }
+        if var open = state.sessions.first(where: { $0.id == topic.activeSessionID }),
+           NivoCoachSkillProfile.OPEN_STATUSES.contains(open.status),
+           !open.requiresCourseReview, open.course.version == track.course.version {
+            let day = NivoCoachDay.key(now, zone: zone)
+            if NivoCoachDay.key(open, zone: zone).map({ $0 == day }) ?? true { return open }
+            if open.status != "waiting_real" { open.status = "sealed" }
+            open.sealedAt = now
+            open.revision = try increment(open.revision)
+            try state.replaceSession(open)
+        }
+        state.topics[index].activeSessionID = nil
+        if topic.unitID != unit.id {
+            state.topics[index].unitID = unit.id
+            state.topics[index].caseText = unit.focus
+        }
+        return try startLesson(topicID: topicID, state: &state, now: now, zone: zone)
+    }
+
+    private static func adopt(_ plan: NivoCoachLessonPlan, state: inout NivoCoachState) throws {
+        var plans = state.plans ?? []
+        if let existing = plans.first(where: { $0.id == plan.id }) {
+            guard existing == plan else { throw NivoLifeError.operationConflict }
+            return
+        }
+        try NivoCoachLessonPlanRules.validate(plan, state: state)
+        for index in plans.indices where plans[index].courseId == plan.courseId &&
+            plans[index].localDate == plan.localDate && plans[index].status == "adopted" {
+            guard plans[index].createdAt <= plan.createdAt else { throw NivoLifeError.invalidTransition("stale_plan_result") }
+            plans[index].status = "superseded"
+        }
+        plans.append(plan)
+        let linked = Set(state.sessions.compactMap(\.planID))
+        let recent = Set(plans.suffix(90).map(\.id))
+        state.plans = plans.filter { linked.contains($0.id) || recent.contains($0.id) }
     }
 
     private static func endLesson(_ command: NivoCoachCommand, payload: NivoCoachPayload,

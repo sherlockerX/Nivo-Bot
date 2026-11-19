@@ -15,6 +15,7 @@ struct NivoCoachV2Room: View {
     @State private var page = "map"
     @State private var selectedLesson: NivoCoachSheetTarget<NivoCoachSession>?
     @State private var selectedCourse: NivoCoachSheetTarget<NivoCoachCourse>?
+    @State private var selectedProfile: NivoCoachSheetTarget<NivoCoachTrack>?
     @State private var selectedDraft: NivoCoachSheetTarget<NivoCoachDraft>?
     @State private var showsCalendar = false
     @State private var calendarScope: NivoLifeScope?
@@ -91,7 +92,7 @@ struct NivoCoachV2Room: View {
             Task { await coach.reload(ownerKey: life.ownerKey) }
         }
         .nmOnChange(of: life.accessScope) { _ in
-            selectedLesson = nil; selectedCourse = nil; selectedDraft = nil
+            selectedLesson = nil; selectedCourse = nil; selectedDraft = nil; selectedProfile = nil
             showsCalendar = false; calendarScope = nil
             pendingCalendarLesson = nil; pendingNavigation = nil; pendingScope = nil
         }
@@ -121,13 +122,29 @@ struct NivoCoachV2Room: View {
         }
         .sheet(item: $selectedCourse, onDismiss: finishNavigation) { target in
             let track = coach.state.tracks.first { $0.id == target.item.id }
-            NivoCoachCourseDetail(course: track?.course ?? target.item, demonstrated: track?.demonstrated ?? [], onStart: { unit in
-                queue(.unit(course: target.item.id, unit: unit.id), scope: target.scope)
+            NivoCoachCourseDetail(course: track?.course ?? target.item, demonstrated: track?.demonstrated ?? [],
+                currentUnitID: track?.currentUnitID, onStart: { unit in
+                queue(.unit(course: target.item.id, unit: unit.id, startToday: false, minutes: 15, need: ""), scope: target.scope)
                 selectedCourse = nil
             }, onReview: {
                 queue(.review(target.item.id), scope: target.scope)
                 selectedCourse = nil
             })
+        }
+        .sheet(item: $selectedProfile, onDismiss: finishNavigation) { target in
+            if life.accessScope == target.scope, let track = coach.state.tracks.first(where: { $0.id == target.item.id }) {
+                NivoCoachSkillProfileView(track: track, state: coach.state, onStart: { startToday, minutes, need in
+                    queue(.unit(course: track.id, unit: track.currentUnitID, startToday: startToday, minutes: minutes, need: need),
+                        scope: target.scope)
+                    selectedProfile = nil
+                }, onOpenLesson: { lesson in
+                    queue(.lesson(lesson), scope: target.scope)
+                    selectedProfile = nil
+                }, onOpenSource: { chatID, messageID in
+                    queue(.chat(chatID, messageID), scope: target.scope)
+                    selectedProfile = nil
+                })
+            }
         }
         .alert(AppLocalized("Error"), isPresented: Binding(get: { coach.errorMessage != nil }, set: { if !$0 { coach.errorMessage = nil } })) {
             Button(AppLocalized("Close")) { coach.errorMessage = nil }
@@ -155,11 +172,11 @@ struct NivoCoachV2Room: View {
     private func courseCard(_ track: NivoCoachTrack) -> some View {
         let displayedScope = life.accessScope
         return VStack(alignment: .leading, spacing: 10) {
-            Button { selectedCourse = sheetTarget(track.course, scope: displayedScope) } label: { NivoCoachSceneArt(kind: track.course.kind) }
+            Button { selectedProfile = sheetTarget(track, scope: displayedScope) } label: { NivoCoachSceneArt(kind: track.course.kind) }
                 .buttonStyle(.plain).accessibilityLabel(track.course.title)
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Button { selectedCourse = sheetTarget(track.course, scope: displayedScope) } label: { Text(track.course.title).font(.headline) }.buttonStyle(.plain)
+                    Button { selectedProfile = sheetTarget(track, scope: displayedScope) } label: { Text(track.course.title).font(.headline) }.buttonStyle(.plain)
                     Text(track.course.place).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -219,9 +236,9 @@ struct NivoCoachV2Room: View {
                 onReviewCourse(track.id)
             }.buttonStyle(.borderedProminent)
         } else {
-            Button(AppLocalized("Start unit")) {
-                if let scope = displayedScope { startUnit(courseID: track.id, unitID: track.currentUnitID, scope: scope) }
-            }.buttonStyle(.borderedProminent).disabled(track.paused)
+            Button(AppLocalized("Skill profile")) {
+                selectedProfile = sheetTarget(track, scope: displayedScope)
+            }.buttonStyle(.borderedProminent)
         }
     }
 
@@ -239,11 +256,12 @@ struct NivoCoachV2Room: View {
     }
 
     /// 点击时捕获账户代次，排队后的任务不能借用新账户的同名内置课程。
-    private func startUnit(courseID: String, unitID: String, scope: NivoLifeScope) {
+    private func startUnit(courseID: String, unitID: String, scope: NivoLifeScope, startToday: Bool, minutes: Int, need: String) {
         guard life.accessScope == scope else { return }
         Task {
             guard life.accessScope == scope else { return }
-            await coach.start(courseID: courseID, unitID: unitID, scope: scope, openChat: onOpenSession)
+            await coach.start(courseID: courseID, unitID: unitID, scope: scope, startToday: startToday,
+                minutes: minutes, need: need, openChat: onOpenSession)
         }
     }
 
@@ -271,7 +289,9 @@ struct NivoCoachV2Room: View {
             onOpenSession(identifier)
         case .draft(let identifier): onManageDraft(identifier)
         case .review(let identifier): onReviewCourse(identifier)
-        case .unit(let course, let unit): startUnit(courseID: course, unitID: unit, scope: scope)
+        case .unit(let course, let unit, let startToday, let minutes, let need):
+            startUnit(courseID: course, unitID: unit, scope: scope, startToday: startToday, minutes: minutes, need: need)
+        case .lesson(let lesson): selectedLesson = sheetTarget(lesson, scope: scope)
         }
     }
 
@@ -358,5 +378,6 @@ struct NivoCoachV2Room: View {
 
 /// 弹层退出后的明确意图，账户凭证单独保留，不从新页面补取。
 private enum NivoCoachPageNavigation {
-    case chat(String, String?), draft(String), review(String), unit(course: String, unit: String)
+    case chat(String, String?), draft(String), review(String), lesson(NivoCoachSession)
+    case unit(course: String, unit: String, startToday: Bool, minutes: Int, need: String)
 }

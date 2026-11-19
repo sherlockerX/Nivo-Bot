@@ -258,10 +258,15 @@ actor NivoCoachV2Store {
         let projection = state
         for index in state.tracks.indices {
             let related = projection.topics.filter { $0.courseID == projection.tracks[index].id }
-            let controlled = Set(related.map(\.unitID))
-            let achieved = related.filter { NivoCoachTeaching.progress(projection, topicID: $0.id).isDemonstrated }
+            let topicIDs = Set(related.map(\.id))
+            let controlled = Set(related.map(\.unitID)).union(projection.sessions.filter {
+                topicIDs.contains($0.topicID)
+            }.map(\.unitID))
+            let achieved = controlled.filter { unitID in
+                related.contains { NivoCoachTeaching.progress(projection, topicID: $0.id, unitID: unitID).isDemonstrated }
+            }
             state.tracks[index].demonstrated.subtract(controlled)
-            state.tracks[index].demonstrated.formUnion(achieved.map(\.unitID))
+            state.tracks[index].demonstrated.formUnion(achieved)
         }
     }
 
@@ -270,6 +275,7 @@ actor NivoCoachV2Store {
         guard state.revision >= 0,
               unique(state.tracks.map(\.id)), unique(state.sessions.map(\.id)), unique(state.topics.map(\.id)),
               unique(state.drafts.map(\.id)), unique(state.actions.map(\.id)),
+              unique((state.plans ?? []).map(\.id)),
               unique(state.topics.map(\.chatSessionID).filter { !$0.isEmpty }) else { throw NivoLifeError.corruptStore }
         for track in state.tracks {
             guard !track.course.version.isEmpty, unique(track.course.units.map(\.id)),

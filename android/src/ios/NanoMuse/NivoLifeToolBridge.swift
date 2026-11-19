@@ -12,7 +12,7 @@ enum NivoLifeToolBridge {
 
     static func definitions(includeCommands: Bool = true) -> [AgentToolDefinition] {
         let tools = [
-            AgentToolDefinition(name: todoQuery, description: "Read tasks and reusable groups/tags in the current account. Query exact IDs and revisions before changes.", parameters: [
+            AgentToolDefinition(name: todoQuery, description: "Read tasks and reusable groups/tags in the current account. Follow nextOffset for a complete list. Use detail for full notes and the exact revision.", parameters: [
                 "kind": AgentToolParam(type: .string, description: "tasks, detail or categories", enumValues: ["tasks", "detail", "categories"]),
                 "targetId": AgentToolParam(type: .string, description: "Exact task ID for detail"),
                 "status": AgentToolParam(type: .string, description: "Task status", enumValues: ["all", "todo", "in_progress", "done"]),
@@ -27,8 +27,8 @@ enum NivoLifeToolBridge {
                 "payload": AgentToolParam(type: .string, description: "JSON object with title, notes, groupName, tags, isImportant, isUrgent, scheduledDate and dueDate. Dates use YYYY-MM-DD; null clears a date. Omitted fields are unchanged."), "userQuote": AgentToolParam(type: .string, description: "Exact current-user completion sentence"), "completedDate": AgentToolParam(type: .string, description: "Optional YYYY-MM-DD for complete only"),
                 "categoryKind": AgentToolParam(type: .string, description: "group or tag", enumValues: ["group", "tag"]), "categoryName": AgentToolParam(type: .string, description: "Exact category name"), "expectedCreatedAt": AgentToolParam(type: .integer, description: "Fresh category generation")
             ], required: ["action", "operationId"]),
-            AgentToolDefinition(name: focusQuery, description: "Read real focus timers and measured duration. Breaks and unfinished sessions are excluded from statistics.", parameters: [
-                "kind": AgentToolParam(type: .string, description: "sessions, active, detail or statistics", enumValues: ["sessions", "active", "detail", "statistics"]), "targetId": AgentToolParam(type: .string, description: "Exact focus session ID"), "startDate": AgentToolParam(type: .string, description: "Statistics start YYYY-MM-DD"), "endDate": AgentToolParam(type: .string, description: "Statistics end YYYY-MM-DD"), "limit": AgentToolParam(type: .integer, description: "1..50"), "offset": AgentToolParam(type: .integer, description: "Pagination offset")
+            AgentToolDefinition(name: focusQuery, description: "Read real focus timers and measured duration. Statistics cover the whole requested interval and return totals by group. Follow nextOffset for complete session lists.", parameters: [
+                "kind": AgentToolParam(type: .string, description: "sessions, active, detail or statistics", enumValues: ["sessions", "active", "detail", "statistics"]), "targetId": AgentToolParam(type: .string, description: "Exact focus session ID"), "startDate": AgentToolParam(type: .string, description: "Inclusive local date YYYY-MM-DD"), "endDate": AgentToolParam(type: .string, description: "Inclusive local date YYYY-MM-DD"), "limit": AgentToolParam(type: .integer, description: "1..50 for session lists"), "offset": AgentToolParam(type: .integer, description: "Session list offset; follow nextOffset")
             ], required: []),
             AgentToolDefinition(name: focusCommand, description: "Control a real timer only when explicitly requested. Never fabricate past duration.", parameters: [
                 "action": AgentToolParam(type: .string, description: "start, pause, resume, finish or delete", enumValues: ["start", "pause", "resume", "finish", "delete"]), "operationId": AgentToolParam(type: .string, description: "Stable ID reused for exact retries"), "targetId": AgentToolParam(type: .string, description: "Exact session ID except start"), "expectedRevision": AgentToolParam(type: .integer, description: "Fresh session revision except start"), "title": AgentToolParam(type: .string, description: "Title when starting"), "taskId": AgentToolParam(type: .string, description: "Optional task ID"), "mode": AgentToolParam(type: .string, description: "pomodoro, stopwatch or break", enumValues: ["pomodoro", "stopwatch", "break"]), "minutes": AgentToolParam(type: .integer, description: "1..180 minutes")
@@ -38,7 +38,7 @@ enum NivoLifeToolBridge {
     }
 
     static func promptParagraph() -> String {
-        "Personal task and focus queries are available in authorized foreground user conversations. Writes are restricted to the main chat. Query exact IDs and revisions before writes, reuse operationId for exact retries, and report success only when success=true. Completion requires an exact quote of the current user's explicit completion report; plans or assistant claims never count. Focus duration comes only from device-measured intervals."
+        "Personal task and focus queries are available in authorized foreground user conversations. Follow nextOffset through the last page before claiming a complete list. Use focus_query with kind=statistics and explicit inclusive dates for calendar totals or group totals; it uses all completed measured intervals intersecting the dates. Breaks, unfinished sessions and deleted sessions are excluded. Writes are restricted to the main chat. Query exact IDs and revisions before writes, reuse operationId for exact retries, and report success only when success=true. Completion requires an exact quote of the current user's explicit completion report; plans or assistant claims never count."
     }
 
     static func execute(name: String, args: [String: Any], model: NivoLifeModel, sessionID: String?, currentUser: NivoSavedUserTurn?,
@@ -55,9 +55,9 @@ enum NivoLifeToolBridge {
             let result: Result
             switch name {
             case todoQuery:
-                try await model.refreshForTool(scope: scope)
+                let records = try await model.repository.todoRecords(scope: scope)
                 _ = try await host.nmRequireRecordsAccess(authorization)
-                result = try queryTodo(args, model: model)
+                result = try queryTodo(args, tasks: records.tasks, categories: records.categories)
             case todoCommand: result = try await commandTodo(args, model: model, scope: scope, user: currentUser)
             case focusQuery:
                 try await model.refreshForTool(scope: scope)
@@ -77,23 +77,27 @@ enum NivoLifeToolBridge {
         } catch { return failure(error.localizedDescription) }
     }
 
-    private static func queryTodo(_ args: [String: Any], model: NivoLifeModel) throws -> Result {
-        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "status", "search", "dateField", "startDate", "endDate", "limit", "offset"])
+    private static func queryTodo(_ args: [String: Any], tasks: [NivoTodoTask], categories: [NivoTodoCategory]) throws -> Result {
         let kind = try string(args, "kind", default: "tasks")
         if kind == "categories" {
-            let search = try string(args, "search", default: "")
+            try NivoLifeToolInput.requireFields(args, allowed: ["kind", "search", "limit", "offset", "tool_title"])
+            let search = try string(args, "search", default: "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard search.utf16.count <= 200 else { throw ToolError.invalid("search is too long") }
             let (limit, offset) = try pagination(args, defaultLimit: 50)
-            let rows = model.categories.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+            let rows = categories.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+                .sorted { ($0.name, $0.kind.rawValue) < ($1.name, $1.kind.rawValue) }
             let page = Array(rows.dropFirst(Int(offset)).prefix(Int(limit)))
             return success(["items": page.map(categoryJSON), "total": rows.count, "offset": offset,
                             "nextOffset": offset + limit < rows.count ? offset + limit : NSNull()])
         }
         if kind == "detail" {
-            guard let id = args["targetId"] as? String, let task = model.tasks.first(where: { $0.id == id && $0.deletedAt == nil }) else { throw ToolError.notFound }
+            try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "tool_title"])
+            let id = try required(args, "targetId")
+            guard let task = tasks.first(where: { $0.id == id && $0.deletedAt == nil }) else { throw ToolError.notFound }
             return success(taskJSON(task, detail: true))
         }
         guard kind == "tasks" else { throw ToolError.invalid("Unknown query kind") }
+        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "status", "search", "dateField", "startDate", "endDate", "limit", "offset", "tool_title"])
         let status = try string(args, "status", default: "all")
         guard ["all", "todo", "in_progress", "done"].contains(status) else { throw ToolError.invalid("Unknown task status") }
         let search = try string(args, "search", default: "")
@@ -103,9 +107,11 @@ enum NivoLifeToolBridge {
         let startDay = try day(args["startDate"])
         let endDay = try day(args["endDate"])
         guard startDay == nil || endDay == nil || startDay! <= endDay! else { throw ToolError.invalid("startDate must not follow endDate") }
-        let rows = model.tasks.filter { task in
+        let keyword = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rows = tasks.filter { task in
             guard task.deletedAt == nil, status == "all" || task.status.rawValue == status else { return false }
-            guard search.isEmpty || ([task.id, task.title, task.notes, task.groupName] + task.tags).contains(where: { $0.localizedCaseInsensitiveContains(search) }) else { return false }
+            guard keyword.isEmpty || [task.id, task.title, task.notes, task.groupName, task.tags.joined(separator: " ")]
+                .contains(where: { $0.localizedCaseInsensitiveContains(keyword) }) else { return false }
             let selectedDay: Int64? = {
                 switch dateField {
                 case "due": return task.dueDay
@@ -117,7 +123,9 @@ enum NivoLifeToolBridge {
             guard startDay != nil || endDay != nil else { return true }
             guard let selectedDay else { return false }
             return (startDay == nil || selectedDay >= startDay!) && (endDay == nil || selectedDay <= endDay!)
-        }.sorted { $0.updatedAt > $1.updatedAt }
+        }.sorted { left, right in
+            left.updatedAt == right.updatedAt ? left.id < right.id : left.updatedAt > right.updatedAt
+        }
         let (limit, offset) = try pagination(args, defaultLimit: 20)
         let page = Array(rows.dropFirst(Int(offset)).prefix(Int(limit)))
         return success(["items": page.map { taskJSON($0, detail: false) }, "total": rows.count, "offset": offset, "nextOffset": offset + limit < rows.count ? offset + limit : NSNull()])
@@ -167,19 +175,20 @@ enum NivoLifeToolBridge {
     }
 
     private static func queryFocus(_ args: [String: Any], model: NivoLifeModel) throws -> Result {
-        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "startDate", "endDate", "limit", "offset"])
+        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "startDate", "endDate", "limit", "offset", "tool_title"])
         let kind = try string(args, "kind", default: "sessions")
         guard ["sessions", "active", "detail", "statistics"].contains(kind) else { throw ToolError.invalid("Unknown focus query kind") }
         let sampledAt = Int64(Date().timeIntervalSince1970 * 1_000)
         if kind == "statistics" {
-            guard let start = try day(args["startDate"]), let end = try day(args["endDate"]), end >= start,
-                  end - start <= 3_660 else { throw ToolError.invalid("statistics requires a valid range of at most 3661 days") }
-            let calendar = Calendar.current
-            let startMs = calendar.startOfDay(for: NivoLifeDay.date(start)).timeIntervalSince1970 * 1_000
-            let endMs = calendar.startOfDay(for: NivoLifeDay.date(end + 1)).timeIntervalSince1970 * 1_000
-            let duration = NivoFocusRules.duration(sessions: model.focusSessions, spans: model.focusSpans,
-                                                   startMs: Int64(startMs), endMs: Int64(endMs))
-            return success(["durationMs": duration, "startDate": dateString(start), "endDate": dateString(end),
+            guard let start = try day(args["startDate"]), let end = try day(args["endDate"]) else {
+                throw ToolError.invalid("statistics requires startDate and endDate")
+            }
+            let zone = TimeZone.current
+            let totals = try NivoPersonalRecordsFocusQuery.statistics(model.focusSessions, spans: model.focusSpans,
+                tasks: model.tasks, startDay: start, endDay: end, timeZone: zone)
+            let groupTotals: [[String: Any]] = totals.groups.map { ["groupName": $0.group, "durationMs": $0.durationMs] }
+            return success(["durationMs": totals.totalMs, "groupTotals": groupTotals,
+                            "startDate": dateString(start), "endDate": dateString(end), "timezone": zone.identifier,
                             "includesBreaks": false, "sampledAt": sampledAt, "view_url": "minis://views/focus"])
         }
         if kind == "detail" { guard let id = args["targetId"] as? String, let session = model.focusSessions.first(where: { $0.id == id && $0.deletedAt == nil }) else { throw ToolError.notFound }; return success(focusJSON(session, sampledAt: sampledAt)) }

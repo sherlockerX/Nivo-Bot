@@ -6,6 +6,7 @@ struct NivoFocusStatisticsView: View {
     var isCompact = false
     @State private var period = "Day"
     @State private var date = Date()
+    @State private var shareBy = NivoFocusShareBy.group
     private let colors: [Color] = [
         Color(red: 0.47, green: 0.61, blue: 0.53), Color(red: 0.51, green: 0.60, blue: 0.67),
         Color(red: 0.70, green: 0.60, blue: 0.47), Color(red: 0.61, green: 0.54, blue: 0.65),
@@ -24,7 +25,7 @@ struct NivoFocusStatisticsView: View {
     private var distribution: NivoFocusDistribution {
         NivoFocusStatistics.distribution(sessions: model.focusSessions, spans: model.focusSpans,
             startMs: Int64(interval.start.timeIntervalSince1970 * 1_000),
-            endMs: Int64(interval.end.timeIntervalSince1970 * 1_000))
+            endMs: Int64(interval.end.timeIntervalSince1970 * 1_000), tasks: model.tasks, by: shareBy)
     }
 
     var body: some View {
@@ -40,7 +41,11 @@ struct NivoFocusStatisticsView: View {
             Text(NivoFocusFormat.clock(summary.totalMs)).font(.largeTitle.weight(.semibold)).monospacedDigit()
             Text(AppLocalized("Finished focus time")).font(.subheadline).foregroundStyle(.secondary)
             if !isCompact {
-                Text(AppLocalized("Time by group")).font(.headline)
+                LabeledContent(AppLocalized("Sessions"), value: summary.sessionCount.formatted())
+                Picker(AppLocalized("Statistics"), selection: $shareBy) {
+                    Text(AppLocalized("Groups")).tag(NivoFocusShareBy.group)
+                    Text(AppLocalized("Tags")).tag(NivoFocusShareBy.tag)
+                }.pickerStyle(.segmented)
                 if summary.groups.isEmpty {
                     Text(AppLocalized("No focus records yet")).foregroundStyle(.secondary)
                 } else {
@@ -78,7 +83,7 @@ struct NivoFocusStatisticsView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Circle().fill(color).frame(width: 10, height: 10).accessibilityHidden(true)
-                Text(group.group.isEmpty ? AppLocalized("Ungrouped") : group.group)
+                Text(group.group.isEmpty ? (shareBy == .tag ? AppLocalized("Untagged") : AppLocalized("Ungrouped")) : group.group)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(NivoFocusFormat.clock(group.durationMs)).monospacedDigit()

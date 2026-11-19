@@ -58,6 +58,35 @@ final class NivoPersonalRecordsQueryTests: XCTestCase {
         XCTAssertThrowsError(try NivoPersonalRecordsFocusQuery.rows(rows, kind: "sessions", startDay: 3, endDay: 1))
     }
 
+    func testFocusStatisticsIncludesAllGroupsWithinLocalDayBoundaries() throws {
+        let chicago = try XCTUnwrap(TimeZone(identifier: "America/Chicago"))
+        let formatter = ISO8601DateFormatter()
+        let from = Int64(try XCTUnwrap(formatter.date(from: "2026-03-08T06:00:00Z")).timeIntervalSince1970 * 1_000)
+        let until = Int64(try XCTUnwrap(formatter.date(from: "2026-03-09T05:00:00Z")).timeIntervalSince1970 * 1_000)
+        let requestedDay = try NivoJigsawQuery.day("2026-03-08")
+        var sessions: [NivoFocusSession] = []
+        var spans: [NivoFocusSpan] = []
+        for index in 0..<53 {
+            let id = "focus\(index)"
+            let startedAt = index == 0 ? from - 500 : until - 500
+            var session = try NivoFocusRules.start(owner: "one", id: id, title: "Focus", task: nil,
+                mode: index == 52 ? .rest : .pomodoro, minutes: 3,
+                clock: NivoFocusClockSample(wallMs: startedAt, elapsedMs: 0, bootID: "boot"))
+            session.status = index == 51 ? .paused : .finished
+            session.groupName = "Group \(index)"
+            sessions.append(session)
+            spans.append(.init(id: "span\(index)", sessionId: id, startedAt: startedAt, durationMs: 1_000))
+        }
+        let statistics = try NivoPersonalRecordsFocusQuery.statistics(sessions, spans: spans, tasks: [],
+            startDay: requestedDay, endDay: requestedDay, timeZone: chicago)
+        XCTAssertEqual(statistics.totalMs, 25_500)
+        XCTAssertEqual(statistics.groups.count, 51)
+        XCTAssertTrue(statistics.groups.allSatisfy { $0.durationMs == 500 })
+        XCTAssertTrue(statistics.groups.contains { $0.group == "Group 0" })
+        XCTAssertThrowsError(try NivoPersonalRecordsFocusQuery.statistics(sessions, spans: spans, tasks: [],
+            startDay: requestedDay, endDay: requestedDay + 3_661, timeZone: chicago))
+    }
+
     func testDefaultDatesFollowLocalDayAcrossInternationalDateBoundary() throws {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-16T02:00:00Z"))
         let chicago = try XCTUnwrap(TimeZone(identifier: "America/Chicago"))
@@ -117,6 +146,44 @@ final class NivoPersonalRecordsQueryTests: XCTestCase {
         XCTAssertTrue(sessions.last?["endedAt"] is NSNull)
     }
 
+    func testReflectionQuerySeparatesMeasuredDurationFromSaveTime() throws {
+        var state = NivoMosaicState(ownerKey: "one")
+        let note = NivoMosaicEntry(ownerKey: "one", id: "note", day: 1, text: "Daily note",
+            taskIDs: [], focusIDs: [], createdAt: 900, updatedAt: 900)
+        var timed = NivoMosaicEntry(ownerKey: "one", id: "timed", day: 1, text: "Measured work",
+            taskIDs: [], focusIDs: ["first", "second"], createdAt: 900, updatedAt: 900)
+        timed.focusSnapshots = [.init(id: "first", title: "First", elapsedMs: 600, startedAt: 100, endedAt: 800),
+            .init(id: "second", title: "Second", elapsedMs: 200),
+            .init(id: "first", title: "Duplicate", elapsedMs: 600)]
+        let legacy = NivoMosaicEntry(ownerKey: "one", id: "legacy", day: 1, text: "Missing snapshot",
+            taskIDs: [], focusIDs: ["unknown"], createdAt: 900, updatedAt: 900)
+        state.entries = [note, timed, legacy]
+
+        let query = try NivoJigsawQuery.parse(["get", "--date", "1970-01-02"])
+        let output = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(NivoJigsawOutput.render(query: query, state: state).utf8)) as? [String: Any])
+        let day = try XCTUnwrap((output["days"] as? [[String: Any]])?.first)
+        let records = try XCTUnwrap(day["records"] as? [[String: Any]])
+        let noteData = try XCTUnwrap(records.first { $0["id"] as? String == "note" })
+        let timedData = try XCTUnwrap(records.first { $0["id"] as? String == "timed" })
+        let legacyData = try XCTUnwrap(records.first { $0["id"] as? String == "legacy" })
+        XCTAssertEqual(noteData["kind"] as? String, "daily_note")
+        XCTAssertEqual(noteData["measured_focus_ms"] as? Int, 0)
+        XCTAssertEqual(timedData["kind"] as? String, "focused_activity")
+        XCTAssertEqual(timedData["measured_focus_ms"] as? Int, 800)
+        XCTAssertEqual(timedData["created_at_ms"] as? Int, 900)
+        XCTAssertEqual(legacyData["kind"] as? String, "focused_activity")
+        XCTAssertTrue(legacyData["measured_focus_ms"] is NSNull)
+        XCTAssertEqual(day["measured_focus_ms"] as? Int, 800)
+        XCTAssertEqual(day["records_with_unknown_focus_duration"] as? Int, 1)
+
+        let statistics = try NivoJigsawQuery.parse(["stats", "--start", "1970-01-01", "--end", "1970-01-02"])
+        let statsRoot = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(NivoJigsawOutput.render(query: statistics, state: state).utf8)) as? [String: Any])
+        let totals = try XCTUnwrap(statsRoot["stats"] as? [String: Any])
+        XCTAssertEqual(totals["measured_focus_ms"] as? Int, 800)
+        XCTAssertEqual(totals["focused_records"] as? Int, 2)
+        XCTAssertEqual(totals["records_with_unknown_focus_duration"] as? Int, 1)
+    }
+
     func testMarkdownKeepsEachReflectionWithItsOwnTaskAndFocusEvidence() throws {
         var state = NivoMosaicState(ownerKey: "one")
         var first = NivoMosaicEntry(ownerKey: "one", id: "first", day: 1, text: "First reflection",
@@ -134,6 +201,7 @@ final class NivoPersonalRecordsQueryTests: XCTestCase {
         let sections = output.components(separatedBy: "### Record ")
         XCTAssertEqual(sections.count, 3)
         XCTAssertTrue(sections[1].contains("First reflection"))
+        XCTAssertTrue(sections[1].contains("Time spent (measured focus): 30 ms"))
         XCTAssertTrue(sections[1].contains("Saved task task-a: Saved title; status=todo; linkedAt=100"))
         XCTAssertTrue(sections[1].contains("elapsedMs=30; startedAt=10; endedAt=40"))
         XCTAssertTrue(sections[1].contains("Reflection source: focus-a"))

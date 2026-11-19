@@ -12,6 +12,7 @@ struct NivoFocusRoom: View {
     @State private var startingTaskID = ""
     @State private var startingScope: NivoLifeScope?
     @State private var isShowingBackgrounds = false
+    @State private var reminderScope: NivoLifeScope?
     @State private var immersive: NivoFocusPresentation?
     @State private var pendingStart: NivoFocusSession?
     @State private var deleting: NivoFocusSession?
@@ -30,6 +31,8 @@ struct NivoFocusRoom: View {
                         Button(AppLocalized("Statistics")) { section = "statistics" }
                         Divider()
                         Button(AppLocalized("Focus backgrounds")) { isShowingBackgrounds = true }
+                        Button(AppLocalized("Focus reminder")) { reminderScope = model.accessScope }
+                            .disabled(model.accessScope == nil)
                         Button(AppLocalized("Export focus records")) { isExporting = true }
                             .disabled(!model.isReady || model.isBusy)
                     } label: { NanoMuseRoundDisc(symbol: "slider.horizontal.3") }
@@ -90,13 +93,22 @@ struct NivoFocusRoom: View {
         .sheet(isPresented: $isShowingBackgrounds, onDismiss: resolveEntry) {
             if let scope = model.accessScope { NivoFocusBackgroundPicker(scope: scope, selectedID: $backgroundID) }
         }
+        .sheet(isPresented: Binding(get: { reminderScope != nil }, set: {
+            if !$0 { reminderScope = nil }
+        }), onDismiss: resolveEntry) {
+            if let reminderScope { NivoFocusReminderView(model: model, access: reminderScope) }
+        }
         .sheet(isPresented: $isExporting, onDismiss: resolveEntry) {
             if let scope = model.accessScope { NivoLifeFileTransferView(kind: .focus, scope: scope) }
         }
         .fullScreenCover(item: $immersive, onDismiss: openPendingReflection) { presentation in
             NivoFocusImmersiveView(sessionID: presentation.id, model: model,
                 backgroundID: presentation.backgroundID, access: presentation.scope,
-                onReflection: { requestReflection(sessionID: presentation.id, scope: presentation.scope) }) {
+                onReflection: { requestReflection(sessionID: presentation.id, scope: presentation.scope) },
+                onFollowUp: { next in
+                    guard model.accessScope == presentation.scope, immersive?.id == presentation.id else { return }
+                    present(next)
+                }) {
                 guard model.accessScope == presentation.scope else { return }
                 NivoFocusPreferences.dismissImmersive(presentation.id, owner: presentation.scope.ownerKey)
                 if immersive?.id == presentation.id, immersive?.scope == presentation.scope { immersive = nil }
@@ -220,7 +232,7 @@ struct NivoFocusRoom: View {
     }
 
     private func resolveEntry() {
-        guard let scope = model.accessScope, !isStarting, !isShowingBackgrounds, !isExporting,
+        guard let scope = model.accessScope, !isStarting, !isShowingBackgrounds, !isExporting, reminderScope == nil,
               pendingReflection == nil else { return }
         _ = NivoFocusPreferences.restorableSession(owner: scope.ownerKey, sessions: model.focusSessions)
         let destination = NivoLifeEntryRules.focusDestination(
@@ -257,6 +269,7 @@ struct NivoFocusRoom: View {
         startingScope = nil
         startingTaskID = ""
         isShowingBackgrounds = false
+        reminderScope = nil
         isExporting = false
         didRestore = false
     }
@@ -300,6 +313,7 @@ private struct NivoFocusStartView: View {
     @State private var mode = NivoFocusMode.pomodoro
     @State private var minutes = 25
     @State private var isChoosingBackground = false
+    @State private var isChoosingTask = false
     @State private var operationID = UUID().uuidString
 
     init(model: NivoLifeModel, access: NivoLifeScope, initialTaskID: String,
@@ -325,9 +339,8 @@ private struct NivoFocusStartView: View {
                     }
                 }
                 Section(AppLocalized("Task")) {
-                    Picker(AppLocalized("Link task"), selection: $taskID) {
-                        Text(AppLocalized("No linked task")).tag("")
-                        ForEach(model.tasks) { Text($0.title).tag($0.id) }
+                    Button { isChoosingTask = true } label: {
+                        LabeledContent(AppLocalized("Link task"), value: model.tasks.first { $0.id == taskID }?.title ?? AppLocalized("No linked task"))
                     }
                     if taskID.isEmpty { TextField(AppLocalized("What will you focus on?"), text: $title) }
                 }
@@ -347,12 +360,15 @@ private struct NivoFocusStartView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(AppLocalized("Start")) { Task { await start() } }
                         .disabled(model.isBusy || model.accessScope != access
-                            || (!taskID.isEmpty && !model.tasks.contains(where: { $0.id == taskID }))
+                            || (!taskID.isEmpty && !model.tasks.contains(where: { $0.id == taskID && $0.ownerKey == access.ownerKey && $0.deletedAt == nil && $0.status != .done }))
                             || (taskID.isEmpty && title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                 }
             }
             .sheet(isPresented: $isChoosingBackground) {
                 if let scope = model.accessScope { NivoFocusBackgroundPicker(scope: scope, selectedID: $backgroundID) }
+            }
+            .sheet(isPresented: $isChoosingTask) {
+                NivoFocusTaskPicker(model: model, access: access, selectedID: $taskID)
             }
             .nmOnChange(of: title) { _ in operationID = UUID().uuidString }
             .nmOnChange(of: taskID) { _ in operationID = UUID().uuidString }
