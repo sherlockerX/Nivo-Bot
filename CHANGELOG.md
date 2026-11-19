@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Split Android CI debug/test and release builds into sequential Gradle processes with one worker each to avoid sharing the Kotlin compiler heap across both variants.
+
 ## [2.0.5] - 2026-11-19 · Cadence
 
 - Released Android and iOS as Nivo Bot 2.0.5 (56), with the product website and source links pointing to the official `sherlockerX/Nivo-Bot` repository. iOS is delivered as an unsigned IPA for personal signing; this fork does not provide TestFlight or App Store distribution.
