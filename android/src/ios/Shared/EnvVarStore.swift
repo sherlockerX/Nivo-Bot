@@ -180,30 +180,9 @@ final class EnvVarStore: ObservableObject {
         } catch { return false }
     }
 
+    // nanoMuse: 与写入使用同一锁和本机优先规则，旧同步值仅供启动迁移兼容。
     nonisolated private static func loadValue(forKey key: String) -> String? {
-        // Try synchronizable first
-        let syncQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key,
-            kSecAttrSynchronizable as String: true,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        if SecItemCopyMatching(syncQuery as CFDictionary, &result) == errSecSuccess,
-           let data = result as? Data { return String(data: data, encoding: .utf8) }
-        // Fallback to legacy non-sync
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        try? NivoCredentialSyncKeychain.environmentValue(key: key)
     }
 
     /// Non-isolated read for use from CloudSyncEngine (background thread).

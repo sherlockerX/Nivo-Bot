@@ -12,6 +12,8 @@ struct OpenSessionIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        // nanoMuse: 侧载无共享权限时拒绝跨进程动作，先于读库、创建会话和启动后台任务。
+        try NivoStoragePaths.requireSharedContainer()
         NotificationCenter.default.post(
             name: .openSessionFromIntent,
             object: nil,

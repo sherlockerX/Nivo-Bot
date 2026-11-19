@@ -31,70 +31,11 @@ enum SyncV2Bootstrap {
     }
 
 
-    /// User-facing toggle. On a first read with no v2 key set we default
-    /// to OFF (clean install starts opted-out so the user gets to make
-    /// an informed decision instead of background iCloud traffic on
-    /// first launch). For users upgrading from a build that only had
-    /// the v1 engine we inherit their v1 toggle (`cloudSync.enabled`)
-    /// so a user who had iCloud Sync ON in v1 keeps it on after the
-    /// upgrade, and one who had it OFF keeps it off. The resolved
-    /// value is persisted under the v2 key.
-    /// Override via the `cloudSync.v2.enabled` UserDefaults key directly
-    /// during development.
-    static var isEnabled: Bool {
-        let key = "cloudSync.v2.enabled"
-        if UserDefaults.standard.object(forKey: key) == nil {
-            // Inherit from v1 if the user ever interacted with that
-            // toggle (object(forKey:) returns non-nil once any write
-            // occurred — including the v1 engine's own write-back at
-            // init). If neither key exists this is a clean install:
-            // default OFF.
-            let v1Key = "cloudSync.enabled"
-            let inherited: Bool
-            if let v1 = UserDefaults.standard.object(forKey: v1Key) as? Bool {
-                inherited = v1
-                logger.info("[SyncCore] v2 isEnabled bootstrap — inheriting v1 cloudSync.enabled=\(v1)")
-            } else {
-                inherited = false
-                logger.info("[SyncCore] v2 isEnabled bootstrap — fresh install, defaulting OFF")
-            }
-            UserDefaults.standard.set(inherited, forKey: key)
-            return inherited
-        }
-        return UserDefaults.standard.bool(forKey: key)
-    }
+    // nanoMuse: 保留旧调用接口，个人构建不读取或恢复历史云同步开关。
+    static var isEnabled: Bool { false }
 
-    static func setEnabled(_ enabled: Bool) {
-        let prev = UserDefaults.standard.object(forKey: "cloudSync.v2.enabled") as? Bool ?? true
-        UserDefaults.standard.set(enabled, forKey: "cloudSync.v2.enabled")
-        logger.info("[SyncCore] v2 enabled flag set to \(enabled) (was \(prev))")
-        // When the user disables iCloud Sync, stop the active SyncCore +
-        // transports immediately so dirty queue drains pause and no more
-        // fetch/push fires until they opt back in. Without this, the
-        // engine keeps running with stale credentials for the rest of
-        // the launch — the indicator hides via @AppStorage observation,
-        // but background CKQuery traffic continues. Re-enabling still
-        // requires a relaunch because boot wiring is non-idempotent.
-        if prev == true && enabled == false {
-            if #available(iOS 17.0, *) {
-                Task { await SyncCore.shared.stop() }
-            }
-        }
-        // T-v2-hot-enable: user flipped the toggle ON after launch. Older
-        // builds required a relaunch because boot only ran from MinisApp
-        // launch path — leaving the engine in 'Starting…' with
-        // transports=0, isRunning=false, and sendNow warnings forever.
-        // Bootstrap is now idempotent (SyncCore.register dedups by name,
-        // type/hydrator registries overwrite-as-self, SyncCore.start
-        // guards on isRunning), so it is safe to invoke from here.
-        if prev == false && enabled == true {
-            if #available(iOS 17.0, *) {
-                Task { @MainActor in
-                    await SyncV2Bootstrap.startIfEnabled()
-                }
-            }
-        }
-    }
+    /// nanoMuse: 旧设置调用不能重新启用已移除的云服务。
+    static func setEnabled(_ enabled: Bool) {}
 
     /// Has the user explicitly requested migration of their pre-v2 history?
     /// Default OFF: only newly-created sessions/messages sync to v2 by
@@ -104,13 +45,9 @@ enum SyncV2Bootstrap {
     /// to ON which kicked off a multi-hour throttled push on every
     /// upgrading device, often without the user's knowledge.
     private static let migrationRequestedKey = "cloudSync.v2.migrationRequested"
-    static var isMigrationRequested: Bool {
-        UserDefaults.standard.bool(forKey: migrationRequestedKey)
-    }
-    static func setMigrationRequested(_ requested: Bool) {
-        UserDefaults.standard.set(requested, forKey: migrationRequestedKey)
-        logger.info("[SyncCore] migration requested=\(requested)")
-    }
+    // nanoMuse: 旧迁移状态仅用于读取历史数据，不启动远端迁移。
+    static var isMigrationRequested: Bool { false }
+    static func setMigrationRequested(_ requested: Bool) {}
 
     /// Should v1 CloudSyncEngine be allowed to run? It is paused as soon
     /// as v2 is enabled AND migration is in progress / completed. While

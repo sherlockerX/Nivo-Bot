@@ -10,22 +10,11 @@
 	</array>
 	<key>com.apple.developer.homekit</key>
 	<true/>
-	<key>com.apple.developer.icloud-container-identifiers</key>
-	<array>
-		<string>iCloud.io.github.nanomuse.app</string>
-	</array>
-	<key>com.apple.developer.icloud-services</key>
-	<array>
-		<string>CloudKit</string>
-	</array>
+	<!-- nanoMuse: 个人构建不使用内置CloudKit或ubiquity容器。 -->
 	<key>com.apple.developer.nfc.readersession.formats</key>
 	<array>
 		<string>TAG</string>
 		<string>PACE</string>
-	</array>
-	<key>com.apple.developer.ubiquity-container-identifiers</key>
-	<array>
-		<string>iCloud.io.github.nanomuse.app</string>
 	</array>
 	<key>com.apple.developer.weatherkit</key>
 	<true/>

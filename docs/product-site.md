@@ -14,7 +14,9 @@ Nivo Bot站点采用独立HTML页面，目录页支持浏览器搜索、后退�
 
 模型教程核对了App协议和`/v1`拼接方式。例如Gemini原生使用`/v1beta`，与OpenAI兼容层不同；智谱`/api/paas/v4`与方舟`/api/v3`不能重复追加`/v1`。OpenCode旧目录端点与当前官方文档不同，教程按协议指向当前端点，不修改App预置代码。
 
-官方来源存于每个服务商内容条目的`docs`与`console`字段。入口包括百炼、DeepSeek、Kimi、GLM、硅基流动、方舟、MiniMax、OpenAI、Claude、Gemini、OpenRouter、xAI、Groq、Mistral、OpenCode、Standard Compute、CheaperInference，以及Ollama、LM Studio和vLLM文档。核对日期为2026-11-13，未使用个人Key逐一请求所有厂商。
+官方来源存于每个服务商内容条目的`docs`与`console`字段。入口包括百炼、DeepSeek、Kimi、GLM、方舟、MiniMax、OpenAI、Claude、Gemini、xAI、Groq、Mistral，以及Ollama、LM Studio和vLLM文档；另外提供自定义服务教程。原厂商资料核对日期为2026-11-13，未使用个人Key逐一请求所有厂商。2026-11-19按本地模式要求移除了预设中转商推荐，手机目录和网站均依据`providers.json`的`is_relay`字段过滤展示；已有用户配置保留兼容。
+
+入门页说明首次启动可以暂时跳过模型配置，以及Nivo本地档案和模型厂商API认证的区别。隐私页说明移除原账号验证、项目中继、跨设备同步与iCloud Keychain同步后的数据流，并保留第三方API、MCP及联网工具的实际边界。维护分支的说明不能冒充已发布安装包的新行为，下载目录及历史包哈希保持真实。
 
 信息结构参考[Linear](https://linear.app/features)的独立功能入口、[Raycast](https://www.raycast.com/)的产品图叙事和[Obsidian](https://obsidian.md/download)的平台下载分区；未复制其品牌图像或界面。
 

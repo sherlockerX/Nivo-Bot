@@ -357,7 +357,8 @@ struct AIChatView: View {
     /// Global read-replies state — observed so the voice-mode "Read replies" toggle
     /// reflects enabled/muted in lockstep with the global voice-output capsule.
     @ObservedObject private var voiceOutput = VoiceOutputState.shared
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，历史偏好不能恢复同步按钮。
+    private let iCloudSyncEnabled = false
     /// [T-codex-fast-mode] Codex Fast Mode toggle ("..." menu, OpenAI OAuth
     /// only). Same key OpenAIProvider reads at request-build time; @AppStorage
     /// so the toolbar (menu checkmark + nav bolt badge) re-renders on flip.
@@ -376,6 +377,8 @@ struct AIChatView: View {
     /// True while unsent share-extension content is in the input bar.
     @State private var hasInjectedShareContent = false
     @State private var showModelPicker = false
+    // nanoMuse: 无模型时就地打开配置，保留输入草稿与附件。
+    @State private var nmShowOwnProvider = false
     @State private var showThinkingLevelSheet = false
     @State private var showSessionSkills = false
     @State private var showSessionMCPs = false
@@ -499,6 +502,14 @@ struct AIChatView: View {
             // Messages — floating tool preview overlaid at bottom
             messagesArea
                 .safeAreaInset(edge: .top, spacing: 0) {
+                    // nanoMuse: 跳过引导后仍能使用本地页，聊天明确提供模型配置入口。
+                    if vm.resolveCurrentEntry() == nil {
+                        NivoModelSetupNotice(
+                            canChooseModel: configStore.modelEntries.contains(where: configStore.nmIsUsableChatEntry),
+                            onAddProvider: { nmShowOwnProvider = true },
+                            onChooseModel: { showModelPicker = true }
+                        )
+                    }
                     // Error banner
                     if let error = vm.errorMessage {
                         errorBanner(error)
@@ -980,6 +991,10 @@ struct AIChatView: View {
                 }
             }
             .presentationDetents([.large])
+        }
+        // nanoMuse: 提供商表单关闭后回到原对话，不重新触发首次使用引导。
+        .sheet(isPresented: $nmShowOwnProvider) {
+            NanoMuseOwnKeySheet { _ in }
         }
         .sheet(isPresented: $showTokenUsage) {
             TokenUsageSheet(vm: cached.vm)
@@ -4758,6 +4773,13 @@ struct AIChatView: View {
     private func performSend() {
         // Intercept slash commands — execute instead of sending to LLM
         if vm.tryExecuteInputAsSlashCommand() { return }
+
+        // nanoMuse: 未配置模型时不消费草稿，用户完成设置后自行发送。
+        guard vm.resolveCurrentEntry() != nil else {
+            if configStore.modelEntries.contains(where: configStore.nmIsUsableChatEntry) { showModelPicker = true }
+            else { nmShowOwnProvider = true }
+            return
+        }
 
         minisLogger.info("🔑DRAFT performSend vm=\(vm.vmInstanceId) vm.sessionId=\(vm.sessionId ?? "nil") draftId=\(draftId ?? "nil") inputText='\(String(vm.inputText.prefix(50)))' isProcessing=\(vm.isProcessing)")
         // Keep SwiftUI focus when a hardware keyboard is connected — dropping

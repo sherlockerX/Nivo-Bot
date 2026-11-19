@@ -22,16 +22,11 @@ struct NanoMuseChatCardsHost: View {
     @ObservedObject var vm: AIChatViewModel
     @ObservedObject private var flow = NanoMuseAvatarFlow.shared
     @ObservedObject private var naming = NanoMuseFirstConversation.shared
-    @ObservedObject private var allowance = NanoMuseAllowance.shared
 
     private var key: String { vm.nmSessionKey }
 
     var body: some View {
         VStack(spacing: 8) {
-            // C11 / parity #33: 80 % of the free allowance spent — one line, once per pool size.
-            if let line = allowance.headsUp, allowance.pending == nil {
-                NanoMuseAllowanceHeadsUp(text: line) { allowance.hideHeadsUp() }
-            }
             switch flow.stage {
             case .confirming(let s, _) where s == key:
                 NanoMuseAvatarCostCard()

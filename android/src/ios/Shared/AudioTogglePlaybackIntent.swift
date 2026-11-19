@@ -38,6 +38,8 @@ struct AudioTogglePlaybackIntent: LiveActivityIntent {
     static var openAppWhenRun = false
 
     func perform() async throws -> some IntentResult {
+        // nanoMuse: 无App Group时跨进程入口不可用，不发送无法核实接收方的通知。
+        try NivoStoragePaths.requireSharedContainer()
         // Post an App-Group-scoped Darwin notification. The main app process
         // (kept alive by audio playback in the background) observes it and calls
         // VoiceOutputState.shared.togglePause(). We deliberately avoid referencing

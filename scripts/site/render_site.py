@@ -213,13 +213,13 @@ def models_index() -> str:
     """分层说明接入概念，提供厂商搜索和独立教程。"""
     groups = "".join(
         f'<button type="button" data-provider-filter="{name}" aria-pressed="{str(i == 0).lower()}">{name}</button>'
-        for i, name in enumerate(["全部", "国内平台", "国际平台", "聚合服务", "本地与自建"])
+        for i, name in enumerate(["全部", "国内平台", "国际平台", "本地与自建"])
     )
     return (
         title_block(
             "BRING YOUR OWN INTELLIGENCE",
             "选一个模型，<br>开始你的<span class='accent'>第一次对话。</span>",
-            "从账号、API Key、地址和模型ID开始。按你选择的厂商阅读，不用在一张长页面里翻找。",
+            "连接官方模型服务，或填写你自己的兼容地址。这里不推荐中转站，不代建账号，也不接收你的API Key。",
         )
         + f"""<section class="wrap catalogue-panel"><a class="entry-banner" href="getting-started.html"><span>第一次接入？先读设置入门与常见问题</span><span>打开入门指南 ↗</span></a><div class="catalogue-toolbar" id="providers"><div><p class="eyebrow">CHOOSE YOUR PROVIDER</p><h2>从你使用的平台开始。</h2></div><label class="search-box"><span>查找服务商</span><input type="search" id="provider-search" placeholder="搜索百炼、DeepSeek、Claude…" autocomplete="off"></label></div><div class="filter-pills" aria-label="按服务类别筛选">{groups}</div><p class="muted" id="provider-count" role="status" aria-live="polite">{len(PROVIDERS)}种接入入口</p><div class="provider-grid">{provider_cards()}</div><p id="provider-empty" class="empty-state" hidden>没有匹配的服务商。试试英文品牌名，或查看“其他OpenAI兼容服务”。</p></section>"""
     )
@@ -231,7 +231,7 @@ def getting_started() -> str:
         title_block(
             "MODEL SETUP / START HERE", "第一次连接模型。", "先理解几个设置，再选择你自己的服务商。"
         )
-        + """<section class="wrap"><div class="start-guide"><div><span class="eyebrow">第一次接入？</span><h2>先走通文字对话，<br>其他能力慢慢加。</h2><p>App里通常从“设置 → 模型”或“添加AI服务商”进入。优先选对应厂商预置；名称会随版本略有差异。</p></div><ol><li><b>01</b><span>去厂商控制台准备账号、额度与Key。</span></li><li><b>02</b><span>在App选择协议，填写基础URL和Key。</span></li><li><b>03</b><span>刷新模型或手动添加精确模型ID。</span></li><li><b>04</b><span>在设置中选择“对话”模型，发一条短问候。</span></li></ol></div>
+        + """<section class="wrap"><aside class="callout"><h2>可以先用起来，再连接AI。</h2><p>本地模式更新允许首次打开时选择“暂时跳过”，先使用待办、普通专注和生活记录。需要AI回复时再从设置添加服务商。Nivo账号与模型厂商账号是两件事：新版不需要Nivo登录，模型API仍按你选择的服务进行认证。</p><p>本说明对应正在维护的本地模式版本；下载包的实际改动请核对各版本说明。</p></aside><div class="start-guide"><div><span class="eyebrow">第一次接入？</span><h2>先走通文字对话，<br>其他能力慢慢加。</h2><p>从“设置 → 模型”或“添加AI服务商”进入。选官方厂商，或选择自定义服务并填写自己的地址；模型名称、协议和服务地址应同时核对。</p></div><ol><li><b>01</b><span>在所选服务管理方准备可用的API凭证。</span></li><li><b>02</b><span>在App选择协议，填写基础URL和Key。</span></li><li><b>03</b><span>刷新模型或手动添加精确模型ID。</span></li><li><b>04</b><span>在设置中选择“对话”模型，发一条短问候。</span></li></ol></div>
 <div class="concept-grid"><article><h3>API Key是凭证</h3><p>只填App的服务商设置。这里不会要求你输入Key，也不会替你测试真实请求。</p></article><article><h3>Base URL是服务入口</h3><p>不是控制台网址，也通常不是完整的/chat/completions操作地址。</p></article><article><h3>模型ID是准确名字</h3><p>优先从平台列表复制，厂商前缀、大小写和日期后缀都可能有意义。</p></article></div>
 </section><section class="wrap section reading-grid"><div><p class="eyebrow">BEFORE YOU CONNECT</p><h2>四个设置，<br>先弄清它们的关系。</h2></div><div><details open><summary>对话、操作屏幕、生成图片、生成视频要全部配置吗？</summary><p>不需要。先选“对话”模型。操作屏幕需要视觉能力，生成图片和视频需要专用模型及App已适配的接口，不能用普通文本模型代替。</p></details><details><summary>为什么自动追加/v1会影响连接？</summary><p>App会根据开关拼接地址。基础URL已经含/v1时不要再追加；智谱的/v4、方舟的/v3和Gemini原生/v1beta也不能再追加。每篇教程都给出字段和开关的对应值。</p></details><details><summary>聊天会员、API余额、Coding套餐是一回事吗？</summary><p>通常分别管理。订阅能否用于第三方App、可用端点及客户端范围，须以具体产品条款为准。不要把编程套餐当作通用无限聊天额度。</p></details><details><summary>没有模型列表怎么办？</summary><p>有些服务不支持列举模型。在App服务商详情里使用“添加自定义模型”，填写控制台给出的精确ID；普通聊天成功后再验证流式和工具。</p></details><details><summary>朗读和语音输入也要买模型服务吗？</summary><p>回复可使用手机系统TTS。语音输入可以沿用手机输入法；专门的实时语音服务是另一项可选配置，不是文字聊天的前提。</p></details><details><summary>这些教程是否代表全部厂商都经过实机验证？</summary><p>教程根据当前App源码和官方资料整理，核对日期为2026-11-13；没有使用你的Key逐一请求所有厂商。模型、计费和账号可用性以实际控制台为准。</p></details></div></section><div class="wrap page-end"><a class="button primary" href="models.html">选择服务商 ↗</a></div>"""
     )
@@ -427,7 +427,11 @@ def privacy() -> str:
             "说清楚，<br>数据<span class='accent'>去了哪里。</span>",
             "是否联网，取决于你选择的服务、模型和功能。",
         )
-        + """<div class="wrap narrow"><section><h2>这个网站</h2><p>产品图使用虚构示例，不展示真实聊天、任务或学习档案。轮播、厂商筛选和版本选择在浏览器中运行。网站不要求填写API Key，不发起模型调用；站点源码不自行集成分析追踪器、远程字体或广告SDK。</p><p>线上网站通过Cloudflare提供内容分发与安全防护，其当前设置会在部分响应中加入性能统计或安全检查脚本。访问网站和下载文件也会产生正常的网络请求；托管和网络服务可能保留常规访问日志。复制按钮使用浏览器剪贴板权限，拒绝时会提示手动复制。</p></section><section><h2>App里的记录</h2><p>待办、专注和生活碎片具有本地存储。账号、同步、远程操作及其他云端功能的数据流由实际启用的服务决定。本地记录不等于整个App永不联网。</p></section><section><h2>与模型对话</h2><p>AI请求会发送到你配置的服务端。上下文、附件或工具返回内容是否被送出，取决于当前对话和授权。使用聚合服务时，还需核对其上游路由及数据保留政策。</p><p>本地模型地址指向自己的设备或服务器；仍要留意模型是否实际使用云推理、工具是否联网、是否启用了其他同步服务。</p></section><section><h2>密钥与备份</h2><p>API Key只应填写在App服务商设置中，不要发给聊天模型、贴到公开Issue或上传截图。导出备份前检查包含的数据范围；不同模块和附件的覆盖范围需分别核验。</p><a class="text-link" href="models.html">返回模型接入指南 →</a></section></div>"""
+        + """<div class="wrap narrow">
+<section><h2>这个网站</h2><p>产品图使用虚构示例，不展示真实聊天、任务或学习档案。轮播、厂商筛选和版本选择在浏览器中运行。网站不要求填写API Key，不发起模型调用；站点源码不自行集成分析追踪器、远程字体或广告SDK。</p><p>线上网站通过Cloudflare提供内容分发与安全防护，其当前设置会在部分响应中加入性能统计或安全检查脚本。访问网站和下载文件会产生网络请求，托管和网络服务可能保留常规访问日志。复制按钮使用浏览器剪贴板权限，拒绝时会提示手动复制。</p></section>
+<section><h2>App里的记录留在本机</h2><p>本地模式更新移除了原项目账号验证、设备中继和跨设备同步。聊天、待办、专注、生活碎片和教练档案继续保存在本机；旧记录的归属保持不变，无需重新注册Nivo账号。iOS不再启用内置iCloud同步或同步Keychain，新凭证只写入本机Keychain。</p><p>这项说明对应当前维护版本；历史安装包保留原发行行为，请核对下载页的版本说明。系统级整机备份、用户主动导出文件和第三方应用各自有数据处理规则。</p></section>
+<section><h2>模型和联网工具仍按你的选择请求</h2><p>AI请求发送到你配置的服务端。上下文、附件和工具返回内容是否送出，取决于当前对话及授权。可以使用官方API，也可以填写自己选择的中转站或自建服务；App不提供默认中转站推荐。</p><p>本地模型地址指向自己的设备或服务器，仍需确认该服务是否使用云推理。用户添加的MCP、搜索和其他联网工具也会产生各自的请求。本机Shell和原生工具桥接本身不等于项目云中继。</p></section>
+<section><h2>凭证与手动备份</h2><p>API Key只应填写在App服务商设置中，不要发给聊天模型或上传截图。升级时先验证本机凭证副本，再清理旧同步条目；迁移失败会保留恢复入口。手动导出、导入备份仍可使用，保存位置和分享对象由你选择。</p><p>卸载应用或更换签名可能影响本机数据和Keychain访问。升级前保留可用的手动备份；文件提供器和共享扩展还取决于实际签名权限。</p><a class="text-link" href="models/custom.html">查看自定义服务配置</a></section></div>"""
     )
 
 

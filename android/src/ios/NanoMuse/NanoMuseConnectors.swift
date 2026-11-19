@@ -109,8 +109,8 @@ enum NanoMuseConnectorsCatalogue {
 /// OAuth sign-in (with the client registered on the spot when the
 /// authorization server allows it).
 enum NanoMuseMcpAuthDiscovery {
-    static let clientName = "nanoMuse"
-    static let clientURI = "https://nanomuse.cn"
+    static let clientName = NivoProduct.name
+    static let clientURI = NivoProduct.website.absoluteString
     static let protocolVersion = "2025-06-18"
 
     enum Probe {

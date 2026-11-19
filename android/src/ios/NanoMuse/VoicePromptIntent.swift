@@ -49,6 +49,8 @@ struct VoicePromptIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        // nanoMuse: 侧载无共享权限时拒绝跨进程动作，先于读库、创建会话和启动后台任务。
+        try NivoStoragePaths.requireSharedContainer()
         let target = session?.id
         NanoMuseVoicePrompt.shared.request(session: target)
         if let sid = target, !sid.isEmpty {

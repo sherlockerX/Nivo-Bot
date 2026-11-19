@@ -44,6 +44,8 @@ final class AppGroupChangeWatcher {
 
     /// Start watching the three exposed roots. Idempotent — calling twice is a no-op.
     func start() {
+        // nanoMuse: 无共享容器时不监听本地回退目录，也不向无法读取它的扩展发送通知。
+        guard NivoStoragePaths.hasSharedContainer else { return }
         guard !started else { return }
         started = true
 

@@ -201,26 +201,8 @@ enum MountedFolderCoordinator {
               values.isUbiquitousItem == true else { return }
         if values.ubiquitousItemDownloadingStatus == .current { return }
 
-        try FileManager.default.startDownloadingUbiquitousItem(at: url)
-
-        // Never block the main thread waiting for iCloud — fire the download
-        // request and return immediately; the caller will see a short read or
-        // can retry later.
-        if Thread.isMainThread {
-            return
-        }
-
-        let deadline = Date().addingTimeInterval(downloadTimeout)
-        while Date() < deadline {
-            let v = try url.resourceValues(forKeys: keys)
-            if v.ubiquitousItemDownloadingStatus == .current { return }
-            Thread.sleep(forTimeInterval: 0.2)
-        }
-        throw NSError(
-            domain: "MountedFolderCoordinator",
-            code: -1,
-            userInfo: [NSLocalizedDescriptionKey: AppLocalized("Timed out downloading file from iCloud.")]
-        )
+        // nanoMuse: 已下载的用户文件仍可访问，应用不主动下载iCloud占位文件。
+        throw CocoaError(.fileReadNoSuchFile)
     }
 
     // MARK: - Read-only enforcement

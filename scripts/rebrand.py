@@ -510,29 +510,14 @@ def xcstrings_dumps(data: object, like: str) -> str:
 
 
 def ios_links() -> None:
-    edit(
-        IOS / "Views" / "Settings" / "AboutView.swift",
-        [
-            (r'"https://github\.com/OpenMinis"\)', f'"{REPO_URL}")'),
-            (r'"https://github\.com/OpenMinis/OpenMinis/issues"\)', f'"{REPO_URL}/issues")'),
-            (
-                r'"(?:(?:Minis|nanoMuse) is Your Fully Local, Fully Private On-Device Agent'
-                r'|A fully open-source, Muse-style personal agent for every device you own)\."',
-                '"An open-source personal agent for every device you own."',
-            ),
-        ],
+    """iOS只维护产品隐私链接；不生成仓库推广、旧反馈或检查更新入口。"""
+    privacy_pattern = (
+        r'URL\(string: "https://(?:openminis\.github\.io/privacy-policy\.html'
+        r"|github\.com/(?:nano-muse/nanoMuse|OpenMinis/OpenMinis|sherlockerX/Nicholasx)"
+        r'/blob/main/docs/privacy\.md)"\)!'
     )
-    edit(
-        IOS / "Views" / "ContentView.swift",
-        [
-            (r'"https://openminis\.github\.io/privacy-policy\.html"', f'"{PRIVACY_URL}"'),
-            (r'"https://github\.com/OpenMinis/OpenMinis/issues/new"', f'"{REPO_URL}/issues/new"'),
-        ],
-    )
-    edit(
-        IOS / "Views" / "Providers" / "AddProviderView.swift",
-        [(r'"https://openminis\.github\.io/privacy-policy\.html"', f'"{PRIVACY_URL}"')],
-    )
+    for relative in ("Views/ContentView.swift", "Views/Providers/AddProviderView.swift"):
+        edit(IOS / relative, [(privacy_pattern, "NivoProduct.privacy")])
 
 
 def ios_soul_defaults() -> None:
@@ -753,14 +738,6 @@ def ios_brand_only() -> None:
             (r'AppLocalized\("About nanoMuse"\)', 'AppLocalized("About Nivo Bot")'),
             (r'URL\(string: "https://nanomuse\.cn/privacy/"\)!', "NivoProduct.privacy"),
             (r'"https://nanomuse\.cn/own-key"', "NivoProduct.modelGuide.absoluteString"),
-            (
-                r'"https://github\.com/nano-muse/nanoMuse/issues/new"',
-                'NivoProduct.repository.appendingPathComponent("issues/new").absoluteString',
-            ),
-            (
-                r'URL\(string: "https://github\.com/nano-muse/nanoMuse/issues"\)!',
-                'NivoProduct.repository.appendingPathComponent("issues")',
-            ),
         ],
     )
     for path in (

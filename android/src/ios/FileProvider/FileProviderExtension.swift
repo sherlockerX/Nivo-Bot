@@ -12,13 +12,9 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     private static let log = OSLog(subsystem: "io.github.nanomuse.app.FileProvider", category: "Extension")
 
     /// Root directory for all FileProvider-visible files in the App Group container.
-    static var providerRoot: URL {
-        let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.io.github.nanomuse.app"
-        )!
-        let url = container.appendingPathComponent("MinisFileProvider", isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
+    // nanoMuse: 扩展仅访问真实共享目录，无权限时返回不可用，不创建扩展本地副本。
+    static var providerRoot: URL? {
+        NivoStoragePaths.layout.extensionFiles
     }
 
     /// The three top-level subdirectories exposed via the FileProvider.
@@ -28,7 +24,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         self.domain = domain
         super.init()
         let fm = FileManager.default
-        let root = Self.providerRoot
+        // nanoMuse: 系统可能唤起上次签名遗留的域，初始化必须允许共享容器不可用。
+        guard let root = Self.providerRoot else {
+            os_log("FileProviderExtension unavailable: App Group access denied", log: Self.log, type: .error)
+            return
+        }
         for sub in Self.topLevelSubdirs {
             try? fm.createDirectory(at: root.appendingPathComponent(sub, isDirectory: true),
                                     withIntermediateDirectories: true)
@@ -179,16 +179,23 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
 
     func item(for identifier: NSFileProviderItemIdentifier, request: NSFileProviderRequest,
               completionHandler: @escaping (NSFileProviderItem?, Error?) -> Void) -> Progress {
+        // nanoMuse: 不向系统返回虚构的根目录或空数据集，保留原有缓存等待权限恢复。
+        guard let root = Self.providerRoot else {
+            completionHandler(nil, CocoaError(.fileReadNoPermission))
+            return Progress()
+        }
         os_log("item(for: %{public}@)", log: Self.log, type: .debug, identifier.rawValue)
         if identifier == .rootContainer {
-            completionHandler(FileProviderItem(url: Self.providerRoot, parentIdentifier: .rootContainer, isRoot: true), nil)
+            // nanoMuse: 条目持有本次已验证的共享根目录，不再隐式重取可空路径。
+            completionHandler(FileProviderItem(url: root, parentIdentifier: .rootContainer, providerRoot: root, isRoot: true), nil)
             return Progress()
         }
         if identifier == .trashContainer {
             completionHandler(nil, NSFileProviderError(.noSuchItem))
             return Progress()
         }
-        let url = Self.providerRoot.appendingPathComponent(identifier.rawValue)
+        // nanoMuse: 使用已验证的共享根目录。
+        let url = root.appendingPathComponent(identifier.rawValue)
         guard FileManager.default.fileExists(atPath: url.path) else {
             completionHandler(nil, NSFileProviderError(.noSuchItem))
             return Progress()
@@ -197,7 +204,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         let parentID = parentPath.isEmpty
             ? NSFileProviderItemIdentifier.rootContainer
             : NSFileProviderItemIdentifier(parentPath)
-        completionHandler(FileProviderItem(url: url, parentIdentifier: parentID), nil)
+        // nanoMuse: 传递本次操作的共享根目录。
+        completionHandler(FileProviderItem(url: url, parentIdentifier: parentID, providerRoot: root), nil)
         return Progress()
     }
 
@@ -205,17 +213,23 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
 
     func enumerator(for containerItemIdentifier: NSFileProviderItemIdentifier,
                     request: NSFileProviderRequest) throws -> NSFileProviderEnumerator {
+        // nanoMuse: 权限缺失是读取错误，不能伪装成目录为空导致系统误判删除。
+        guard let root = Self.providerRoot else { throw CocoaError(.fileReadNoPermission) }
         os_log("enumerator(for: %{public}@)", log: Self.log, type: .info, containerItemIdentifier.rawValue)
 
         switch containerItemIdentifier {
         case .rootContainer:
-            return FileProviderEnumerator(containerItemIdentifier: .rootContainer)
+            // nanoMuse: 枚举器仅持有经验证的真实共享目录。
+            return FileProviderEnumerator(containerItemIdentifier: .rootContainer, providerRoot: root)
         case .workingSet:
-            return FileProviderEnumerator(containerItemIdentifier: .rootContainer, recursive: true)
+            // nanoMuse: 递归枚举与普通枚举使用同一根目录。
+            return FileProviderEnumerator(containerItemIdentifier: .rootContainer, providerRoot: root, recursive: true)
         case .trashContainer:
-            return FileProviderEnumerator(containerItemIdentifier: .trashContainer)
+            // nanoMuse: 不为无权限的扩展创建本地垃圾桶。
+            return FileProviderEnumerator(containerItemIdentifier: .trashContainer, providerRoot: root)
         default:
-            return FileProviderEnumerator(containerItemIdentifier: containerItemIdentifier)
+            // nanoMuse: 子目录继续使用已经检查过的根目录。
+            return FileProviderEnumerator(containerItemIdentifier: containerItemIdentifier, providerRoot: root)
         }
     }
 
@@ -225,7 +239,12 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                        version requestedVersion: NSFileProviderItemVersion?,
                        request: NSFileProviderRequest,
                        completionHandler: @escaping (URL?, NSFileProviderItem?, Error?) -> Void) -> Progress {
-        let url = Self.providerRoot.appendingPathComponent(itemIdentifier.rawValue)
+        // nanoMuse: 无共享权限时不复制文件到扩展临时目录。
+        guard let root = Self.providerRoot else {
+            completionHandler(nil, nil, CocoaError(.fileReadNoPermission))
+            return Progress()
+        }
+        let url = root.appendingPathComponent(itemIdentifier.rawValue)
         guard FileManager.default.fileExists(atPath: url.path) else {
             completionHandler(nil, nil, NSFileProviderError(.noSuchItem))
             return Progress()
@@ -234,7 +253,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         let parentID = parentPath.isEmpty
             ? NSFileProviderItemIdentifier.rootContainer
             : NSFileProviderItemIdentifier(parentPath)
-        let item = FileProviderItem(url: url, parentIdentifier: parentID)
+        // nanoMuse: 返回条目与内容读取绑定到同一个共享根目录。
+        let item = FileProviderItem(url: url, parentIdentifier: parentID, providerRoot: root)
 
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         do {
@@ -256,6 +276,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                     options: NSFileProviderCreateItemOptions = [],
                     request: NSFileProviderRequest,
                     completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void) -> Progress {
+        // nanoMuse: 无共享权限时拒绝创建，不能写到主App不可访问的位置。
+        guard let root = Self.providerRoot else {
+            completionHandler(nil, [], false, CocoaError(.fileWriteNoPermission))
+            return Progress()
+        }
         // Block creation directly under root — only the fixed subdirs live there.
         // Block creation under memory/ or skills/ (read-only trees).
         // Block creation under trashContainer — we do not support a trash and
@@ -272,7 +297,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             return Progress()
         }
 
-        let parentURL = Self.providerRoot.appendingPathComponent(itemTemplate.parentItemIdentifier.rawValue)
+        // nanoMuse: 创建只使用经验证的共享根目录。
+        let parentURL = root.appendingPathComponent(itemTemplate.parentItemIdentifier.rawValue)
         let destURL = parentURL.appendingPathComponent(itemTemplate.filename)
 
         do {
@@ -284,7 +310,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                 }
                 try FileManager.default.copyItem(at: sourceURL, to: destURL)
             }
-            let item = FileProviderItem(url: destURL, parentIdentifier: itemTemplate.parentItemIdentifier)
+            // nanoMuse: 回执中的标识基于实际写入的根目录。
+            let item = FileProviderItem(url: destURL, parentIdentifier: itemTemplate.parentItemIdentifier, providerRoot: root)
             completionHandler(item, [], false, nil)
             signalParent(itemTemplate.parentItemIdentifier)
         } catch {
@@ -302,6 +329,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                     options: NSFileProviderModifyItemOptions = [],
                     request: NSFileProviderRequest,
                     completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void) -> Progress {
+        // nanoMuse: 无共享权限时拒绝修改，保留系统缓存及原有共享数据。
+        guard let root = Self.providerRoot else {
+            completionHandler(nil, [], false, CocoaError(.fileWriteNoPermission))
+            return Progress()
+        }
         let idRaw = item.itemIdentifier.rawValue
 
         // Block rename/move of the three fixed top-level subdirectories.
@@ -333,16 +365,19 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             return Progress()
         }
 
-        let srcURL = Self.providerRoot.appendingPathComponent(item.itemIdentifier.rawValue)
+        // nanoMuse: 后续移动与覆盖共用已验证的共享根目录。
+        let srcURL = root.appendingPathComponent(item.itemIdentifier.rawValue)
 
         do {
             var destURL = srcURL
             if changedFields.contains(.filename) || changedFields.contains(.parentItemIdentifier) {
                 let parentURL: URL
                 if item.parentItemIdentifier == .rootContainer {
-                    parentURL = Self.providerRoot
+                    // nanoMuse: 不在操作中重新解析容器。
+                    parentURL = root
                 } else {
-                    parentURL = Self.providerRoot.appendingPathComponent(item.parentItemIdentifier.rawValue)
+                    // nanoMuse: 子目录与源文件保持同一共享根目录。
+                    parentURL = root.appendingPathComponent(item.parentItemIdentifier.rawValue)
                 }
                 destURL = parentURL.appendingPathComponent(item.filename)
                 if srcURL != destURL {
@@ -357,7 +392,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                 try FileManager.default.copyItem(at: newContents, to: destURL)
             }
 
-            let resultItem = FileProviderItem(url: destURL, parentIdentifier: item.parentItemIdentifier)
+            // nanoMuse: 修改回执保留经验证的根目录。
+            let resultItem = FileProviderItem(url: destURL, parentIdentifier: item.parentItemIdentifier, providerRoot: root)
             completionHandler(resultItem, [], false, nil)
             signalParent(item.parentItemIdentifier)
         } catch {
@@ -373,6 +409,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                     options: NSFileProviderDeleteItemOptions = [],
                     request: NSFileProviderRequest,
                     completionHandler: @escaping (Error?) -> Void) -> Progress {
+        // nanoMuse: 无共享权限时拒绝删除，不能把未访问到的文件报告为已删除。
+        guard let root = Self.providerRoot else {
+            completionHandler(CocoaError(.fileWriteNoPermission))
+            return Progress()
+        }
         os_log("deleteItem id=%{public}@", log: Self.log, type: .info, identifier.rawValue)
 
         let idRaw = identifier.rawValue
@@ -383,7 +424,8 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             return Progress()
         }
 
-        let url = Self.providerRoot.appendingPathComponent(identifier.rawValue)
+        // nanoMuse: 删除仅针对已经验证的共享根目录。
+        let url = root.appendingPathComponent(identifier.rawValue)
         if FileManager.default.fileExists(atPath: url.path) {
             do {
                 try FileManager.default.removeItem(at: url)

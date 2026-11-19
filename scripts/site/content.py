@@ -1,5 +1,8 @@
 """产品站内容源：功能说明与经官方资料核对的模型接入差异。"""
 
+import json
+from pathlib import Path
+
 FEATURES = [
     dict(
         id="chat",
@@ -577,7 +580,7 @@ PROVIDERS = [
         special=[
             "192.168.1.10只是私有地址示例，要换成电脑的局域网IP。手机中的127.0.0.1指手机自己。",
             "手机与电脑需能互通；检查服务监听地址、端口、防火墙及访客Wi-Fi隔离。不要直接将无认证服务暴露到公网。",
-            "端点连接本地不自动证明所有功能离线；选择云模型、启用同步或其他工具时仍可能联网。",
+            "端点连接本地不自动证明所有功能离线；选择云模型或使用联网工具时仍可能联网。",
         ],
         failures=[
             ("连接拒绝", "先在手机浏览器访问电脑的模型列表地址，检查服务监听与防火墙。"),
@@ -633,20 +636,21 @@ PROVIDERS = [
     ),
     dict(
         id="custom",
-        name="其他OpenAI兼容服务",
+        name="自定义模型服务",
         category="本地与自建",
         mark="＋",
-        intro="适用于自建网关、企业代理或其他明确支持OpenAI格式的服务。",
+        intro="使用你自己选择的中转站、自建网关或企业代理。Nivo不内置推荐中转站，也不代为创建账号。",
         url="https://api.example.com/v1",
         model="服务文档中的准确模型ID",
-        console="https://github.com/sherlockerX/Nivo-Bot",
-        docs="https://github.com/sherlockerX/Nivo-Bot/blob/master/docs/own-key.md",
+        console="https://nivo.8666886.xyz/getting-started.html",
+        docs="https://nivo.8666886.xyz/getting-started.html",
         account="先取得服务方的正式文档，确认API协议、基础URL、认证方式、可用模型与使用条款。",
         key="Key必须与这个端点由同一服务管理方提供。不要因‘OpenAI兼容’而把OpenAI官方Key交给未知网关。",
         special=[
             "example.com是文档示例，不是真实模型服务；复制后必须改为实际端点。",
             "如果文档给的是完整/chat/completions地址，应去掉该操作路径，只保留基础URL。",
             "兼容通常只覆盖接口的一个子集。分别验证文本、流式、工具、视觉与媒体能力。",
+            "服务使用Anthropic Messages或Gemini原生协议时，选择对应协议并填写自己的基础URL，不能仅凭模型名称推断协议。",
         ],
         failures=[
             ("404", "检查协议、重复/v1及基础URL中的路径。"),
@@ -655,3 +659,12 @@ PROVIDERS = [
         cost="先确认服务归属、数据处理规则和实际计费，未知网关的承诺不能替代验证。",
     ),
 ]
+
+# 展示目录与手机采用同一来源，历史中转商配置只保留兼容数据，不生成推荐页面。
+_CATALOGUE = json.loads(
+    (Path(__file__).resolve().parents[2] / "nanomuse/llm/providers.json").read_text("utf-8")
+)
+_VISIBLE_PROVIDER_IDS = {
+    provider["id"] for provider in _CATALOGUE["providers"] if not provider.get("is_relay", False)
+}
+PROVIDERS = [provider for provider in PROVIDERS if provider["id"] in _VISIBLE_PROVIDER_IDS]

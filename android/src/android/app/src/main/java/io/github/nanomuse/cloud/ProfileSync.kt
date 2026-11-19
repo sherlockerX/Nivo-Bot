@@ -71,21 +71,8 @@ object ProfileSync {
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** App start: remember the context for the stores' callbacks and fetch what the account wears. */
-    fun init(context: Context) {
-        app = context.applicationContext
-        pullSoon(context)
-        // The hub's `profile` frame is missed while the app is in the background: a pull on
-        // the way back to the front picks up a name or a face another device wrote meanwhile,
-        // instead of waiting for the next cold start.
-        ProcessLifecycleOwner.get().lifecycle.addObserver(
-            LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_START) pullSoon(context)
-            },
-        )
-        // what this phone connected changes → the account's other devices hear about it
-        SharedConnectors.watch(context.applicationContext) { changed() }
-    }
+    /** 本地形象与连接器配置不再注册远程同步监听。 */
+    fun init(context: Context) = Unit
 
     /** Signed out: the next account starts from its own profile. */
     fun forget(context: Context) {
@@ -105,17 +92,8 @@ object ProfileSync {
         pullSoon(context)
     }
 
-    fun pullSoon(context: Context) {
-        val ctx = context.applicationContext
-        if (!NanoMuseCloud.isSignedIn(ctx)) return
-        worker.execute {
-            try {
-                pull(ctx)
-            } catch (e: Exception) {
-                AppLogger.info(TAG, "pull: ${e.message}")
-            }
-        }
-    }
+    /** 旧账号或设备事件不能触发远程资料请求。 */
+    fun pullSoon(context: Context) = Unit
 
     /**
      * The account a read or a write is for, taken before the network and checked after it:

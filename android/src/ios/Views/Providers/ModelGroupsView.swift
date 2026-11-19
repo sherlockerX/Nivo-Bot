@@ -13,7 +13,8 @@ struct ModelGroupsView: View {
     /// until the confirmation alert is answered.
     @State private var editingGroupId: String?
     @State private var pendingDeleteGroup: ModelGroup?
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，旧偏好不能恢复强制同步入口。
+    private let iCloudSyncEnabled = false
 
     var body: some View {
         List {

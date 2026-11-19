@@ -27,6 +27,8 @@ struct AskMinisIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
+        // nanoMuse: 侧载无共享权限时拒绝跨进程动作，先于读库、创建会话和启动后台任务。
+        try NivoStoragePaths.requireSharedContainer()
         // Same eager keep-alive discipline as SendPromptIntent: arm before any
         // await so an intent-woken process isn't suspended before the send path
         // flips isActive. No-op unless enhancedBackgroundEffective is on.

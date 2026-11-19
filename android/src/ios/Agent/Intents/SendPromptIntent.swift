@@ -42,6 +42,8 @@ struct SendPromptIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<SendPromptResult> & ProvidesDialog {
+        // nanoMuse: 侧载无共享权限时拒绝跨进程动作，先于读库、创建会话和启动后台任务。
+        try NivoStoragePaths.requireSharedContainer()
         // nanoMuse: 快捷指令冷启动同样先恢复账户，在消息准备完成前阻止身份切换。
         await NanoMuseAccountData.shared.start()
         await NivoPersonalBackupAccess.beginAccountChange()

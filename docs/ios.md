@@ -14,6 +14,78 @@ notes (the composer, onboarding, sign-out); the Devices section and notification
 devices still have the fewest hours on a real device. The first archive taught the pipeline
 that automatic signing wants a registered device, which is why it signs manually now.
 
+## Sideloaded storage
+
+Personal re-signing can remove the App Group entitlement. The main app then keeps its files,
+private configuration and incoming file attachments together under
+`Library/NivoLocalContainer/` inside its own sandbox. Memory, skills, personal records and
+in-app imports use this same path selection. With a working App Group, the existing
+`MinisFileProvider/`, `MinisConfig/` and `ShareExtension/` locations remain unchanged.
+
+Without App Group access, Share extensions, Files-provider access, Shortcuts actions and the
+Live Activity audio control report unavailable or remain disabled. Extensions never create a
+private substitute for shared storage. Existing shared files are not deleted or moved into
+the fallback directory; data that the signing profile no longer permits the app to access
+cannot be recovered by guessing its path. Restoring App Group access selects the original
+shared locations again and leaves any locally stored files in place.
+
+Folder-visibility preferences use the same permission check: the main app stores them locally
+when shared storage is unavailable, and extensions never write a private copy of shared settings.
+
+Legacy `Library/MinisChat/{shared,memory,skills}` files and an accessible `MinisShared` folder
+are merged before default identity, memory or skills are installed. Missing nested files move
+into the active location; conflicting originals remain in the legacy folder. Migration never
+follows directory links. A read or move failure keeps the startup recovery screen available
+for retry. Existing `skill-creator` files are preserved rather than replaced by a bundled
+version, and unreadable preset memory is never treated as blank.
+
+After startup recovery succeeds, including an in-app retry, OAuth draft cleanup and legacy
+provider migration resume once the account recovery lock is released. Repeated appearance or
+completion notifications do not repeat this initialization during the same app run.
+
+## Local setup and model access
+
+The welcome screen offers **Skip for now**. Skipping is remembered across launches, and local
+tasks, focus sessions and records remain available without a model. Chat shows an add-provider
+or model-selection action when no conversational model is available; tapping Send then keeps
+the draft and attachments while the person configures a model.
+
+New-provider lists show official services and a custom endpoint entry. Catalogue entries marked
+`is_relay` are hidden from these lists, including their suggested OAuth plans. Existing provider
+instances, saved compatible URLs and protocol decoders remain supported. Provider OAuth and MCP
+authorization remain available for services the user chooses. Connector authorization identifies
+the client as Nivo Bot and links to the current product website.
+
+The app no longer presents legacy account onboarding, GitHub star prompts, allowance or invite
+cards, upstream feedback links or update-check controls. About retains the installed version,
+product and model-guide links, privacy information, the GPL license and upstream attribution.
+
+## Built-in iCloud removal
+
+The personal iOS build no longer starts CloudKit sync, cloud migration or the legacy iCloud
+backup service. Cold launch, foreground resume and debug RPCs cannot construct a CloudKit
+container, even if an older version saved an enabled sync preference. The app no longer
+requests iCloud container entitlements or the silent-push background mode.
+
+Local Backup & Restore and user-selected folders remain available. Files already downloaded
+to a selected folder can still be read; the app does not request downloads of iCloud placeholder
+files. Existing database sync metadata and cloud backups are retained without remote deletion.
+
+New provider API keys, OAuth tokens, environment variables and restored credentials are stored
+in device-only Keychain items. After pending local recovery finishes, startup copies each old
+synchronizable credential into a missing local item, reads it back, and only then removes the
+old item. An existing local value always wins. Any failed read, write or confirmation stops
+the migration and leaves recoverable data for the next attempt. MCP credentials and device
+identity are outside this migration. Old interrupted key rotations recover into local storage.
+
+Missing Anthropic OAuth build configuration now returns a provider error when that request is
+made; it no longer traps during static initialization. API-key requests remain available.
+
+Background & notifications shows this phone's notification and refresh permissions. The Hands
+page explains the iOS operation limits. These pages and the main shell no longer open the old
+computer relay, coding-agent relay or remote-approval sheets. User-configured API providers,
+MCP connections and local routines remain available.
+
 ## Where it lives
 
 `android/` is the whole OpenMinis repository as a `git subtree`, not just the Android app. The

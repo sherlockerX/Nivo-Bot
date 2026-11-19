@@ -103,7 +103,7 @@ final class NivoCredentialRestoreTests: XCTestCase {
         XCTAssertEqual(try ProviderKeychainHelper.loadOAuthStringStrict(instanceId: owner, account: "oauth-base-url"), "fixture-new")
     }
 
-    /// 原位保存覆盖同一同步条目，严格读取返回最终值。
+    /// 原位保存覆盖同一本机条目，严格读取返回最终值。
     func testOAuthSaveUpdatesExistingKeychainValue() throws {
         let owner = UUID().uuidString
         addTeardownBlock { ProviderKeychainHelper.deleteOAuthToken(instanceId: owner) }

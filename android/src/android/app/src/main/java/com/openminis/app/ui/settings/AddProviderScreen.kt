@@ -208,7 +208,7 @@ private val providerDisplayOrder = listOf(
     ProviderType.gemini,
     ProviderType.xAI,
     ProviderType.kimiCode,
-    ProviderType.openRouter,
+    // nanoMuse: 不内置推荐聚合中转站；已有OpenRouter配置及OAuth认证继续保留。
 )
 
 /** Icon and color per provider type, matching iOS SF Symbols. */

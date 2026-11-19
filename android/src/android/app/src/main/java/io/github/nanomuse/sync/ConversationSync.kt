@@ -70,7 +70,7 @@ object ConversationSync {
     /** Chats this phone said `working: true` for and has not cleared yet. */
     private val workingSent = java.util.Collections.synchronizedSet(HashSet<String>())
 
-    private val _enabled = MutableStateFlow(true)
+    private val _enabled = MutableStateFlow(false)
     /** The switch as this phone knows it (the relay's word wins when it differs). */
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
@@ -111,24 +111,9 @@ object ConversationSync {
     fun init(context: Context) {
         val ctx = context.applicationContext
         app = ctx
-        _enabled.value = prefs(ctx).getBoolean(KEY_ENABLED, true)
-        _sideChats.value = prefs(ctx).getBoolean(KEY_SIDE_CHATS, false)
-        ProcessLifecycleOwner.get().lifecycle.addObserver(
-            LifecycleEventObserver { _, event ->
-                when (event) {
-                    Lifecycle.Event.ON_START -> {
-                        syncSoon(ctx)
-                        startTicker(ctx)
-                    }
-                    Lifecycle.Event.ON_STOP -> {
-                        ticker?.cancel()
-                        ticker = null
-                        pushNow(ctx)
-                    }
-                    else -> {}
-                }
-            },
-        )
+        // 本地版只恢复记录归属，不注册网络同步生命周期或轮询。
+        _enabled.value = false
+        _sideChats.value = false
         scope.launch {
             lock.withLock {
                 runCatching {
@@ -179,7 +164,7 @@ object ConversationSync {
     /** Signed in, and the switch is on, and the relay has not refused the key. */
     // Mosaic: no sync in the personal build, even for a Cloud sign-in left from an earlier install.
     fun active(context: Context): Boolean =
-        !io.github.nanomuse.community.MOSAIC_OFFLINE && !halted && _enabled.value && NanoMuseCloud.isSignedIn(context)
+        false
 
     // ── triggers ──────────────────────────────────────────────────────────
 
@@ -340,7 +325,7 @@ object ConversationSync {
         halted = false
         pushJob?.cancel()
         prefs(ctx).edit().remove(KEY_ENABLED).remove(KEY_SIDE_CHATS).apply()
-        _enabled.value = true
+        _enabled.value = false
         _sideChats.value = false
         _captions.value = emptyMap()
         _remoteRows.value = emptyMap()
@@ -417,21 +402,8 @@ object ConversationSync {
 
     // ── internals ─────────────────────────────────────────────────────────
 
-    private fun engine(ctx: Context): SyncEngine? {
-        val repo = (ctx.applicationContext as? MinisApp)?.chatRepositoryOrNull ?: return null
-        val token = NanoMuseCloud.apiKey(ctx) ?: return null
-        // the ids are per account: the relay's id for it, or the key itself on a relay that gives none
-        val account = accountKey(ctx) ?: return null
-        return SyncEngine(
-            store = RoomSyncStore(ctx),
-            chats = RoomChats(ctx, repo),
-            api = RelaySyncApi(NanoMuseCloud.baseUrl(ctx), token, "nanoMuse-Android/${BuildConfig.VERSION_NAME}"),
-            deviceId = Hub.deviceId(ctx),
-            account = account,
-            sideChats = { _sideChats.value },
-            onAccountChanged = { accountChanged() },
-        )
-    }
+    // 即使旧页面或恢复任务直接调用同步接口，也没有可用的远程引擎。
+    private fun engine(ctx: Context): SyncEngine? = null
 
     private suspend fun run(ctx: Context, block: suspend (SyncEngine) -> Unit) {
         lock.withLock {

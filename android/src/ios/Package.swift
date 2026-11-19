@@ -5,6 +5,12 @@ import PackageDescription
 // 直接编译应用使用的值模型和规则，不为测试重写业务实现或模拟Apple框架。
 // 此包只验证可移植逻辑，完整应用仍须由Minis.xcodeproj进行Xcode构建和设备验证。
 let coreSources = [
+    "NivoPostRecoveryStartup.swift",
+    "NivoLegacyStorageMigration.swift",
+    "NivoFirstRunPolicy.swift",
+    "NivoLocalCredentialMigration.swift",
+    "NivoLocalIdentity.swift",
+    "NivoLocalModeHost.swift",
     "NivoOAuthDraft.swift",
     "NivoProviderKeyRotation.swift",
     "NivoCredentialDeletion.swift",
@@ -34,7 +40,7 @@ let coreSources = [
     "NivoLifeToolCommands.swift", "NivoLifeToolInput.swift", "NivoFocusPreferences.swift", "NivoPersonalBackupError.swift",
     "NivoMosaicRepository.swift", "NivoAvatarWardrobeFiles.swift", "NivoCredentialRestoreReceipt.swift",
     "NivoAccountTransitionLock.swift", "NivoAccountFileTransaction.swift", "NivoRoutineConversationRules.swift",
-    "NivoMainChatRules.swift",
+    "NivoMainChatRules.swift", "NivoStoragePaths.swift",
     "NivoDailyIdeasCore.swift",
     "NivoFocusPresentationRules.swift", "NivoFocusTaskChoices.swift",
     "NivoFocusStatistics.swift",
@@ -64,6 +70,12 @@ let coreSources = [
     "NivoProviderMigrationJournal.swift",
 ]
 let coreTests = [
+    "NivoPostRecoveryStartupTests.swift",
+    "NivoLegacyStorageMigrationTests.swift",
+    "NivoFirstRunPolicyTests.swift",
+    "NivoLocalCredentialMigrationTests.swift",
+    "NivoLocalIdentityTests.swift",
+    "NivoLocalModeRecoveryTests.swift",
     "NivoProviderKeyRotationTests.swift",
     "NivoOAuthDraftTests.swift",
     "NivoCredentialDeletionTests.swift",
@@ -92,7 +104,7 @@ let coreTests = [
     "NivoLifeRepositoryTests.swift", "NivoLifeEntryRulesTests.swift", "NivoLifeToolCommandTests.swift", "NivoSQLiteSnapshotTests.swift", "NivoProviderWriteQueueTests.swift", "NivoProviderSQLPatchTests.swift", "NivoProviderMemberHistoryTests.swift", "NivoProviderSchemaTests.swift",
     "NivoMosaicRepositoryTests.swift", "NivoAvatarWardrobeTests.swift",
     "NivoAccountTransitionLockTests.swift", "NivoAccountFileTransactionTests.swift", "NivoRoutineConversationRulesTests.swift",
-    "NivoMainChatRulesTests.swift",
+    "NivoMainChatRulesTests.swift", "NivoStoragePathsTests.swift",
     "NivoDailyIdeasTests.swift",
     "NivoFocusPresentationTests.swift",
     "NivoFocusStatisticsTests.swift",

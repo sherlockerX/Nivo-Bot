@@ -1236,7 +1236,8 @@ final class DebugJSONRPC: @unchecked Sendable {
             query.sortDescriptors = [NSSortDescriptor(key: key, ascending: sortAscending)]
         }
         let zoneID = CKRecordZone.ID(zoneName: zoneName)
-        let container = CKContainer(identifier: "iCloud.io.github.nanomuse.app")
+        // nanoMuse: 调试RPC不能绕过个人构建的云服务移除。
+        guard let container = NivoICloudPolicy.container else { return ["ok": false, "error": "icloud_disabled"] }
         do {
             let result = try await container.privateCloudDatabase.records(
                 matching: query,
@@ -1290,7 +1291,8 @@ final class DebugJSONRPC: @unchecked Sendable {
     /// (minis-shared / minis-devices / minis-secrets) when migration
     /// counters look suspect.
     private func handleSyncAllZones() async -> Any {
-        let container = CKContainer(identifier: "iCloud.io.github.nanomuse.app")
+        // nanoMuse: 调试RPC不能绕过个人构建的云服务移除。
+        guard let container = NivoICloudPolicy.container else { return ["ok": false, "error": "icloud_disabled"] }
         do {
             let zones = try await container.privateCloudDatabase.allRecordZones()
             return [
@@ -1338,8 +1340,8 @@ final class DebugJSONRPC: @unchecked Sendable {
     ///   recordTypes (optional): override the default per-zone type
     ///     list. Useful for ad-hoc probes.
     private func handleSyncZoneStats(params: [String: Any]) async -> Any {
-        let containerId = "iCloud.io.github.nanomuse.app"
-        let container = CKContainer(identifier: containerId)
+        // nanoMuse: 调试RPC不能绕过个人构建的云服务移除。
+        guard let container = NivoICloudPolicy.container else { return ["ok": false, "error": "icloud_disabled"] }
         let db = container.privateCloudDatabase
 
         // Resolve zone list.

@@ -15,6 +15,7 @@ import UserNotifications
 
 // MARK: - Background & notifications
 
+/// 展示本机通知与后台刷新权限，不提供已移除的远程设备入口。
 struct NanoMuseBackgroundView: View {
     @State private var notifications: UNAuthorizationStatus = .notDetermined
     @State private var refresh: UIBackgroundRefreshStatus = .available
@@ -24,13 +25,8 @@ struct NanoMuseBackgroundView: View {
     var body: some View {
         NanoMusePage(title: AppLocalized("Background & notifications")) {
             notificationsCard
-            // What the phone really posts (NanoMuseScheduler, NanoMuseHub.notify): a routine's
-            // reminder, and a note another device sent; a routine never runs in the background.
-            NanoMuseCaption(text: AppLocalized("A notification is how the agent gets your attention: a routine came due and waits for you to open the app, or another of your devices sent a note through the hub."))
             backgroundCard
             NanoMuseCaption(text: AppLocalized("iOS pauses apps that are not on screen. With Background App Refresh on, iOS can wake the app for a moment around a routine's due time to post the reminder; the routine itself still waits for you to open the app."))
-            devicesCard
-            NanoMuseCaption(text: AppLocalized("Long tasks are better placed on a computer that stays on. Your computers run them in full and send the result here."))
         }
         .task { await read() }
         .nmOnChange(of: scenePhase) { phase in
@@ -91,12 +87,6 @@ struct NanoMuseBackgroundView: View {
         }
     }
 
-    private var devicesCard: some View {
-        NanoMuseCard {
-            NanoMuseLinkRow(title: AppLocalized("Computers")) { NanoMuseComputersView() }
-        }
-    }
-
     // MARK: State
 
     @MainActor
@@ -120,23 +110,15 @@ struct NanoMuseBackgroundView: View {
 
 // MARK: - Hands
 
+/// 说明iOS内的操作范围，不把旧中继的远程能力当作本机功能。
 struct NanoMuseHandsView: View {
     var body: some View {
         NanoMusePage(title: AppLocalized("Hands")) {
             NanoMuseCard {
-                paragraph(AppLocalized("Hands are the agent's way of operating a device itself: tapping through apps, filling forms, reading what is on screen. On Android and on your computers the agent can take the controls when you let it."))
-            }
-            NanoMuseCard {
                 NanoMuseRowLabel(title: AppLocalized("On this iPhone"), value: AppLocalized("Not on iPhone"), chevron: false)
                 NanoMuseRowDivider()
                 paragraph(AppLocalized("iOS does not let one app operate another, so there is no switch here: the agent can only act inside nanoMuse. It can open pages in the in-app browser, keep its files and run its routines; other apps on this phone are out of its reach by design."))
-                NanoMuseRowDivider()
-                paragraph(AppLocalized("Your other devices can hand this iPhone a task while nanoMuse is open here: start a message there with @ and this iPhone's name."))
             }
-            NanoMuseCard {
-                NanoMuseLinkRow(title: AppLocalized("Hands on your computers")) { NanoMuseComputersView() }
-            }
-            NanoMuseCaption(text: AppLocalized("A computer with nanoMuse Desktop can operate its own apps, terminal and browser. Ask from here and the result comes back to this chat."))
         }
     }
 

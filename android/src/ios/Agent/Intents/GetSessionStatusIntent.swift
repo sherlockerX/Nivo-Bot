@@ -67,6 +67,8 @@ struct GetSessionStatusIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<SessionStatus> {
+        // nanoMuse: 侧载无共享权限时拒绝跨进程动作，先于读库、创建会话和启动后台任务。
+        try NivoStoragePaths.requireSharedContainer()
         let isRunning = SessionActivityTracker.shared.isActive(sessionID)
 
         let session = await ChatStore.shared.getSession(sessionID)

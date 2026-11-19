@@ -51,10 +51,23 @@ enum NanoMusePreset {
         for (path, target) in targets where !seeded.contains(path) {
             // GLOBAL.md tells the agent which phone it runs on; the shared copy was written for Android.
             guard let text = files[path].map({ $0.replacingOccurrences(of: "Android 手机", with: "iPhone") }) else { continue }
-            let existing = (try? String(contentsOf: target, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if existing.isEmpty {
-                try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? text.write(to: target, atomically: true, encoding: .utf8)
+            let existing: String
+            do {
+                existing = try String(contentsOf: target, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+                existing = ""
+            } catch {
+                // 无法读取不等于空文件，保留原文并允许下次启动重试。
+                continue
+            }
+            do {
+                if existing.isEmpty {
+                    try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+                    try text.write(to: target, atomically: true, encoding: .utf8)
+                }
+            } catch {
+                // 写入失败不能记录为已安装，否则后续启动永远不会补齐。
+                continue
             }
             seeded.insert(path)
         }
@@ -78,6 +91,10 @@ enum NanoMusePreset {
                 if store.skills.contains(where: { $0.id == id }) { copyExtras(id, replaceUntouchedSince: since) }
                 continue
             }
+            // 旧技能无法解码或读取时不会出现在索引中，文件仍须优先保留。
+            let existingFile = store.skillDirectoryURL(for: id).appendingPathComponent("SKILL.md")
+            if !store.skills.contains(where: { $0.id == id }),
+               FileManager.default.fileExists(atPath: existingFile.path) { continue }
             if !store.skills.contains(where: { $0.id == id }),
                let skill = try? store.importSkill(content: text, source: .file) {
                 defaults.set(skill.updatedAt.timeIntervalSince1970, forKey: Keys.wroteAt + id)
@@ -95,7 +112,9 @@ enum NanoMusePreset {
         guard let installed = store.skills.first(where: { $0.id == id }),
               let version, compareVersions(version, installed.version) > 0 else { return nil }
         let stored = UserDefaults.standard.double(forKey: Keys.wroteAt + id)
-        let wroteAt = stored > 0 ? Date(timeIntervalSince1970: stored) : installed.installedAt
+        // 没有本安装器的写入记录时，不猜测旧文件是否仍是默认内容。
+        guard stored > 0 else { return nil }
+        let wroteAt = Date(timeIntervalSince1970: stored)
         let file = store.skillDirectoryURL(for: id).appendingPathComponent("SKILL.md")
         let modified = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date ?? wroteAt
         guard installed.updatedAt.timeIntervalSince(wroteAt) <= 1, modified.timeIntervalSince(wroteAt) <= 2,

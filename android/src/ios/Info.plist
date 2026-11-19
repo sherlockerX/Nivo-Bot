@@ -235,7 +235,7 @@
 		<string>audio</string>
 		<string>fetch</string>
 		<string>location</string>
-		<string>remote-notification</string>
+		<!-- nanoMuse: 已移除内置云同步，不再注册静默云推送后台模式。 -->
 	</array>
 	<key>UTExportedTypeDeclarations</key>
 	<array>

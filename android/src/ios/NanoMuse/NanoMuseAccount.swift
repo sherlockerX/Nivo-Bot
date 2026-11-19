@@ -149,101 +149,8 @@ struct NanoMuseConfig: Sendable {
     var signupOpen: Bool?
 }
 
-extension NanoMuseCloud {
-    private static var configCache: (at: Date, config: NanoMuseConfig)?
+/// 原云账号的注册、密码和远端删除接口已移除。
 
-    /// The relay's public figures, cached for ten minutes; empty when the relay is older.
-    static func config() async -> NanoMuseConfig {
-        if let configCache, Date().timeIntervalSince(configCache.at) < 600 { return configCache.config }
-        func num(_ v: Any?) -> Double? { (v as? NSNumber)?.doubleValue }
-        let reply = (try? await call("GET", "/v1/config", body: nil, token: nil)) ?? [:]
-        let config = NanoMuseConfig(
-            allowanceCny: num(reply["allowance_cny"]),
-            inviteBonusCny: num(reply["invite_bonus_cny"]),
-            inviteeBonusCny: num(reply["invitee_bonus_cny"]),
-            signupOpen: reply["signup_open"] as? Bool
-        )
-        configCache = (Date(), config)
-        return config
-    }
-
-    private static func key() throws -> String {
-        guard let key = apiKey else { throw CloudError(code: "signed_out", message: "Sign in first", status: 401) }
-        return key
-    }
-
-    /// The whole of `/v1/me`.
-    static func sheet() async throws -> NanoMuseSheet {
-        let reply = try await call("GET", "/v1/me", body: nil, token: key())
-        account = parseAccount(reply)
-        NanoMuseAllowance.shared.absorb(me: reply) // the 80 % heads-up, the region's guidance (contract C11)
-        return NanoMuseSheet.parse(reply)
-    }
-
-    /// Every device holding a key, this one marked.
-    static func sessions() async throws -> [NanoMuseSession] {
-        let reply = try await call("GET", "/v1/me/sessions", body: nil, token: key())
-        return (reply["sessions"] as? [[String: Any]] ?? []).compactMap { s in
-            guard let prefix = s["prefix"] as? String else { return nil }
-            let created = (s["created_at"] as? NSNumber)?.doubleValue ?? 0
-            let used = (s["last_used_at"] as? NSNumber)?.doubleValue
-            return NanoMuseSession(
-                prefix: prefix,
-                device: s["device"] as? String ?? "",
-                via: s["via"] as? String ?? "code",
-                createdAt: Date(timeIntervalSince1970: created),
-                lastUsedAt: used.map { Date(timeIntervalSince1970: $0) },
-                current: (s["current"] as? Bool) ?? ((s["current"] as? NSNumber)?.boolValue ?? false)
-            )
-        }
-    }
-
-    /// Retire one device's key.
-    static func revokeSession(prefix: String) async throws {
-        let safe = prefix.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? prefix
-        _ = try await call("DELETE", "/v1/me/sessions/\(safe)", body: nil, token: key())
-    }
-
-    /// The account's timeline, newest first.
-    static func events(limit: Int = 40) async throws -> [NanoMuseEvent] {
-        let reply = try await call("GET", "/v1/me/events?limit=\(limit)", body: nil, token: key())
-        return (reply["events"] as? [[String: Any]] ?? []).enumerated().map { index, e in
-            let ts = (e["ts"] as? NSNumber)?.doubleValue ?? 0
-            let id = (e["id"] as? NSNumber).map { "\($0)" } ?? "\(ts)-\(index)"
-            return NanoMuseEvent(id: id, at: Date(timeIntervalSince1970: ts), kind: e["kind"] as? String ?? "", detail: e["detail"] as? String ?? "")
-        }
-    }
-
-    /// Set or change the password; an empty `password` with `current` removes it.
-    static func setPassword(_ password: String, current: String?) async throws {
-        var body: [String: Any] = ["password": password]
-        if let current, !current.isEmpty { body["current"] = current }
-        _ = try await call("POST", "/v1/auth/password", body: body, token: key())
-    }
-
-    /// Every device's key, this phone's included; then the provider leaves the app, and this
-    /// phone's copy of the account's data stays only with `keep` (contract C12).
-    static func signOutEverywhere(keep: Bool = false) async throws {
-        await NivoPersonalBackupAccess.beginAccountChange()
-        defer { NivoPersonalBackupAccess.endAccountChange() }
-        try NanoMuseAccountData.shared.requireSwitchAccess()
-        _ = try await call("POST", "/v1/auth/sign-out-all", body: ["all": true], token: key())
-        try await forgetLocallyLocked(keep: keep)
-    }
-
-    /// The account, its keys, ledger, devices and synced conversations — gone for good at the
-    /// relay; and everything of it on this phone — chats, memory, feed, goals, face, the key —
-    /// goes too (contract C12). The next sign-in with the same address is a new account.
-    static func deleteAccount() async throws {
-        await NivoPersonalBackupAccess.beginAccountChange()
-        defer { NivoPersonalBackupAccess.endAccountChange() }
-        try NanoMuseAccountData.shared.requireSwitchAccess()
-        _ = try await call("POST", "/v1/auth/delete", body: nil, token: key())
-        try await forgetLocallyLocked(keep: false)
-    }
-}
-
-/// One ask for a star, ready for the shell to show: the moment and its words.
 struct NanoMuseStarAsk: Equatable, Identifiable {
     var moment: NanoMuseStarMoment
     var text: String
@@ -259,7 +166,7 @@ struct NanoMuseStarAsk: Equatable, Identifiable {
 @MainActor
 final class NanoMuseStar: ObservableObject {
     static let shared = NanoMuseStar()
-    static let repoURL = URL(string: "https://github.com/nano-muse/nanoMuse")!
+    static let repoURL = NivoProduct.website
 
     private enum Keys {
         static let tasks = "nm.star.tasks"
@@ -357,6 +264,8 @@ final class NanoMuseStar: ObservableObject {
 
     /// Off to GitHub, and no more asking anywhere.
     func open() {
+        // 兼容旧调用签名，本地构建不再开启任何Star或仓库推广页面。
+        guard !NanoMuseOffline.isOn else { return }
         markStarred()
         UIApplication.shared.open(URL(string: policy.url) ?? Self.repoURL)
     }

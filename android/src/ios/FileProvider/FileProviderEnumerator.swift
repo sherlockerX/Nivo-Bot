@@ -5,9 +5,13 @@ import os.log
 final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
     private let containerItemIdentifier: NSFileProviderItemIdentifier
     private let recursive: Bool
+    // nanoMuse: 扩展入口验证后的共享根目录，无本地回退。
+    private let providerRoot: URL
     private static let log = OSLog(subsystem: "io.github.nanomuse.app.FileProvider", category: "Enumerator")
 
-    init(containerItemIdentifier: NSFileProviderItemIdentifier, recursive: Bool = false) {
+    // nanoMuse: 共享权限检查在扩展入口完成，枚举过程不推测或创建其他容器。
+    init(containerItemIdentifier: NSFileProviderItemIdentifier, providerRoot: URL, recursive: Bool = false) {
+        self.providerRoot = providerRoot
         self.containerItemIdentifier = containerItemIdentifier
         self.recursive = recursive
         super.init()
@@ -104,9 +108,11 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
 
     private func directoryURL() -> URL {
         if containerItemIdentifier == .rootContainer {
-            return FileProviderExtension.providerRoot
+            // nanoMuse: 使用入口验证后的共享路径。
+            return providerRoot
         }
-        return FileProviderExtension.providerRoot
+        // nanoMuse: 子目录与根目录使用同一次路径决策。
+        return providerRoot
             .appendingPathComponent(containerItemIdentifier.rawValue)
     }
 
@@ -158,7 +164,8 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
         }
 
         return contents.map { url in
-            FileProviderItem(url: url, parentIdentifier: containerItemIdentifier)
+            // nanoMuse: 条目标识与枚举根目录绑定。
+            FileProviderItem(url: url, parentIdentifier: containerItemIdentifier, providerRoot: providerRoot)
         }
     }
 
@@ -176,7 +183,8 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
         // Defensive: same reserved-identifier filter as the non-recursive path.
         contents = contents.filter { !Self.isHiddenMetadata($0.lastPathComponent) }
 
-        let rootURL = FileProviderExtension.providerRoot
+        // nanoMuse: 递归路径与顶层路径共用已验证的共享目录。
+        let rootURL = providerRoot
         // At the provider root, apply the same hidden-folder filter as the
         // non-recursive path so hidden top-level subdirs don't leak into the
         // working set when iOS Files enumerates recursively.
@@ -194,7 +202,8 @@ final class FileProviderEnumerator: NSObject, NSFileProviderEnumerator {
         let root = rootURL.path
         var items: [FileProviderItem] = []
         for url in contents {
-            let item = FileProviderItem(url: url, parentIdentifier: parentIdentifier)
+            // nanoMuse: 递归产生的条目也不再隐式读取共享容器。
+            let item = FileProviderItem(url: url, parentIdentifier: parentIdentifier, providerRoot: providerRoot)
             items.append(item)
 
             var isDir: ObjCBool = false

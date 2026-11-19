@@ -44,6 +44,8 @@ data class CatalogueProvider(
      * `x-opencode-session`); [io.github.nanomuse.net.OpenCodeSession] sends it. Null for the rest.
      */
     val sessionHeader: String? = null,
+    /** 聚合中转服务仍可识别已有配置，但不出现在内置推荐入口。 */
+    val isRelay: Boolean = false,
 ) {
     fun displayName(chinese: Boolean): String = if (chinese && nameZh.isNotBlank()) nameZh else name
     fun note(chinese: Boolean): String = if (chinese && noteZh.isNotBlank()) noteZh else note
@@ -119,7 +121,6 @@ object ProviderCatalogue {
     fun byId(context: Context, id: String?): CatalogueProvider? {
         val key = id?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() } ?: return null
         return load(context).firstOrNull { it.id == key }
-            ?: NanoMuseCloud.guidance(context)?.let { g -> (g.providers + g.local).firstOrNull { it.id == key } }
     }
 
     /** The file's `providers[]`; a malformed entry is skipped rather than failing the whole list. */
@@ -155,6 +156,7 @@ object ProviderCatalogue {
             noteZh = o.optString("note_zh"),
             verified = o.optString("verified"),
             sessionHeader = o.optString("session_header").takeIf { it.isNotBlank() },
+            isRelay = o.optBoolean("is_relay", false),
         )
     }
 
@@ -169,8 +171,8 @@ object ProviderCatalogue {
      * ways on from a spent allowance on a phone and are left out.
      */
     fun ordered(list: List<CatalogueProvider>, mainland: Boolean): List<CatalogueProvider> {
-        val shown = list.filter { !it.local && it.id != CUSTOM && it.baseUrl.isNotBlank() }
-        val first = if (mainland) listOf(BAILIAN) else listOf(OPENROUTER, OPENAI)
+        val shown = list.filter { !it.isRelay && !it.local && it.id != CUSTOM && it.baseUrl.isNotBlank() }
+        val first = if (mainland) listOf(BAILIAN) else listOf(OPENAI)
         val home = shown.filter { if (mainland) it.servesMainland() else it.servesGlobal() }
         val away = shown.filter { it !in home }
         val lead = first.mapNotNull { id -> home.firstOrNull { it.id == id } }

@@ -16,6 +16,10 @@ object ProviderFactory {
      * [context] is needed for OpenAI OAuth to access encrypted storage for token refresh.
      */
     fun create(instance: ProviderInstance, apiKey: String, model: LLMModel, context: Context? = null): LLMProvider {
+        // nanoMuse: 显式模型选择及旧聊天快照也不得重新连接已停用的内置中继。
+        check(!io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(context, instance)) {
+            "The built-in cloud provider is disabled; choose your own provider"
+        }
         // T174: route through ProviderInstance.effectiveBaseURL instead of
         // re-implementing the trim-+-endsWith dance inline. The previous
         // version did `url.endsWith("/v1")` on the raw, untrimmed string,

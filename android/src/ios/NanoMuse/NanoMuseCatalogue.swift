@@ -38,6 +38,8 @@ struct NanoMuseVendor: Identifiable, Equatable, Sendable {
     var note: String
     var noteZh: String
     var verified: String
+    /// 只控制新建时的展示，不删除已有配置，也不改变协议解码。
+    var isRelay: Bool = false
 
     /// The sign-in this vendor offers, if any.
     var signIn: String? { auth.first { $0.hasPrefix("oauth-") || $0.hasPrefix("device-") } }
@@ -124,16 +126,15 @@ enum NanoMuseCatalogue {
             defaults: defaults,
             note: p["note"] as? String ?? "",
             noteZh: p["note_zh"] as? String ?? "",
-            verified: p["verified"] as? String ?? ""
+            verified: p["verified"] as? String ?? "",
+            isRelay: p["is_relay"] as? Bool ?? false
         )
     }
 
-    /// The card's order: the region's lead first (Bailian for mainland China; OpenRouter, then
-    /// OpenAI elsewhere), then the vendors that serve the region, then the rest; local servers
-    /// and the blank entry left out.
+    /// 官方服务按地区排序；聚合中转商只保留解析兼容，不出现在新建目录中。
     static func ordered(_ list: [NanoMuseVendor], mainland: Bool) -> [NanoMuseVendor] {
-        let shown = list.filter { !$0.local && $0.id != custom && !$0.baseURL.isEmpty }
-        let first = mainland ? [bailian] : [openrouter, openai]
+        let shown = list.filter { !$0.isRelay && !$0.local && $0.id != custom && !$0.baseURL.isEmpty }
+        let first = mainland ? [bailian] : [openai]
         let home = shown.filter { mainland ? $0.servesMainland() : $0.servesGlobal() }
         let away = shown.filter { !home.contains($0) }
         var out: [NanoMuseVendor] = []
@@ -294,7 +295,7 @@ struct NanoMuseWays: Equatable, Sendable {
             return NanoMuseWays(
                 vendors: NanoMuseCatalogue.ordered(catalogue, mainland: mainland),
                 signIns: signIns,
-                locals: catalogue.filter { $0.local },
+                locals: catalogue.filter { $0.local && !$0.isRelay },
                 docs: "",
                 chatgptCaveat: "",
                 fromRelay: false
@@ -304,13 +305,14 @@ struct NanoMuseWays: Equatable, Sendable {
         let signIns = guidance.plans
             .filter { $0.clients.isEmpty || $0.clients.contains(NanoMuseGuidance.client) }
             .compactMap { plan -> SignIn? in
-                guard let vendor = catalogue.first(where: { $0.id == plan.provider }) ?? known.first(where: { $0.id == plan.provider }) else { return nil }
+                guard let vendor = catalogue.first(where: { $0.id == plan.provider }) ?? known.first(where: { $0.id == plan.provider }),
+                      !vendor.isRelay else { return nil }
                 return SignIn(vendor: vendor, auth: plan.auth, covers: plan.covers.isEmpty ? vendor.capabilitiesFor(plan.auth) : plan.covers, name: plan.name)
             }
         return NanoMuseWays(
-            vendors: guidance.providers.filter { !$0.local && $0.id != NanoMuseCatalogue.custom },
+            vendors: guidance.providers.filter { !$0.isRelay && !$0.local && $0.id != NanoMuseCatalogue.custom },
             signIns: signIns,
-            locals: guidance.local,
+            locals: guidance.local.filter { !$0.isRelay },
             docs: guidance.docs,
             chatgptCaveat: guidance.caveat(chinese: chinese),
             fromRelay: true

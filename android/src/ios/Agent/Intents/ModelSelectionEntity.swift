@@ -85,6 +85,8 @@ struct ModelSelectionEntityQuery: EntityQuery, EntityStringQuery {
 
     @MainActor
     func entities(for identifiers: [String]) async throws -> [ModelSelectionEntity] {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         let store = ProviderConfigStore.shared
         var results: [ModelSelectionEntity] = []
         for id in identifiers {
@@ -97,6 +99,8 @@ struct ModelSelectionEntityQuery: EntityQuery, EntityStringQuery {
 
     @MainActor
     func entities(matching string: String) async throws -> IntentItemCollection<ModelSelectionEntity> {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         let store = ProviderConfigStore.shared
         let query = string.lowercased()
 
@@ -127,6 +131,8 @@ struct ModelSelectionEntityQuery: EntityQuery, EntityStringQuery {
 
     @MainActor
     func suggestedEntities() async throws -> IntentItemCollection<ModelSelectionEntity> {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         let store = ProviderConfigStore.shared
 
         let groupItems: [IntentItem<ModelSelectionEntity>] = store.config.modelGroups.map { group in

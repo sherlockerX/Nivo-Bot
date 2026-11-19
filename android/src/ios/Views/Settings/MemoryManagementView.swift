@@ -10,7 +10,8 @@ import SwiftUI
 struct MemoryManagementView: View {
     @State private var memoryFiles: [MemoryFileItem] = []
     @State private var forceSyncToast: String?
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，旧偏好不能恢复强制同步入口。
+    private let iCloudSyncEnabled = false
     /// [T-memory-global-toggle-settings-ui-ios] Global default for whether
     /// a NEW session starts with memory enabled. Default true preserves
     /// today's behavior. Already-created sessions keep their own per-

@@ -253,7 +253,10 @@ class ProviderRepository(private val context: Context) {
      */
     private val configLock = Any()
 
-    private fun loadConfig(): ProviderConfig = runBlocking { loadConfigSuspending() }
+    // nanoMuse: 保留旧配置及模型，只冻结内置云实例，避免启动自动刷新原中继。
+    private fun loadConfig(): ProviderConfig = io.github.nanomuse.local.LocalOnlyMode.freezeCloudProviders(
+        context, runBlocking { loadConfigSuspending() },
+    )
 
     /**
      * [T-android-provider-room-store] DB-first load with three-way
@@ -569,7 +572,8 @@ class ProviderRepository(private val context: Context) {
             // intent even when the disk write didn't land; the next
             // successful save resyncs everything.
             val canonical = try {
-                runBlocking { persistToDbAndMirror(config) }
+                // nanoMuse: 导入、恢复和切换开关也不能重新启用内置云供应商。
+                runBlocking { persistToDbAndMirror(io.github.nanomuse.local.LocalOnlyMode.freezeCloudProviders(context, config)) }
             } catch (e: Exception) {
                 if (requirePersistence) throw e // nanoMuse: 保存失败不能伪装为成功。
                 android.util.Log.e(
@@ -577,7 +581,7 @@ class ProviderRepository(private val context: Context) {
                     "[ProviderStore] saveConfig persistence failed; emitting in-memory only: ${e.message}",
                     e,
                 )
-                config
+                io.github.nanomuse.local.LocalOnlyMode.freezeCloudProviders(context, config)
             }
             _config.value = canonical.copy(
                 instances = canonical.instances.toMutableList(),
@@ -1009,6 +1013,8 @@ class ProviderRepository(private val context: Context) {
      * the refresh happens later on the request path (same as iOS).
      */
     fun hasAnyCredential(instance: ProviderInstance): Boolean {
+        // nanoMuse: 原云凭据只用于本地恢复，不能被OAuth分支重新认作可用模型。
+        if (io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(context, instance)) return false
         // API-key path, including the keyless-by-design compat endpoints that
         // [usableApiKey] already models via allowsEmptyAPIKey.
         if (usableApiKey(instance) != null) return true
@@ -2151,6 +2157,8 @@ class ProviderRepository(private val context: Context) {
 
 
     suspend fun refreshModels(instance: ProviderInstance) {
+        // nanoMuse: 旧任务持有的实例快照也不得绕过本地版服务边界。
+        if (io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(context, instance)) return
         // [T-android-refresh-models-empty-key] usableApiKey, NOT loadApiKey.
         //
         // A self-hosted OpenAI/Anthropic-compatible endpoint (ollama, LM
@@ -2441,7 +2449,9 @@ class ProviderRepository(private val context: Context) {
      * instances without a token, which must stay unauthenticated).
      */
     fun usableApiKey(instance: ProviderInstance): String? =
-        loadApiKey(instance.id) ?: if (instance.allowsEmptyAPIKey) "" else null
+        // nanoMuse: 原密钥保留供本地归属恢复，但不再提供给请求路由。
+        if (io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(context, instance)) null
+        else loadApiKey(instance.id) ?: if (instance.allowsEmptyAPIKey) "" else null
 
     fun deleteApiKey(instanceId: String) {
         encryptedPrefs.edit().remove("apikey_$instanceId").apply()

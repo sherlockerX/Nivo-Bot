@@ -100,6 +100,36 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
     assert {path: path.read_bytes() for path in before} == before
 
 
+def test_ios_privacy_links_use_current_product_without_recreating_removed_ui(
+    rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """再次品牌化不会恢复旧隐私地址或新增仓库、更新和反馈按钮。"""
+    ios = tmp_path / "ios"
+    monkeypatch.setattr(rebrand, "ROOT", tmp_path)
+    monkeypatch.setattr(rebrand, "IOS", ios)
+    content = ios / "Views/ContentView.swift"
+    provider = ios / "Views/Providers/AddProviderView.swift"
+    content.parent.mkdir(parents=True)
+    provider.parent.mkdir(parents=True)
+    content.write_text(
+        'Link(destination: URL(string: "https://github.com/nano-muse/nanoMuse/blob/main/docs/privacy.md")!) {}',
+        encoding="utf-8",
+    )
+    provider.write_text(
+        'Link(destination: URL(string: "https://openminis.github.io/privacy-policy.html")!) {}',
+        encoding="utf-8",
+    )
+    rebrand.ios_links()
+    before = {path: path.read_bytes() for path in (content, provider)}
+    for text in before.values():
+        assert b"NivoProduct.privacy" in text
+        assert b"github.com" not in text
+        assert b"Check for updates" not in text
+        assert b"Report a Bug" not in text
+    rebrand.ios_links()
+    assert {path: path.read_bytes() for path in before} == before
+
+
 def test_ios_version_only_updates_versions_preserves_other_files_and_is_idempotent(
     rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

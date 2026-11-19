@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        /* nanoMuse: 主App与三个扩展编译同一份容器策略。 */
+        D10000000000000000000001 /* NivoStoragePaths.swift in Share Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000010 /* NivoStoragePaths.swift */; };
+        D10000000000000000000002 /* NivoStoragePaths.swift in FileProvider Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000010 /* NivoStoragePaths.swift */; };
+        D10000000000000000000003 /* NivoStoragePaths.swift in Widget Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000010 /* NivoStoragePaths.swift */; };
 		21FED4B7BB6F6D9476C9992E /* VoiceProvider+System.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88993FC8E3F0199C6638F664 /* VoiceProvider+System.swift */; };
 		241D530017827D7F0EB604DE /* VoiceProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2941B643B8A2F048A2B154E /* VoiceProviderFactory.swift */; };
 		2A4FD49F872431D703328384 /* VoiceOutputPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424510790AF3FB2452D3CCE3 /* VoiceOutputPlayer.swift */; };
@@ -603,6 +607,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        /* nanoMuse: 新实现仍位于NanoMuse目录，扩展显式引用生产文件。 */
+        D10000000000000000000010 /* NivoStoragePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NanoMuse/NivoStoragePaths.swift; sourceTree = SOURCE_ROOT; };
 		0ED149397BEA7E0408C92688 /* GroupVoiceModelsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroupVoiceModelsView.swift; sourceTree = "<group>"; };
 		0F5379380323FA8C6477708C /* GroupSlotPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroupSlotPicker.swift; sourceTree = "<group>"; };
 		16FF3462D09402F14B610CD6 /* VoiceWaveformView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VoiceWaveformView.swift; sourceTree = "<group>"; };
@@ -1823,6 +1829,8 @@
 				E5E000019 /* ShareCoordinator.swift */,
 				E5E0000A2 /* ExternalFileImporter.swift */,
 				E5E000017 /* SharedContainerStore.swift */,
+                /* nanoMuse: 仅扩展显式编译，主App由同步目录自动纳入。 */
+                D10000000000000000000010 /* NivoStoragePaths.swift */,
 				AADDA9E02F6ECCF400B66649 /* ThumbnailCache.swift */,
 			);
 			path = Shared;
@@ -3118,6 +3126,8 @@
 				E5E000003 /* ShareViewModel.swift in Sources */,
 				E5E000004 /* PendingShare.swift in Sources */,
 				E5E000005 /* SharedContainerStore.swift in Sources */,
+                /* nanoMuse: 分享扩展使用真实共享权限判定。 */
+                D10000000000000000000001 /* NivoStoragePaths.swift in Share Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3126,6 +3136,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5FP00001 /* FileProviderExtension.swift in Sources */,
+                /* nanoMuse: 文件扩展不得回退到自身沙盒。 */
+                D10000000000000000000002 /* NivoStoragePaths.swift in FileProvider Sources */,
 				E5FP00002 /* FileProviderEnumerator.swift in Sources */,
 				E5FP00003 /* FileProviderItem.swift in Sources */,
 				E5FP00200 /* FPSyncTraceLog.swift in Sources */,
@@ -3138,6 +3150,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E5H000001 /* AgentWidgetBundle.swift in Sources */,
+                /* nanoMuse: 小组件动作在共享权限缺失时拒绝执行。 */
+                D10000000000000000000003 /* NivoStoragePaths.swift in Widget Sources */,
 				E5H000002 /* AgentLiveActivityWidget.swift in Sources */,
 				E5H000003 /* AgentActivityAttributes.swift in Sources */,
 				E5AT00003 /* AudioTogglePlaybackIntent.swift in Sources */,

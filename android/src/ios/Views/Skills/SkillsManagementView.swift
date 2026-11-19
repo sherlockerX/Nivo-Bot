@@ -34,7 +34,8 @@ struct SkillsManagementView: View {
     /// Subscribed mirror of `SyncV2Bootstrap.isEnabled` so the
     /// Force-iCloud-Sync menu entry shows / hides reactively when
     /// the user flips the toggle in Settings.
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，历史偏好不能恢复同步按钮。
+    private let iCloudSyncEnabled = false
     @AppStorage("skillsList.sortKey") private var sortKeyRaw: String = SkillSortKey.name.rawValue
     @AppStorage("skillsList.sortAscending") private var sortAscending: Bool = true
 
@@ -427,7 +428,8 @@ private struct SkillDetailView: View {
     /// Sync button shows / hides reactively when the user flips the
     /// iCloud Sync toggle in Settings. Same gating predicate used by
     /// the parent SkillsManagementView plus-menu (commit 47fd61ef).
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，历史偏好不能恢复同步按钮。
+    private let iCloudSyncEnabled = false
 
     private var skill: Skill? {
         store.skills.first(where: { $0.id == skillId })

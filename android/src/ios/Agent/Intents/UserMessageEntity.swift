@@ -57,6 +57,8 @@ struct UserMessageEntityQuery: EntityQuery {
     var retryIntent
 
     func entities(for identifiers: [String]) async throws -> [UserMessageEntity] {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         var bySession: [String: [Int]] = [:]
         for identifier in identifiers {
             let parts = identifier.split(separator: ":", maxSplits: 1)
@@ -75,6 +77,8 @@ struct UserMessageEntityQuery: EntityQuery {
     }
 
     func suggestedEntities() async throws -> [UserMessageEntity] {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         // Show only the selected session's messages when available
         if let sessionEntity = retryIntent?.session {
             return await UserMessageEntity.loadFromDB(

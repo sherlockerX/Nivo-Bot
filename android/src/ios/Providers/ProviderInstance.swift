@@ -270,12 +270,15 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
     /// notifications, and wholesale on foreground; a 15s TTL is only a
     /// defensive backstop, never the primary mechanism.
     var hasAnyCredential: Bool {
-        ProviderCredentialCache.shared.value(for: id) { self.computeHasAnyCredential() }
+        // nanoMuse: 退役策略先于凭证缓存，旧命中不能重新启用云账号。
+        !nmIsRetiredCloudProvider && ProviderCredentialCache.shared.value(for: id) { self.computeHasAnyCredential() }
     }
 
     /// The uncached credential probe. Kept separate so the cache wraps it and
     /// tests / diagnostics can force a fresh read.
     func computeHasAnyCredential() -> Bool {
+        // nanoMuse: 无密钥兼容端点也不得绕过退役检查。
+        guard !nmIsRetiredCloudProvider else { return false }
         // [T-empty-key-compat-endpoints] Third-party compatible endpoint in
         // API-key mode: configured-by-definition, no Keychain probe needed
         // (also the cheapest possible path — zero XPC round-trips).

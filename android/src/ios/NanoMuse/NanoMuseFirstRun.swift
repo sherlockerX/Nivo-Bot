@@ -4,8 +4,7 @@
 //
 //  The first run, the way Android does it (ui/onboarding/FirstRunSetup.kt):
 //  Welcome (a provider of one's own, or skip) → Choose models → Notifications
-//  → Meet <name>. The personal build has no account, so the Password and
-//  Which model answers pages show only on a phone signed in from before.
+//  → Meet <name>。本地构建不再包含旧账号密码或云模型选择页面。
 //  Android's Hands page does not exist on iPhone (no accessibility service to
 //  grant); the phone page asks for notifications instead, which routines need.
 //
@@ -23,55 +22,6 @@ import Foundation
 import SwiftUI
 import UserNotifications
 
-// MARK: - When the setup shows
-
-enum NanoMuseFirstRun {
-    private static let doneKey = "nanomuse.setup.done"
-    private static let sourceKey = "nanomuse.setup.source_chosen"
-    static let notificationsKey = "nanomuse.setup.notifications_seen"
-
-    static var isDone: Bool { UserDefaults.standard.bool(forKey: doneKey) }
-    static func markDone() { UserDefaults.standard.set(true, forKey: doneKey) }
-    static var sourceChosen: Bool { UserDefaults.standard.bool(forKey: sourceKey) }
-    static func markSourceChosen() { UserDefaults.standard.set(true, forKey: sourceKey) }
-    static var notificationsSeen: Bool { UserDefaults.standard.bool(forKey: notificationsKey) }
-    static func markNotificationsSeen() { UserDefaults.standard.set(true, forKey: notificationsKey) }
-
-    /// Whether the home shows the setup instead of the chat. It comes back when nothing could
-    /// answer: neither a sign-in (the account's models) nor a provider of one's own with a key.
-    /// A phone with its own key works signed out; the sign-in waits under Settings for the Cloud
-    /// models, sync and the hub. Otherwise it stays only for a brand-new install, no conversation
-    /// yet, until *Start* has been tapped, so the hand-off into the first conversation is
-    /// deliberate.
-    static func needed(signedIn: Bool, hasProviders: Bool, hasSessions: Bool, done: Bool) -> Bool {
-        (!signedIn && !hasProviders) || (!hasSessions && !done)
-    }
-
-    enum Stage: Int { case welcome, password, source, models, notifications, meet }
-
-    /// The page to show, from what the app has. Android has a Hands page where the iPhone
-    /// has Notifications: routines and goal check-ins need the permission.
-    /// Signed out with a provider of one's own (`hasProviders`), the account pages are skipped:
-    /// the password is the account's and the source question is answered by the key.
-    static func stage(signedIn: Bool, hasProviders: Bool = false, hasGroups: Bool, sourceChosen: Bool, modelsSkipped: Bool, fresh: Bool, passwordAnswered: Bool, notificationsSeen: Bool = true) -> Stage {
-        if !signedIn && !hasProviders { return .welcome }
-        if signedIn && fresh && !passwordAnswered { return .password }
-        if signedIn && !sourceChosen { return .source }
-        if !hasGroups && !modelsSkipped { return .models }
-        if !notificationsSeen { return .notifications }
-        return .meet
-    }
-
-    /// The dot that lights: account · phone · meet (the model pages fold into the first), as Android.
-    static func dot(_ stage: Stage) -> Int {
-        switch stage {
-        case .welcome, .password, .source, .models: return 0
-        case .notifications: return 1
-        case .meet: return 2
-        }
-    }
-}
-
 // MARK: - The setup screen
 
 struct NanoMuseFirstRunView: View {
@@ -81,28 +31,17 @@ struct NanoMuseFirstRunView: View {
 
     @ObservedObject private var store = ProviderConfigStore.shared
     @State private var modelsSkipped = false
-    @State private var sourceChosen = NanoMuseFirstRun.sourceChosen
     @State private var notificationsSeen = NanoMuseFirstRun.notificationsSeen
-    @State private var passwordAnswered = false
     @State private var showOwnKey = false
     @State private var showGroups = false
     @State private var agentName = SoulStore.cachedMetadata.name
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var signedIn: Bool {
-        _ = store.instances
-        return NanoMuseCloud.isSignedIn
-    }
-
     private var stage: NanoMuseFirstRun.Stage {
         NanoMuseFirstRun.stage(
-            signedIn: signedIn,
-            hasProviders: store.instances.contains { $0.isEnabled && $0.hasAnyCredential && $0.id != NanoMuseCloud.instance?.id },
+            hasProviders: store.instances.contains { $0.isEnabled && $0.hasAnyCredential },
             hasGroups: store.modelGroups.contains { !$0.memberEntryIds.isEmpty },
-            sourceChosen: sourceChosen,
             modelsSkipped: modelsSkipped,
-            fresh: signedIn && NanoMuseCloud.freshAccount,
-            passwordAnswered: passwordAnswered,
             notificationsSeen: notificationsSeen
         )
     }
@@ -127,8 +66,6 @@ struct NanoMuseFirstRunView: View {
             Group {
                 switch stage {
                 case .welcome: welcomePage
-                case .password: NanoMusePasswordPage { NanoMuseCloud.clearFreshAccount(); passwordAnswered = true }
-                case .source: sourcePage
                 case .models: modelsPage
                 case .notifications: NanoMuseNotificationsPage { NanoMuseFirstRun.markNotificationsSeen(); notificationsSeen = true }
                 case .meet: meetPage
@@ -157,7 +94,7 @@ struct NanoMuseFirstRunView: View {
             title: AppLocalized("Welcome to nanoMuse"),
             subtitle: AppLocalized("Your personal agent: it grows with you and works with you."),
             primaryLabel: AppLocalized("Add your own model provider"),
-            onPrimary: { NanoMuseFirstRun.markSourceChosen(); sourceChosen = true; showOwnKey = true },
+            onPrimary: { showOwnKey = true },
             secondaryLabel: AppLocalized("Skip for now"),
             onSecondary: { NanoMuseFirstRun.markDone(); onStart() },
             finePrint: AppLocalized("Your key stays on this phone and is sent only to the provider you chose.")
@@ -165,23 +102,6 @@ struct NanoMuseFirstRunView: View {
             NanoMuseFeatureRow(symbol: "bubble.left.and.bubble.right", title: AppLocalized("Chat, pictures, video"), subtitle: AppLocalized("A capable model, image and video generation, tools, skills and memory, on your phone"))
             // Android's second row is Hands (it uses the phone); the iPhone has no such service, so: goals and the coach.
             NanoMuseFeatureRow(symbol: "graduationcap", title: AppLocalized("Goals and a coach"), subtitle: AppLocalized("It checks in on what you are working towards and writes your training cards every day"))
-        }
-    }
-
-    // Right after the sign-in: which model answers.
-    private var sourcePage: some View {
-        NanoMuseSetupPage(
-            hero: { NanoMuseHeroGlyph(symbol: "cloud") },
-            title: AppLocalized("Which model answers?"),
-            subtitle: AppLocalized("Your account already brings one. You can add your own API key as well and switch at any time."),
-            primaryLabel: AppLocalized("Use the nanoMuse Cloud model"),
-            onPrimary: { NanoMuseFirstRun.markSourceChosen(); sourceChosen = true },
-            secondaryLabel: AppLocalized("I have my own API key"),
-            onSecondary: { NanoMuseFirstRun.markSourceChosen(); sourceChosen = true; showOwnKey = true },
-            finePrint: AppLocalized("The two do not compete: the Cloud model stays available, and each model group picks its own.")
-        ) {
-            NanoMuseFeatureRow(symbol: "cloud", title: AppLocalized("Use the nanoMuse Cloud model"), subtitle: AppLocalized("Qwen/Qwen3.6-27B-FP8 handles chat, image input and screen operation with an account allowance. Drawing pictures and making clips requires a provider and API key of your own."))
-            NanoMuseFeatureRow(symbol: "key", title: AppLocalized("I have my own API key"), subtitle: AppLocalized("Alibaba Cloud Bailian, OpenRouter, OpenAI, Anthropic, DeepSeek and other OpenAI-compatible endpoints. The key stays on this phone."))
         }
     }
 
@@ -212,57 +132,6 @@ struct NanoMuseFirstRunView: View {
             finePrint: AppLocalized("Before anything it cannot take back, such as deleting, sending or paying, it stops and asks you first.")
         ) {
             EmptyView()
-        }
-    }
-}
-
-/// Right after a sign-in that created the account: a password, so the next device signs in
-/// without waiting for a code. Skippable; Account has the same form later.
-struct NanoMusePasswordPage: View {
-    var onDone: () -> Void
-    @State private var next = ""
-    @State private var again = ""
-    @State private var busy = false
-    @State private var error: String?
-
-    var body: some View {
-        NanoMuseSetupPage(
-            hero: { NanoMuseHeroGlyph(symbol: "key") },
-            title: AppLocalized("Set a password"),
-            subtitle: AppLocalized("Your account is in. With a password, your computers and your other phones sign in at once, without waiting for a code."),
-            primaryLabel: AppLocalized("Set the password"),
-            onPrimary: { Task { await save() } },
-            secondaryLabel: AppLocalized("Skip for now"),
-            onSecondary: onDone,
-            finePrint: AppLocalized("Optional. You can set or change it later under Account."),
-            busy: busy
-        ) {
-            VStack(spacing: 10) {
-                SecureField(AppLocalized("New password (8 characters or more)"), text: $next)
-                    .textContentType(.newPassword)
-                    .textFieldStyle(.roundedBorder)
-                SecureField(AppLocalized("Repeat the new password"), text: $again)
-                    .textContentType(.newPassword)
-                    .textFieldStyle(.roundedBorder)
-                if let error {
-                    Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
-                }
-            }
-        }
-    }
-
-    private func save() async {
-        guard !busy else { return }
-        if next.count < 8 { error = AppLocalized("The password needs at least 8 characters."); return }
-        if next != again { error = AppLocalized("The two passwords differ."); return }
-        error = nil
-        busy = true
-        defer { busy = false }
-        do {
-            try await NanoMuseCloud.setPassword(next, current: nil)
-            onDone()
-        } catch {
-            self.error = NanoMuseCloud.describe(error)
         }
     }
 }
@@ -552,7 +421,7 @@ final class NanoMuseFirstConversation: ObservableObject {
     func intro() -> [String] {
         [
             AppLocalized("Hi, I'm nanoMuse, the assistant that lives on your phone. Let me take a few things off your plate."),
-            AppLocalized("A bit about how I work:\n\n- I have my own computer, a Linux sandbox and a browser, so I can run commands, open websites and fill in forms.\n- I can read and organise the files and photos you share with me, and take care of reminders and scheduled tasks.\n- Before any step that matters, I ask you first.\n- Everything runs on this phone. Your messages go to the model you configured; signed in to nanoMuse Cloud, this conversation also follows you to your other devices. Data controls switches that off."),
+            AppLocalized("I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose."),
             AppLocalized("Before we start, what should I call you?"),
         ]
     }

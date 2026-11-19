@@ -651,6 +651,8 @@ final class ProviderConfigStore: ObservableObject {
     private let nmWrites = NivoProviderWriteQueue()
     // nanoMuse: 数据库失败时保留最早未提交基线，下次保存包含此前尚未落盘的编辑。
     private var nmFailedDatabaseBaseline: ProviderConfig?
+    // nanoMuse: 仅保存本地模式迁移自己的重放目标，普通写入失败不能借此跳过基线校验。
+    private let nmLocalModeRetirement = NivoLocalModeConfigurationTransaction<ProviderConfig>()
     private var nmConfigurationRefreshTask: Task<Void, Never>?
     private var nmRestoreToken: UUID?
     private(set) var nmRestoreGeneration: UInt64 = 0
@@ -935,7 +937,14 @@ final class ProviderConfigStore: ObservableObject {
 
     // MARK: - Provider Instances
 
-    var instances: [ProviderInstance] { config.instances }
+    // nanoMuse: 旧云实例保留配置，但任何恢复或导入都不能重新启用它。
+    var instances: [ProviderInstance] {
+        config.instances.map { instance in
+            var visible = instance
+            if visible.nmIsRetiredCloudProvider { visible.isEnabled = false }
+            return visible
+        }
+    }
 
     func addInstance(_ instance: ProviderInstance) {
         // nanoMuse: 迁移或恢复占位期间不能新建实例并启动脱离事务的刷新。
@@ -1070,6 +1079,8 @@ final class ProviderConfigStore: ObservableObject {
         // endpoint may no longer be valid (different upstream). Drop the cached
         // resolution so the next image-gen request re-probes.
         var updated = instance
+        // nanoMuse: 退役实例只可保留或删除，不恢复原服务器访问。
+        if updated.nmIsRetiredCloudProvider { updated.isEnabled = false }
         let old = config.instances[idx]
         if old.customBaseURL != updated.customBaseURL || old.appendV1Suffix != updated.appendV1Suffix {
             updated.imageEndpointResolved = nil
@@ -1117,7 +1128,8 @@ final class ProviderConfigStore: ObservableObject {
         try await NivoProviderDeletionHost.shared.remove(instanceID: instanceId, sourceScope: sourceScope)
     }
 
-    func instance(for id: String) -> ProviderInstance? {
+    // nanoMuse: 历史事务可显式读取退役配置，正常请求和模型选择看不到它。
+    func instance(for id: String, includingRetired: Bool = false) -> ProviderInstance? {
         // The built-in System engine is a synthetic, local-only instance (never in
         // config.instances → never synced). Return it for the sentinel id and for
         // any System composite id ("<sentinel>/<voice|asr>") so the factory /
@@ -1126,11 +1138,12 @@ final class ProviderConfigStore: ObservableObject {
             || id.hasPrefix(SystemVoiceProvider.builtinProviderId + "/") {
             return SystemVoiceProvider.providerInstance
         }
-        return config.instances.first { $0.id == id }
+        return config.instances.first { $0.id == id && (includingRetired || !$0.nmIsRetiredCloudProvider) }
     }
 
     func enabledInstances(for providerType: ProviderType) -> [ProviderInstance] {
-        config.instances.filter { $0.providerType == providerType && $0.isEnabled }
+        // nanoMuse: 自动路由同时检查退役状态，旧备份中的启用标志不构成授权。
+        config.instances.filter { $0.providerType == providerType && $0.isEnabled && !$0.nmIsRetiredCloudProvider }
     }
 
     /// Export an instance as shareable JSON (includes API key if present).
@@ -2041,6 +2054,58 @@ final class ProviderConfigStore: ObservableObject {
         guard loadDegradation == .none else { throw CocoaError(.fileReadUnknown) }
     }
 
+    // nanoMuse: 退役意图已写入本地身份文件，进程重启后可从名单重新计算同一停用操作。
+    /// 停用操作一次保存完整候选，SQLite和JSON都成功后才发布缓存。
+    func nmCommitLocalModeRetirement(retiring identifiers: [String]) async throws {
+        try await nmReplayPendingLocalModeRetirement()
+        try await nmWaitForMigrationBaseline(retryingFailedWrites: false)
+        guard !identifiers.isEmpty else { return }
+        let retired = Set(identifiers)
+        var candidate = config
+        for index in candidate.instances.indices where retired.contains(candidate.instances[index].id) {
+            candidate.instances[index].isEnabled = false
+        }
+        // 即使SQLite已经停用，仍需确认JSON；上次进程可能恰好中断在两份存储之间。
+        try await nmRunLocalModeRetirement(candidate: candidate)
+    }
+
+    /// 启动的严格等待之前只重放本次迁移留下的明确快照，不清除其他队列错误。
+    func nmReplayPendingLocalModeRetirement() async throws {
+        guard nmLocalModeRetirement.hasPendingConfiguration else { return }
+        try await nmRunLocalModeRetirement(candidate: nil)
+    }
+
+    private func nmRunLocalModeRetirement(candidate: ProviderConfig?) async throws {
+        let token = UUID()
+        let baseline = config
+        let revision = configRevision
+        defer { nmEndRestore(token) }
+        try await nmLocalModeRetirement.run(current: baseline, candidate: candidate,
+            waitForBaseline: { isReplay in
+                try await self.nmBeginRestore(token, retryingFailedWrites: isReplay)
+                guard self.configRevision == revision, self.config == baseline else {
+                    throw NivoPersonalBackupError.snapshotChanged
+                }
+            }, persist: { prior, target in
+                try await self.nmEnqueueConfiguration(target, prior: prior, markDirty: true).value
+                let persisted = try JSONDecoder().decode(ProviderConfig.self, from: Data(contentsOf: self.fileURL))
+                let savedIDs = Set(persisted.instances.map(\.id))
+                let disabledIDs = Set(persisted.instances.filter { !$0.isEnabled }.map(\.id))
+                guard Set(target.instances.map(\.id)).isSubset(of: savedIDs),
+                      Set(target.instances.filter { !$0.isEnabled }.map(\.id)).isSubset(of: disabledIDs) else {
+                    throw NivoPersonalBackupError.snapshotChanged
+                }
+                return persisted
+            }, publish: { persisted in
+                guard self.nmRestoreToken == token, self.configRevision == revision, self.config == baseline else {
+                    throw NivoPersonalBackupError.snapshotChanged
+                }
+                self.config = persisted
+                self.lastSavedSnapshot = persisted
+                self.configRevision &+= 1
+            })
+    }
+
     /// 调用方持有提供商恢复租约；数据库和JSON确认后才发布新缓存。
     func nmCommitLegacyMigration(_ newConfig: ProviderConfig, token: UUID) async throws {
         guard nmRestoreToken == token, loadDegradation == .none,
@@ -2605,8 +2670,8 @@ final class ProviderConfigStore: ObservableObject {
     /// (representative = enabled first, then most-recently-modified, then oldest
     /// createdAt, then id — deterministic across devices).
     func shadowVoiceProviders() -> [ShadowVoiceProvider] {
-        // Candidate instances.
-        let candidates = config.instances.filter { inst in
+        // nanoMuse: 恢复旧备份后也应用退役策略，语音设置不显示被停用的云实例。
+        let candidates = instances.filter { inst in
             inst.isEnabled
             && hasVoiceModels(for: inst.id)
             && !isVoiceShadowDisabled(inst.id)
@@ -2821,6 +2886,8 @@ final class ProviderConfigStore: ObservableObject {
     // nanoMuse: 新密钥探测只在内存传递，无需暂时覆盖正式Keychain；空字符串支持无密钥本机端点。
     static func fetchModelsForInstance(_ instance: ProviderInstance, forceRefresh: Bool = false,
                                        apiKeyOverride: String? = nil) async throws -> [LLMModel] {
+        // nanoMuse: 启动刷新、手动探测和旧配置导入共用此处拦截。
+        guard !instance.nmIsRetiredCloudProvider else { throw NivoLocalModeError.cloudRemoved }
         let customBase = instance.effectiveCustomBaseURL
         let appendV1 = instance.appendV1Suffix
         // Custom UA only for custom-base OpenAI/Anthropic-compat instances (proxy/relay);
@@ -3031,6 +3098,8 @@ final class ProviderConfigStore: ObservableObject {
     // nanoMuse: 新密钥探测在内存传入，并可要求拒绝授权错误后再采用离线目录。
     static func fetchModelsWithFallback(_ instance: ProviderInstance, forceRefresh: Bool = false,
                                         apiKeyOverride: String? = nil, rejectUnauthorized: Bool = false) async throws -> ModelFetchResult {
+        // nanoMuse: 原云服务不能在拒绝后通过模型目录回退被重新视为可用。
+        guard !instance.nmIsRetiredCloudProvider else { throw NivoLocalModeError.cloudRemoved }
         var warnings: [String] = []
         let isThirdParty = isThirdPartyOpenAICompat(instance)
 
@@ -3299,41 +3368,10 @@ enum ProviderKeychainHelper {
         }
     }
 
+    // nanoMuse: 统一严格读取并优先本机条目，防止旧iCloud值覆盖已经保存的新密钥。
     static func loadAPIKey(instanceId: String, caller: String = #function) -> String? {
-        let service = "io.github.nanomuse.app.provider.\(instanceId)"
-        // Try synchronizable first, then fallback to legacy
-        let syncQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrSynchronizable as String: true,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        let syncStatus = SecItemCopyMatching(syncQuery as CFDictionary, &result)
-        if syncStatus == errSecSuccess, let data = result as? Data {
-            let s = String(data: data, encoding: .utf8)
-            AppLogger(category: "Keychain").info("read apiKey instanceId=\(instanceId.prefix(8)) src=sync hit=\(s != nil) keyLen=\(s?.count ?? 0) caller=\(caller)")
-            return s
-        }
-        // Fallback to legacy non-sync entry
-        let legacyQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        result = nil
-        let legacyStatus = SecItemCopyMatching(legacyQuery as CFDictionary, &result)
-        guard legacyStatus == errSecSuccess, let data = result as? Data else {
-            AppLogger(category: "Keychain").info("read apiKey instanceId=\(instanceId.prefix(8)) hit=false syncStatus=\(syncStatus) legacyStatus=\(legacyStatus) caller=\(caller)")
-            return nil
-        }
-        let s = String(data: data, encoding: .utf8)
-        AppLogger(category: "Keychain").info("read apiKey instanceId=\(instanceId.prefix(8)) src=legacy hit=\(s != nil) keyLen=\(s?.count ?? 0) syncStatus=\(syncStatus) caller=\(caller)")
-        return s
+        guard let data = try? NivoCredentialSyncKeychain.providerValue(instanceID: instanceId) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     static func deleteAPIKey(instanceId: String, caller: String = #function) {

@@ -1,22 +1,7 @@
 import Foundation
 import UIKit
 
-/// nanoMuse Cloud: the "start now" path. A phone number or an e-mail address, a code, and the
-/// app has a provider with a starter allowance — no key of one's own needed. The server is the
-/// relay in `cloud/` of the repository; anyone can run one, and the app can be pointed at it
-/// ("Use a different server" on the sign-in page, `NanoMuseRelayPicker`).
-///
-/// To the rest of the app the relay is an ordinary OpenAI-compatible provider: an API-key
-/// `ProviderInstance` on the relay's base URL, whose key is the `nm_…` token the relay issued.
-/// Chat and model listing go through the paths that already exist for any custom base URL.
-/// What this type adds is the sign-in itself, the provisioning of that instance (models
-/// fetched, a default group) and the account meta the settings page shows (how much is left).
-///
-/// What the relay keeps about a person is the hashed identifier and token counts; message
-/// content is forwarded to the model, not stored. See `docs/cloud.md`.
-///
-/// Mirror of `io.github.nanomuse.cloud.NanoMuseCloud` on Android; the wire format is the same.
-/// What the settings page shows. Cached from the last `/v1/me` (or the sign-in itself).
+/// 历史账号资料的解码结构，只用于无损迁移到本地档案。
 struct NanoMuseCloudAccount: Codable, Equatable, Sendable {
     var channel: String
     var hint: String
@@ -109,7 +94,7 @@ struct NanoMuseCloudError: LocalizedError, Sendable {
 
 @MainActor
 enum NanoMuseCloud {
-    nonisolated static let defaultBase = "https://cloud.nanomuse.cn"
+    nonisolated static let defaultBase = ""
     static let label = "nanoMuse Cloud"
 
     private enum Keys {
@@ -134,34 +119,8 @@ enum NanoMuseCloud {
 
     // MARK: - State
 
-    /// Any build may talk to another relay (0.1.38: "Use a different server" on the sign-in
-    /// sheet, NanoMuseRelayPicker). The address must pass `relayProblem` first.
-    static var canOverrideBase: Bool { true }
-
-    /// The relay this build talks to.
-    static var baseURL: String {
-        if canOverrideBase,
-           let custom = UserDefaults.standard.string(forKey: Keys.base)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !custom.isEmpty {
-            return trimSlash(custom)
-        }
-        return defaultBase
-    }
-
-    /// Whether the relay is one of the person's own rather than the default.
-    static var usesOwnRelay: Bool { baseURL != defaultBase }
-
-    /// The host of the relay in use, for "Server: …" rows.
-    static var relayHost: String { URL(string: baseURL)?.host ?? baseURL }
-
-    static func setBaseURL(_ url: String?) {
-        let trimmed = url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmed.isEmpty {
-            UserDefaults.standard.removeObject(forKey: Keys.base)
-        } else {
-            UserDefaults.standard.set(trimSlash(trimmed), forKey: Keys.base)
-        }
-    }
+    /// 已移除内置账号服务，不再提供可配置的中继地址。
+    static var baseURL: String { "" }
 
     // MARK: - Own relay
 
@@ -199,26 +158,6 @@ enum NanoMuseCloud {
         return AppLocalized("Enter the server's address, for example https://relay.example.org.")
     }
 
-    /// Whether `base` answers as a relay: `GET /healthz` with a 2xx. Throws the cloud error otherwise.
-    static func checkRelay(_ base: String) async throws {
-        guard let url = URL(string: base + "/healthz") else {
-            throw CloudError(code: "bad_base", message: "Bad relay address", status: 0)
-        }
-        var request = URLRequest(url: url)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 10
-        let response: URLResponse
-        do {
-            (_, response) = try await session.data(for: request)
-        } catch {
-            throw CloudError(code: "unreachable", message: error.localizedDescription, status: 0)
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(status) else {
-            throw CloudError(code: "http_\(status)", message: "HTTP \(status)", status: status)
-        }
-    }
-
     // MARK: - Phone numbers
 
     /// Whether a phone number cannot get a text-message code before the relay is asked: a
@@ -242,40 +181,16 @@ enum NanoMuseCloud {
     /// The provider instance the relay is signed in as, if it still exists.
     static var instance: ProviderInstance? {
         guard let id = UserDefaults.standard.string(forKey: Keys.instance) else { return nil }
-        return ProviderConfigStore.shared.instance(for: id)
+        return ProviderConfigStore.shared.instance(for: id, includingRetired: true)
     }
 
-    static var isSignedIn: Bool {
-        guard let inst = instance else { return false }
-        return !(ProviderKeychainHelper.loadAPIKey(instanceId: inst.id) ?? "").isEmpty
-    }
+    /// 历史缓存不能重新启用账号认证或内置模型。
+    static var isSignedIn: Bool { false }
+    static var modelsOn: Bool { false }
 
-    /// *Use nanoMuse Cloud models*: the account's models as a source. Signed in and the Cloud
-    /// instance switched on. Off, the account leaves the pickers and the automatic order of
-    /// every slot while the sign-in stays for sync and the hub; the one thing that may still run
-    /// on it is the explicit *Use nanoMuse Cloud this time* (NanoMuseCloudOnce). The one decision
-    /// point: every slot, picker and side call asks this, not `isSignedIn`.
-    static var modelsOn: Bool {
-        guard let inst = instance, inst.isEnabled else { return false }
-        return isSignedIn
-    }
-
-    /// Flip the switch. Upstream's `isEnabled` on the Cloud instance is the stored bit, so a
-    /// chat pinned to a Cloud entry stops at it the same way as for any disabled provider.
-    /// Off while new chats answer through the account: the chat slot and the main chat move to
-    /// the first provider of one's own that chats (`NanoMuseModelSlots.chatLeaves`); with none,
-    /// the switch is refused and stays on, which is the `false` the page shows as one sentence.
-    /// The same rule on every client (Android `NanoMuseCloud.setModelsOn`, the desktop's
-    /// `setCloudModels`, the runtime's `409 chat_on_cloud`).
+    /// 旧界面的兼容入口，启用云模型明确失败，关闭保持幂等。
     @discardableResult
-    static func setModelsOn(_ on: Bool) -> Bool {
-        guard var inst = instance, inst.isEnabled != on else { return true }
-        if !on, !NanoMuseModelSlots.canLeave(inst.id) { return false }
-        inst.isEnabled = on
-        ProviderConfigStore.shared.updateInstance(inst)
-        if !on { NanoMuseModelSlots.chatLeaves(inst.id) }
-        return true
-    }
+    static func setModelsOn(_ on: Bool) -> Bool { !on }
 
     static var account: Account? {
         get {
@@ -291,83 +206,8 @@ enum NanoMuseCloud {
         }
     }
 
-    // MARK: - Calls
-
-    /// Ask the relay to send a code. Throws `CloudError` with the relay's `code`.
-    static func requestCode(identifier: String) async throws {
-        _ = try await call("POST", "/v1/auth/code", body: ["identifier": trimmed(identifier)], token: nil)
-    }
-
-    /// Exchange the code for a key and make the relay a usable provider: instance, key, models
-    /// and a default group with the recommended chat model (only if the user has none yet).
-    /// Returns the account as the relay sees it.
-    static func verify(identifier: String, code: String, invite: String = "") async throws -> Account {
-        var body: [String: Any] = [
-            "identifier": trimmed(identifier),
-            "code": trimmed(code),
-            "device": deviceName,
-        ]
-        // A friend's code on a first sign-in (relay 0.12+): both get credit once this account makes its first request; older relays ignore it.
-        if !trimmed(invite).isEmpty { body["invite"] = trimmed(invite).uppercased() }
-        let reply = try await call("POST", "/v1/auth/verify", body: body, token: nil)
-        return try await adopt(reply)
-    }
-
-    /// The other way in: the account's password instead of a code (relay 0.12+).
-    static func login(identifier: String, password: String) async throws -> Account {
-        let reply = try await call(
-            "POST", "/v1/auth/login",
-            body: ["identifier": trimmed(identifier), "password": password, "device": deviceName],
-            token: nil
-        )
-        return try await adopt(reply)
-    }
-
-    /// "iPhone iOS 18.1", what the relay lists under signed-in devices.
-    static var deviceName: String {
-        let device = UIDevice.current
-        return String("\(device.model) iOS \(device.systemVersion)".prefix(80))
-    }
-
-    /// The key this phone holds, if it is signed in.
-    static var apiKey: String? {
-        guard let inst = instance, let key = ProviderKeychainHelper.loadAPIKey(instanceId: inst.id), !key.isEmpty else { return nil }
-        return key
-    }
-
-    /// 先安装账户资料，再提交本机密钥与缓存，模型刷新在事务提交后进行。
-    private static func adopt(_ reply: [String: Any]) async throws -> Account {
-        await NivoPersonalBackupAccess.beginAccountChange()
-        defer { NivoPersonalBackupAccess.endAccountChange() }
-        guard let apiKey = reply["api_key"] as? String, !apiKey.isEmpty else {
-            throw CloudError(code: "bad_reply", message: "The relay sent no key", status: 0)
-        }
-        let store = ProviderConfigStore.shared
-        var candidate = instance ?? ProviderInstance(label: label, providerType: .openAI,
-            credentialType: .apiKey, customBaseURL: baseURL, appendV1Suffix: true)
-        candidate.customBaseURL = baseURL
-        let parsed = parseAccount(reply)
-        let target = NanoMuseSync.accountKey(id: parsed.id, hint: parsed.hint, apiKey: apiKey)
-        let identity = try NivoAccountSwitchIdentity.signingIn(provider: candidate, account: parsed, key: apiKey)
-        try await NanoMuseAccountData.shared.switchAccount(to: target, keepSource: true, identity: identity) {
-            try NanoMuseAccountData.saveRelayKeyChecked(apiKey, instanceId: candidate.id)
-            try restoreTransitionIdentity(identity)
-        }
-        UserDefaults.standard.removeObject(forKey: Keys.ended)
-        if (reply["created"] as? Bool) == true { UserDefaults.standard.set(true, forKey: Keys.fresh) }
-        if let region = reply["region"] as? String, !region.isEmpty {
-            UserDefaults.standard.set(region, forKey: "nanomuse.relay.region")
-        }
-        await store.refreshModels(for: candidate)
-        let menu = reply["models"] as? [[String: Any]] ?? []
-        NanoMuseRelayMenu.store(menu)
-        provisionDefaults(store: store, instance: candidate, models: menu)
-        NanoMuseNudges.shared.absorb(me: reply)
-        NanoMuseHub.shared.restart()
-        NanoMuseSync.shared.accountChanged()
-        NanoMuseProfileSync.shared.pull()
-        return parsed
-    }
+    /// 内置账号的凭证不再提供给网络层，旧密钥只由本地迁移器处理。
+    static var apiKey: String? { nil }
 
     /// 事务恢复按保存的提供商ID校验密钥，不能依赖可能还没更新的缓存账号。
     static var transitionInstanceID: String? { UserDefaults.standard.string(forKey: Keys.instance) }
@@ -392,64 +232,8 @@ enum NanoMuseCloud {
         guard UserDefaults.standard.synchronize() else { throw CocoaError(.fileWriteUnknown) }
     }
 
-    /// Re-read the balance. Returns nil (and forgets the account) when the key is gone.
-    static func refresh() async throws -> Account? {
-        guard let inst = instance, let key = ProviderKeychainHelper.loadAPIKey(instanceId: inst.id), !key.isEmpty else {
-            return nil
-        }
-        let generation = NanoMuseAccountData.shared.generation
-        do {
-            let me = try await call("GET", "/v1/me", body: nil, token: key)
-            guard !NanoMuseAccountData.shared.isChangingAccount,
-                  NanoMuseAccountData.shared.generation == generation, apiKey == key else {
-                throw NivoLifeError.accountChanged
-            }
-            let parsed = parseAccount(me)
-            account = parsed
-            NanoMuseNudges.shared.absorb(me: me) // nanoMuse: contract C1
-            NanoMuseAllowance.shared.absorb(me: me) // the 80 % heads-up, the region's guidance (contract C11)
-            return parsed
-        } catch let error as CloudError where error.status == 401 {
-            // Revoked elsewhere, or the relay was reset: the provider cannot answer any more.
-            // Nobody on this phone asked, so the account's data is put aside as *Keep* would
-            // and comes back with the next sign-in as the same account (C12). Only
-            // `account_deleted` — the account itself is gone at the relay — leaves nothing to
-            // come back to, and the data goes.
-            let keep = NanoMuseAccountData.keepOnRefusedKey(code: error.code)
-            try await forgetLocally(keep: keep, expectedKey: key)
-            if keep { UserDefaults.standard.set(true, forKey: Keys.ended) }
-            return nil
-        }
-    }
-
-    /// 退出请求和本地切换共用独占边界，失败向页面传播，不显示虚假的已退出状态。
-    static func signOut(keep: Bool = false) async throws {
-        await NivoPersonalBackupAccess.beginAccountChange()
-        defer { NivoPersonalBackupAccess.endAccountChange() }
-        try NanoMuseAccountData.shared.requireSwitchAccess()
-        NanoMuseHub.shared.stop()
-        if let key = apiKey {
-            _ = try? await call("POST", "/v1/auth/sign-out", body: nil, token: key)
-        }
-        try await forgetLocallyLocked(keep: keep)
-    }
-
-    /// 401只可清理发出该请求的身份，旧网络响应不能退出后来登录的新账号。
-    static func forgetLocally(keep: Bool, expectedKey: String? = nil) async throws {
-        await NivoPersonalBackupAccess.beginAccountChange()
-        defer { NivoPersonalBackupAccess.endAccountChange() }
-        if let expectedKey, apiKey != expectedKey { throw NivoLifeError.accountChanged }
-        try await forgetLocallyLocked(keep: keep)
-    }
-
-    /// 调用方必须持有账户锁，禁止嵌套请求同一锁。
-    static func forgetLocallyLocked(keep: Bool) async throws {
-        let identity = NivoAccountSwitchIdentity.signingOut()
-        try await NanoMuseAccountData.shared.switchAccount(to: NanoMuseAccountData.local,
-            keepSource: keep, identity: identity) {
-            try restoreTransitionIdentity(identity)
-        }
-    }
+    /// 兼容旧错误回调，不发出账号检查请求，也不移动或删除学习记录。
+    static func refresh() async throws -> Account? { nil }
 
     /// A sentence for the person, from the relay's stable error codes.
     nonisolated static func describe(_ error: Error) -> String {
@@ -562,41 +346,6 @@ enum NanoMuseCloud {
     /// After the key: a default group if the user has none. Nothing of the user's own is
     /// replaced — someone who already has a key and a group keeps them and gets the relay as
     /// one more provider.
-    private static func provisionDefaults(store: ProviderConfigStore, instance: ProviderInstance, models: [[String: Any]]) {
-        // Contract C4: the chat opens on the model the relay recommends *for chat*
-        // (`recommended_for: ["chat"]`), never on a hands-only one.
-        let recommendedChat = NanoMuseModelMenu.recommendedChat(models)?["id"] as? String
-        let pictureIds = Set(models.filter { drawsOnly($0) }.compactMap { $0["id"] as? String })
-
-        let entries = store.entries(for: instance.id).filter { !$0.isHidden }
-        let chatEntry = entries.first(where: { $0.model.id == recommendedChat })
-            ?? entries.first(where: { !pictureIds.contains($0.model.id) })
-        guard let chatEntry else { return }
-        // Ours already, with the recommended model or with the person's own choice (a member
-        // who swapped the recommended model for another must not get a second group with the
-        // old one back on signing in again).
-        let already = store.modelGroups.contains { $0.memberEntryIds.contains(chatEntry.id) || ($0.name == label && !$0.memberEntryIds.isEmpty) }
-        if !already {
-            let group = ModelGroup(name: label, memberEntryIds: [chatEntry.id])
-            store.addGroup(group)
-            if store.defaultPrimaryGroupId == nil {
-                store.defaultPrimaryGroupId = group.id
-            }
-        }
-        // The default group must be one that can answer.
-        let def = store.modelGroups.first { $0.id == store.defaultPrimaryGroupId }
-        if def == nil || def?.memberEntryIds.isEmpty == true {
-            store.defaultPrimaryGroupId = (store.modelGroups.first { $0.memberEntryIds.contains(chatEntry.id) }
-                ?? store.modelGroups.first { $0.name == label && !$0.memberEntryIds.isEmpty })?.id
-        }
-    }
-
-    private static func drawsOnly(_ model: [String: Any]) -> Bool {
-        let arch = model["architecture"] as? [String: Any]
-        let outputs = arch?["output_modalities"] as? [String] ?? []
-        return outputs.contains("image") && !outputs.contains("text")
-    }
-
     static func parseAccount(_ reply: [String: Any]) -> Account {
         let account = reply["account"] as? [String: Any] ?? [:]
         let tokens = reply["tokens"] as? [String: Any] ?? [:]
@@ -637,60 +386,8 @@ enum NanoMuseCloud {
         NanoMuseSync.shared.accountChanged() // C10: signed out — the presence of the account that left goes too
     }
 
-    private static func trimmed(_ s: String) -> String {
-        s.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func trimSlash(_ s: String) -> String {
-        var out = s
-        while out.hasSuffix("/") { out.removeLast() }
-        return out
-    }
-
-    private static var userAgent: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-        return "nanoMuse-iOS/\(version)"
-    }
-
-    private static let session: URLSession = {
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        return URLSession(configuration: config)
-    }()
-
+    /// 旧同步模块的兼容调用明确拒绝，应用内不再保留账号HTTP传输实现。
     static func call(_ method: String, _ path: String, body: [String: Any]?, token: String?) async throws -> [String: Any] {
-        guard let url = URL(string: baseURL + path) else {
-            throw CloudError(code: "bad_base", message: "Bad relay address", status: 0)
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        if method != "GET" && method != "DELETE" {
-            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body ?? [:])
-        }
-        let result: (Data, URLResponse)
-        do {
-            result = try await session.data(for: request)
-        } catch {
-            throw CloudError(code: "unreachable", message: error.localizedDescription, status: 0)
-        }
-        let (data, response) = result
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        if (200..<300).contains(status) {
-            return object ?? [:]
-        }
-        let err = object?["error"] as? [String: Any]
-        let code = (err?["code"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "http_\(status)"
-        let message = (err?["message"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "HTTP \(status)"
-        let retry = (err?["retry_after"] as? NSNumber).map { $0.doubleValue }.flatMap { $0 > 0 ? Int(ceil($0)) : nil }
-        let paused = (err?["paused"] as? Bool) ?? ((err?["paused"] as? NSNumber)?.boolValue ?? false)
-        throw CloudError(code: code, message: message, status: status, retryAfterS: retry, paused: paused)
+        throw NivoLocalModeError.cloudRemoved
     }
 }

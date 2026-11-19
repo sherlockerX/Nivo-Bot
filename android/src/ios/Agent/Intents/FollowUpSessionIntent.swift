@@ -29,6 +29,8 @@ struct FollowUpSessionIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<SendPromptResult> & ProvidesDialog {
+        // nanoMuse: 侧载无共享权限时拒绝跨进程动作，先于读库、创建会话和启动后台任务。
+        try NivoStoragePaths.requireSharedContainer()
         BackgroundKeepAliveManager.shared.setup()
 
         // [T-shortcuts-eager-keepalive] AppIntent-woken processes get very

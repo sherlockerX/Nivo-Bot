@@ -88,8 +88,6 @@ enum NanoMuseTab: String, CaseIterable, Identifiable {
 /// not around to do it.
 struct NanoMuseRoot: View {
     @AppStorage("nanomuse.shell.enabled") private var shellEnabled = true
-    @ObservedObject private var store = ProviderConfigStore.shared
-    @Environment(\.scenePhase) private var scenePhase
     @State private var hasSessions: Bool?
     @State private var setupDone = NanoMuseFirstRun.isDone
     @State private var showSetupSettings = false
@@ -100,22 +98,11 @@ struct NanoMuseRoot: View {
     /// The Muse shell on iPhone and iPad alike; off → the upstream layout.
     private var usesShell: Bool { shellEnabled }
 
-    /// The setup in front of everything until the account or a model of one's own is in (see NanoMuseFirstRun.needed).
-    /// `nil` while the answer still hangs on the session list, so a fresh install never shows the
-    /// shell for a frame before the welcome page.
+    /// 欢迎页只对新安装显示；跳过或已有对话后，本地功能无需模型即可打开。
     private var needsSetup: Bool? {
-        // As in the Android build: once Start or Skip for now was tapped, the setup stays away,
-        // with or without a provider; adding one waits under Settings.
         if setupDone { return false }
-        let cloudId = NanoMuseCloud.instance?.id
-        let providers = store.instances.contains { $0.isEnabled && $0.hasAnyCredential && $0.id != cloudId }
-        if let hasSessions {
-            return NanoMuseFirstRun.needed(signedIn: NanoMuseCloud.isSignedIn, hasProviders: providers, hasSessions: hasSessions, done: setupDone)
-        }
-        // Without the sessions: an app with neither a sign-in nor a key of its own needs the setup
-        // whatever the list says; a finished setup never does; the one case between waits.
-        if !NanoMuseCloud.isSignedIn && !providers { return true }
-        return setupDone ? false : nil
+        guard let hasSessions else { return nil }
+        return NanoMuseFirstRun.needed(hasSessions: hasSessions, done: setupDone)
     }
 
     var body: some View {
@@ -151,18 +138,10 @@ struct NanoMuseRoot: View {
                     }, onOpenRoutines: nil)
             }
         }
-        // The card for a step another device's Muse asks about, over the shell and the upstream layout alike.
-        .nanoMuseRemoteApprovalPresenter()
         .modifier(NivoLifeClassicPresenter(enabled: !usesShell))
         .disabled(accountData.isChangingAccount)
         .overlay {
             if accountData.isChangingAccount { NivoAccountRecoveryOverlay() }
-        }
-        .nmOnChange(of: scenePhase) { phase in
-            // C1: one more day with the app, counted when it comes to the front. The personal
-            // build has no release check, as on Android.
-            guard phase == .active else { return }
-            NanoMuseStar.shared.dayOpened()
         }
         .task {
             await accountData.start()
@@ -184,10 +163,7 @@ struct NanoMuseRoot: View {
     /// 文件恢复成功后才开放同步和生活资料，重试恢复也走同一个启动顺序。
     @MainActor private func startAccountServices() async {
         guard accountData.isReady, !accountData.isChangingAccount else { return }
-        NanoMuseProfileSync.shared.start()
-        NanoMuseSync.shared.start()
-        NanoMuseStarWatch.shared.start()
-        NanoMuseStar.shared.dayOpened()
+        // 本地档案就绪后只启动本机功能，不注册旧云同步任务。
         await life.activate()
         hasSessions = !NanoMuseSync.shared.visible(await ChatStore.shared.listSessions()).isEmpty
         // 旧训练已转为回顾页，启动时不再自动创建旧版出题任务。
@@ -393,8 +369,6 @@ final class NanoMuseKeyboardWatcher: ObservableObject {
 struct NanoMuseHomeView: View {
     @StateObject private var main = NanoMuseMainChat()
     @StateObject private var keyboard = NanoMuseKeyboardWatcher()
-    @ObservedObject private var star = NanoMuseStar.shared
-    @ObservedObject private var allowance = NanoMuseAllowance.shared
     @ObservedObject private var life = NivoLifeModel.shared
     @ObservedObject private var lifeNavigation = NivoLifeNavigation.shared
     /// The composer's voice panel stands in for the keyboard: the bottom bar leaves the same way.
@@ -413,14 +387,12 @@ struct NanoMuseHomeView: View {
     @State private var showClassic = false
     @State private var classicWantsSettings = false
     @State private var showNanoMuseSettings = false
-    @State private var showCoding = false
     @State private var showRoutines = false
     /// The routine an idea just became, while its editor is up (the Ideas room has no sheet of its own).
     @State private var editingRoutine: NanoMuseRoutine?
     @State private var showSystemFiles = false
     @State private var showSharedFolders = false
     @State private var showChatFiles = false
-    @State private var showDevices = false
     @State private var showLegacyCoach = false
     @State private var didCheckFocusRestoration = false
     @State private var agentName = NanoMuseHomeView.currentAgentName()
@@ -525,9 +497,6 @@ struct NanoMuseHomeView: View {
             NanoMuseClassicCover(wantsSettings: classicWantsSettings)
                 .onDisappear { classicWantsSettings = false }
         }
-        .sheet(isPresented: $showCoding) {
-            NanoMusePageSheet(title: AppLocalized("Coding agents")) { NanoMuseCodingView() }
-        }
         .sheet(isPresented: $showRoutines) {
             NanoMusePageSheet(title: AppLocalized("All routines")) { NanoMuseRoutinesView() }
         }
@@ -550,9 +519,6 @@ struct NanoMuseHomeView: View {
             NanoMusePageSheet(title: AppLocalized("Legacy training")) {
                 NivoCoachLegacyArchive()
             }
-        }
-        .sheet(isPresented: $showDevices) {
-            NanoMusePageSheet(title: AppLocalized("Computers")) { NanoMuseComputersView() }
         }
         .sheet(isPresented: $showNanoMuseSettings) {
             NavigationStack {
@@ -583,17 +549,10 @@ struct NanoMuseHomeView: View {
             // The Muse header's ••• menu on the rooms, and the rooms' own shortcuts.
             switch note.object as? String {
             case "settings": showNanoMuseSettings = true
-            case "coding": showCoding = true
             case "routines": showRoutines = true
             case "systemFiles": showSystemFiles = true
             case "sharedFolders": showSharedFolders = true
             case "chatFiles": showChatFiles = true
-            case "askDevice":
-                // C7: "Ask this device" in the Devices list — the main chat with "@<name> " in the composer.
-                guard let text = note.userInfo?["text"] as? String else { return }
-                showDevices = false
-                showNanoMuseSettings = false
-                prefillMainChat(text)
             default: break
             }
         }
@@ -711,35 +670,6 @@ struct NanoMuseHomeView: View {
                         leading: { drawerDisc },
                         trailing: { chatMenu }
                     )
-                    // C1: the ask for a star, when NanoMuseStar's gate raises one; under the header, over the chat.
-                    if let ask = star.pending {
-                        NanoMuseStarCard(text: ask.text) {
-                            star.dismiss()
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(NanoMuseTones.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 6)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                    // C11 / parity #33: a turn refused for the free allowance — the ways on, pinned like the star card.
-                    if let refused = allowance.pending {
-                        ScrollView(showsIndicators: false) {
-                            NanoMuseAllowanceCard(
-                                refused: refused,
-                                onTryAgain: { allowance.retry(session: main.liveId ?? main.chatId) },
-                                onDismiss: { allowance.dismiss() }
-                            )
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                        }
-                        .frame(maxHeight: 360)
-                        .background(NanoMuseTones.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 6)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
                     // Android: the daily ideas strip lives below the main chat header. It only
                     // prefills the composer; the user still decides whether to send it.
                     if chatPath.isEmpty && !keyboard.visible && !voiceMode.isVoiceActive {
@@ -766,8 +696,6 @@ struct NanoMuseHomeView: View {
             .nmRenameAlert(rename)
             // The system bar stays out of the main chat; side chats pushed from here keep theirs.
             .toolbar(.hidden, for: .navigationBar)
-            .animation(.easeInOut(duration: 0.25), value: star.pending)
-            .animation(.easeInOut(duration: 0.25), value: allowance.pending)
             .navigationDestination(for: String.self) { id in
                 let draft = id.hasPrefix(NanoMuseMainChat.draftPrefix)
                 AIChatView(sessionId: draft ? nil : id, draftId: draft ? id : nil)
@@ -1141,8 +1069,8 @@ private struct NanoMuseCategoryShape: Shape {
 // MARK: - Room header
 
 extension Notification.Name {
-    /// `object` is one of "settings", "coding", "routines", "systemFiles", "sharedFolders",
-    /// "chatFiles": the home opens that page over the current tab.
+    /// 本地页面操作包括"settings"、"routines"、"systemFiles"、"sharedFolders"和"chatFiles"。
+    /// 主界面在当前标签上打开对应页面。
     static let nanoMuseHomeAction = Notification.Name("nanoMuse.homeAction")
 }
 
@@ -1516,54 +1444,5 @@ struct NanoMuseDrawer: View {
 
     static func when(_ date: Date) -> String {
         relative.localizedString(for: date, relativeTo: Date())
-    }
-}
-
-// MARK: - Star moments
-
-/// Watches the activity tracker for turns that ran to their end and reports
-/// each one that counts as a task (C1) to `NanoMuseStar`, whose gate decides
-/// whether to ask for a star; the shell shows `NanoMuseStar.shared.pending`.
-@MainActor
-final class NanoMuseStarWatch {
-    static let shared = NanoMuseStarWatch()
-
-    private var active: Set<String> = []
-    private var cancellable: AnyCancellable?
-
-    private init() {}
-
-    func start() {
-        guard cancellable == nil else { return }
-        active = SessionActivityTracker.shared.activeSessions
-        cancellable = SessionActivityTracker.shared.$activeSessions
-            .receive(on: RunLoop.main)
-            .sink { [weak self] now in self?.activeChanged(now) }
-    }
-
-    private func activeChanged(_ now: Set<String>) {
-        let ended = active.subtracting(now)
-        active = now
-        guard !ended.isEmpty else { return }
-        for sid in ended where Self.countsAsTask(sid) {
-            NanoMuseStar.shared.taskFinished()
-        }
-    }
-
-    /// C1: a task is a turn the person started that ran to its end — not the
-    /// first conversation while it is still going, not the feed's writing,
-    /// not a routine's run, not a turn that failed.
-    static func countsAsTask(_ sid: String) -> Bool {
-        if NanoMuseFeedFlow.isFeedSession(sid) { return false }
-        if NanoMuseScheduler.shared.routines.contains(where: { $0.sessionId == sid }) { return false }
-        switch NanoMuseFirstConversation.shared.phase {
-        case .askUserName, .askAgentName, .named: return false
-        default: break
-        }
-        if let vm = ViewModelCache.shared.get(for: sid) {
-            if vm.errorMessage != nil || vm.messages.last?.error != nil { return false }
-            guard vm.messages.contains(where: { $0.role == .user }) else { return false }
-        }
-        return true
     }
 }

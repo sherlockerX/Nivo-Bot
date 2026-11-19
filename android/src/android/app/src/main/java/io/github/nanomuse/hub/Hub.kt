@@ -34,7 +34,7 @@ object Hub {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** Whether this phone joins the hub at all (default on once signed in). */
-    fun enabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ENABLED, true)
+    fun enabled(context: Context): Boolean = false
     fun setEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(KEY_ENABLED, on).apply()
         if (on) autoStart(context) else stop(context)
@@ -81,37 +81,11 @@ object Hub {
     @Volatile private var client: HubClient? = null
     @Volatile private var appContext: Context? = null
 
-    /** Joins the hub when the account is signed in and the switch is on; a no-op otherwise. */
-    @Synchronized
-    fun autoStart(context: Context) {
-        if (!enabled(context) || !NanoMuseCloud.isSignedIn(context)) return
-        start(context)
-    }
+    /** 本地版不会加入内置设备中继。 */
+    fun autoStart(context: Context) = Unit
 
-    @Synchronized
-    fun start(context: Context) {
-        if (client != null) return
-        val app = context.applicationContext
-        val key = NanoMuseCloud.apiKey(app) ?: return
-        val base = NanoMuseCloud.baseUrl(app).trimEnd('/')
-        val url = base.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") + "/v1/hub"
-        appContext = app
-        val c = HubClient(
-            url = url,
-            key = key,
-            hello = { hello(app) },
-            onCall = { call -> HubActions.handle(app, call) },
-            onDevices = { list -> _devices.value = list },
-            onState = { on, detail -> _connected.value = on; _detail.value = detail },
-            onProfile = { frame -> io.github.nanomuse.cloud.ProfileSync.onFrame(app, frame) },
-            onSync = { frame -> io.github.nanomuse.sync.ConversationSync.onFrame(app, frame) },
-            onWorking = { frame -> io.github.nanomuse.sync.ConversationSync.onWorkingFrame(app, frame) },
-        )
-        client = c
-        c.start()
-        HubService.start(app)
-        AppLogger.info(TAG, "joining the hub at $url as ${deviceId(app)}")
-    }
+    /** 保留旧调用接口，但不创建网络客户端或前台服务。 */
+    fun start(context: Context) = Unit
 
     @Synchronized
     fun stop(context: Context) {

@@ -394,7 +394,6 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
             // nanoMuse: the clips, in the background, once the poses are in (contract C3)
             NanoMuseAvatarMotion.shared.animateIfEnabled()
             // nanoMuse: the star ask goes through the policy's gate (contract C1)
-            NanoMuseStar.shared.newLook()
         }
     }
 }

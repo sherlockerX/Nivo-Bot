@@ -201,6 +201,8 @@ struct AudioTogglePill: View {
                 glyph
             }
             .buttonStyle(.plain)
+            // nanoMuse: 缺少共享权限时保留状态显示，关闭无法执行的跨进程控制。
+            .disabled(!NivoStoragePaths.hasSharedContainer)
         } else {
             glyph
         }

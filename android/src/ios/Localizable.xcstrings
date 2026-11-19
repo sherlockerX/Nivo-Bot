@@ -1,6 +1,242 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich kann dir bei Dateien, Aufgaben, Fokus und Lernen helfen. Deine Chats und Aufzeichnungen werden auf diesem Gerät gespeichert. Modell- und Konnektoranfragen senden die nötigen Daten an die von dir gewählten Dienste."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puedo ayudarte con archivos, tareas, concentración y aprendizaje. Tus chats y registros se guardan en este dispositivo. Las solicitudes a modelos y conectores envían los datos necesarios a los servicios que elijas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je peux vous aider avec vos fichiers, tâches, séances de concentration et apprentissages. Vos conversations et notes sont stockées sur cet appareil. Les requêtes aux modèles et connecteurs transmettent les données nécessaires aux services que vous choisissez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル、タスク、集中、学習をお手伝いできます。チャットと記録はこの端末に保存されます。モデルやコネクターへのリクエストでは、選択したサービスに必要なデータを送信します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일, 할 일, 집중과 학습을 도울 수 있습니다. 대화와 기록은 이 기기에 저장됩니다. 모델 및 커넥터 요청은 선택한 서비스에 필요한 데이터를 전송합니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Я могу помогать с файлами, задачами, концентрацией и обучением. Чаты и записи хранятся на этом устройстве. Запросы к моделям и коннекторам передают необходимые данные выбранным вами сервисам."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我可以帮你处理文件、待办、专注和学习。你的对话与记录保存在本机。模型和连接器请求会将必要的数据发送给你选择的服务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我可以幫你處理檔案、待辦、專注和學習。你的對話與紀錄儲存在本機。模型和連接器請求會將必要的資料傳送給你選擇的服務。"
+          }
+        }
+      }
+    },
+    "Connected services receive only the data needed for the features you enable." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbundene Dienste erhalten nur die Daten, die für deine aktivierten Funktionen erforderlich sind."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected services receive only the data needed for the features you enable."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los servicios conectados solo reciben los datos necesarios para las funciones que actives."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les services connectés ne reçoivent que les données nécessaires aux fonctions que vous activez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続したサービスには、有効にした機能に必要なデータのみが送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결된 서비스에는 활성화한 기능에 필요한 데이터만 전송됩니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключённые сервисы получают только данные, необходимые для включённых вами функций."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已连接的服务只会接收你启用的功能所需的数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已連接的服務只會接收你啟用的功能所需的資料。"
+          }
+        }
+      }
+    },
+    "Nivo Bot stores your chats and settings on this device. Model requests go directly to the provider you configure." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot speichert Chats und Einstellungen auf diesem Gerät. Modellanfragen gehen direkt an den von dir eingerichteten Anbieter."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot stores your chats and settings on this device. Model requests go directly to the provider you configure."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot guarda tus chats y ajustes en este dispositivo. Las solicitudes al modelo se envían directamente al proveedor que configures."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot conserve vos conversations et réglages sur cet appareil. Les requêtes au modèle vont directement au fournisseur que vous configurez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Botはチャットと設定をこの端末に保存します。モデルへのリクエストは、設定したプロバイダーに直接送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot은 대화와 설정을 이 기기에 저장합니다. 모델 요청은 설정한 제공업체에 직접 전송됩니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot хранит чаты и настройки на этом устройстве. Запросы к модели отправляются напрямую настроенному вами провайдеру."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot将对话和设置保存在本机。模型请求直接发送给你配置的服务商。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot將對話和設定儲存在本機。模型請求直接傳送給你設定的服務商。"
+          }
+        }
+      }
+    },
+    "nivo.local.cloud_removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built-in cloud accounts and sync have been removed. Your records stay on this device. Add your own model provider in Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内置云账号和同步功能已移除。记录保存在本机，请在设置中添加自己的模型提供商。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "內建雲端帳號和同步功能已移除。記錄儲存在本機，請在設定中加入自己的模型供應商。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Integrierte Cloud-Konten und die Synchronisierung wurden entfernt. Ihre Daten bleiben auf diesem Gerät. Fügen Sie in den Einstellungen Ihren eigenen Modellanbieter hinzu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se han eliminado las cuentas en la nube y la sincronización integradas. Tus registros permanecen en este dispositivo. Añade tu proveedor de modelos en Ajustes."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les comptes cloud et la synchronisation intégrés ont été supprimés. Vos données restent sur cet appareil. Ajoutez votre fournisseur de modèles dans les réglages."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内蔵のクラウドアカウントと同期機能は削除されました。記録はこのデバイスに保存されます。設定でモデルプロバイダーを追加してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내장 클라우드 계정과 동기화 기능이 제거되었습니다. 기록은 이 기기에 보관됩니다. 설정에서 사용할 모델 제공업체를 추가하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Встроенные облачные аккаунты и синхронизация удалены. Записи остаются на этом устройстве. Добавьте своего поставщика моделей в настройках."
+          }
+        }
+      }
+    },
     "Recent focus records": {
       "extractionState": "manual",
       "localizations": {

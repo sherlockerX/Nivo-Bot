@@ -106,13 +106,13 @@ class GuidanceTest {
         val cn = Ways.resolve(null, shipped, mainland = true)
         assertFalse(cn.fromRelay)
         assertEquals(ProviderCatalogue.ordered(shipped, mainland = true).map { it.id }, cn.vendors.map { it.id })
-        assertEquals(setOf("ChatGPT", "Claude", "Kimi", "OpenRouter"), cn.signIns.map { it.name }.toSet())
+        assertEquals(setOf("ChatGPT", "Claude", "Kimi"), cn.signIns.map { it.name }.toSet())
         assertEquals(ProviderCatalogue.AUTH_CHATGPT, cn.signIns.first { it.name == "ChatGPT" }.auth)
         assertEquals(setOf("chat", "vision"), cn.signIns.first { it.name == "ChatGPT" }.covers)
         assertTrue(cn.locals.all { it.local })
         assertEquals("", cn.docs)
         assertEquals("", cn.chatgptCaveat) // the app's own line is used
         val global = Ways.resolve(null, shipped, mainland = false)
-        assertEquals(listOf("openrouter", "openai"), global.vendors.take(2).map { it.id })
+        assertEquals("openai", global.vendors.first().id)
     }
 }

@@ -29,6 +29,8 @@ struct SessionEntity: AppEntity {
 
 struct SessionEntityQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [SessionEntity] {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         var results: [SessionEntity] = []
         for id in identifiers {
             if let session = await ChatStore.shared.getSession(id) {
@@ -39,6 +41,8 @@ struct SessionEntityQuery: EntityQuery {
     }
 
     func suggestedEntities() async throws -> [SessionEntity] {
+        // nanoMuse: 无共享权限时不从快捷指令查询模型或历史记录。
+        try NivoStoragePaths.requireSharedContainer()
         let sessions = await NanoMuseSync.shared.visible(await ChatStore.shared.listSessions()) // nanoMuse: C12 — another account's chats stay hidden
         return sessions.prefix(100).map { SessionEntity(from: $0) }
     }

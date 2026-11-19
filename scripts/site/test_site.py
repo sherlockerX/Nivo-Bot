@@ -41,14 +41,40 @@ class ProductSiteTests(unittest.TestCase):
         """所有公开页面、资源和片段均应能在白名单内解析。"""
         report = check(ROOT)
         self.assertTrue(report["passed"], report["errors"])
-        self.assertGreaterEqual(report["pages"], 35)
+        self.assertEqual(
+            report["pages"], 9 + len(FEATURES) + len(PROVIDERS) + len(self.catalogue["releases"])
+        )
 
     def test_all_app_catalogue_entries_have_dedicated_guides(self) -> None:
         """厂商目录覆盖实际App目录，而不是遗漏少数不熟悉的服务。"""
         catalogue = json.loads(
             (ROOT.parent / "nanomuse/llm/providers.json").read_text(encoding="utf-8")
         )
-        self.assertEqual({p["id"] for p in PROVIDERS}, {p["id"] for p in catalogue["providers"]})
+        self.assertEqual(
+            {p["id"] for p in PROVIDERS},
+            {p["id"] for p in catalogue["providers"] if not p.get("is_relay", False)},
+        )
+
+    def test_model_guides_keep_custom_endpoints_without_relay_recommendations(self) -> None:
+        """移除预设中转商推荐，仍说明用户自己的兼容服务如何接入。"""
+        catalogue = json.loads(
+            (ROOT.parent / "nanomuse/llm/providers.json").read_text(encoding="utf-8")
+        )
+        relay_ids = {
+            "siliconflow",
+            "openrouter",
+            "opencode-zen",
+            "opencode-go",
+            "standardcompute",
+            "cheaperinference",
+        }
+        self.assertEqual({p["id"] for p in catalogue["providers"] if p.get("is_relay")}, relay_ids)
+        pages = generated(ROOT)
+        self.assertIn("models/custom.html", pages)
+        self.assertIn("暂时跳过", pages["getting-started.html"])
+        self.assertIn("本机", pages["privacy.html"])
+        for identifier in relay_ids:
+            self.assertNotIn("models/" + identifier + ".html", pages)
 
     def test_generated_pages_do_not_drift_from_content(self) -> None:
         """内容源重建的结果应与公开页面逐字节一致。"""

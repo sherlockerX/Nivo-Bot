@@ -6,7 +6,7 @@
 |---|---|
 |`index.html`|解释产品、使用流程和下一步|
 |`features.html`、`features/*.html`|六张原创功能图轮播与独立详页|
-|`models.html`、`models/*.html`|服务商筛选、22种接入教程|
+|`models.html`、`models/*.html`|官方服务、自建模型和自定义接口的16种接入教程|
 |`downloads.html`|平台、渠道和版本选择、历史记录与文件校验|
 |`getting-started.html`|接入基础概念和常见问题|
 |`versions.html`、`install.html`|独立版本历史与安装升级说明|
@@ -25,6 +25,8 @@ python -m http.server 8783 --bind 127.0.0.1 --directory site
 ```
 
 教程首先对照Android的`OwnKeyPresets.kt`、服务商配置页和模型槽位，再引用各厂商官方文档。每篇保留核对日期和官方入口；账户限制、价格和模型可用性仍以对应平台为准。网站不收集API Key，不代访客调用模型验证。
+
+本地模式维护取消原项目账号验证、设备中继与自动跨设备同步，首次启动允许暂时跳过模型配置。入门与隐私页面区分当前维护行为和历史安装包；尚未发布的修复不会改写2.0.5的发行记录。官方服务之外的接口使用自定义教程，不展示中转商推荐。目录依据`providers.json`中的`is_relay`字段筛选，发布白名单不再包含原中转商教程。
 
 ## 加入后续版本
 

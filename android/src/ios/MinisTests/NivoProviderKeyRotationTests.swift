@@ -3,6 +3,32 @@ import XCTest
 
 /// 轮换失败只恢复本次仍拥有的写入，后续编辑、删除及同值新版本必须保留。
 final class NivoProviderKeyRotationTests: XCTestCase {
+    func testLocalStageCapturePrefersLocalValueAndVersion() throws {
+        var stage = try fixture()
+        stage.targetIsLocal = true
+        stage.previousLocal = secret("fixture-local")
+        stage.previousLocal?.version = try JSONEncoder().encode(NivoProviderKeyRotation.Version(schema: 1, seconds: 300))
+        stage.previousSync?.version = try JSONEncoder().encode(NivoProviderKeyRotation.Version(schema: 1, seconds: 400))
+        XCTAssertTrue(try stage.matchesPrevious(value: stage.previousLocal?.value,
+            version: Date(timeIntervalSince1970: 300), fallbackVersion: .distantPast))
+        XCTAssertFalse(try stage.matchesPrevious(value: stage.previousSync?.value,
+            version: Date(timeIntervalSince1970: 400), fallbackVersion: .distantPast))
+    }
+
+    func testLocalStageRestoresLocalSnapshotAndKeepsLegacyStageCompatible() throws {
+        var oldStage = try fixture()
+        oldStage.previousLocal = secret("fixture-local-priority")
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(oldStage)) as? [String: Any])
+        object["targetIsLocal"] = true
+        let localStage = try JSONDecoder().decode(NivoProviderKeyRotation.Stage.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertEqual(try localStage.rollback(current: localStage.replacement), .restore(oldStage.previousLocal!))
+        object.removeValue(forKey: "targetIsLocal")
+        let legacyStage = try JSONDecoder().decode(NivoProviderKeyRotation.Stage.self,
+            from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertEqual(try legacyStage.rollback(current: legacyStage.replacement), .restore(oldStage.previousSync!))
+    }
+
     func testOwnedReplacementRestoresPreviousSecretAndVersion() throws {
         let stage = try fixture()
         XCTAssertEqual(try stage.rollback(current: stage.replacement), .restore(stage.previousSync!))

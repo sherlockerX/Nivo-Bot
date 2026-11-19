@@ -294,9 +294,10 @@ fun NanoMuseHome(
     val hasGroups = providerConfig.modelGroups.isNotEmpty()
     // The flow flips when the sign-in lands (or the key is revoked); signed out with a key of
     // one's own the chat stays, the sign-in is an invitation under Settings.
-    val signedIn by io.github.nanomuse.cloud.NanoMuseCloud.signedIn(context).collectAsState()
+    // 本地版进入应用不等待或验证原云账号。
+    val signedIn = false
     val phase = when {
-        !configLoaded || sessions == null || signedIn == null -> HomePhase.LOADING
+        !configLoaded || sessions == null -> HomePhase.LOADING
         FirstRunSetup.needed(signedIn == true, hasProviders, sessions!!.isNotEmpty(), setupDone) && !setupSkipped -> HomePhase.SETUP
         else -> HomePhase.HOME
     }
@@ -726,14 +727,11 @@ fun NanoMuseHome(
                 onSelectModels = { navController.safeNavigate(Routes.ONBOARDING_MODELS) },
                 onStart = { FirstRunSetup.markDone(context); setupDone = true },
                 onSettings = { navController.safeNavigate(Routes.SETTINGS) },
-                // Lands on the chat like the end of the setup does: the empty main chat focuses
-                // its composer, and on any other tab that focus would raise the keyboard over it.
-                onDebugSkip = if (com.openminis.app.BuildConfig.DEBUG) {
-                    {
-                        io.github.nanomuse.ui.mosaic.MosaicDebug.skipSetup(context)
-                        setupSkipped = true
-                    }
-                } else null,
+                // 首次引导在所有构建中均可跳过，持久保存完成状态，重启后直接进入本地首页。
+                onSkipSetup = {
+                    FirstRunSetup.markDone(context)
+                    setupDone = true
+                },
             )
             HomePhase.HOME -> homeShell()
         }

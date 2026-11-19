@@ -4,6 +4,15 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Resumed iOS OAuth draft cleanup and provider/model initialization after a successful startup-recovery retry, waited for the recovery lock to release, and prevented duplicate initialization within one app run.
+- Migrated legacy iOS files before installing default identity, memory and skills, preserved conflicting originals, and kept failed migrations retryable. Preserved existing bundled skill files and unreadable preset memory.
+- Made iOS model setup permanently skippable, kept local features available without a model, and added in-chat setup actions that retain unsent drafts. Removed legacy account, star, allowance, feedback and update controls while keeping provider OAuth, custom endpoints, MCP and license attribution.
+- Removed relay-provider recommendations from the mobile catalogue and product guides while preserving existing custom endpoints. Updated the website's onboarding and privacy guidance for local records, optional model setup, and user-selected APIs.
+
+- Moved iOS provider credentials and environment variables to device-only Keychain storage with verified, retryable migration of older synchronized items, preserved local-value priority and interrupted key-rotation recovery, and replaced the missing Anthropic OAuth configuration trap with a request error.
+- Removed obsolete computer-relay links, coding-relay sheets and remote approval prompts from iOS local settings and navigation, while preserving local routines and user-configured API and MCP access.
+- Removed the personal iOS build's built-in CloudKit sync and iCloud backup entry points, including background startup, debug access and cloud entitlements, while retaining local backups and existing data.
+- Prevented iOS startup from crashing when personal signing removes App Group access, kept main-app storage in one persistent local fallback, and made unavailable extensions fail without creating inaccessible copies.
 - Split Android CI debug/test and release builds into sequential Gradle processes with one worker each to avoid sharing the Kotlin compiler heap across both variants.
 
 ## [2.0.5] - 2026-11-19 · Cadence

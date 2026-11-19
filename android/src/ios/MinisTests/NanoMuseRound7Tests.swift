@@ -133,8 +133,24 @@ final class NanoMuseRound7Tests: XCTestCase {
         XCTAssertFalse(fallback.fromRelay)
         if !catalogue.isEmpty {
             XCTAssertEqual(fallback.vendors.first?.id, NanoMuseCatalogue.bailian, "mainland China hears about Bailian first")
-            XCTAssertEqual(NanoMuseWays.resolve(guidance: nil, catalogue: catalogue, mainland: false).vendors.first?.id, NanoMuseCatalogue.openrouter)
+            XCTAssertEqual(NanoMuseWays.resolve(guidance: nil, catalogue: catalogue, mainland: false).vendors.first?.id, NanoMuseCatalogue.openai)
         }
         XCTAssertNil(NanoMuseGuidance.parse(json: #"{"region":"global","providers":[]}"#), "no providers is no guidance")
+    }
+
+    /// 展示过滤不删除历史协议或解码能力，未标为中转的官方服务仍能添加。
+    func testRelayFlagOnlyFiltersNewProviderRecommendations() throws {
+        let relay = try XCTUnwrap(NanoMuseCatalogue.vendor([
+            "id": "openrouter", "protocol": "openrouter", "is_relay": true,
+            "base_url": "https://relay.example/v1", "auth": ["key", "oauth-openrouter"]
+        ]))
+        let official = try XCTUnwrap(NanoMuseCatalogue.vendor([
+            "id": "official", "protocol": "openai", "base_url": "https://api.example/v1", "auth": ["key"]
+        ]))
+        XCTAssertTrue(relay.isRelay)
+        XCTAssertEqual(relay.providerType, .openRouter)
+        XCTAssertFalse(official.isRelay)
+        XCTAssertEqual(NanoMuseCatalogue.ordered([relay, official], mainland: false).map(\.id), ["official"])
+        XCTAssertTrue(NanoMuseCatalogue.signIns([relay], mainland: false).isEmpty)
     }
 }

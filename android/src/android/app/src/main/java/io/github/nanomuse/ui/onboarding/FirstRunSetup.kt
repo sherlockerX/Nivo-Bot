@@ -181,7 +181,7 @@ fun FirstRunSetupScreen(
     onSettings: () -> Unit,
     hasProviders: Boolean = signedIn,
     // Mosaic: debug builds pass this to offer "skip for now" (MosaicDebug); release builds pass null.
-    onDebugSkip: (() -> Unit)? = null,
+    onSkipSetup: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var modelsSkipped by remember { mutableStateOf(false) }
@@ -207,9 +207,9 @@ fun FirstRunSetupScreen(
             // where every OpenMinis page (providers, groups, appearance) is reachable anyway.
             Box(modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Dots(current = FirstRunSetup.dot(stage), total = 3, modifier = Modifier.align(Alignment.Center))
-                if (onDebugSkip != null) {
-                    TextButton(onClick = onDebugSkip, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp)) {
-                        Text(stringResource(R.string.nm_mosaic_debug_skip_setup), color = MuseTones.action, fontSize = 14.sp)
+                if (onSkipSetup != null) {
+                    TextButton(onClick = onSkipSetup, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp)) {
+                        Text(stringResource(R.string.nm_welcome_skip), color = MuseTones.action, fontSize = 14.sp)
                     }
                 }
                 IconButton(onClick = onSettings, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {

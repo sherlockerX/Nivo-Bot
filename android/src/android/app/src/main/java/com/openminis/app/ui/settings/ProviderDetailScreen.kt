@@ -116,6 +116,11 @@ fun ProviderDetailScreen(
 
     if (instance == null && !deleted) { onBack(); return }
     if (instance == null) return
+    // nanoMuse: 历史链接不能重新打开已移除的原云供应商配置页。
+    if (io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(androidx.compose.ui.platform.LocalContext.current, instance)) {
+        androidx.compose.runtime.LaunchedEffect(instance.id) { onBack() }
+        return
+    }
 
     var label by remember { mutableStateOf(instance.label) }
     val labelChanged = label != instance.label

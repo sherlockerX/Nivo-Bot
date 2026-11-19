@@ -75,7 +75,9 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         expect(page.locator("[data-provider]:visible")).to_have_count(1)
         page.locator("#provider-search").fill("")
         page.locator('[data-provider-filter="国内平台"]').click()
-        expect(page.locator("[data-provider]:visible")).to_have_count(7)
+        expect(page.locator("[data-provider]:visible")).to_have_count(6)
+        expect(page.locator('[href="models/siliconflow.html"]')).to_have_count(0)
+        expect(page.locator('[href="models/openrouter.html"]')).to_have_count(0)
         page.locator("#provider-search").fill("no-match-fixture")
         expect(page.locator("#provider-empty")).to_be_visible()
         record("服务商搜索、类别筛选和无结果状态")
@@ -83,6 +85,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         page.locator(".entry-banner").click()
         expect(page).to_have_url(base + "getting-started.html")
         expect(page.locator(".start-guide")).to_be_visible()
+        expect(page.locator(".callout")).to_contain_text("暂时跳过")
         record("首页、功能画廊、服务商目录和入门说明独立切换")
         page.goto(base + "models/gemini.html", wait_until="networkidle")
         expect(page.locator(".config-card")).to_contain_text(

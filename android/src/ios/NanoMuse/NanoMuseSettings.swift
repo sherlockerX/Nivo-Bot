@@ -19,9 +19,7 @@ struct NanoMuseSettingsHomeView: View {
 
     @ObservedObject private var store = ProviderConfigStore.shared
 
-    // The rows follow the Android build: no nanoMuse Cloud, Computers, Coding agents or Data
-    // controls (the personal build has no account and no hub), and About without the links or
-    // the release check. iCloud Sync stays, the iPhone's own.
+    // 个人构建只提供本机功能、用户自己的API和MCP；内置账号、中继与iCloud入口已移除。
     var body: some View {
         NanoMusePage(title: AppLocalized("Settings")) {
             modelCard
@@ -128,10 +126,7 @@ struct NanoMuseSettingsHomeView: View {
             Group {
                 NanoMuseRowDivider()
                 NanoMuseLinkRow(title: AppLocalized("Mount External Folders")) { MountedFoldersSettingsView() }
-                if #available(iOS 17.0, *) {
-                    NanoMuseRowDivider()
-                    NanoMuseLinkRow(title: AppLocalized("iCloud Sync")) { CloudSyncSettingsV2View() }
-                }
+                // 内置iCloud已移除，本地备份和用户文件夹继续保留。
                 NanoMuseRowDivider()
                 NanoMuseLinkRow(title: AppLocalized("Backup & Restore")) { BackupAndRestoreView() }
             }
@@ -168,41 +163,11 @@ enum NanoMuseLinks {
     /// The own-key guide on the site (docs/own-key.md), when the relay sent no address of its own (Android's OWN_KEY_DOCS).
     static let ownKeyDocs = NivoProduct.modelGuide.absoluteString
 
-    /// A new GitHub issue with the build and the device filled in (no personal data): the
-    /// issue form's fields by id (.github/ISSUE_TEMPLATE/bug_report.yml); a bare `body`
-    /// would be dropped on the way to the form.
-    static func newIssue() -> URL {
-        let info = Bundle.main.infoDictionary
-        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
-        let build = info?["CFBundleVersion"] as? String ?? "?"
-        var components = URLComponents(string: NivoProduct.repository.appendingPathComponent("issues/new").absoluteString)!
-        components.queryItems = [
-            URLQueryItem(name: "template", value: "bug_report.yml"),
-            URLQueryItem(name: "labels", value: "bug,ios"),
-            URLQueryItem(name: "surface", value: "iPhone app"),
-            URLQueryItem(name: "version", value: "\(version) (\(build))"),
-            URLQueryItem(name: "os", value: "iOS \(UIDevice.current.systemVersion), \(UIDevice.current.model)"),
-        ]
-        return components.url ?? NivoProduct.repository.appendingPathComponent("issues")
-    }
-}
 
-// MARK: - Computers
-
-/// Settings → Computers: this phone on the hub, the other devices, and what can be asked of them.
-struct NanoMuseComputersView: View {
-    var body: some View {
-        List {
-            NanoMuseDevicesSection()
-            NanoMuseReachSection()
-        }
-        .navigationTitle(AppLocalized("Computers"))
-        .navigationBarTitleDisplayMode(.inline)
-    }
 }
 
 extension NanoMuseFirstRun {
-    /// Forget the setup's state so it shows again (the Cloud sign-in and the providers stay).
+    /// 清除首次使用引导状态，保留已配置的提供商。
     static func reset() {
         for key in ["nanomuse.setup.done", "nanomuse.setup.source_chosen", NanoMuseFirstRun.notificationsKey] { UserDefaults.standard.removeObject(forKey: key) }
     }
