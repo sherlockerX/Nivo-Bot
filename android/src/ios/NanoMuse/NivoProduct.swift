@@ -4,9 +4,7 @@ import Foundation
 enum NivoProduct {
     static let name = "Nivo Bot"
     static let website = URL(string: "https://nivo.8666886.xyz/")!
-    static let repository = URL(string: "https://github.com/sherlockerX/Nicholasx")!
     static let privacy = website.appendingPathComponent("privacy.html")
     static let modelGuide = website.appendingPathComponent("models.html")
     static let downloads = website.appendingPathComponent("downloads.html")
-    static let releases = website.appendingPathComponent("releases.json")
 }

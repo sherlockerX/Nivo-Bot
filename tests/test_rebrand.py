@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 from types import ModuleType
 
@@ -80,6 +81,9 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
         ),
         "Views/Settings/AboutView.swift": 'Text("nanoMuse")\n',
         "NanoMuse/NanoMuseSettings.swift": 'AppLocalized("About nanoMuse")\n',
+        "NanoMuse/NanoMuseConnectors.swift": (
+            'throw Failure(message: "The authorization server refused to register nanoMuse")\n'
+        ),
         "Info.plist": "<string>nanoMuse Backup</string>\n<string>io.github.nanomuse.app</string>\n",
         "ShareExtension/Info.plist": "<string>io.github.nanomuse.app.share</string>\n",
         "FileProvider/Info.plist": "<string>/var/minis</string>\n",
@@ -88,6 +92,31 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
         path = ios / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
+    connector_key = (
+        "Signs in with your %@ account in the browser; nanoMuse registers itself with the "
+        "service, so there is nothing to type. The token stays on this phone."
+    )
+    catalogue = ios / "Localizable.xcstrings"
+    catalogue.write_text(
+        json.dumps(
+            {
+                "strings": {
+                    connector_key: {
+                        "localizations": {
+                            "en": {"stringUnit": {"state": "translated", "value": connector_key}},
+                            "zh-Hans": {
+                                "stringUnit": {
+                                    "state": "translated",
+                                    "value": "nanoMuse向服务注册。",
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     rebrand.ios_brand_only()
     project = (ios / "Minis.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
     assert 'INFOPLIST_KEY_CFBundleDisplayName = "Nivo Bot";' in project
@@ -95,6 +124,13 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
     assert "CURRENT_PROJECT_VERSION = 49;" in project
     assert "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app;" in project
     assert "<string>/var/minis</string>" in (ios / "FileProvider/Info.plist").read_text()
+    connector = (ios / "NanoMuse/NanoMuseConnectors.swift").read_text(encoding="utf-8")
+    assert "register nanoMuse" not in connector
+    assert r"\(NivoProduct.name)" in connector
+    translated = json.loads(catalogue.read_text(encoding="utf-8"))["strings"][connector_key]
+    for localization in translated["localizations"].values():
+        assert "nanoMuse" not in localization["stringUnit"]["value"]
+        assert "Nivo Bot" in localization["stringUnit"]["value"]
     before = {path: path.read_bytes() for path in ios.rglob("*") if path.is_file()}
     rebrand.ios_brand_only()
     assert {path: path.read_bytes() for path in before} == before

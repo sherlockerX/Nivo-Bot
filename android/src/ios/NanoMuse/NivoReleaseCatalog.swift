@@ -1,6 +1,6 @@
 import Foundation
 
-/// 更新检查只接受明确的iOS发行记录，安卓APK和只有版本标签的记录不会变成iPhone更新。
+/// 本地清单纯解析规则，只接受明确的iOS发行记录，不请求或检查在线更新。
 enum NivoReleaseCatalog {
     struct Release: Equatable, Sendable {
         var version: String
@@ -29,19 +29,6 @@ enum NivoReleaseCatalog {
         }
         guard let newest = candidates.max(by: { compareVersions($0.version, $1.version) < 0 }) else { return nil }
         return .available(newest)
-    }
-
-    /// GitHub回退要求实际的IPA附件，不能仅凭Android使用的相同tag宣称iOS已发布。
-    static func github(_ json: [String: Any]) -> Release? {
-        guard json["draft"] as? Bool != true, json["prerelease"] as? Bool != true,
-              let tag = json["tag_name"] as? String, isValidVersion(tag), !normalize(tag).contains("-"),
-              let assets = json["assets"] as? [[String: Any]], assets.contains(where: { asset in
-                  guard (asset["name"] as? String)?.lowercased().hasSuffix(".ipa") == true,
-                        let address = asset["browser_download_url"] as? String else { return false }
-                  return isInstallAddress(address, distribution: "ipa")
-              }) else { return nil }
-        let page = (json["html_url"] as? String).flatMap { isProjectAddress($0) ? $0 : nil }
-        return Release(version: tag, page: page ?? NivoProduct.downloads.absoluteString)
     }
 
     /// 版本号只去除可选v前缀，不把任意文字中的数字拼成版本。
@@ -107,8 +94,6 @@ enum NivoReleaseCatalog {
 
     private static func isProjectAddress(_ address: String) -> Bool {
         guard let url = URL(string: address), url.scheme == "https", url.user == nil, url.password == nil else { return false }
-        if url.host == NivoProduct.website.host { return true }
-        return url.host == "github.com" && ["/sherlockerx/nicholasx/", "/sherlockerx/nivo-bot/"]
-            .contains(where: { url.path.lowercased().hasPrefix($0) })
+        return url.host == NivoProduct.website.host
     }
 }

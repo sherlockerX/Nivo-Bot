@@ -1,18 +1,18 @@
 # iOS
 
-nanoMuse on the iPhone is the iOS half of OpenMinis 1.13 under nanoMuse's name, built by CI on a
-Mac runner and handed to TestFlight. This page says what is in the tree, how it is built, what
-the TestFlight pipeline needs, and what is still to be ported from the Android app.
+Nivo Bot for iPhone uses the native SwiftUI/UIKit application and iSH runtime inherited from
+OpenMinis and nanoMuse. GitHub macOS CI builds an unsigned IPA for personal signing. This fork
+does not distribute through TestFlight or the App Store; current installation files and
+requirements are listed on the [product download page](https://nivo.8666886.xyz/downloads.html).
 
-**Status.** The tree, the branding, the nanoMuse Cloud sign-in, the hub client and the pipeline
-were written on a Linux machine. The app **builds, signs and is on TestFlight**: the first build,
-0.1.31 (2), went through the *iOS · TestFlight* workflow on 2026-10-03; 1.0.0 is build 16, which
-passed Apple's beta review, so the public link
-(`https://testflight.apple.com/join/ZHexbDqc`) installed it first; 1.0.1 is build 18 and 1.0.2 is build 19, both through the review
-since 2026-10-12; 1.0.3 is build 22 and 1.0.4 is build 26, both through the review since 2026-10-13, so the link installs build 26 today; 1.0.5 is build 28, submitted on 2026-10-14; 1.0.6 is build 29, built from the tag `v1.0.6` and uploaded on 2026-10-24 (*Where it stands* below). Builds 20 and 21 (1.0.2), 23, 24 and 25 (1.0.3 with fixes merged after the tag) and 27 (1.0.4 the same way) went to the internal testers only. The testers' reports have driven the fixes in the release
-notes (the composer, onboarding, sign-out); the Devices section and notifications from other
-devices still have the fewest hours on a real device. The first archive taught the pipeline
-that automatic signing wants a registered device, which is why it signs manually now.
+The current maintenance branch removes the original project account, relay and cross-device
+sync, stores records and credentials locally, and lets users skip model configuration. API,
+OAuth and MCP connections use services chosen by the user. The sections immediately below
+describe these changes; older download packages keep the behavior documented in their releases.
+
+Later implementation notes retain upstream development history, including earlier cloud and
+TestFlight work. Those historical services and distribution claims do not apply to this fork.
+Build success verifies compilation; iPhone startup and interaction require device testing.
 
 ## Sideloaded storage
 
@@ -59,6 +59,8 @@ the client as Nivo Bot and links to the current product website.
 The app no longer presents legacy account onboarding, GitHub star prompts, allowance or invite
 cards, upstream feedback links or update-check controls. About retains the installed version,
 product and model-guide links, privacy information, the GPL license and upstream attribution.
+The unused online update requester and GitHub release fallback have also been removed from
+the iOS build; local release-catalog parsing and version validation remain covered by tests.
 
 ## Built-in iCloud removal
 

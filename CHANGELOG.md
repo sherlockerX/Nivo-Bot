@@ -4,6 +4,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Removed the unused iOS online update requester, GitHub fallback parser and repository/update constants, retained local release-catalog validation, and corrected connector registration text to use Nivo Bot.
 - Resumed iOS OAuth draft cleanup and provider/model initialization after a successful startup-recovery retry, waited for the recovery lock to release, and prevented duplicate initialization within one app run.
 - Migrated legacy iOS files before installing default identity, memory and skills, preserved conflicting originals, and kept failed migrations retryable. Preserved existing bundled skill files and unreadable preset memory.
 - Made iOS model setup permanently skippable, kept local features available without a model, and added in-chat setup actions that retain unsent drafts. Removed legacy account, star, allowance, feedback and update controls while keeping provider OAuth, custom endpoints, MCP and license attribution.

@@ -752,6 +752,17 @@ def ios_brand_only() -> None:
     soul = IOS / "Agent/Session/SoulStore.swift"
     if soul.is_file():
         edit(soul, [(r'"nanoMuse"', '"Nivo Bot"')])
+    connector = IOS / "NanoMuse/NanoMuseConnectors.swift"
+    if connector.is_file():
+        edit(
+            connector,
+            [
+                (
+                    r"The authorization server refused to register nanoMuse",
+                    r"The authorization server refused to register \\(NivoProduct.name)",
+                ),
+            ],
+        )
     # 只更新已知产品文案的译文，保留翻译键、上游署名和nanoMuse Cloud服务名。
     catalogue = IOS / "Localizable.xcstrings"
     if catalogue.is_file():
@@ -761,6 +772,7 @@ def ios_brand_only() -> None:
             "Welcome to nanoMuse",
             "Hi, I'm nanoMuse, the assistant that lives on your phone. Let me take a few things off your plate.",
             "Everything else works without it. It lives under iOS Settings → nanoMuse whenever you want it.",
+            "Signs in with your %@ account in the browser; nanoMuse registers itself with the service, so there is nothing to type. The token stays on this phone.",
         ):
             entry = data.get("strings", {}).get(key, {})
             for localization in entry.get("localizations", {}).values():

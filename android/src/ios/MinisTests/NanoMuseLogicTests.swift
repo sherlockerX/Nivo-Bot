@@ -743,20 +743,20 @@ final class NanoMuseLogicTests: XCTestCase {
         XCTAssertEqual(NanoMuseStarMoment.tasks(30).key, "tasks.30")
     }
 
-    // MARK: - Update check (contract C2)
+    // MARK: - 本地清单与版本规则
 
     func testVersionCompare() {
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("1.4.0", "1.4.0"), 0)
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("v1.4.0", "1.4"), 0, "a missing part is 0; a leading v is ignored")
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("1.10.0", "1.9.9"), 1, "numbers, not strings")
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("1.4.0", "1.4.1"), -1)
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("1.4.0", "1.4.0-beta.1"), 1, "a release beats its pre-release")
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("1.4.0-beta.1", "1.4.0-beta.2"), -1)
-        XCTAssertEqual(NanoMuseUpdateCheck.compareVersions("1.4.0+7", "1.4.0+9"), 0, "build metadata does not count")
-        XCTAssertEqual(NanoMuseUpdateCheck.normalize(" v2.0.1\n"), "2.0.1")
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("1.4.0", "1.4.0"), 0)
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("v1.4.0", "1.4"), 0, "a missing part is 0; a leading v is ignored")
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("1.10.0", "1.9.9"), 1, "numbers, not strings")
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("1.4.0", "1.4.1"), -1)
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("1.4.0", "1.4.0-beta.1"), 1, "a release beats its pre-release")
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("1.4.0-beta.1", "1.4.0-beta.2"), -1)
+        XCTAssertEqual(NivoReleaseCatalog.compareVersions("1.4.0+7", "1.4.0+9"), 0, "build metadata does not count")
+        XCTAssertEqual(NivoReleaseCatalog.normalize(" v2.0.1\n"), "2.0.1")
     }
 
-    func testUpdateIndexReadsTheReleasesList() {
+    func testLocalCatalogReadsExplicitIOSRelease() {
         // 本分支的网站同时列出多个平台，只能把明确的iOS安装入口作为更新。
         let index: [String: Any] = [
             "schemaVersion": 2,
@@ -764,11 +764,8 @@ final class NanoMuseLogicTests: XCTestCase {
             "releases": [["platform": "ios", "version": "2.1.0", "channel": "stable", "distribution": "testflight",
                           "downloadUrl": "https://testflight.apple.com/join/fixture"]],
         ]
-        let found = NanoMuseUpdateCheck.parseIndex(index)
-        XCTAssertEqual(found?.version, "2.1.0")
-        XCTAssertEqual(found?.page, NanoMuseUpdateCheck.downloadPage)
-        XCTAssertNil(NanoMuseUpdateCheck.parseIndex(["latest": "9.0.0"]))
-        XCTAssertNil(NanoMuseUpdateCheck.parseGitHubLatest(["tag_name": "v9.0.0", "assets": []]))
-        XCTAssertNil(NanoMuseUpdateCheck.parseGitHubLatest(["message": "Not Found"]))
+        XCTAssertEqual(NivoReleaseCatalog.lookup(index),
+            .available(.init(version: "2.1.0", page: NivoProduct.downloads.absoluteString)))
+        XCTAssertNil(NivoReleaseCatalog.lookup(["latest": "9.0.0"]))
     }
 }

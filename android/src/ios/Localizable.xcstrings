@@ -138218,55 +138218,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Meldet sich im Browser mit deinem %@-Konto an; nanoMuse registriert sich selbst beim Dienst, es gibt also nichts einzutippen. Das Token bleibt auf diesem Telefon."
+            "value" : "Meldet sich im Browser mit deinem %@-Konto an; Nivo Bot registriert sich selbst beim Dienst, es gibt also nichts einzutippen. Das Token bleibt auf diesem Telefon."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Signs in with your %@ account in the browser; nanoMuse registers itself with the service, so there is nothing to type. The token stays on this phone."
+            "value" : "Signs in with your %@ account in the browser; Nivo Bot registers itself with the service, so there is nothing to type. The token stays on this phone."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inicia sesión con tu cuenta de %@ en el navegador; nanoMuse se registra solo en el servicio, así que no hay nada que escribir. El token se queda en este teléfono."
+            "value" : "Inicia sesión con tu cuenta de %@ en el navegador; Nivo Bot se registra solo en el servicio, así que no hay nada que escribir. El token se queda en este teléfono."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se connecte avec votre compte %@ dans le navigateur ; nanoMuse s’enregistre lui-même auprès du service, donc rien à saisir. Le jeton reste sur ce téléphone."
+            "value" : "Se connecte avec votre compte %@ dans le navigateur ; Nivo Bot s’enregistre lui-même auprès du service, donc rien à saisir. Le jeton reste sur ce téléphone."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ブラウザーで %@ のアカウントにサインインします。nanoMuse が自分でサービスに登録するので、入力するものはありません。トークンはこの端末に残ります。"
+            "value" : "ブラウザーで %@ のアカウントにサインインします。Nivo Bot が自分でサービスに登録するので、入力するものはありません。トークンはこの端末に残ります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "브라우저에서 %@ 계정으로 로그인합니다. nanoMuse가 서비스에 스스로 등록하므로 입력할 것이 없습니다. 토큰은 이 휴대전화에 머뭅니다."
+            "value" : "브라우저에서 %@ 계정으로 로그인합니다. Nivo Bot가 서비스에 스스로 등록하므로 입력할 것이 없습니다. 토큰은 이 휴대전화에 머뭅니다."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Входит с вашим аккаунтом %@ в браузере; nanoMuse регистрируется в сервисе сам, так что вводить ничего не нужно. Токен остаётся на этом телефоне."
+            "value" : "Входит с вашим аккаунтом %@ в браузере; Nivo Bot регистрируется в сервисе сам, так что вводить ничего не нужно. Токен остаётся на этом телефоне."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在浏览器里用你的 %@ 账号登录；nanoMuse 会自动向该服务注册，不用填任何东西。令牌只保存在这台手机上。"
+            "value" : "在浏览器里用你的 %@ 账号登录；Nivo Bot 会自动向该服务注册，不用填任何东西。令牌只保存在这台手机上。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在瀏覽器裡用你的 %@ 帳號登入；nanoMuse 會自動向該服務註冊，不用填任何東西。權杖只保存在這支手機上。"
+            "value" : "在瀏覽器裡用你的 %@ 帳號登入；Nivo Bot 會自動向該服務註冊，不用填任何東西。權杖只保存在這支手機上。"
           }
         }
       }
