@@ -15,6 +15,19 @@ private let logger = AppLogger(category: "ModelUseOffload")
 
 @objc public class ModelUseOffloadBridge: NSObject {
 
+    // nanoMuse: 入口解析与便携测试共用规则，不读取或变更模型授权。
+    /// 输出命令、搜索词和显式provider筛选，参数失败由原生入口返回退出码2。
+    @objc(parseEntryArguments:) public static func parseEntryArguments(_ arguments: [String]) -> NSDictionary {
+        do {
+            let request = try NivoCLIEntryArguments.modelUse(arguments)
+            var result: [String: Any] = ["ok": true, "command": request.command, "query": request.searchQuery]
+            if let provider = request.provider { result["provider"] = provider }
+            return result as NSDictionary
+        } catch {
+            return ["ok": false, "error": "invalid_args", "reason": error.localizedDescription]
+        }
+    }
+
     // nanoMuse: 空列表说明独立授权入口，不把聊天模型绑定当成终端授权。
     private static let noModelsHint = NivoModelUseDiagnostics.noModelsHint
 

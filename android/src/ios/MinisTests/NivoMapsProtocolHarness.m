@@ -223,7 +223,7 @@ static void testRouteStepNumbers(void) {
         @"正常步骤仍按整米输出且可序列化");
 }
 
-/// 仅构造区域并赋给请求，覆盖全球尺度和极区；不创建搜索服务或启动网络。
+/// 保留Apple原始跨度探针，生产helper必须把全球尺度和极区规范成合法范围；不启动网络。
 static void testSearchRegionBounds(void) {
     double latitudes[] = {0, 85, 89.99999, 90, -90};
     double radii[] = {1000, 20000000};
@@ -233,18 +233,39 @@ static void testSearchRegionBounds(void) {
             double latitude = latitudes[latitudeIndex];
             double radius = radii[radiusIndex];
             @try {
-                MKCoordinateRegion region = MKCoordinateRegionMakeWithDistance(
-                    CLLocationCoordinate2DMake(latitude, 0), radius * 2, radius * 2);
+                CLLocationCoordinate2D center = CLLocationCoordinate2DMake(latitude, 0);
+                MKCoordinateRegion raw = MKCoordinateRegionMakeWithDistance(center, radius * 2, radius * 2);
+                printf("Maps raw region probe lat=%.5f radius=%.0f center=%.8f,%.8f span=%.8f,%.8f\n",
+                    latitude, radius, raw.center.latitude, raw.center.longitude, raw.span.latitudeDelta, raw.span.longitudeDelta);
+                MKCoordinateRegion region;
+                NSError *error = nil;
+                if (!maps_search_region(center, radius, &region, &error)) {
+                    NSLog(@"Maps normalized region failed lat=%.5f radius=%.0f error=%@", latitude, radius, error);
+                    failures++;
+                    continue;
+                }
                 MKLocalSearchRequest *request = [[MKLocalSearchRequest alloc] init];
                 request.region = region;
                 MKCoordinateRegion assigned = request.region;
+                double south = assigned.center.latitude - assigned.span.latitudeDelta / 2.0;
+                double north = assigned.center.latitude + assigned.span.latitudeDelta / 2.0;
                 BOOL valid = CLLocationCoordinate2DIsValid(assigned.center) &&
                     isfinite(assigned.span.latitudeDelta) && assigned.span.latitudeDelta > 0 && assigned.span.latitudeDelta <= 180 &&
-                    isfinite(assigned.span.longitudeDelta) && assigned.span.longitudeDelta > 0 && assigned.span.longitudeDelta <= 360;
-                printf("Maps region probe lat=%.5f radius=%.0f center=%.8f,%.8f span=%.8f,%.8f valid=%s\n",
+                    isfinite(assigned.span.longitudeDelta) && assigned.span.longitudeDelta > 0 && assigned.span.longitudeDelta <= 360 &&
+                    south >= -90.000000001 && north <= 90.000000001 && latitude >= south - 1e-9 && latitude <= north + 1e-9;
+                printf("Maps normalized region probe lat=%.5f radius=%.0f center=%.8f,%.8f span=%.8f,%.8f valid=%s\n",
                     latitude, radius, assigned.center.latitude, assigned.center.longitude,
                     assigned.span.latitudeDelta, assigned.span.longitudeDelta, valid ? "yes" : "no");
                 if (!valid) failures++;
+                maps_require(assigned.span.latitudeDelta == MIN(raw.span.latitudeDelta, 180.0) &&
+                    assigned.span.longitudeDelta == MIN(raw.span.longitudeDelta, 360.0), @"不能随意缩小合法跨度或另设半径上限");
+                BOOL rawInBounds = raw.span.latitudeDelta <= 180 && raw.span.longitudeDelta <= 360 &&
+                    raw.center.latitude - raw.span.latitudeDelta / 2.0 >= -90 &&
+                    raw.center.latitude + raw.span.latitudeDelta / 2.0 <= 90;
+                if (rawInBounds) {
+                    maps_require(assigned.center.latitude == raw.center.latitude && assigned.center.longitude == raw.center.longitude,
+                        @"原始合法区域中心必须原样保留");
+                }
             } @catch (NSException *exception) {
                 NSLog(@"Maps region probe lat=%.5f radius=%.0f exception=%@ reason=%@",
                     latitude, radius, exception.name, exception.reason);
@@ -252,7 +273,7 @@ static void testSearchRegionBounds(void) {
             }
         }
     }
-    maps_require(failures == 0, @"区域构造或赋值存在异常，需依据探针输出处理，不提前推测半径上限");
+    maps_require(failures == 0, @"生产区域构造或赋值必须有限合法且覆盖原始查询中心");
 }
 
 /// macOS命令行入口仅执行注入数据，不触发定位权限或真实网络。

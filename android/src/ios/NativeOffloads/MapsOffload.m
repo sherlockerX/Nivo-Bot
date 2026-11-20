@@ -136,6 +136,26 @@ static NSError *maps_invalid_search_result(void) {
         @"Search returned invalid coordinates or distance.", @{}), @"search_result");
 }
 
+// nanoMuse:MapKit的米数换算在极区及全球尺度会产生越界跨度，按地理范围规范化而不压低半径。
+static BOOL maps_search_region(CLLocationCoordinate2D center, double radiusMeters,
+                               MKCoordinateRegion *output, NSError **error) {
+    MKCoordinateRegion region = MKCoordinateRegionMakeWithDistance(center, radiusMeters * 2, radiusMeters * 2);
+    if (!maps_search_coordinate_is_valid(region.center) || !isfinite(region.span.latitudeDelta) ||
+        !isfinite(region.span.longitudeDelta) || region.span.latitudeDelta <= 0 || region.span.longitudeDelta <= 0) {
+        if (error) *error = NivoMapsErrorAtStage(NivoMapsMakeError(NivoMapsErrorNoData,
+            @"MapKit could not construct a finite search region.", @{}), @"search_region");
+        return NO;
+    }
+    region.span.latitudeDelta = MIN(region.span.latitudeDelta, 180.0);
+    region.span.longitudeDelta = MIN(region.span.longitudeDelta, 360.0);
+    // 保持完整纬度带在南北极内；正常区域保持原值，触极区域平移后仍覆盖原始查询中心。
+    double halfLatitude = region.span.latitudeDelta / 2.0;
+    region.center.latitude = MIN(MAX(region.center.latitude, -90.0 + halfLatitude), 90.0 - halfLatitude);
+    *output = region;
+    if (error) *error = nil;
+    return YES;
+}
+
 // ── Subcommands ──
 
 // nanoMuse:只接收完整验证后的请求，超时后取消实际服务且封闭结果写入。
@@ -151,9 +171,13 @@ static int cmd_search(NivoMapsRequest *input, int stdout_fd, BOOL compact, BOOL 
         MKLocalSearchRequest *request = [[MKLocalSearchRequest alloc] init];
         request.naturalLanguageQuery = query;
 
-        MKCoordinateRegion region = MKCoordinateRegionMakeWithDistance(center,
-                                                                       radiusM * 2,
-                                                                       radiusM * 2);
+        // nanoMuse:离线探针复现的极区和超大跨度必须在赋给搜索请求前规范化。
+        MKCoordinateRegion region;
+        NSError *regionError = nil;
+        if (!maps_search_region(center, radiusM, &region, &regionError)) {
+            [result finish:nil error:regionError];
+            return;
+        }
         request.region = region;
 
         MKLocalSearch *search = [[MKLocalSearch alloc] initWithRequest:request];

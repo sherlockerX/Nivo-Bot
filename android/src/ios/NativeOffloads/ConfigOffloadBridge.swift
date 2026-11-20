@@ -13,6 +13,17 @@ private let logger = AppLogger(category: "ConfigOffload")
 
 @objc public class ConfigOffloadBridge: NSObject {
 
+    // nanoMuse: 命令前的审计参数必须有值，入口解析不读取权限或配置。
+    /// 返回原生argv中的命令位置，缺省命令用-1表示。
+    @objc(parseEntryArguments:) public static func parseEntryArguments(_ arguments: [String]) -> NSDictionary {
+        do {
+            let index = try NivoCLIEntryArguments.configCommandIndex(arguments)
+            return ["ok": true, "command_index": index.map { $0 + 1 } ?? -1]
+        } catch {
+            return ["ok": false, "error": "invalid_args", "reason": error.localizedDescription]
+        }
+    }
+
     // nanoMuse: 配置CLI独立处理JSON片段，readField返回结构与其他工具的输出不受影响。
     /// 供Objective-C出口生成完整JSON文本，支持quiet读取标量、null及错误对象。
     @objc(formatCLIResponse:compact:quiet:) public static func formatCLIResponse(

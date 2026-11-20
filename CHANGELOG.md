@@ -6,8 +6,9 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 - Completed missing translations for 13 existing iOS interface strings across seven supported locales, preserving the original English, Simplified Chinese and format placeholders.
 - Fixed iOS config paths containing dotted model IDs, clarified separate authorization for runtime model calls, and preserved JSON scalar values and errors in quiet config output. Removed duplicate session-status envelopes and made failed session actions return failed outer responses and exit codes.
+- Rejected missing leading config metadata and model-provider values before accessing account state. Preserved model-use commands and search terms when output flags appear before them.
 - Made iOS record-query failures explain foreground, conversation, saved-request and storage conditions; accepted framework tool titles without treating them as query fields. Life-log CLI dates now follow the device time zone, compact output is supported, and Markdown pagination names its next offset. Missing scheduled-task IDs and revisions are rejected before account or permission access.
-- Validated iOS map command arguments before network requests, passed cycling through as cycling, exposed resolved endpoints and ambiguous candidates, preserved MapKit error details, and cancelled timed-out requests without accepting late results. These changes do not certify real-world route distances. See the [iOS tool audit](docs/zh/ios-tool-self-audit.md) for verification limits and phone checks.
+- Validated iOS map command arguments before network requests, passed cycling through as cycling, exposed resolved endpoints and ambiguous candidates, preserved MapKit error details, and cancelled timed-out requests without accepting late results. Rejected invalid provider coordinates and distances and kept polar and global search regions within valid geographic bounds. These changes do not certify real-world route distances. See the [iOS tool audit](docs/zh/ios-tool-self-audit.md) for verification limits and phone checks.
 
 ## [2.0.7] - 2026-11-20 · Anchor
 

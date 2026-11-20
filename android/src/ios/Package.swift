@@ -5,7 +5,7 @@ import PackageDescription
 // 直接编译应用使用的值模型和规则，不为测试重写业务实现或模拟Apple框架。
 // 此包只验证可移植逻辑，完整应用仍须由Minis.xcodeproj进行Xcode构建和设备验证。
 let coreSources = [
-    "NivoConfigPath.swift", "NivoConfigCLIArguments.swift", "NivoModelUseDiagnostics.swift",
+    "NivoConfigPath.swift", "NivoConfigCLIArguments.swift", "NivoCLIEntryArguments.swift", "NivoModelUseDiagnostics.swift",
     "NivoSessionResponse.swift", "NivoConfigCLIResponse.swift",
     "NivoMosaicEditorLifecycle.swift",
     "NivoPostRecoveryStartup.swift",
@@ -75,7 +75,7 @@ let coreSources = [
     "NivoProviderMigrationJournal.swift",
 ]
 let coreTests = [
-    "NivoConfigPathTests.swift", "NivoConfigCLIArgumentsTests.swift", "NivoModelUseDiagnosticsTests.swift",
+    "NivoConfigPathTests.swift", "NivoConfigCLIArgumentsTests.swift", "NivoCLIEntryArgumentsTests.swift", "NivoModelUseDiagnosticsTests.swift",
     "NivoSessionResponseTests.swift", "NivoConfigCLIResponseTests.swift", "NivoJigsawProtocolTests.swift", "NivoPersonalRecordsRecoveryTests.swift",
     "NivoMosaicEditorLifecycleTests.swift",
     "NivoPostRecoveryStartupTests.swift",

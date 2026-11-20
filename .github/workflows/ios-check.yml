@@ -48,6 +48,7 @@ jobs:
           xcode-version: latest-stable
       # 原生入口回归只需要iSH接口头文件，不构建内核或访问真实地图服务。
       - name: Map command protocol regression tests
+        id: maps_regression
         run: |
           set -euo pipefail
           git submodule update --init android/deps/ish
@@ -63,6 +64,8 @@ jobs:
           android/src/ios/build/nivo-maps-check 2>&1 | tee android/src/ios/build/maps-tests.log
       # 核心回归与应用构建独立执行，任何一项失败仍使整个工作流失败。
       - name: Portable Swift regression tests
+        # 地图边界断言失败时仍执行独立Swift回归，整项作业继续保留失败状态。
+        if: ${{ !cancelled() && (success() || steps.maps_regression.outcome == 'failure') }}
         working-directory: android/src/ios
         run: |
           set -o pipefail

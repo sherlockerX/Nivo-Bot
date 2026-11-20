@@ -195,8 +195,8 @@ static NSString *_Nullable noff_resolve_existing_input_path(NSString *path) {
 
 // ── Subcommands ──
 
-static int cmd_list(int argc, char **argv, int stdout_fd, BOOL compact, BOOL quiet) {
-    NSString *providerFilter = noff_find_arg(argc, argv, "--provider");
+// nanoMuse: provider来自已校验入口，显式缺值不能变成无筛选。
+static int cmd_list(int argc, char **argv, NSString *providerFilter, int stdout_fd, BOOL compact, BOOL quiet) {
     NSString *modalityFilter = noff_find_arg(argc, argv, "--modality");
     BOOL showAll = noff_has_flag(argc, argv, "--all");
 
@@ -213,9 +213,10 @@ static int cmd_list(int argc, char **argv, int stdout_fd, BOOL compact, BOOL qui
     return NOFF_EXIT_SUCCESS;
 }
 
-static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL compact, BOOL quiet) {
-    NSArray<NSString *> *positional = noff_positional_args(argc, argv);
-    if (positional.count < 1) {
+// nanoMuse: 搜索词由明确的无值flag规则提取，保留前置和后置开关之后的查询词。
+static int cmd_search(int argc, char **argv, NSString *query, NSString *providerFilter,
+                      int stdout_fd, int stderr_fd, BOOL compact, BOOL quiet) {
+    if (query.length == 0) {
         NSDictionary *err = noff_json_error(TOOL_NAME, @"search",
                                              NOFF_ERR_INVALID_ARGS,
                                              @"No search query provided. Usage: minis-model-use search <query>");
@@ -223,9 +224,7 @@ static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL 
         return NOFF_EXIT_INVALID_ARGS;
     }
 
-    NSString *query = [positional componentsJoinedByString:@" "];
     // nanoMuse: search与list/run支持相同供应商条件，不能忽略已提供的过滤器。
-    NSString *providerFilter = noff_find_arg(argc, argv, "--provider");
     NSString *modalityFilter = noff_find_arg(argc, argv, "--modality");
     BOOL showAll = noff_has_flag(argc, argv, "--all");
     __block NSDictionary *result = nil;
@@ -242,7 +241,8 @@ static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL 
     return NOFF_EXIT_SUCCESS;
 }
 
-static int cmd_run(int argc, char **argv, int stdin_fd, int stdout_fd, int stderr_fd,
+// nanoMuse: 运行同样使用校验后的provider筛选，其他请求构造保持原有实现。
+static int cmd_run(int argc, char **argv, NSString *providerFilter, int stdin_fd, int stdout_fd, int stderr_fd,
                     BOOL compact, BOOL quiet) {
     NSString *modelIdOrName = noff_find_arg(argc, argv, "--model");
     if (!modelIdOrName) {
@@ -252,9 +252,6 @@ static int cmd_run(int argc, char **argv, int stdin_fd, int stdout_fd, int stder
         noff_emit_json(stdout_fd, err, compact, quiet);
         return NOFF_EXIT_INVALID_ARGS;
     }
-
-    // Optional provider scoping — disambiguates when multiple instances expose the same model_id.
-    NSString *providerFilter = noff_find_arg(argc, argv, "--provider");
 
     // Read messages from --input file, --prompt/--prompt-file inline text, or stdin
     NSString *inputPath = noff_find_arg(argc, argv, "--input");
@@ -565,19 +562,32 @@ static int model_use_handler(int argc, char **argv,
         BOOL compact = noff_has_flag(argc, argv, "--compact");
         BOOL quiet = noff_has_flag(argc, argv, "-q") || noff_has_flag(argc, argv, "--quiet");
 
-        NSString *subcmd = noff_get_subcommand(argc, argv);
-        if (!subcmd) {
+        // nanoMuse: 纯解析器识别无值flag并验证provider，先于列举、文件读取和模型调用。
+        NSMutableArray<NSString *> *arguments = [NSMutableArray array];
+        for (int index = 1; index < argc; index++) {
+            NSString *argument = [NSString stringWithUTF8String:argv[index]];
+            if (!argument) {
+                noff_emit_json(stdout_fd, noff_json_error(TOOL_NAME, @"unknown", NOFF_ERR_INVALID_ARGS,
+                    @"Arguments must be UTF-8 text."), compact, quiet);
+                return NOFF_EXIT_INVALID_ARGS;
+            }
+            [arguments addObject:argument];
+        }
+        NSDictionary *entry = [ModelUseOffloadBridge parseEntryArguments:arguments];
+        if (![entry[@"ok"] boolValue]) {
             noff_emit_help(stderr_fd, HELP_TEXT);
             NSDictionary *err = noff_json_error(TOOL_NAME, @"unknown",
                                                  NOFF_ERR_INVALID_ARGS,
-                                                 @"No command specified. Use --help for usage.");
+                                                 entry[@"reason"]);
             noff_emit_json(stdout_fd, err, compact, quiet);
             return NOFF_EXIT_INVALID_ARGS;
         }
 
-        if ([subcmd isEqualToString:@"list"])    return cmd_list(argc, argv, stdout_fd, compact, quiet);
-        if ([subcmd isEqualToString:@"search"])  return cmd_search(argc, argv, stdout_fd, stderr_fd, compact, quiet);
-        if ([subcmd isEqualToString:@"run"])     return cmd_run(argc, argv, stdin_fd, stdout_fd, stderr_fd, compact, quiet);
+        NSString *subcmd = entry[@"command"];
+        NSString *providerFilter = entry[@"provider"];
+        if ([subcmd isEqualToString:@"list"])    return cmd_list(argc, argv, providerFilter, stdout_fd, compact, quiet);
+        if ([subcmd isEqualToString:@"search"])  return cmd_search(argc, argv, entry[@"query"], providerFilter, stdout_fd, stderr_fd, compact, quiet);
+        if ([subcmd isEqualToString:@"run"])     return cmd_run(argc, argv, providerFilter, stdin_fd, stdout_fd, stderr_fd, compact, quiet);
 
         noff_emit_help(stderr_fd, HELP_TEXT);
         NSDictionary *err = noff_json_error(TOOL_NAME, subcmd,

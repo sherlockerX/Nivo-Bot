@@ -28,6 +28,7 @@
 // nanoMuse: 无生成头文件时保留只读参数与退出码桥接声明。
 + (NSDictionary * _Nonnull)readArguments:(NSArray<NSString *> * _Nonnull)arguments;
 + (NSDictionary * _Nonnull)topicHelpArguments:(NSArray<NSString *> * _Nonnull)arguments;
++ (NSDictionary * _Nonnull)parseEntryArguments:(NSArray<NSString *> * _Nonnull)arguments;
 + (NSInteger)exitCodeForEnvelope:(NSDictionary * _Nonnull)envelope;
 // nanoMuse: 无生成头文件时声明配置CLI专用序列化桥接。
 + (NSString * _Nonnull)formatCLIResponse:(NSDictionary * _Nonnull)envelope
@@ -155,23 +156,22 @@ static void config_emit_json(int fd, NSDictionary *envelope, BOOL compact, BOOL 
     dprintf(fd, "%s\n", json.UTF8String);
 }
 
-// nanoMuse: 公共输出开关不带值，不能把后面的get误当成它的参数。
-static int config_subcommand_index(int argc, char **argv) {
+// nanoMuse: 命令前的公共参数交给纯解析器，缺值不能落入默认list-topics。
+static NSDictionary *config_entry_arguments(int argc, char **argv) {
+    NSMutableArray<NSString *> *arguments = [NSMutableArray array];
     for (int index = 1; index < argc; index++) {
         NSString *argument = [NSString stringWithUTF8String:argv[index]];
-        if ([@[@"--compact", @"--quiet", @"-q"] containsObject:argument]) continue;
-        if ([@[@"--session", @"--actor", @"--caption"] containsObject:argument]) {
-            index++;
-            continue;
+        if (!argument) {
+            return @{@"ok": @NO, @"reason": @"Arguments must be UTF-8 text."};
         }
-        return index;
+        [arguments addObject:argument];
     }
-    return -1;
+    return [ConfigOffloadBridge parseEntryArguments:arguments];
 }
 
 // nanoMuse: 仅把实际子命令后的参数交给Swift校验，允许公共输出开关位于命令前。
 static NSArray<NSString *> *config_command_arguments(int argc, char **argv) {
-    int commandIndex = config_subcommand_index(argc, argv);
+    int commandIndex = [config_entry_arguments(argc, argv)[@"command_index"] intValue];
     NSMutableArray<NSString *> *arguments = [NSMutableArray array];
     for (int index = commandIndex + 1; commandIndex >= 0 && index < argc; index++) {
         [arguments addObject:[NSString stringWithUTF8String:argv[index]]];
@@ -420,8 +420,14 @@ static int config_handler(int argc, char **argv,
     BOOL compact = noff_has_flag(argc, argv, "--compact");
     BOOL quiet = noff_has_flag(argc, argv, "-q") || noff_has_flag(argc, argv, "--quiet");
 
-    // nanoMuse: 正确识别放在子命令前的--compact/--quiet公共开关。
-    int commandIndex = config_subcommand_index(argc, argv);
+    // nanoMuse: 先验证前置元数据，再识别命令；非法调用不进入权限或主题查询。
+    NSDictionary *entry = config_entry_arguments(argc, argv);
+    if (![entry[@"ok"] boolValue]) {
+        NSDictionary *error = noff_json_error(TOOL_NAME, @"unknown", NOFF_ERR_INVALID_ARGS, entry[@"reason"]);
+        config_emit_json(stdout_fd, error, compact, quiet);
+        return CONFIG_EXIT_INVALID_ARGS;
+    }
+    int commandIndex = [entry[@"command_index"] intValue];
     NSString *subcmd = commandIndex >= 0 ? [NSString stringWithUTF8String:argv[commandIndex]] : nil;
     // nanoMuse: 既有写命令仍按argv[2]取路径，统一把命令前的公共参数移到末尾。
     if (commandIndex > 1) {
