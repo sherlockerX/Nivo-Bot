@@ -14,6 +14,15 @@ API、OAuth和MCP连接使用用户自行选择的服务。紧接下方的章节
 打开**系统文件**，点右上角的**排序方式**，可选**默认**（固定文件顺序）或**上次修改**（最近修改的排在前面）。菜单会标出当前选项。空白的可编辑文件可直接点**编辑**；保存失败后，草稿仍留在编辑器里。
 备份与恢复提示、语音转写控件和快捷指令也提供中文说明。灵动岛和锁屏按设备语言显示正在运行的数量。
 
+<!-- nivo-ios-2.0.8-evidence -->
+## iOS2.0.8Release构建记录
+
+提交`4163621fba0d40cabdb7354eaba8f9b97ad7be5c`的[CI44797863407](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44797863407)完整通过：835项便携Swift测试、0失败，地图离线回归、Release设备应用编译、应用测试目标编译及NanoMuse源码零警告检查通过。应用测试仅编译、未执行，地图离线回归未请求Apple服务。
+
+IPA为70035647字节，SHA256为`ad631e6b0f4f1ecb7d8c71c4691d53734b1fb15ad0957796eed1344f6fd39a6a`；源码ZIP为76465089字节，SHA256为`c44c1d9a762f9a281bf3984b252d6648cb067013c001cc7aa024e6a11df25313`，核验8379份源码文件，ZIP共8380项。包名`io.github.nanomuse.app`，版本`2.0.8(59)`，最低iOS16.0，arm64，未签名。应用先以普通Release配置构建并保存，后续测试编译单独启用ENABLE_TESTABILITY；主应用和三个扩展未签名，八个媒体框架保留其签名；IPA不含测试包或描述文件。
+
+用户确认旧Debug检查分支手机使用没有问题，不能据此验收新的ReleaseIPA。新包仍需自行签名后的手机验收，本地检查不证明公网下载可用。Android继续提供2.0.7(58)原安装包、源码和校验文件。完整来源和限制见[2.0.8发行说明](../releases/v2.0.8.md)。
+
 ## 供应商保存与本地恢复 {#provider-saves-and-local-recovery}
 
 新增供应商、导入JSON和修改密钥共用本地回滚事务。新建的SQLite快照保存为单个文件，
@@ -142,7 +151,7 @@ scripts/gen-ios-icons.py         the app icon and the four alternates, from asse
   「Minis」→「nanoMuse」。OpenRouter 的 `HTTP-Referer` 仍指向 OpenMinis，和 Android 一样：
   那是署名，不是身份。
 - **版本。** `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION` 跟随 Android 的
-  `versionName` / `versionCode`；CI 用运行编号覆盖构建号。
+  `versionName` / `versionCode`；未签名构建检查保留这些版本字段，仅历史TestFlight流程使用运行编号覆盖构建号。
 - **外观。** AccentColor 用 `#015CFB` / `#58A6FF`，不用 iOS 蓝；一笔画的 N 作为应用图标
   （白底方块，品牌渐变；深色外观下是深色方块），也作为应用内图标选择器的四款皮肤；智能体
   的标题符号用 🐾 代替 ✨。

@@ -94,7 +94,7 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 | iOSダウンロードのチェックサム | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
 | リリース情報 | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59)ClarityはRelease構成の未署名IPAとして準備中で、リリースCIと成果物の検証は未実施です。Androidのダウンロードは2.0.7(58)のまま、APK、ソース、チェックサム、署名を維持します。ユーザーは監査ブランチをiPhoneで確認し、問題はないと報告しましたが、新しい2.0.8のReleaseバイナリを検証した結果ではありません。上記のiOSリンクは公開予定先です。インストール前に個人署名が必要です。このフォークにはApple Developer Programのアカウントがなく、TestFlightやApp Storeでの配布はありません。強制集中、繰り返しロック予定とアプリ許可リストはAndroid専用です。iOSには集中リマインダーとアクセスガイドの手順があり、ユーザーがiOSで開始・終了します。CIでのコンパイル成功はiPhone実機での動作確認を意味しません。
+iOS2.0.8(59)ClarityはRelease構成の未署名IPAとしてビルドされました。リリースCIに成功し、IPAと対応するソースアーカイブのローカル検証も完了しました。Androidのダウンロードは2.0.7(58)のまま、APK、ソース、チェックサム、署名を維持します。ユーザーは監査ブランチをiPhoneで確認し、問題はないと報告しましたが、新しい2.0.8のReleaseバイナリを検証した結果ではありません。プラットフォームに対応する上記のソースとチェックサムを使用してください。インストール前に個人署名が必要です。このフォークにはApple Developer Programのアカウントがなく、TestFlightやApp Storeでの配布はありません。強制集中、繰り返しロック予定とアプリ許可リストはAndroid専用です。iOSには集中リマインダーとアクセスガイドの手順があり、ユーザーがiOSで開始・終了します。CIでのコンパイル成功はiPhone実機での動作確認を意味しません。
 
 アプリIDは`io.github.nanomuse.app`のままで、以前のNivo Bot正式版と同じ署名を使用します。今回のリリースでは、Android実機で既存のインストールに上書き更新するテストは行っていません。古いDebug鍵や上流の鍵で署名したアプリは通常この版で上書き更新できません。削除前にバックアップと復元範囲を確認してください。[バージョンと署名ガイド](../android-development.md#nivo-bot的android版本与签名)を参照できます。
 

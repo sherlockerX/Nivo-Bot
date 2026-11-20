@@ -186,6 +186,7 @@
       if (!release.id || ids.has(release.id) || !platformIds.has(release.platform)) throw new Error('版本ID或平台不正确');
       if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(release.version) || !['stable', 'beta'].includes(release.channel)) throw new Error('版本信息不完整');
       const distribution = release.distribution || 'apk';
+      if ('checksumsUrl' in release && (!['apk', 'ipa'].includes(distribution) || release.checksumsUrl !== `https://nivo.8666886.xyz/downloads/SHA256SUMS-v${release.version}.txt`)) throw new Error('校验清单与发行版本不符');
       if (!['apk', 'ipa', 'app-store', 'testflight'].includes(distribution)) throw new Error('发行方式不支持');
       if (distribution === 'ipa' && !['signed', 'unsigned'].includes(release.signing)) throw new Error('IPA需要注明签名状态');
       if (release.signing === 'unsigned' && (distribution !== 'ipa' || release.platform !== 'ios')) throw new Error('未签名发行仅适用于iOS IPA');
@@ -206,7 +207,7 @@
     const method = isUnsigned ? '未签名IPA' : {apk:'正式签名', ipa:'IPA', 'app-store':'App Store', testflight:'TestFlight'}[distribution];
     heading.append(title, node('span', method, 'chip')); card.append(heading, node('p', release.summary, 'release-summary'));
     const facts = node('div', undefined, 'release-facts');
-    [`${release.platform === 'android' ? 'Android' : 'iOS'} ${release.minimumOs}+`, release.architecture, release.versionCode ? `构建${release.versionCode}` : '', release.sizeBytes ? `${(release.sizeBytes / 1024 / 1024).toFixed(1)}MB` : '', release.releasedAt].filter(Boolean).forEach(value => facts.append(node('span', value)));
+    [`${release.platform === 'android' ? 'Android' : 'iOS'} ${release.minimumOs}+`, release.architecture, release.versionCode ? `构建${release.versionCode}` : '', release.sizeBytes ? `${(release.sizeBytes / 1_000_000).toFixed(1)}MB` : '', release.releasedAt].filter(Boolean).forEach(value => facts.append(node('span', value)));
     card.append(facts);
     if (isUnsigned) {
       const installation = node('aside', undefined, 'callout');
@@ -222,7 +223,10 @@
       copy.type = 'button'; copy.dataset.copy = release.sha256; copy.setAttribute('aria-label', '复制安装文件SHA256');
       checksum.append(node('span', '安装文件 SHA256'), node('code', release.sha256), copy); card.append(checksum);
     }
-    const links = node('div', undefined, 'release-links'); links.append(anchor('本版对应源码', release.sourceUrl)); card.append(links);
+    const links = node('div', undefined, 'release-links');
+    links.append(anchor('本版对应源码', release.sourceUrl));
+    if (release.sha256 && release.checksumsUrl) links.append(anchor('本版校验清单', release.checksumsUrl));
+    card.append(links);
     return card;
   }
 

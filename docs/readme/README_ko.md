@@ -94,7 +94,7 @@ AI는 앱 도구를 통해 할 일 변경을 저장합니다. 대화 답변만�
 | iOS 다운로드 체크섬 | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
 | 릴리스 정보 | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59) Clarity는 Release 구성의 서명되지 않은 IPA로 준비 중이며, 릴리스 CI와 산출물 검증은 아직 진행하지 않았습니다. Android 다운로드는 동일한 APK, 소스 아카이브, 체크섬 및 서명 식별자를 가진 2.0.7(58)을 유지합니다. 사용자는 iPhone에서 감사 브랜치를 확인한 뒤 문제가 없다고 보고했지만, 새 2.0.8 Release 바이너리를 검증한 것은 아닙니다. 위 iOS 링크는 게시를 위해 준비한 주소입니다. 설치 전에 개인 서명이 필요합니다. 이 포크에는 Apple Developer Program 계정이 없어 TestFlight 또는 App Store 배포를 제공하지 않습니다. 강제 집중, 반복 잠금 일정과 앱 허용 목록은 Android 전용입니다. iOS는 집중 알림과 사용법 유도 안내를 제공하며 사용자가 iOS에서 직접 시작하고 종료합니다. CI 컴파일은 iPhone 실행 검증을 의미하지 않습니다.
+iOS2.0.8(59) Clarity를 Release 구성의 서명되지 않은 IPA로 빌드했습니다. 릴리스 CI가 성공했으며 IPA와 해당 소스 아카이브의 로컬 검증도 통과했습니다. Android 다운로드는 동일한 APK, 소스 아카이브, 체크섬 및 서명 식별자를 가진 2.0.7(58)을 유지합니다. 사용자는 iPhone에서 감사 브랜치를 확인한 뒤 문제가 없다고 보고했지만, 새 2.0.8 Release 바이너리를 검증한 것은 아닙니다. 위에서 플랫폼에 맞는 소스 및 체크섬 링크를 사용하세요. 설치 전에 개인 서명이 필요합니다. 이 포크에는 Apple Developer Program 계정이 없어 TestFlight 또는 App Store 배포를 제공하지 않습니다. 강제 집중, 반복 잠금 일정과 앱 허용 목록은 Android 전용입니다. iOS는 집중 알림과 사용법 유도 안내를 제공하며 사용자가 iOS에서 직접 시작하고 종료합니다. CI 컴파일은 iPhone 실행 검증을 의미하지 않습니다.
 
 앱 ID는 `io.github.nanomuse.app`이며 이전 Nivo Bot 정식 릴리스와 같은 서명 식별자를 유지합니다. 이번 릴리스는 실제 Android 휴대전화에서 기존 설치를 덮어쓰는 업데이트를 테스트하지 않았습니다. 이전 Debug 키나 원본 프로젝트 키로 서명한 설치는 보통 이 버전으로 덮어쓰지 못합니다. 삭제 전에 백업과 복원 범위를 확인하세요. [버전 및 서명 안내](../android-development.md#nivo-bot的android版本与签名)를 참고하세요.
 

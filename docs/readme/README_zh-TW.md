@@ -94,7 +94,7 @@ AI透過應用程式工具儲存任務變更，聊天裡說「建好了」不等
 | iOS下載校驗碼 | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
 | 發行詳情 | [Android2.0.7](../releases/v2.0.7.md)·[iOS2.0.8](../releases/v2.0.8.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59)Clarity正準備以Release設定建置未簽章IPA，發行CI與產物驗證尚待執行。Android下載保留2.0.7(58)，沿用原APK、原始碼套件、校驗碼與簽章身分。使用者已確認檢查分支在iPhone上使用沒有問題，這不代表新的2.0.8Release安裝檔已經驗收。上方iOS連結為預備發布位址，安裝前仍需自行簽章。本分支沒有Apple Developer Program帳號，不提供TestFlight或App Store散布。強制專注、週期鎖定計畫與應用程式白名單僅限Android；iOS提供專注提醒與引導使用說明，由使用者在iOS中手動開啟和結束。CI編譯成功不等於iPhone實機驗收。
+iOS2.0.8(59)Clarity已以Release設定建置未簽章IPA，發行CI通過，IPA與對應原始碼套件通過本機核驗。Android下載保留2.0.7(58)，沿用原APK、原始碼套件、校驗碼與簽章身分。使用者已確認檢查分支在iPhone上使用沒有問題，這不代表新的2.0.8Release安裝檔已經驗收。請使用上方對應平台的原始碼與校驗碼，安裝前仍需自行簽章。本分支沒有Apple Developer Program帳號，不提供TestFlight或App Store散布。強制專注、週期鎖定計畫與應用程式白名單僅限Android；iOS提供專注提醒與引導使用說明，由使用者在iOS中手動開啟和結束。CI編譯成功不等於iPhone實機驗收。
 
 應用程式ID仍為`io.github.nanomuse.app`，延續先前Nivo Bot正式版的簽章身分。本次尚未在Android實機上測試覆蓋升級。舊Debug簽章或上游簽章的安裝通常不能直接覆蓋升級。解除安裝前請核對備份與還原範圍，詳見[版本與簽章指南](../android-development.md#nivo-bot的android版本与签名)。
 

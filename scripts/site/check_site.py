@@ -145,6 +145,10 @@ def validate_releases(data: dict) -> list[str]:
             if parsed.scheme != "https" or not parsed.netloc:
                 errors.append(f"Release requires HTTPS {key}")
         kind = release.get("distribution", "apk")
+        if "checksumsUrl" in release:
+            expected = f"{SITE_ORIGIN}downloads/SHA256SUMS-v{release.get('version')}.txt"
+            if release["checksumsUrl"] != expected or kind not in {"apk", "ipa"}:
+                errors.append("Checksum file must belong to this binary release")
         if kind not in {"apk", "ipa", "app-store", "testflight"}:
             errors.append("Invalid distribution method")
         if kind == "ipa" and release.get("signing") not in {"signed", "unsigned"}:

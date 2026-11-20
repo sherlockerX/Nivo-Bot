@@ -249,6 +249,18 @@ def check_local_text_contrast(page: Page, selector: str) -> dict:
     }
 
 
+def check_binary_card(card: Locator, release: dict) -> None:
+    """对照发行清单核对所选安装包、十进制大小和该版本的校验文件。"""
+    expect(card.locator("a.button")).to_have_attribute("href", release["downloadUrl"])
+    if release.get("sizeBytes"):
+        megabytes = f"{release['sizeBytes'] / 1_000_000:.1f}MB"
+        expect(card.locator(".release-facts").get_by_text(megabytes, exact=True)).to_be_visible()
+    if release.get("checksumsUrl"):
+        expect(card.get_by_role("link", name="本版校验清单")).to_have_attribute(
+            "href", release["checksumsUrl"]
+        )
+
+
 def check_static_downloads(container: Locator, catalogue: dict) -> None:
     """静态恢复入口指向真实清单的各平台最新稳定版，保留未签名IPA的安装前提。"""
     for platform in catalogue["platforms"]:
@@ -266,9 +278,10 @@ def check_static_downloads(container: Locator, catalogue: dict) -> None:
                 release.get("versionCode", 0),
             ),
         )
-        expect(
-            container.locator(f'a[href="{latest["downloadUrl"]}"]:visible').first
-        ).to_be_visible()
+        card = container.locator(".release-card:visible").filter(
+            has=container.page.locator(f'a.button[href="{latest["downloadUrl"]}"]')
+        ).first
+        check_binary_card(card, latest)
         if latest.get("signing") == "unsigned":
             expect(container).to_contain_text("不能下载后直接安装到iPhone")
             expect(container).to_contain_text("签名")
@@ -535,9 +548,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         )
         page.goto(base + "downloads.html", wait_until="networkidle")
         expect(page.locator("#release-message")).to_contain_text(f"{len(android)}个可用版本")
-        expect(page.locator("#release-content a.button")).to_have_attribute(
-            "href", android[0]["downloadUrl"]
-        )
+        check_binary_card(page.locator("#release-content .release-card"), android[0])
         expect(page.locator("#release-history")).to_have_count(0)
         expect(page.locator("#release-content a.button")).to_have_text("下载APK")
         expect(page.locator("#release-fallback")).to_be_hidden()
@@ -567,7 +578,10 @@ def run(base: str, output: Path, full: bool = False) -> dict:
             if release["platform"] == "ios" and release["channel"] == "stable"
         ]
         if ios_releases:
-            expect(page.locator("#release-content a.button")).to_have_count(1)
+            selected = page.locator("#release-version").input_value()
+            release = next(item for item in ios_releases if item["id"] == selected)
+            check_binary_card(page.locator("#release-content .release-card"), release)
+            record("两平台下载卡片大小和校验入口与所选安装包一致")
         else:
             expect(page.locator("#release-content")).to_contain_text("尚未公开发布")
             expect(page.locator("#release-content a.button")).to_have_count(0)
@@ -582,6 +596,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         # 未来版本仅通过网络拦截构造，不修改或发布真实发行清单。
         future = copy.deepcopy(catalogue)
         older = copy.deepcopy(android[0])
+        older.pop("checksumsUrl", None)
         newer = copy.deepcopy(older)
         older.update(id="android-2.9.0-fixture", version="2.9.0", versionCode=59)
         newer.update(id="android-2.10.0-fixture", version="2.10.0", versionCode=60)

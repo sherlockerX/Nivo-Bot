@@ -45,6 +45,15 @@ app retains ordinary Release settings. Three badge-injection tests require Debug
 and compile only in Debug. The other badge tests still compile in Release. Application tests
 are compiled, not executed, by this workflow.
 
+<!-- nivo-ios-2.0.8-evidence -->
+## Verified iOS2.0.8 Release build
+
+[Run44797863407](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44797863407) at commit `4163621fba0d40cabdb7354eaba8f9b97ad7be5c` passed the complete workflow: 835 portable Swift tests with zero failures, offline map regressions, Release device compilation, application-test compilation and the NanoMuse source-warning check. Application tests were compiled, not executed; offline map regressions did not call Apple services.
+
+IPA: 70,035,647 bytes, SHA256 `ad631e6b0f4f1ecb7d8c71c4691d53734b1fb15ad0957796eed1344f6fd39a6a`. Source ZIP: 76,465,089 bytes, SHA256 `c44c1d9a762f9a281bf3984b252d6648cb067013c001cc7aa024e6a11df25313`; 8,379 source files verified, 8,380 ZIP entries. Bundle `io.github.nanomuse.app`, version `2.0.8 (59)`, minimum iOS16.0, arm64, unsigned. The distribution app was saved before the separate test build enabled testability; the app and its three extensions are unsigned. Eight media frameworks retain their signatures. The IPA contains no embedded tests or provisioning profile.
+
+The user's earlier iPhone feedback applies to the Debug check branch. The new Release IPA still requires iPhone acceptance after personal signing. Local checks do not verify public download availability. Android retains its existing 2.0.7 (58) APK, source and checksum files. See the [2.0.8 release notes](releases/v2.0.8.md) for provenance and limits.
+
 ## Sideloaded storage
 
 Personal re-signing can remove the App Group entitlement. The main app then keeps its files,

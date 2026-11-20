@@ -327,7 +327,7 @@ def release_card(release: dict, prefix: str = "") -> str:
         release["releasedAt"],
     ]
     if release.get("sizeBytes"):
-        facts.insert(2, f"{release['sizeBytes'] / 1024 / 1024:.1f}MB")
+        facts.insert(2, f"{release['sizeBytes'] / 1_000_000:.1f}MB")
     facts_html = "".join(f"<span>{esc(value)}</span>" for value in facts if value)
     install = (
         f'<aside class="callout"><h3>安装前需要自行签名</h3><p>{release_installation(release)}</p></aside>'
@@ -337,7 +337,10 @@ def release_card(release: dict, prefix: str = "") -> str:
     checksum = ""
     if release.get("sha256"):
         checksum = f'''<div class="checksum"><span>安装文件SHA256</span><code>{esc(release["sha256"])}</code><button class="copy-button" data-copy="{esc(release["sha256"])}" type="button" aria-label="复制安装文件SHA256">复制校验和</button></div>'''
-    return f'''<div class="release-card"><div class="release-heading"><span class="platform-symbol">↗</span><div><p class="eyebrow">{platform} {"稳定版" if release["channel"] == "stable" else "测试版"}</p><h2>Nivo Bot <span>v{esc(release["version"])}</span></h2></div><span class="chip">{method}</span></div><p class="release-summary">{esc(release["summary"])}</p><div class="release-facts">{facts_html}</div>{install}<div class="actions">{link(release["downloadUrl"], action, "button primary")}<a class="text-link" href="{prefix}{esc(release["notesUrl"])}">查看更新说明</a></div>{checksum}<div class="release-links">{link(release["sourceUrl"], "本版对应源码")}{link(ORIGIN + "downloads/SHA256SUMS.txt", "校验清单")}</div></div>'''
+    release_links = link(release["sourceUrl"], "本版对应源码")
+    if release.get("sha256") and release.get("checksumsUrl"):
+        release_links += link(release["checksumsUrl"], "本版校验清单")
+    return f'''<div class="release-card"><div class="release-heading"><span class="platform-symbol">↗</span><div><p class="eyebrow">{platform} {"稳定版" if release["channel"] == "stable" else "测试版"}</p><h2>Nivo Bot <span>v{esc(release["version"])}</span></h2></div><span class="chip">{method}</span></div><p class="release-summary">{esc(release["summary"])}</p><div class="release-facts">{facts_html}</div>{install}<div class="actions">{link(release["downloadUrl"], action, "button primary")}<a class="text-link" href="{prefix}{esc(release["notesUrl"])}">查看更新说明</a></div>{checksum}<div class="release-links">{release_links}</div></div>'''
 
 
 def downloads(releases: dict) -> str:

@@ -122,18 +122,26 @@ class ProductSiteTests(unittest.TestCase):
         """商店分发没有直链IPA时，不能强迫填虚假的文件哈希。"""
         future = copy.deepcopy(self.catalogue)
         future["platforms"][1]["status"] = "available"
-        release = copy.deepcopy(future["releases"][0])
-        release.update(
+        # 商店发行不继承清单首行的IPA签名状态或APK证书。
+        release = dict(
             id="ios-test-fixture",
             platform="ios",
+            version="9.0.0",
+            versionCode=90,
+            channel="stable",
             distribution="app-store",
             downloadUrl="https://apps.apple.com/",
-            notesUrl="releases/ios-2.0.0.html",
+            sourceUrl="https://example.org/source.zip",
+            notesUrl="releases/ios-9.0.0.html",
         )
-        del release["sha256"]
-        del release["sizeBytes"]
         future["releases"].append(release)
         self.assertEqual(validate_releases(future), [])
+
+    def test_mismatched_checksum_file_is_rejected(self) -> None:
+        """错误版本的文件即使位于官网，也不能用来校验当前安装包。"""
+        catalogue = copy.deepcopy(self.catalogue)
+        catalogue["releases"][0]["checksumsUrl"] = "https://nivo.8666886.xyz/downloads/SHA256SUMS.txt"
+        self.assertIn("Checksum file must belong to this binary release", validate_releases(catalogue))
 
     def unsigned_ios_catalogue(self) -> dict:
         """构造仅用于测试的未签名IPA，不写入真实发行清单。"""
@@ -153,6 +161,7 @@ class ProductSiteTests(unittest.TestCase):
             notesUrl="releases/ios-unsigned-fixture.html",
         )
         release.pop("certificateSha256", None)
+        release.pop("checksumsUrl", None)
         catalogue["releases"].append(release)
         return catalogue
 

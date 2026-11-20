@@ -94,7 +94,7 @@ AI通过应用工具保存任务变更，聊天里说“建好了”不等于任
 |iOS下载校验和|[SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt)|
 |发行详情|[Android2.0.7](../releases/v2.0.7.md)·[iOS2.0.8](../releases/v2.0.8.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)|
 
-iOS2.0.8(59)Clarity正准备以Release配置构建未签名IPA，发行CI与产物验证尚待执行。Android下载保留2.0.7(58)，沿用原APK、源码包、校验和与签名身份。用户已确认检查分支在iPhone上使用没有问题，这不代表新的2.0.8Release安装包已经验收。上方iOS链接为预备发布地址，安装前仍需自行签名。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在iOS中手动开启和结束。CI编译成功不等于iPhone真机验收。
+iOS2.0.8(59)Clarity已以Release配置构建未签名IPA，发行CI通过，IPA与对应源码包通过本地核验。Android下载保留2.0.7(58)，沿用原APK、源码包、校验和与签名身份。用户已确认检查分支在iPhone上使用没有问题，这不代表新的2.0.8Release安装包已经验收。请使用上方对应平台的源码与校验和，安装前仍需自行签名。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在iOS中手动开启和结束。CI编译成功不等于iPhone真机验收。
 
 应用ID仍为`io.github.nanomuse.app`，延续此前Nivo Bot正式版的签名身份。本次尚未在Android真机上测试覆盖升级。旧Debug签名或上游签名的安装通常不能直接覆盖升级。卸载前请核对备份与恢复范围，详见[版本与签名指南](../android-development.md#nivo-bot的android版本与签名)。
 

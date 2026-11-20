@@ -13,10 +13,45 @@
       "name": "iOS",
       "status": "available",
       "message": "提供需要自行签名的未签名IPA。没有TestFlight或App Store入口。",
-      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021"
+      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44797863407"
     }
   ],
   "releases": [
+    {
+      "id": "ios-2.0.8-59-arm64",
+      "platform": "ios",
+      "version": "2.0.8",
+      "versionCode": 59,
+      "channel": "stable",
+      "distribution": "ipa",
+      "signing": "unsigned",
+      "releasedAt": "2026-11-20",
+      "minimumOs": "16.0",
+      "architecture": "arm64",
+      "sizeBytes": 70035647,
+      "sha256": "ad631e6b0f4f1ecb7d8c71c4691d53734b1fb15ad0957796eed1344f6fd39a6a",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip",
+      "sourceSha256": "c44c1d9a762f9a281bf3984b252d6648cb067013c001cc7aa024e6a11df25313",
+      "sourceSizeBytes": 76465089,
+      "sourceCommit": "4163621fba0d40cabdb7354eaba8f9b97ad7be5c",
+      "notesUrl": "releases/ios-2.0.8.html",
+      "buildUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44797863407",
+      "summary": "系统文件改用「排序方式」菜单，完善中文界面，并修复模型及个人记录查询。",
+      "notes": [
+        "Release配置构建，安装前仍需自行签名；iOS16及以上、arm64",
+        "系统文件可按默认或上次修改排序；可编辑空文件，保存失败时保留草稿",
+        "补齐100条界面译文，覆盖备份与恢复、语音、快捷指令及实时活动",
+        "修复含点号模型ID的配置查询、模型命令参数解析与错误提示",
+        "记录查询解释前后台、会话与存储问题，生活记录跟随设备时区",
+        "会话状态统一JSON结构，计划任务缺少参数时提前说明原因",
+        "地图区分骑行模式、提示地名歧义并校验坐标与距离，保留服务错误",
+        "835项Swift核心测试及地图离线回归通过；安装包按Release配置构建，手机体验仍需真机验证",
+        "运行时模型仍需单独授权；真实地图服务结果需结合实际端点核实",
+        "源码包含固定iSH及实际使用的递归依赖；保留旧版Android与iOS下载"
+      ]
+    },
     {
       "id": "android-2.0.7-58-arm64",
       "platform": "android",
@@ -31,6 +66,7 @@
       "sha256": "c71df8cf358ecbebfc8fa8ea7fda8062cce84a9be3b5b5edd86c4622cf9a8494",
       "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
       "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt",
       "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip",
       "sourceSha256": "409c41d047fcc4833eb1a97b9ce2aa2fea3426a2de757540825ce8491b7c548d",
       "sourceSizeBytes": 62428057,
