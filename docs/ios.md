@@ -19,6 +19,22 @@ runtime model authorization, personal-record recovery, map commands and CLI resp
 The audit distinguishes confirmed code defects from observations that still need the original
 device and service. It does not change the published iOS download or grant additional access.
 
+## Unsigned CI builds
+
+Run **iOS · build check** from GitHub Actions with `portable_only=false` to build the app.
+The manual `configuration` choice accepts `Debug` or `Release`, with `Debug` as the default.
+Push and pull-request runs always use `Debug`. Select `Release` for an optimized distribution
+candidate. Device compilation, the saved application and application-test compilation all use
+the selected configuration; portable regression tests keep their existing configuration.
+
+The `nivo-ios-unsigned-<run_number>` artifact contains `Nivo-Bot-unsigned.ipa`, its SHA256 file
+and `Nivo-Bot-build-provenance.json`. The JSON records the workflow's actual `GITHUB_SHA`, run
+URL and build configuration, the packaged app's bundle ID, version, build number and minimum
+iOS version, the executable's architectures, confirmed unsigned status, and the IPA's SHA256
+and size in bytes. The app is copied before test embedding and the package excludes `.xctest`
+bundles. Artifact upload precedes application-test compilation, so confirm that the complete
+workflow passed before publishing it. Personal signing is still required for installation.
+
 ## Sideloaded storage
 
 Personal re-signing can remove the App Group entitlement. The main app then keeps its files,
@@ -182,7 +198,8 @@ Applied by `python scripts/rebrand.py` (idempotent; run after every upstream pul
   updated) and in the Info.plist usage descriptions in every language. The OpenRouter
   `HTTP-Referer` keeps pointing at OpenMinis, as on Android: it is attribution, not identity.
 - **Versions.** `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` follow the Android
-  `versionName` / `versionCode`; CI overrides the build number with the run number.
+  `versionName` / `versionCode`. Unsigned build checks retain these values; the historical
+  TestFlight lane overrides the build number with the run number.
 - **Look.** AccentColor `#015CFB` / `#58A6FF` instead of iOS blue; the one-stroke N as the app
   icon (white tile, brand gradient; a dark tile for the dark appearance) and as the four skins of
   the in-app icon picker; the agent's header glyph 🐾 instead of ✨.

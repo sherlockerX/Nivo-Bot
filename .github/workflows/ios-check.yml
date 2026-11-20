@@ -27,6 +27,12 @@ on:
         required: false
         type: boolean
         default: false
+      configuration:
+        description: '设备应用及测试目标的构建配置'
+        required: false
+        type: choice
+        default: Debug
+        options: [Debug, Release]
 
 concurrency:
   group: ios-check-${{ github.ref }}
@@ -91,10 +97,19 @@ jobs:
     timeout-minutes: 150
     env:
       GO_VERSION: "1.25"
+      IOS_CONFIGURATION: ${{ github.event_name == 'workflow_dispatch' && inputs.configuration || 'Debug' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
+      # 配置只通过环境变量传递；命令和路径使用前严格限定为两种构建类型。
+      - name: Validate build configuration
+        run: |
+          case "$IOS_CONFIGURATION" in
+            Debug|Release) ;;
+            *) echo '::error::Unsupported iOS build configuration'; exit 1 ;;
+          esac
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
@@ -174,7 +189,7 @@ jobs:
           set -o pipefail
           mkdir -p build
           xcodebuild build \
-            -project Minis.xcodeproj -scheme Minis -configuration Debug \
+            -project Minis.xcodeproj -scheme Minis -configuration "$IOS_CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
@@ -187,7 +202,7 @@ jobs:
         working-directory: android/src/ios
         run: |
           mkdir -p build/unsigned/Payload
-          ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/unsigned/Payload/Minis.app
+          ditto "build/DerivedData/Build/Products/${IOS_CONFIGURATION}-iphoneos/Minis.app" build/unsigned/Payload/Minis.app
 
       # 先交付设备应用，稍后的测试编译仍独立决定整次检查是否通过。
       - name: Package unsigned iOS app
@@ -198,6 +213,50 @@ jobs:
           zip -qry ../Nivo-Bot-unsigned.ipa Payload
           cd ..
           shasum -a 256 Nivo-Bot-unsigned.ipa > Nivo-Bot-unsigned.sha256
+          # 来源信息读取已打包的应用与实际文件，不从版本清单推测产物身份。
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import plistlib
+          import subprocess
+          import zipfile
+
+          ipa = Path("Nivo-Bot-unsigned.ipa")
+          app = Path("unsigned/Payload/Minis.app")
+          with zipfile.ZipFile(ipa) as archive:
+              info = plistlib.loads(archive.read("Payload/Minis.app/Info.plist"))
+          architectures = subprocess.check_output(
+              ["xcrun", "lipo", "-archs", str(app / info["CFBundleExecutable"])], text=True
+          ).split()
+          signing = subprocess.run(
+              ["codesign", "--display", str(app)], capture_output=True, text=True,
+              env={**os.environ, "LC_ALL": "C"},
+          )
+          if signing.returncode == 0 or "code object is not signed at all" not in signing.stderr:
+              raise SystemExit("Expected an unsigned app; codesign inspection did not confirm it.")
+          digest = hashlib.sha256()
+          with ipa.open("rb") as stream:
+              for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          provenance = {
+              "schemaVersion": 1,
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "runUrl": f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}',
+              "configuration": os.environ["IOS_CONFIGURATION"],
+              "bundleIdentifier": info["CFBundleIdentifier"],
+              "version": info["CFBundleShortVersionString"],
+              "buildNumber": info["CFBundleVersion"],
+              "minimumOSVersion": info["MinimumOSVersion"],
+              "architectures": architectures,
+              "unsigned": True,
+              "ipa": {"name": ipa.name, "sha256": digest.hexdigest(), "sizeBytes": ipa.stat().st_size},
+          }
+          Path("Nivo-Bot-build-provenance.json").write_text(
+              json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -205,6 +264,7 @@ jobs:
           path: |
             android/src/ios/build/Nivo-Bot-unsigned.ipa
             android/src/ios/build/Nivo-Bot-unsigned.sha256
+            android/src/ios/build/Nivo-Bot-build-provenance.json
           retention-days: 14
           if-no-files-found: error
 
@@ -214,7 +274,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build-for-testing \
-            -project Minis.xcodeproj -scheme Minis -configuration Debug \
+            -project Minis.xcodeproj -scheme Minis -configuration "$IOS_CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
