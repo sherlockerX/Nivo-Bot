@@ -41,7 +41,23 @@ PRIVATE_NAMES = {
     "id_ed25519",
 }
 EXTRA_SECRET_PATTERNS = (
-    ("private-key", re.compile(rb"-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----")),
+    # 内联文档可提及头标记；独立头行（含NUL前缀）仍需阻止。
+    (
+        "private-key",
+        re.compile(
+            rb"(?:^|\x00)[ \t]*-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----[ \t\r]*$",
+            re.MULTILINE,
+        ),
+    ),
+    # 即使头标记前有普通文本，后随多行base64及对应尾标记仍视为密钥块。
+    (
+        "private-key",
+        re.compile(
+            rb"-----BEGIN (?P<kind>(?:[A-Z0-9]+ )?PRIVATE KEY)-----[ \t\r]*\n"
+            rb"(?:[ \t]*[A-Za-z0-9+/=]+[ \t\r]*\n)+"
+            rb"[ \t]*-----END (?P=kind)-----",
+        ),
+    ),
     ("putty-private-key", re.compile(rb"PuTTY-User-Key-File-[23]:")),
 )
 

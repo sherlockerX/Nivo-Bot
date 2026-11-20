@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import json
 import os
 from pathlib import Path
@@ -176,6 +177,42 @@ class ArchiveSourceTest(unittest.TestCase):
                     archive_source(self.root, commit, output)
                 self.assertNotIn(token.decode(), str(failure.exception))
                 self.assertNotIn(private_header.decode(), str(failure.exception))
+                self.assertFalse(output.exists())
+                self.assertFalse(list(self.folder.glob(".source-*.partial")))
+
+    def test_allows_inline_pem_header_documentation_without_key_body(self) -> None:
+        """说明表格中的单独头标记没有密钥体，必须正常归档。"""
+        header = b"-----BEGIN " + b"PRIVATE KEY-----"
+        documentation = (
+            b"| APP_STORE_CONNECT_KEY_P8 | The full text of AuthKey_<ID>.p8, `"
+            + header
+            + b"` ... |\n"
+        )
+        self.add_blob("docs/ios.md", documentation)
+        commit = self.commit_index()
+        output = self.folder / "documented-header.zip"
+        archive_source(self.root, commit, output)
+        with zipfile.ZipFile(output) as archive:
+            self.assertEqual(archive.read("docs/ios.md"), documentation)
+
+    def test_rejects_multiline_pem_blocks_including_binary_prefix(self) -> None:
+        """真实格式的多行base64块不能借内联前缀或NUL逃过检查。"""
+        encoded = base64.b64encode(b"synthetic fixture bytes, not a private key" * 4)
+        body = b"\n".join(
+            encoded[index : index + 64] for index in range(0, len(encoded), 64)
+        )
+        header = b"-----BEGIN " + b"PRIVATE KEY-----"
+        footer = b"-----END " + b"PRIVATE KEY-----"
+        block = header + b"\n" + body + b"\n" + footer + b"\n"
+        for index, prefix in enumerate([b"", b"\0", b"inline payload: "]):
+            with self.subTest(prefix=prefix):
+                self.git(self.root, "read-tree", self.commit)
+                self.add_blob("payload.txt", prefix + block)
+                commit = self.commit_index()
+                output = self.folder / f"pem-{index}.zip"
+                with self.assertRaisesRegex(ValueError, "Suspected secret") as failure:
+                    archive_source(self.root, commit, output)
+                self.assertNotIn(encoded[:32].decode(), str(failure.exception))
                 self.assertFalse(output.exists())
                 self.assertFalse(list(self.folder.glob(".source-*.partial")))
 
