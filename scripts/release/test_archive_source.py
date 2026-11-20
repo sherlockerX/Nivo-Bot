@@ -9,10 +9,13 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
+import archive_source as archive_module
 from archive_source import archive_source
 
 
@@ -106,6 +109,325 @@ class ArchiveSourceTest(unittest.TestCase):
             "--cacheinfo",
             f"{mode},{oid},{relative}",
         )
+
+    def add_repository(self, relative: str, files: dict[str, bytes]) -> tuple[Path, str]:
+        """创建真正独立的子模块对象库，不用工作树内容替代提交对象。"""
+        repository = self.root / relative
+        repository.mkdir(parents=True, exist_ok=True)
+        self.git(repository, "init", "-q")
+        for name, data in files.items():
+            target = repository / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            self.git(repository, "add", name)
+        self.git(repository, "commit", "-qm", "nested source fixture")
+        commit = self.git(repository, "rev-parse", "HEAD").decode().strip()
+        return repository, commit
+
+    def pin_submodule(self, repository: Path, relative: str, commit: str) -> str:
+        """把指定gitlink写入fixture提交，不依赖当前子模块HEAD。"""
+        self.git(
+            repository, "update-index", "--add", "--cacheinfo",
+            f"160000,{commit},{relative}",
+        )
+        self.git(repository, "commit", "-qm", "pin nested source fixture")
+        return self.git(repository, "rev-parse", "HEAD").decode().strip()
+
+    def ios_fixture(self) -> tuple[str, Path, Path, Path]:
+        """准备iSH、一级和二级依赖，模拟固定递归源码树。"""
+        ish, _ = self.add_repository(
+            "android/deps/ish", {"kernel.c": b"pinned kernel\n"}
+        )
+        library, _ = self.add_repository(
+            "android/deps/ish/deps/libapps", {"terminal.js": b"pinned terminal\n"}
+        )
+        nested, nested_commit = self.add_repository(
+            "android/deps/ish/deps/libapps/vendor/helper",
+            {"helper.c": b"pinned helper\n"},
+        )
+        library_commit = self.pin_submodule(library, "vendor/helper", nested_commit)
+        ish_commit = self.pin_submodule(ish, "deps/libapps", library_commit)
+        commit = self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+        return commit, ish, library, nested
+
+    def test_ios_expands_recursive_pinned_objects_and_records_scope(self) -> None:
+        """iOS递归展开固定gitlink，子模块HEAD和工作树变化不改变源码。"""
+        commit, ish, library, nested = self.ios_fixture()
+        for repository, filename in [
+            (ish, "kernel.c"), (library, "terminal.js"), (nested, "helper.c")
+        ]:
+            (repository / filename).write_bytes(b"later committed source\n")
+            self.git(repository, "add", filename)
+            self.git(repository, "commit", "-qm", "later nested revision")
+            (repository / filename).write_bytes(b"private uncommitted bytes\n")
+        output = self.folder / "ios.zip"
+        archive_source(self.root, commit, output, platform="ios")
+        with zipfile.ZipFile(output) as archive:
+            self.assertEqual(archive.read("android/deps/ish/kernel.c"), b"pinned kernel\n")
+            self.assertEqual(
+                archive.read("android/deps/ish/deps/libapps/terminal.js"),
+                b"pinned terminal\n",
+            )
+            self.assertEqual(
+                archive.read("android/deps/ish/deps/libapps/vendor/helper/helper.c"),
+                b"pinned helper\n",
+            )
+            manifest = json.loads(archive.read("SOURCE_RELEASE.json"))
+            self.assertEqual(manifest["status"], "ios-release-source")
+            self.assertEqual(manifest["scope"], "iOS corresponding source")
+            self.assertEqual(len(manifest["submodules"]), 4)
+            self.assertTrue(all(item["expanded"] for item in manifest["submodules"]))
+            self.assertNotIn("APK", " ".join(manifest["limitations"]))
+
+    def test_ios_missing_nested_checkout_cannot_fall_back_to_parent_repository(self) -> None:
+        """空子目录中的Git会回退父仓库，归档器必须识别并拒绝。"""
+        ish, ish_commit = self.add_repository(
+            "android/deps/ish", {"kernel.c": b"pinned kernel\n"}
+        )
+        (ish / "deps/missing").mkdir(parents=True)
+        ish_commit = self.pin_submodule(ish, "deps/missing", ish_commit)
+        commit = self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+        output = self.folder / "missing-nested.zip"
+        with self.assertRaisesRegex(ValueError, "Submodule repository is not initialized"):
+            archive_source(self.root, commit, output, platform="ios")
+        self.assertFalse(output.exists())
+
+    def test_ios_reports_missing_pinned_object_in_initialized_repository(self) -> None:
+        """存在子仓库也不允许用HEAD补足缺失的固定提交。"""
+        _, ish_commit = self.add_repository(
+            "android/deps/ish", {"kernel.c": b"pinned kernel\n"}
+        )
+        self.assertNotEqual(ish_commit, self.proot_commit)
+        commit = self.pin_submodule(self.root, "android/deps/ish", self.proot_commit)
+        with self.assertRaisesRegex(ValueError, "Missing pinned submodule commit"):
+            archive_source(self.root, commit, self.folder / "missing-object.zip", platform="ios")
+
+    def test_ios_requires_ish_and_rejects_unknown_platform(self) -> None:
+        """iOS不能仅因主仓库可读就生成缺少内核源码的成功包。"""
+        with self.assertRaisesRegex(ValueError, "Pinned iSH submodule is required"):
+            archive_source(self.root, self.commit, self.folder / "no-ish.zip", platform="ios")
+        with self.assertRaisesRegex(ValueError, "Unsupported source platform"):
+            archive_source(self.root, self.commit, self.folder / "unknown.zip", platform="other")
+
+    def test_ios_nested_secrets_are_scanned_and_partial_output_removed(self) -> None:
+        """递归源码沿用严格秘密扫描，失败不能留下可发布产物。"""
+        commit, ish, _, nested = self.ios_fixture()
+        token = b"ghp_" + b"a" * 36
+        (nested / "helper.c").write_bytes(token)
+        self.git(nested, "add", "helper.c")
+        self.git(nested, "commit", "-qm", "synthetic secret fixture")
+        nested_commit = self.git(nested, "rev-parse", "HEAD").decode().strip()
+        library = nested.parent.parent
+        library_commit = self.pin_submodule(library, "vendor/helper", nested_commit)
+        ish_commit = self.pin_submodule(ish, "deps/libapps", library_commit)
+        commit = self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+        output = self.folder / "nested-secret.zip"
+        with self.assertRaisesRegex(ValueError, "Suspected secret") as failure:
+            archive_source(self.root, commit, output, platform="ios")
+        self.assertNotIn(token.decode(), str(failure.exception))
+        self.assertFalse(output.exists())
+        self.assertFalse(list(self.folder.glob(".source-*.partial")))
+
+    def test_ios_rejects_nested_private_paths(self) -> None:
+        """子模块中的私密文件名同样必须阻止归档，不能静默省略。"""
+        ish, _ = self.add_repository(
+            "android/deps/ish", {"kernel.c": b"pinned kernel\n"}
+        )
+        _, nested_commit = self.add_repository(
+            "android/deps/ish/deps/library", {"credentials.json": b"synthetic fixture"}
+        )
+        ish_commit = self.pin_submodule(ish, "deps/library", nested_commit)
+        commit = self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+        with self.assertRaisesRegex(ValueError, "Forbidden archive path"):
+            archive_source(self.root, commit, self.folder / "private.zip", platform="ios")
+
+    def test_android_default_output_remains_byte_identical(self) -> None:
+        """新增平台参数不能改变既有Android默认输出及固定元数据。"""
+        commit, _, _, _ = self.ios_fixture()
+        default = self.folder / "default.zip"
+        explicit = self.folder / "android.zip"
+        archive_source(self.root, commit, default)
+        archive_source(self.root, commit, explicit, platform="android")
+        self.assertEqual(default.read_bytes(), explicit.read_bytes())
+        with zipfile.ZipFile(default) as archive:
+            self.assertNotIn("android/deps/ish/kernel.c", archive.namelist())
+            manifest = json.loads(archive.read("SOURCE_RELEASE.json"))
+            self.assertEqual(manifest["status"], "android-release-source")
+
+    def optional_linux_fixture(self, kernel: str = "ish") -> str:
+        """固定声明不参与iSH内核构建的Linux备选gitlink及源码中的构建选择。"""
+        ish, ish_commit = self.add_repository(
+            "android/deps/ish", {
+                "kernel.c": b"pinned kernel\n",
+                ".gitmodules": (
+                    b'[submodule "deps/linux"]\n\tpath = deps/linux\n'
+                    b'\turl = https://example.invalid/linux.git\n\tupdate = none\n'
+                ),
+            },
+        )
+        ish_commit = self.pin_submodule(ish, "deps/linux", ish_commit)
+        self.add_blob(
+            "android/deps/build_ish.sh",
+            f"meson setup build-ios \\\n    -Dkernel={kernel} \\\n    -Dengine=asbestos\n".encode(),
+        )
+        return self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+
+    def test_ios_records_optional_linux_pin_when_committed_build_uses_ish(self) -> None:
+        """只在固定配置声明update=none且构建明确用iSH时保留Linux固定点。"""
+        commit = self.optional_linux_fixture()
+        self.write("android/deps/build_ish.sh", b"uncommitted replacement\n")
+        output = self.folder / "ios-with-optional-linux.zip"
+        archive_source(self.root, commit, output, platform="ios")
+        with zipfile.ZipFile(output) as archive:
+            manifest = json.loads(archive.read("SOURCE_RELEASE.json"))
+            linux = next(
+                item for item in manifest["submodules"] if item["path"].endswith("/linux")
+            )
+            self.assertFalse(linux["expanded"])
+            self.assertIn("kernel=ish", linux["reason"])
+            self.assertEqual(len(linux["commit"]), 40)
+            self.assertIn("Linux", " ".join(manifest["limitations"]))
+
+    def test_ios_cannot_omit_linux_if_committed_build_selects_it(self) -> None:
+        """Linux变成实际构建输入后，即使update=none也必须有固定对象。"""
+        commit = self.optional_linux_fixture(kernel="linux")
+        with self.assertRaisesRegex(ValueError, "Submodule repository is not initialized"):
+            archive_source(self.root, commit, self.folder / "needs-linux.zip", platform="ios")
+
+    def test_ios_cannot_omit_linux_based_on_uncommitted_gitmodules(self) -> None:
+        """工作树临时加入的update=none不能减少归档输入。"""
+        ish, ish_commit = self.add_repository(
+            "android/deps/ish", {"kernel.c": b"pinned kernel\n"}
+        )
+        ish_commit = self.pin_submodule(ish, "deps/linux", ish_commit)
+        self.add_blob("android/deps/build_ish.sh", b"meson setup build-ios \\\n    -Dkernel=ish\n")
+        commit = self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+        (ish / ".gitmodules").write_bytes(
+            b'[submodule "deps/linux"]\n\tpath = deps/linux\n\tupdate = none\n'
+        )
+        with self.assertRaisesRegex(ValueError, "Submodule repository is not initialized"):
+            archive_source(self.root, commit, self.folder / "untrusted-omit.zip", platform="ios")
+
+    def test_ios_cli_accepts_platform_and_preserves_default_android(self) -> None:
+        """真实命令行必须传递平台选择，不能只有可导入函数支持iOS。"""
+        commit, _, _, _ = self.ios_fixture()
+        script = Path(__file__).with_name("archive_source.py")
+        for platform in ["ios", "android"]:
+            output = self.folder / f"cli-{platform}.zip"
+            arguments = [
+                sys.executable, str(script), "--root", str(self.root),
+                "--commit", commit, "--output", str(output),
+            ]
+            if platform == "ios":
+                arguments.extend(["--platform", platform])
+            result = subprocess.run(arguments, capture_output=True, env=self.environment)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            self.assertEqual(json.loads(result.stdout)["sourceCommit"], commit)
+            with zipfile.ZipFile(output) as archive:
+                manifest = json.loads(archive.read("SOURCE_RELEASE.json"))
+                self.assertEqual(manifest["status"], f"{platform}-release-source")
+
+    def test_ios_recursive_symlinks_keep_existing_escape_and_dangling_checks(self) -> None:
+        """子模块文件也按最终归档命名空间核对链接，不能越界或指向缺失文件。"""
+        for index, target in enumerate([b"../../../../../outside", b"missing"]):
+            with self.subTest(target=target):
+                relative = f"android/deps/ish/fixture-{index}"
+                repository, _ = self.add_repository(relative, {"source.c": b"fixture\n"})
+                oid = self.git(repository, "hash-object", "-w", "--stdin", data=target).decode().strip()
+                self.git(repository, "update-index", "--add", "--cacheinfo", f"120000,{oid},link")
+                self.git(repository, "commit", "-qm", "unsafe link fixture")
+                commit = self.git(repository, "rev-parse", "HEAD").decode().strip()
+                # 主iSH仓库与实际checkout路径必须一致，固定gitlink不能借用父仓库。
+                ish = self.root / "android/deps/ish"
+                if index == 0:
+                    self.git(ish, "init", "-q")
+                    (ish / "kernel.c").write_bytes(b"fixture kernel\n")
+                    self.git(ish, "add", "kernel.c")
+                    self.git(ish, "commit", "-qm", "kernel fixture")
+                else:
+                    self.git(ish, "update-index", "--force-remove", "fixture-0")
+                ish_commit = self.pin_submodule(ish, f"fixture-{index}", commit)
+                source_commit = self.pin_submodule(self.root, "android/deps/ish", ish_commit)
+                with self.assertRaisesRegex(ValueError, "Unsafe symlink"):
+                    archive_source(self.root, source_commit, self.folder / f"link-ios-{index}.zip", platform="ios")
+
+    def test_ios_archive_is_deterministic_and_refuses_existing_output(self) -> None:
+        """递归归档同样可重复生成且不能覆盖既有源码文件。"""
+        commit, _, _, _ = self.ios_fixture()
+        first, second = self.folder / "ios-one.zip", self.folder / "ios-two.zip"
+        archive_source(self.root, commit, first, platform="ios")
+        archive_source(self.root, commit, second, platform="ios")
+        self.assertEqual(first.read_bytes(), second.read_bytes())
+        with self.assertRaisesRegex(ValueError, "overwrite"):
+            archive_source(self.root, commit, first, platform="ios")
+
+    def reviewed_fixture(self, content: bytes, mode: str = "100644") -> tuple[str, str]:
+        """创建人工公开测试数据，例外策略只在隔离测试中按明确哈希替换。"""
+        relative = "android/deps/ish/deps/libapps/hterm/test_data/charsets.log"
+        self.add_blob(relative, content, mode)
+        return self.commit_index(), relative
+
+    def test_reviewed_public_fixture_requires_exact_path_and_content_hash(self) -> None:
+        """明确审查的测试日志可归档，同路径内容改动或旁边新日志仍被拒绝。"""
+        content = b"@@ HEADER_START\nsynthetic terminal fixture\n@@ HEADER_END\n"
+        commit, relative = self.reviewed_fixture(content)
+        policy = {relative: hashlib.sha256(content).hexdigest()}
+        with patch.dict(archive_module.REVIEWED_PUBLIC_FILES, policy, clear=True):
+            output = self.folder / "reviewed.zip"
+            archive_source(self.root, commit, output)
+            with zipfile.ZipFile(output) as archive:
+                self.assertEqual(archive.read(relative), content)
+            changed, _ = self.reviewed_fixture(content + b"unreviewed bytes")
+            with self.assertRaisesRegex(ValueError, "Reviewed public source checksum mismatch"):
+                archive_source(self.root, changed, self.folder / "changed.zip")
+            self.git(self.root, "read-tree", commit)
+            self.add_blob(relative.replace("charsets", "personal"), content)
+            unknown = self.commit_index()
+            with self.assertRaisesRegex(ValueError, "Forbidden archive path"):
+                archive_source(self.root, unknown, self.folder / "unknown-log.zip")
+        self.assertFalse((self.folder / "changed.zip").exists())
+        self.assertFalse(list(self.folder.glob(".source-*.partial")))
+
+    def test_reviewed_public_fixture_cannot_bypass_secret_scanning_or_link_rules(self) -> None:
+        """即使误把敏感内容或符号链接加入哈希表，其他拦截仍然生效。"""
+        content = b"ghp_" + b"b" * 36
+        commit, relative = self.reviewed_fixture(content)
+        policy = {relative: hashlib.sha256(content).hexdigest()}
+        with patch.dict(archive_module.REVIEWED_PUBLIC_FILES, policy, clear=True):
+            with self.assertRaisesRegex(ValueError, "Suspected secret"):
+                archive_source(self.root, commit, self.folder / "reviewed-secret.zip")
+        commit, relative = self.reviewed_fixture(b"../../../../../../LICENSE", "120000")
+        policy = {relative: hashlib.sha256(b"../../../../../../LICENSE").hexdigest()}
+        with patch.dict(archive_module.REVIEWED_PUBLIC_FILES, policy, clear=True):
+            with self.assertRaisesRegex(ValueError, "Forbidden archive path"):
+                archive_source(self.root, commit, self.folder / "reviewed-link.zip")
+
+    def test_reviewed_build_source_does_not_allow_arbitrary_build_paths(self) -> None:
+        """公开build源码按文件哈希逐一确认，不把整个build目录变成白名单。"""
+        relative = "android/deps/ish/deps/libarchive/build/README.txt"
+        content = b"synthetic upstream build documentation\n"
+        self.add_blob(relative, content)
+        commit = self.commit_index()
+        with patch.dict(
+            archive_module.REVIEWED_PUBLIC_FILES,
+            {relative: hashlib.sha256(content).hexdigest()}, clear=True,
+        ):
+            archive_source(self.root, commit, self.folder / "build-source.zip")
+            self.add_blob(relative.replace("README.txt", "private.txt"), content)
+            changed = self.commit_index()
+            with self.assertRaisesRegex(ValueError, "Forbidden archive path"):
+                archive_source(self.root, changed, self.folder / "build-private.zip")
+
+    def test_reviewed_policy_has_only_exact_public_submodule_source_paths(self) -> None:
+        """实际例外表不能含通配符、根日志或其他来源的文件。"""
+        self.assertTrue(archive_module.REVIEWED_PUBLIC_FILES)
+        for relative, digest in archive_module.REVIEWED_PUBLIC_FILES.items():
+            self.assertTrue(relative.startswith((
+                "android/deps/ish/deps/libapps/", "android/deps/ish/deps/libarchive/",
+            )))
+            self.assertNotIn("*", relative)
+            self.assertNotIn("debug.log", relative)
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
 
     def test_reads_commit_and_pinned_proot_without_worktree_files(self) -> None:
         """工作树及子模块HEAD后来变化，不得改变所指定提交的内容。"""
