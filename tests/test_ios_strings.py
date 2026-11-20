@@ -163,3 +163,44 @@ def test_production_app_localized_literals_have_simplified_chinese() -> None:
         if not (translation.get("stringUnit", {}).get("value") or translation.get("variations")):
             missing.append(key)
     assert not missing, f"Missing Simplified Chinese for {len(missing)} UI strings: {missing}"
+
+
+def test_catalogue_includes_chinese_for_native_controls_and_intents() -> None:
+    """原生控件、快捷指令和扩展也直接查目录，不一定调用AppLocalized。"""
+    catalogue = json.loads((IOS / "Localizable.xcstrings").read_bytes())["strings"]
+    technical = {"FB", "LB", "HTTP", "STDIO", "npx", "https://…"}
+    missing = []
+    for key, entry in catalogue.items():
+        words = re.sub(r"%(?:\d+\$)?(?:lld|ld|d|@|f|%)|\d+\s*(?:KB|MB)", "", key)
+        if key in technical or not re.search("[a-zA-Z]{2}", words):
+            continue
+        if entry.get("shouldTranslate") is False:
+            continue
+        zh = entry.get("localizations", {}).get("zh-Hans", {})
+        if not (zh.get("stringUnit", {}).get("value") or zh.get("variations")):
+            missing.append(key)
+    assert not missing, missing
+
+
+def test_native_ui_parameters_survive_translation() -> None:
+    """在九种语言中保留系统要求的参数名称、格式和位置。"""
+    catalogue = json.loads((IOS / "Localizable.xcstrings").read_bytes())["strings"]
+    pattern = re.compile(r"\$\{[^}]+\}|%(?:(\d+)\$)?(lld|@)")
+
+    def parameters(text: str) -> Counter[str]:
+        values: list[str] = []
+        order = 0
+        for match in pattern.finditer(text):
+            if match[2]:
+                order += 1
+                values.append(f"{match[1] or order}:{match[2]}")
+            else:
+                values.append(match[0])
+        return Counter(values)
+
+    for key in ("%@: %lld file(s) weren't in the backup (size limit)", "Loop %lld",
+                "Run ${task} in nanoMuse", "Send ${prompt} to ${session}",
+                "Send ${prompt} to nanoMuse", "Authorization failed: %@"):
+        for locale in ("en", *LOCALES):
+            value = catalogue[key]["localizations"][locale]["stringUnit"]["value"]
+            assert parameters(value) == parameters(key), (key, locale)

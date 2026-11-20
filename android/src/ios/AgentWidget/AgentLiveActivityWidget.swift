@@ -16,7 +16,8 @@ struct AgentLiveActivityWidget: Widget {
                     HStack(spacing: 3) {
                         Image(systemName: "sparkles")
                             .font(.caption2)
-                        Text(context.state.soulName.isEmpty ? "nanoMuse" : context.state.soulName)
+                        // nanoMuse: 未配置昵称时使用应用的公开名称。
+                        Text(context.state.soulName.isEmpty ? "Nivo Bot" : context.state.soulName)
                             .font(.caption.bold())
                     }
                     .padding(.horizontal, 6)
@@ -39,11 +40,10 @@ struct AgentLiveActivityWidget: Widget {
                         .padding(.trailing, 8)
                     } else {
                         HStack(spacing: 3) {
-                            Text("\(context.state.activeSessionCount)")
+                            // nanoMuse: 整句翻译让计数位置和锁屏保持一致。
+                            Text(doingSummary(context.state.activeSessionCount))
                                 .font(.caption.bold())
                                 .contentTransition(.numericText())
-                            Text(context.state.activeSessionCount == 1 ? "session" : "sessions")
-                                .font(.caption.bold())
                         }
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -222,7 +222,8 @@ struct AgentLockScreenView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "sparkles")
                         .font(.caption2)
-                    Text(state.soulName.isEmpty ? "nanoMuse" : state.soulName)
+                    // nanoMuse: 锁屏与灵动岛使用同一公开名称。
+                    Text(state.soulName.isEmpty ? "Nivo Bot" : state.soulName)
                         .font(.caption.bold())
                 }
                 .padding(.horizontal, 6)

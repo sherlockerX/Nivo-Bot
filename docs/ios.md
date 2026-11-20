@@ -24,6 +24,8 @@ device and service. It does not change the published iOS download or grant addit
 In **System files**, **Sort By** offers **Default** (the standard file order) and
 **Last Modified** (most recent first). The menu marks the current choice. An empty editable
 file has an **Edit** button. If saving fails, the editor stays open with your draft intact.
+Backup and restore dialogs, voice transcription controls and Shortcuts now include localized
+instructions. The Dynamic Island and Lock Screen show the running count in the device language.
 
 Run **iOS · build check** from GitHub Actions with `portable_only=false` to build the app.
 The manual `configuration` choice accepts `Debug` or `Release`, with `Debug` as the default.
