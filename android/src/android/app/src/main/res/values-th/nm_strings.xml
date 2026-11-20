@@ -1268,4 +1268,8 @@
     <string name="nm_coach_review_with_ai">Review requirements with AI</string>
     <string name="nm_coach_prompt_review_course">Read course %1$s and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly.</string>
     <string name="nm_coach_other_request_busy">The coach is handling another request. You can save this draft and send it when that request finishes.</string>
+    <string name="nm_provider_save_failed">บันทึกไม่สำเร็จ ข้อมูลที่กรอกยังอยู่ โปรดลองอีกครั้ง</string>
+    <string name="nm_model_id_conflict">ผู้ให้บริการนี้มีโมเดลที่ใช้ ID นี้อยู่แล้ว</string>
+    <string name="nm_model_form_invalid">กรุณากรอก ID โมเดล ขีดจำกัดโทเค็นต้องเป็นจำนวนเต็มบวกหรือเว้นว่าง</string>
+    <string name="nm_model_edit_conflict">โมเดลเปลี่ยนแปลงระหว่างแก้ไข โปรดเปิดหน้าอีกครั้งเพื่อตรวจสอบการตั้งค่าล่าสุด</string>
 </resources>

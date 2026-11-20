@@ -45,7 +45,7 @@ class CoachCommandService(
             require(command.expectedRevision == current.revision) { "State changed. Query the latest revision and retry." }
             validateCourseSnapshot(current, command)
             val (changed, target) = reduce(current, command, user)
-            val committed = refreshProgress(changed).copy(schemaVersion = 3, revision = current.revision + 1,
+            val committed = refreshProgress(changed, current).copy(schemaVersion = 3, revision = current.revision + 1,
                 operations = current.operations + (command.operationId to "$signature|$target"))
             files.save(committed)
             mutableState.value = committed
@@ -193,11 +193,15 @@ class CoachCommandService(
             ?: error("Conversation is not bound to a topic")
         val sessionIds = state.sessions.filter { it.topicId == topic.id }.map { it.id }.toSet()
         val actionIds = state.actions.filter { it.sessionId in sessionIds }.map { it.id }.toSet()
-        val deletedIds = sessionIds + actionIds + topic.id
+        val linkedPlanIds = state.sessions.filter { it.id in sessionIds }.map { it.planId }.toSet()
+        // 备课正文也可能转述历史原话；basis不是完整依赖清单，清除同技能的派生教案后重新备课。
+        val planIds = state.plans.filter { it.courseId == topic.courseId || it.id in linkedPlanIds ||
+            it.basis.any { basis -> basis.sessionId in sessionIds } }.map { it.id }.toSet()
+        val deletedIds = sessionIds + actionIds + planIds + topic.id
         state.copy(topics = state.topics.filterNot { it.id == topic.id },
             sessions = state.sessions.filterNot { it.id in sessionIds }, actions = state.actions.filterNot { it.id in actionIds },
-            operations = state.operations.filterValues { it.substringAfter('|') !in deletedIds },
-            tracks = state.tracks.map { if (it.course.id == topic.courseId) it.copy(demonstrated = it.demonstrated - topic.unitId) else it }) to topic.id
+            plans = state.plans.filterNot { it.id in planIds },
+            operations = state.operations.filterValues { it.substringAfter('|') !in deletedIds }) to topic.id
     }
 
     private fun hostMutation(forgetPreviousSnapshot: Boolean = false,
@@ -207,7 +211,7 @@ class CoachCommandService(
             require(isValid) { "Coach space changed; reopen the current page" }
             val (updated, target) = change(current)
             if (updated == current) return CoachResult(true, "Already saved", current.revision, target)
-            val committed = refreshProgress(updated).copy(schemaVersion = 3, revision = current.revision + 1)
+            val committed = refreshProgress(updated, current).copy(schemaVersion = 3, revision = current.revision + 1)
             files.save(committed, forgetPreviousSnapshot)
             mutableState.value = committed
             CoachResult(true, "Saved", committed.revision, target)
@@ -216,17 +220,30 @@ class CoachCommandService(
         }
     }
 
-    private fun refreshProgress(state: CoachState): CoachState {
+    private fun refreshProgress(state: CoachState, previous: CoachState): CoachState {
         val tracks = state.tracks.map { track ->
-            val related = state.topics.filter { it.courseId == track.course.id }
-            val controlledUnits = related.map { it.unitId }.toSet()
-            val achieved = related.filter { it.status == "active" && CoachTeachingProtocol.progress(state, it.id).isDemonstrated }
-                .map { it.unitId }.toSet()
-            // 专题存在后只依赖可追溯的新证据，删除来源必须能够撤销曾经显示的达成。
+            val currentUnits = controlledTopicUnits(state, track.course)
+            val previousUnits = controlledTopicUnits(previous, track.course)
+            val controlledUnits = (currentUnits.values.flatten() + previousUnits.values.flatten()).toSet()
+            val achieved = currentUnits.flatMap { (topicId, units) -> units.filter { unitId ->
+                CoachTeachingProtocol.progress(state, topicId, unitId).isDemonstrated
+            } }.toSet()
+            // 本次被删除的历史单元也必须重算；其他专题的有效证据仍可独立支持达成。
             track.copy(demonstrated = (track.demonstrated - controlledUnits) + achieved)
         }
         return state.copy(tracks = tracks)
     }
+
+    private fun controlledTopicUnits(state: CoachState, course: CoachCourse): Map<String, Set<String>> =
+        state.topics.filter { it.courseId == course.id }.associate { topic ->
+            val sessions = state.sessions.filter { it.topicId == topic.id }
+            val current = sessions.filter { it.course.id == course.id && it.course.version == course.version &&
+                it.teachingProtocol == CoachTeachingProtocol.VERSION }
+            // 仅旧版课节的专题不能接管当前课程的legacy进度；新专题和当前版本历史单元可接管。
+            val units = current.map { it.unitId }.toSet() +
+                if (sessions.isEmpty() || current.isNotEmpty()) setOf(topic.unitId) else emptySet()
+            topic.id to units
+        }
 
     /** 只升级仍与导入源一致的内置路径；历史会话原文、标准和证据一律保留。 */
     private fun loadInitialState(courses: List<CoachCourse>, legacyPaused: Set<String>, legacyNotes: Map<String, String>): CoachState {

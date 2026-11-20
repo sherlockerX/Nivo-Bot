@@ -161,15 +161,15 @@ object CoachTeachingProtocol {
         when (criterion.id) { "understanding" -> "understanding"; "application", "practice" -> "application"; else -> "" }
     }
 
-    /** 汇总当前课程版本同一专题的证据，旧版记录不参与双维度达成。 */
-    fun progress(state: CoachState, topicId: String): CoachTopicProgress {
+    /** 按单元汇总当前课程版本的专题证据，默认仍展示专题当前单元。 */
+    fun progress(state: CoachState, topicId: String, unitId: String = state.topic(topicId).unitId): CoachTopicProgress {
         val topic = state.topic(topicId)
         if (topic.status != "active") return CoachTopicProgress(false, false, false, false)
         val course = state.track(topic.courseId).course
-        val criteria = course.units.singleOrNull { it.id == topic.unitId }?.criteria.orEmpty()
-        // 一项技能的长期专题会跨单元，进度只汇总当前单元的课节。
+        val criteria = course.units.singleOrNull { it.id == unitId }?.criteria.orEmpty()
+        // 长期专题换单元后，旧单元仍按其自身的课节和来源重算。
         val sessions = state.sessions.filter { it.topicId == topicId && it.teachingProtocol == VERSION &&
-            it.unitId == topic.unitId && it.course.version == course.version && !it.requiresCourseReview }
+            it.unitId == unitId && it.course.id == course.id && it.course.version == course.version && !it.requiresCourseReview }
         val met = criteria.filter { criterion -> sessions.any { session -> session.evidence.any { evidence ->
             evidence.criterionId == criterion.id && evidence.met && !evidence.disputed &&
                 runCatching { validateEvidence(session, evidence) }.isSuccess

@@ -42,7 +42,10 @@ internal fun TodoEditDialog(task: TodoTask, store: TodoStore, onDismiss: () -> U
     var isUrgent by rememberSaveable(task.id) { mutableStateOf(task.isUrgent) }
     var isSaving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var attempted by remember { mutableStateOf<TodoTask?>(null) }
+    // 上次提交快照与操作ID一起恢复，同内容重试复用ID，修改内容后生成新ID。
+    var attempted by rememberSaveable(task.id, store.ownerKey, stateSaver = todoEditorTaskSaver(store.ownerKey)) {
+        mutableStateOf<TodoTask?>(null)
+    }
     var operationId by rememberSaveable(task.id) { mutableStateOf(UUID.randomUUID().toString()) }
     TodoSheet(onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text(stringResource(if (task.id.isEmpty()) R.string.nm_todo_new_task else R.string.nm_todo_edit_task)) },
@@ -75,6 +78,7 @@ internal fun TodoEditDialog(task: TodoTask, store: TodoStore, onDismiss: () -> U
             }
         }, confirmButton = {
             Button(shape = RoundedCornerShape(14.dp), contentPadding = PaddingValues(horizontal = 28.dp, vertical = 12.dp), enabled = title.isNotBlank() && !isSaving, onClick = {
+                if (isSaving) return@Button
                 val updated = try {
                     task.copy(title = title, notes = notes, groupName = group,
                         tagsJson = todoTagsJson(tags), scheduledDay = parseTodoDate(scheduled),
@@ -82,10 +86,11 @@ internal fun TodoEditDialog(task: TodoTask, store: TodoStore, onDismiss: () -> U
                 } catch (_: Exception) { error = context.getString(R.string.nm_todo_invalid_date); return@Button }
                 if (attempted != null && attempted != updated) operationId = UUID.randomUUID().toString()
                 attempted = updated
+                val submittedOperationId = operationId
                 isSaving = true
                 error = null
                 scope.launch {
-                    try { onSaved(store.saveTask(updated, operationId)) }
+                    try { onSaved(store.saveTask(updated, submittedOperationId)) }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { error = context.getString(R.string.nm_todo_save_failed) }
                     finally { isSaving = false }

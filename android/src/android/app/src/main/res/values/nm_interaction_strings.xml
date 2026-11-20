@@ -8,5 +8,4 @@
     <string name="nm_steps_finished">Thinking and execution (%1$d tools)</string>
     <string name="nm_steps_jump_first">First step</string>
     <string name="nm_steps_jump_latest">Latest step</string>
-    <string name="nm_provider_save_failed">Could not save connection settings. Your edits are kept. Please try again.</string>
 </resources>

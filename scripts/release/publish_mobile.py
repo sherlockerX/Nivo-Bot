@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从标签内的官网清单校验三份发行文件，再创建或补全GitHub移动端发行。"""
+"""从标签内的官网清单校验实际发行平台与源码，再创建或补全GitHub移动端发行。"""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class Artifact:
 
 @dataclass(frozen=True)
 class ReleasePlan:
-    """只包含当前标签的发布说明、构建身份和三个附件。"""
+    """只包含当前标签的发布说明、构建身份及实际平台与源码附件。"""
 
     tag: str
     version: str
@@ -65,7 +65,7 @@ def artifact(name: str, url: object, digest: object, size: object) -> Artifact:
 
 
 def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifact, ...]:
-    """两条当前发行记录必须共享一份源码，并符合平台分发约束。"""
+    """当前实际发行的平台必须共享一份源码，并符合各自分发约束。"""
     artifacts = []
     sources = []
     for row in sorted(selected, key=lambda item: item["platform"]):
@@ -94,8 +94,8 @@ def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifa
                 row.get("sourceSizeBytes"),
             )
         )
-    if sources[0] != sources[1]:
-        raise ValueError("Android and iOS source archive identities disagree")
+    if any(source != sources[0] for source in sources[1:]):
+        raise ValueError("Platform source archive identities disagree")
     return tuple(artifacts + [sources[0]])
 
 
@@ -112,8 +112,13 @@ def load_plan(root: Path, tag: str) -> ReleasePlan:
     if catalogue.get("schemaVersion") != 2:
         raise ValueError("Expected release catalogue schema 2")
     selected = [row for row in catalogue.get("releases", []) if row.get("version") == version]
-    if len(selected) != 2 or {row.get("platform") for row in selected} != {"android", "ios"}:
-        raise ValueError("Expected exactly one Android and one iOS release for the tag")
+    platforms = [row.get("platform") for row in selected]
+    if (
+        not platforms
+        or any(platform not in ("android", "ios") for platform in platforms)
+        or len(set(platforms)) != len(platforms)
+    ):
+        raise ValueError("Expected one or both supported platforms without duplicates")
     artifacts = release_artifacts(selected, tag, code)
     notes = root / "docs/releases" / f"{tag}.md"
     lines = notes.read_text(encoding="utf-8").splitlines()
@@ -202,6 +207,22 @@ def verify_ipa(path: Path, plan: ReleasePlan) -> None:
     )
     if actual != (PACKAGE_ID, plan.version, str(plan.code)):
         raise ValueError("IPA bundle, version or build code mismatch")
+
+
+def verify_packages(folder: Path, plan: ReleasePlan) -> None:
+    """按已校验文件名选择实际平台，只有包含APK才要求Android校验工具。"""
+    for item in plan.artifacts:
+        if item.name.endswith(".apk"):
+            android_home = os.environ.get("ANDROID_HOME")
+            tools = (
+                sorted((Path(android_home) / "build-tools").glob("*/aapt"))
+                if android_home else []
+            )
+            if not tools:
+                raise ValueError("Android SDK aapt is required to verify the APK")
+            verify_apk(folder / item.name, plan, str(tools[-1]))
+        elif item.name.endswith(".ipa"):
+            verify_ipa(folder / item.name, plan)
 
 
 def get_release(tag: str) -> dict | None:
@@ -342,7 +363,7 @@ def publish(plan: ReleasePlan, commit: str, folder: Path, release: dict | None) 
     if was_draft:
         publish_draft(plan, commit, release["id"])
     elif not missing:
-        print("Release and all three assets already match; nothing changed")
+        print(f"Release and all {len(plan.artifacts)} assets already match; nothing changed")
 
 
 def publish_draft(plan: ReleasePlan, commit: str, release_id: int) -> None:
@@ -383,17 +404,12 @@ def main() -> None:
     plan = load_plan(root, args.tag)
     commit = os.environ.get("GITHUB_SHA", "")
     verify_checkout(root, args.tag, commit)
-    sdk = Path(os.environ["ANDROID_HOME"]) / "build-tools"
-    tools = sorted(sdk.glob("*/aapt"))
-    if not tools:
-        raise ValueError("Android SDK aapt is required to verify the APK")
     with tempfile.TemporaryDirectory() as temporary:
         folder = Path(temporary)
         for item in plan.artifacts:
             download(item, folder / item.name)
             print(f"Verified {item.name}: {item.size} bytes, SHA256 {item.sha256}")
-        verify_apk(folder / plan.artifacts[0].name, plan, str(tools[-1]))
-        verify_ipa(folder / plan.artifacts[1].name, plan)
+        verify_packages(folder, plan)
         verify_checkout(root, args.tag, commit)
         publish(plan, commit, folder, get_release(plan.tag))
         completed = get_release(plan.tag)
@@ -401,7 +417,7 @@ def main() -> None:
             raise ValueError("Release is still unpublished; retry the same workflow")
         if missing_artifacts(plan, commit, completed):
             raise ValueError("Release upload incomplete; retry the same workflow")
-    print(f"Published {REPOSITORY} {plan.tag} with three verified assets")
+    print(f"Published {REPOSITORY} {plan.tag} with {len(plan.artifacts)} verified assets")
 
 
 if __name__ == "__main__":

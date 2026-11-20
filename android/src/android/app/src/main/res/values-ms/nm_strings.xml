@@ -1268,4 +1268,8 @@
     <string name="nm_coach_review_with_ai">Review requirements with AI</string>
     <string name="nm_coach_prompt_review_course">Read course %1$s and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly.</string>
     <string name="nm_coach_other_request_busy">The coach is handling another request. You can save this draft and send it when that request finishes.</string>
+    <string name="nm_provider_save_failed">Tidak dapat menyimpan. Input anda masih dikekalkan. Cuba lagi.</string>
+    <string name="nm_model_id_conflict">Pembekal ini sudah mempunyai model dengan ID tersebut.</string>
+    <string name="nm_model_form_invalid">Masukkan ID model. Had token mesti nombor bulat positif atau kosong.</string>
+    <string name="nm_model_edit_conflict">Model berubah semasa anda menyuntingnya. Buka semula halamannya untuk menyemak tetapan terkini.</string>
 </resources>

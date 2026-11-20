@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
+  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Situs web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Laporan masalah</a> · <a href="../../OPEN_SOURCE.md">Berkontribusi</a>
 </p>
@@ -86,15 +86,17 @@ Pembelajaran, tugas, fokus dan catatan memakai penyimpanan lokal dengan aturan a
 | Sumber | Tautan |
 |---|---|
 | Situs produk | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 ke atas, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| Android 8.0 ke atas, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
 | iOS 16 ke atas, perlu penandatanganan pribadi | [IPA tanpa tanda tangan](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
-| Sumber yang sesuai dengan APK | [Paket sumber v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
-| Checksum unduhan | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Detail rilis | [Catatan rilis](../releases/v2.0.5.md) · [Pemeriksaan build](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Sumber yang sesuai dengan APK | [Paket sumber v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| Checksum unduhan | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
+| Detail rilis | [Catatan rilis](../releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Rilis ini mencakup Android, iOS dan situs produk. iOS disediakan sebagai IPA tanpa tanda tangan melalui GitHub Actions dan harus ditandatangani sebelum dipasang. Fork ini belum memiliki akun Apple Developer Program dan tidak menyediakan distribusi TestFlight atau App Store. Fokus paksa, jadwal penguncian berulang dan daftar aplikasi yang diizinkan hanya tersedia di Android; iOS menyediakan pengingat fokus dan petunjuk Akses Terpandu, yang dimulai dan diakhiri sendiri oleh pengguna di iOS. Kompilasi CI tidak membuktikan penerimaan saat dijalankan di iPhone.
+2.0.7(58) Anchor hanya memperbarui Android. Unduhan iOS tetap 2.0.5(56); rilis ini tidak menyediakan IPA 2.0.7. Perubahan versi sumber bersama tidak menerbitkan berkas biner iOS baru. iOS disediakan sebagai IPA tanpa tanda tangan melalui GitHub Actions dan harus ditandatangani sebelum dipasang. Fork ini belum memiliki akun Apple Developer Program dan tidak menyediakan distribusi TestFlight atau App Store. Fokus paksa, jadwal penguncian berulang dan daftar aplikasi yang diizinkan hanya tersedia di Android; iOS menyediakan pengingat fokus dan petunjuk Akses Terpandu, yang dimulai dan diakhiri sendiri oleh pengguna di iOS. Kompilasi CI tidak membuktikan penerimaan saat dijalankan di iPhone.
 
-ID aplikasi tetap `io.github.nanomuse.app`. Instalasi dengan kunci Debug lama atau kunci proyek hulu biasanya tidak dapat diperbarui dengan rilis ini. Periksa cakupan pencadangan dan pemulihan sebelum menghapus aplikasi; lihat [panduan versi dan penandatanganan](../android-development.md#nivo-bot的android版本与签名).
+ID aplikasi tetap `io.github.nanomuse.app`, dengan identitas penandatanganan resmi yang sama seperti rilis Nivo Bot sebelumnya. Pembaruan langsung di atas instalasi lama pada ponsel Android fisik belum diuji untuk rilis ini. Instalasi dengan kunci Debug lama atau kunci proyek hulu biasanya tidak dapat diperbarui dengan rilis ini. Periksa cakupan pencadangan dan pemulihan sebelum menghapus aplikasi; lihat [panduan versi dan penandatanganan](../android-development.md#nivo-bot的android版本与签名).
+
+Arsip sumber Android diekspor dari commit tetap yang digunakan untuk build. Katalog unduhan mencatat commit tersebut dan checksum arsip; gunakan sumber untuk versi yang terpasang saat meninjau atau membangun ulang aplikasi.
 
 ## Membangun dari sumber
 

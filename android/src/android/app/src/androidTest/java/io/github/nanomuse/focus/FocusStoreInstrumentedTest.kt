@@ -30,6 +30,38 @@ class FocusStoreInstrumentedTest {
     }
     @After fun close(){FocusAlarm.schedule(context,null);db.close()}
 
+    /** 普通结束和强制接管必须沿用同一暂停时刻，跨日与回拨均不延长旧记录。 */
+    @Test fun should_keepPausedEndTime_when_clockMovesBackOrLockTakesOver() = runBlocking {
+        val pausedAt = Instant.parse("2026-11-18T23:50:00Z").toEpochMilli()
+        val clock = object : FocusClockSource {
+            var wallTime = pausedAt - 60_000
+            var elapsedTime = 1_000L
+            override fun wall() = wallTime
+            override fun elapsed() = elapsedTime
+            override fun boot() = 1
+        }
+        val timed = FocusStore(context, db, store.ownerKey, store.ownerEpoch, clock)
+        for (forced in listOf(false, true)) {
+            clock.wallTime = pausedAt - 60_000
+            clock.elapsedTime += 1_000
+            val started = timed.command("start", "clock-start-$forced", title = "暂停阅读")
+            clock.wallTime = pausedAt
+            clock.elapsedTime += 60_000
+            val paused = timed.command("pause", "clock-pause-$forced", started.id, started.revision)
+            clock.wallTime = if (forced) pausedAt + 9 * 3_600_000L else started.startedAt - 1_000
+            if (forced) {
+                io.github.nanomuse.focus.lock.LockStore(context, db, store.ownerKey, store.ownerEpoch, clock)
+                    .start("预约专注", durationMs = 60_000)
+            } else timed.command("finish", "clock-finish", paused.id, paused.revision)
+            val ended = timed.sessions().single { it.id == paused.id }
+            assertEquals("finished", ended.status)
+            assertEquals(pausedAt, ended.endedAt)
+            assertEquals(60_000L, ended.elapsedMs)
+            val draft = FocusReflectionDrafts.open(timed, todo, MosaicStore(context, db), ended.id, ZoneId.of("UTC"))
+            assertEquals(LocalDate.of(2026, 11, 18).toEpochDay(), draft.day)
+        }
+    }
+
     @Test fun should_pauseResumeFinish_withoutCompletingLinkedTask()=runBlocking {
         val task=todo.saveTask(TodoTask(ownerKey=store.ownerKey,title="阅读论文",groupName="研究",tagsJson="[\"阅读\"]"),"task")
         val started=store.command("start","start",taskId=task.id)

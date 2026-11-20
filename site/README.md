@@ -26,13 +26,17 @@ python -m http.server 8783 --bind 127.0.0.1 --directory site
 
 教程首先对照Android的`OwnKeyPresets.kt`、服务商配置页和模型槽位，再引用各厂商官方文档。每篇保留核对日期和官方入口；账户限制、价格和模型可用性仍以对应平台为准。网站不收集API Key，不代访客调用模型验证。
 
-本地模式维护取消原项目账号验证、设备中继与自动跨设备同步，首次启动允许暂时跳过模型配置。入门与隐私页面区分当前维护行为和历史安装包；尚未发布的修复不会改写2.0.5的发行记录。官方服务之外的接口使用自定义教程，不展示中转商推荐。目录依据`providers.json`中的`is_relay`字段筛选，发布白名单不再包含原中转商教程。
+本地模式维护取消原项目账号验证、设备中继与自动跨设备同步，首次启动允许暂时跳过模型配置。入门与隐私页面区分当前维护行为和历史安装包；Android2.0.7的修复不会改写Android或iOS2.0.5的发行记录，也不代表已发布新版iOS。官方服务之外的接口使用自定义教程，不展示中转商推荐。目录依据`providers.json`中的`is_relay`字段筛选，发布白名单不再包含原中转商教程。
 
 ## 加入后续版本
 
 `releases.json`采用版本2清单，字段说明见[产品站维护指南](../docs/product-site.md)。新增发行记录后重新生成页面即可扩展版本历史，不覆盖旧安装文件。`release.json`继续保留旧入口兼容。
 
-本轮目标版本为2.0.5(56)，Android文件为`Nivo-Bot-v2.0.5-arm64.apk`，iOS文件为`Nivo-Bot-v2.0.5-unsigned.ipa`。最终产物核验后，在`releases.json`填写真实大小、SHA256、最低系统与对应源码，并更新Android兼容入口`release.json`。Android v2.0.0(51)及其对应源码原文件继续保留，不能覆盖同名历史文件。
+本轮目标为Android2.0.7(58)Anchor，文件为`Nivo-Bot-v2.0.7-arm64.apk`。iOS实际下载继续使用`Nivo-Bot-v2.0.5-unsigned.ipa`，版本为2.0.5(56)，本次不生成2.0.7的IPA。共用源码版本字段更新不等于两端同时发布。最终产物核验后，在`releases.json`填写真实大小、SHA256、最低系统与对应源码，并更新Android兼容入口`release.json`。Android2.0.0(51)、Android2.0.5(56)、iOS2.0.5(56)及其对应源码原文件继续保留，不能覆盖同名历史文件。
+
+Android保留包名`io.github.nanomuse.app`与原正式版签名身份；本次未在Android真机上测试覆盖升级。源码包`Nivo-Bot-v2.0.7-source.zip`从构建使用的固定commit导出，清单记录`sourceCommit`、`sourceSha256`与`sourceSizeBytes`，不以未提交工作区或移动分支代替对应源码。
+
+`scripts/release/publish_mobile.py`按当前标签内的真实发行记录支持Android单平台、iOS单平台或双平台发布。双平台同版须共享同一份源码归档；只有官网实际文件与清单校验通过后，`mobile-release.yml`才创建或补全GitHub发行。旧iOS包不会随Android版本更新而自动成为新版。
 
 iOS未签名IPA使用`distribution: "ipa"`和`signing: "unsigned"`，只有实际文件准备好后才将平台状态改为`available`。文件需用户使用自己的Apple开发签名与适用安装工具重新签名，不能下载后直接安装到iPhone，也不代表提供TestFlight或App Store入口。商店分发只记录真实入口，不填写不存在的IPA大小或哈希。
 

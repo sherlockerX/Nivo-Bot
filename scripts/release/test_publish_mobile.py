@@ -102,13 +102,43 @@ class MobilePublishTest(unittest.TestCase):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 publisher.load_plan(self.root, tag)
 
-    def test_missing_or_duplicate_platform_is_rejected(self):
-        """每个平台恰好选择一条同版本记录。"""
+    def test_single_platform_plan_preserves_other_platform_history(self):
+        """仅发布一个平台时保留另一平台历史，不补造同版本安装包。"""
         original = copy.deepcopy(self.catalogue)
-        for releases in (original["releases"][:1], original["releases"] * 2):
+        for platform, suffix in (("android", "arm64.apk"), ("ios", "unsigned.ipa")):
+            self.catalogue = copy.deepcopy(original)
+            for row in self.catalogue["releases"]:
+                if row["platform"] != platform:
+                    row["version"] = "2.0.4"
+            self.save_catalogue()
+            before = copy.deepcopy(self.catalogue)
+            with self.subTest(platform=platform):
+                plan = self.plan()
+                self.assertEqual(plan.code, 56)
+                self.assertEqual(
+                    [item.name for item in plan.artifacts],
+                    [f"Nivo-Bot-v2.0.5-{suffix}", "Nivo-Bot-v2.0.5-source.zip"],
+                )
+                self.assertEqual(
+                    json.loads((self.root / "site/releases.json").read_text()), before
+                )
+
+    def test_empty_duplicate_or_unknown_platform_is_rejected(self):
+        """当前版本至少发布一个已知平台，空值、重复和未知平台均拒绝。"""
+        original = copy.deepcopy(self.catalogue)
+        rows = original["releases"]
+        variants = [[], rows * 2, [rows[0], rows[0]], [rows[1], rows[1]]]
+        for platform in ("desktop", "", None, 1, {}, ["android"]):
+            variants.append([{**rows[0], "platform": platform}])
+            variants.append([rows[0], {**rows[1], "platform": platform}])
+        variants.append([{key: value for key, value in rows[0].items() if key != "platform"}])
+        for releases in variants:
             self.catalogue["releases"] = releases
             self.save_catalogue()
-            with self.assertRaises(ValueError):
+            with (
+                self.subTest(platforms=[row.get("platform") for row in releases]),
+                self.assertRaises(ValueError),
+            ):
                 self.plan()
 
     def test_wrong_version_code_or_distribution_is_rejected(self):
@@ -189,6 +219,184 @@ class MobilePublishTest(unittest.TestCase):
                 publisher.main()
             command.assert_not_called()
 
+    def test_workflow_verifies_only_present_platforms(self):
+        """实际入口仅下载并校验本次平台，iOS单独发行不依赖Android SDK。"""
+        original = copy.deepcopy(self.catalogue)
+        self.write("sdk/build-tools/35.0.0/aapt", "")
+        for platforms in (("android",), ("ios",), ("ios", "android")):
+            self.catalogue["releases"] = [
+                copy.deepcopy(row)
+                for platform in platforms
+                for row in original["releases"]
+                if row["platform"] == platform
+            ]
+            self.save_catalogue()
+            environment = {
+                "GITHUB_REPOSITORY": publisher.REPOSITORY,
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_REF": "refs/tags/" + self.tag,
+                "GITHUB_SHA": self.commit,
+            }
+            if "android" in platforms:
+                environment["ANDROID_HOME"] = str(self.root / "sdk")
+            with (
+                self.subTest(platforms=platforms),
+                patch.dict(publisher.os.environ, environment, clear=True),
+                patch("sys.argv", ["publish_mobile.py", "--tag", self.tag]),
+                patch.object(
+                    publisher, "__file__", str(self.root / "scripts/release/publish_mobile.py")
+                ),
+                patch.object(publisher, "verify_checkout") as checkout,
+                patch.object(publisher, "download") as download,
+                patch.object(publisher, "verify_apk") as verify_apk,
+                patch.object(publisher, "verify_ipa") as verify_ipa,
+                patch.object(publisher, "get_release", side_effect=[None, self.release()]),
+                patch.object(publisher, "run") as command,
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                publisher.main()
+                names = []
+                if "android" in platforms:
+                    names.append("Nivo-Bot-v2.0.5-arm64.apk")
+                    verify_apk.assert_called_once()
+                    self.assertEqual(verify_apk.call_args.args[0].name, names[-1])
+                else:
+                    verify_apk.assert_not_called()
+                if "ios" in platforms:
+                    names.append("Nivo-Bot-v2.0.5-unsigned.ipa")
+                    verify_ipa.assert_called_once()
+                    self.assertEqual(verify_ipa.call_args.args[0].name, names[-1])
+                else:
+                    verify_ipa.assert_not_called()
+                names.append("Nivo-Bot-v2.0.5-source.zip")
+                self.assertEqual([call.args[0].name for call in download.call_args_list], names)
+                self.assertEqual(checkout.call_count, 2)
+                args = command.call_args.args[0]
+                self.assertEqual(command.call_count, 1)
+                self.assertEqual(args[:3], ["gh", "release", "create"])
+                self.assertEqual([Path(value).name for value in args[4 : 4 + len(names)]], names)
+                self.assertIn(f"with {len(names)} verified assets", output.getvalue())
+
+    def test_single_platform_keeps_release_identity_checks(self):
+        """单平台也必须满足构建号、渠道、文件地址、哈希与源码大小约束。"""
+        original = copy.deepcopy(self.catalogue)
+        for platform in ("android", "ios"):
+            base = next(row for row in original["releases"] if row["platform"] == platform)
+            variants = [
+                ("versionCode", 55),
+                ("versionCode", True),
+                ("channel", "beta"),
+                ("distribution", "testflight"),
+                ("sha256", "pending"),
+                ("sizeBytes", True),
+                ("sourceSizeBytes", 0),
+                ("sourceSha256", "z" * 64),
+                ("sourceUrl", publisher.ORIGIN + "Nivo-Bot-v2.0.4-source.zip"),
+                ("downloadUrl", "https://other.invalid/app.apk"),
+            ]
+            if platform == "ios":
+                variants.append(("signing", "signed"))
+            for field, value in variants:
+                self.catalogue["releases"] = [{**base, field: value}]
+                self.save_catalogue()
+                with self.subTest(platform=platform, field=field), self.assertRaises(ValueError):
+                    self.plan()
+
+    def test_single_platform_identity_failure_stops_before_publish(self):
+        """APK或IPA实际身份校验失败后，不读取或修改GitHub发行。"""
+        original = copy.deepcopy(self.catalogue)
+        self.write("sdk/build-tools/35.0.0/aapt", "")
+        for platform in ("android", "ios"):
+            self.catalogue["releases"] = [
+                copy.deepcopy(row) for row in original["releases"] if row["platform"] == platform
+            ]
+            self.save_catalogue()
+            environment = {
+                "GITHUB_REPOSITORY": publisher.REPOSITORY,
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_REF": "refs/tags/" + self.tag,
+                "GITHUB_SHA": self.commit,
+                "ANDROID_HOME": str(self.root / "sdk"),
+            }
+            verifier = "verify_apk" if platform == "android" else "verify_ipa"
+            with (
+                self.subTest(platform=platform),
+                patch.dict(publisher.os.environ, environment, clear=True),
+                patch("sys.argv", ["publish_mobile.py", "--tag", self.tag]),
+                patch.object(
+                    publisher, "__file__", str(self.root / "scripts/release/publish_mobile.py")
+                ),
+                patch.object(publisher, "verify_checkout"),
+                patch.object(publisher, "download"),
+                patch.object(
+                    publisher, verifier, side_effect=ValueError("Package identity differs")
+                ),
+                patch.object(publisher, "get_release") as get_release,
+                patch.object(publisher, "run") as command,
+                patch("sys.stdout", new_callable=io.StringIO),
+                self.assertRaisesRegex(ValueError, "Package identity differs"),
+            ):
+                publisher.main()
+            get_release.assert_not_called()
+            command.assert_not_called()
+
+    def test_android_package_still_requires_available_aapt(self):
+        """Android单平台发行缺少校验工具时明确失败，不能跳过包身份检查。"""
+        self.catalogue["releases"] = self.catalogue["releases"][:1]
+        self.save_catalogue()
+        for environment in ({}, {"ANDROID_HOME": str(self.root / "missing-sdk")}):
+            with (
+                self.subTest(environment=environment),
+                patch.dict(publisher.os.environ, environment, clear=True),
+                patch.object(publisher, "verify_apk") as verify_apk,
+                self.assertRaisesRegex(ValueError, "aapt is required"),
+            ):
+                publisher.verify_packages(self.root, self.plan())
+            verify_apk.assert_not_called()
+
+    def test_single_platform_retry_only_uploads_missing_source(self):
+        """单平台发行中断后只补源码，完整重跑不改已发布附件。"""
+        original = copy.deepcopy(self.catalogue)
+        for platform in ("android", "ios"):
+            self.catalogue["releases"] = [
+                row for row in original["releases"] if row["platform"] == platform
+            ]
+            self.save_catalogue()
+            complete = self.release()
+            partial = copy.deepcopy(complete)
+            partial["assets"].pop()
+            with self.subTest(platform=platform), patch.object(publisher, "run") as command:
+                publisher.publish(self.plan(), self.commit, self.root, partial)
+                args = command.call_args.args[0]
+                self.assertEqual(args[:3], ["gh", "release", "upload"])
+                self.assertIn(str(self.root / "Nivo-Bot-v2.0.5-source.zip"), args)
+                self.assertNotIn(str(self.root / complete["assets"][0]["name"]), args)
+                self.assertNotIn("--clobber", args)
+                command.reset_mock()
+                publisher.publish(self.plan(), self.commit, self.root, complete)
+                command.assert_not_called()
+
+    def test_single_platform_rejects_unplanned_second_binary(self):
+        """已有发行混入本次未计划的平台时拒绝修改，不把旧附件算作新发行。"""
+        original = copy.deepcopy(self.catalogue)
+        original_assets = self.release()["assets"]
+        for platform, other_suffix in (("android", ".ipa"), ("ios", ".apk")):
+            self.catalogue["releases"] = [
+                row for row in original["releases"] if row["platform"] == platform
+            ]
+            self.save_catalogue()
+            release = self.release()
+            release["assets"].append(
+                next(item for item in original_assets if item["name"].endswith(other_suffix))
+            )
+            with (
+                self.subTest(platform=platform),
+                patch.object(publisher, "run") as command,
+                self.assertRaisesRegex(ValueError, "unexpected or duplicate assets"),
+            ):
+                publisher.publish(self.plan(), self.commit, self.root, release)
+            command.assert_not_called()
+
     def test_unsafe_urls_and_unexpected_names_are_rejected(self):
         """只接受正式域名的固定版本文件，不接受重定向来源或编码路径。"""
         name = "Nivo-Bot-v2.0.5-arm64.apk"
@@ -210,11 +418,18 @@ class MobilePublishTest(unittest.TestCase):
                 self.plan()
 
     def test_platforms_cannot_disagree_on_source_archive(self):
-        """相同源码URL不能对应两个不同的校验和。"""
-        self.catalogue["releases"][1]["sourceSha256"] = "b" * 64
-        self.save_catalogue()
-        with self.assertRaises(ValueError):
-            self.plan()
+        """双平台源码必须同时满足URL、校验和及字节大小一致。"""
+        original = copy.deepcopy(self.catalogue)
+        for field, value in (
+            ("sourceSha256", "b" * 64),
+            ("sourceSizeBytes", len(self.content) + 1),
+            ("sourceUrl", publisher.ORIGIN + "Nivo-Bot-v2.0.4-source.zip"),
+        ):
+            self.catalogue = copy.deepcopy(original)
+            self.catalogue["releases"][1][field] = value
+            self.save_catalogue()
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.plan()
 
     def test_wrong_release_notes_title_is_rejected(self):
         """发行说明必须对应当前版本，标题由文件确定。"""

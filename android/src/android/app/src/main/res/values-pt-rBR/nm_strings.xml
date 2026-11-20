@@ -1273,4 +1273,8 @@
     <string name="nm_coach_review_with_ai">Review requirements with AI</string>
     <string name="nm_coach_prompt_review_course">Read course %1$s and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly.</string>
     <string name="nm_coach_other_request_busy">The coach is handling another request. You can save this draft and send it when that request finishes.</string>
+    <string name="nm_provider_save_failed">Não foi possível salvar. Seus dados foram mantidos. Tente novamente.</string>
+    <string name="nm_model_id_conflict">Este provedor já tem um modelo com esse ID.</string>
+    <string name="nm_model_form_invalid">Informe um ID de modelo. Os limites de tokens devem ser inteiros positivos ou ficar em branco.</string>
+    <string name="nm_model_edit_conflict">O modelo mudou durante a edição. Abra a página novamente para conferir as configurações atuais.</string>
 </resources>

@@ -56,15 +56,21 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 |`sizeBytes`、`sha256`|二进制发行必须填写；商店入口可省略|
 |`sourceUrl`|与发行版对应的源码入口|
 |`sourceSha256`|源码归档的校验和（有归档时提供）|
+|`sourceSizeBytes`|对应源码归档的实际字节数|
+|`sourceCommit`|生成该对应源码归档的固定Git commit|
 |`certificateSha256`|Android更新身份的公钥证书指纹|
 |`notesUrl`|站内独立HTML说明页，不能越过站点目录|
 |`summary`、`notes`|发行摘要与改动条目|
 
-新增版本时，先上传实际文件并核对大小、SHA256和证书，再添加记录；不要覆盖同名历史文件。需要源码归档时，一并保存该安装包的对应源码。重新生成站点后，旧版说明不会随推荐版本改变。
+新增版本时，先上传实际文件并核对大小、SHA256和证书，再添加记录；不要覆盖同名历史文件。源码归档从构建使用的固定commit导出，记录`sourceCommit`及归档实际大小、SHA256，不用未提交工作区或移动分支地址代替该安装包的对应源码。重新生成站点后，旧版说明不会随推荐版本改变。
+
+本轮发布Android2.0.7(58)Anchor，文件名为`Nivo-Bot-v2.0.7-arm64.apk`与`Nivo-Bot-v2.0.7-source.zip`。APK保持`io.github.nanomuse.app`与此前Nivo Bot正式版签名；本次未在Android真机上测试覆盖升级。iOS实际可下载版本仍为2.0.5(56)，不新增2.0.7的IPA或伪造同版发行记录。共用源码版本更新不等于各平台都发布新安装包。
 
 iOS实际提供发行文件后，将平台状态改为`available`，填写实际分发方式、最低系统、文件入口和对应源码。未签名IPA使用`distribution: "ipa"`和`signing: "unsigned"`，卡片、独立说明页与禁用JavaScript时的入口都会说明需自行签名，不能直接安装到iPhone。只有实际存在的TestFlight或App Store入口才使用对应分发类型。没有直链IPA时不编造文件大小或SHA256。
 
-2.0.5的文件名为`Nivo-Bot-v2.0.5-arm64.apk`与`Nivo-Bot-v2.0.5-unsigned.ipa`，Android版本号与iOS构建号均为56。真实大小、SHA256、最低系统和源码归档以最终产物核验后填入，旧版记录与下载文件继续保留。填写完成后同时更新兼容入口`site/release.json`，重新运行生成器与站点检查。
+历史2.0.5的文件名为`Nivo-Bot-v2.0.5-arm64.apk`与`Nivo-Bot-v2.0.5-unsigned.ipa`，Android版本号与iOS构建号均为56。已核验的大小、SHA256、最低系统、源码归档和下载文件继续保留，不能改写成新版。新增Android记录后更新兼容入口`site/release.json`，重新运行生成器与站点检查。
+
+`mobile-release.yml`在正式`v*`标签上调用`scripts/release/publish_mobile.py`。发布器允许仅Android、仅iOS或双平台，拒绝空平台集、重复平台和不支持的平台；以当前标签内的版本与构建编号校验实际记录，下载并核对对应平台文件和源码归档。双平台同版发行必须指向同一份源码归档。它保留固定下载域名、禁止重定向、哈希、大小、包内身份及现有附件校验，不将旧包改名充当新平台产物。
 
 功能内容以两端源码为依据。普通专注、背景、任务关联、分组时长统计、专注心得、技能档案和个人记录查询按各平台实际实现描述。强制专注、允许应用与自动锁机计划明确限定为Android11及以上；iOS仅提供普通计时、本机提醒和系统引导式访问说明，提醒不自动启动计时，引导式访问由用户在系统中开启与结束。
 

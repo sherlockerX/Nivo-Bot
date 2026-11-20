@@ -67,8 +67,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // nanoMuse：Nicholasx的Android独立发行版本，内部编号保持递增。
-        versionCode = 57
-        versionName = "2.0.6"
+        versionCode = 58
+        versionName = "2.0.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -297,7 +297,8 @@ dependencies {
     // `deps/build_rclone_android.sh` — the .aar is a build artifact under
     // app/libs/, not a checked-in binary. Backends are decided by
     // deps/rclone-mobile/backends/backends.go, shared with the iOS build.
-    implementation(group = "", name = "rclone", ext = "aar")
+    // nanoMuse: 直接引用同一本地AAR，避免Lint把命名参数误当成Windows缓存路径。
+    implementation(files("libs/rclone.aar"))
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")

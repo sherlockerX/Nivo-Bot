@@ -7,6 +7,9 @@ import com.openminis.app.backup.BackupSecrets
 import com.openminis.app.data.db.ProviderConfigDao
 import com.openminis.app.data.db.ProviderConfigMetaKeys
 import com.openminis.app.data.db.ProviderConfigSnapshot
+// nanoMuse: 镜像补写状态放在现有meta表，不修改数据库schema。
+import com.openminis.app.data.db.ProviderConfigMetaEntity
+import io.github.nanomuse.models.ProviderMirrorSync
 import com.openminis.app.data.db.ProviderThinkingRuleEntity
 import com.openminis.app.provider.thinking.ThinkingRule
 import com.openminis.app.provider.thinking.ThinkingRuleCoding
@@ -259,26 +262,22 @@ class ProviderRepository(private val context: Context) {
     )
 
     /**
-     * [T-android-provider-room-store] DB-first load with three-way
-     * reconciliation between provider.db and the legacy JSON mirror:
-     *
-     *   - DB has rows AND meta.json_sync_hash matches the live mirror's
-     *     hash → DB is in sync with what we last wrote. Use DB.
-     *   - DB has rows but the hash mismatches → an older app build was
-     *     installed at some point, wrote through the JSON path, and
-     *     bypassed our DB. The JSON is fresher. Re-import JSON → rewrite
-     *     DB → resync hash.
-     *   - DB is empty but JSON exists → first launch on a build that
-     *     knows about the DB. One-shot import from JSON → DB.
-     *   - Both empty → empty config (fresh install).
-     *
-     * The JSON mirror is the durable downgrade safety net: we keep
-     * writing it on every save so the old build always sees current
-     * config; if the user round-trips through an old build, the
-     * hash check above re-syncs DB to whatever JSON looks like now.
+     * nanoMuse: DB带待同步标记时优先恢复DB并补写镜像，包括已删除全部实例的空配置。
+     * 已同步的DB通过hash识别旧版本对镜像的修改，保留原有降级后重新导入规则。
+     * 待同步DB或同步元数据不可读时拒绝回退，避免把尚未同步的新配置覆盖掉。
      */
     private suspend fun loadConfigSuspending(): ProviderConfig {
         val rawJson = prefs.getString("config", null)
+        // nanoMuse: 先读持久同步状态；无法确认DB是否更新较新时，不能用旧镜像覆盖它。
+        val syncMetadata = try {
+            providerDao.loadMeta()
+        } catch (failure: Exception) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            throw IllegalStateException("Provider sync metadata unreadable", failure)
+        }
+        val mirrorMarker = syncMetadata.firstOrNull { it.key == ProviderMirrorSync.META_KEY }
+        val isMirrorPending = mirrorMarker != null && mirrorMarker.value != ProviderMirrorSync.SYNCED_VALUE
+        val hasSyncHash = syncMetadata.any { it.key == ProviderConfigMetaKeys.JSON_SYNC_HASH }
         // [T-android-provider-empty-load-wipe] Distinguish "the DB says zero"
         // from "we could not ask the DB". Swallowing the exception as 0 made a
         // transient DAO failure (locked/mid-write file after a crash) look
@@ -301,14 +300,16 @@ class ProviderRepository(private val context: Context) {
                 "mirrorBytes=${rawJson?.length ?: -1}",
         )
 
-        val (dbConfig, dbHashStored) = if (instanceCount > 0) {
+        // nanoMuse: 已删除全部实例的DB也可能有待同步标记，不能误当首次安装而复活旧镜像。
+        val hasDatabaseSnapshot = ProviderMirrorSync.hasDatabaseSnapshot(instanceCount, mirrorMarker != null, hasSyncHash)
+        val (dbConfig, dbHashStored) = if (hasDatabaseSnapshot) {
             try {
                 val snapshot = ProviderConfigSnapshot(
                     instances = providerDao.loadInstances(),
                     entries = providerDao.loadEntries(),
                     groups = providerDao.loadGroups(),
                     loopIds = providerDao.loadAgentLoopIds(),
-                    meta = providerDao.loadMeta(),
+                    meta = syncMetadata,
                 )
                 val cfg = snapshot.toProviderConfig(json)
                 val storedHash = snapshot.meta.firstOrNull {
@@ -324,11 +325,33 @@ class ProviderRepository(private val context: Context) {
             null to null
         }
 
-        if (dbConfig != null) {
-            val liveHash = rawJson?.let(::hashJsonMirror)
-            if (liveHash == dbHashStored) {
-                return dbConfig
+        // nanoMuse: 待同步DB不可读时明确失败，不落入旧镜像导入分支。
+        val liveHash = rawJson?.let(::hashJsonMirror)
+        if (ProviderMirrorSync.shouldUseDatabase(dbConfig != null, isMirrorPending, dbHashStored, liveHash)) {
+            val authoritative = checkNotNull(dbConfig)
+            if (isMirrorPending) {
+                // 其他加载或写入已经发布配置时，此异步快照随后会被丢弃，不能再回写旧镜像。
+                synchronized(configLock) {
+                    if (!_configLoaded.value) runBlocking {
+                        val repairedMirror = json.encodeToString(ProviderConfig.serializer(), authoritative)
+                        val repaired = ProviderMirrorSync.synchronize(
+                            writeMirror = { prefs.edit().putString("config", repairedMirror).commit() },
+                            markMirrorSynced = {
+                                providerDao.upsertMeta(listOf(
+                                    ProviderConfigMetaEntity(ProviderConfigMetaKeys.JSON_SYNC_HASH, hashJsonMirror(repairedMirror)),
+                                    ProviderConfigMetaEntity(ProviderMirrorSync.META_KEY, ProviderMirrorSync.SYNCED_VALUE),
+                                ))
+                            },
+                        )
+                        if (repaired == ProviderMirrorSync.Result.PENDING) android.util.Log.w(
+                            "ProviderRepo", "[ProviderStore] DB recovered; JSON mirror sync remains pending",
+                        )
+                    }
+                }
             }
+            return authoritative
+        }
+        if (dbConfig != null) {
             // Hash mismatch: JSON has been written by an older build during
             // a downgrade window. Re-import JSON → reseed DB so DB catches
             // up to the user's actual current config.
@@ -437,15 +460,7 @@ class ProviderRepository(private val context: Context) {
         }
     }
 
-    /**
-     * Atomically persist [config] to (DB) + (legacy JSON mirror), with
-     * the meta.json_sync_hash kept in lockstep with the mirror we just
-     * wrote. Returns the canonicalized config (entry uuids rewritten to
-     * the composite "{instanceId}/{modelId}" shape via the snapshot
-     * round-trip). Callers should treat the return value as the new
-     * authoritative state — using the in-memory pre-call object would
-     * leak the legacy uuid form into [_config.value].
-     */
+    /** nanoMuse: DB原子提交后返回规范化配置；JSON镜像失败保留持久待同步标记，不宣称镜像成功。 */
     private suspend fun persistToDbAndMirror(config: ProviderConfig): ProviderConfig {
         // First serialize without the hash so the meta row reflects the
         // exact string we put into prefs (the hash sees the mirror that
@@ -453,43 +468,36 @@ class ProviderRepository(private val context: Context) {
         val mirrorStr = json.encodeToString(ProviderConfig.serializer(), config)
         val mirrorHash = hashJsonMirror(mirrorStr)
         val snapshot = config.toSnapshot(json, jsonSyncHash = mirrorHash)
-        providerDao.replaceAll(
-            instances = snapshot.instances,
-            entries = snapshot.entries,
-            groups = snapshot.groups,
-            loopIds = snapshot.loopIds,
-            meta = snapshot.meta,
+        // nanoMuse: 配置与待同步标记共同提交，任何中断点都不能把旧镜像误认为更新。
+        val canonical = snapshot.toProviderConfig(json)
+        val result = ProviderMirrorSync.persist(
+            writeDatabase = {
+                providerDao.replaceAll(
+                    instances = snapshot.instances,
+                    entries = snapshot.entries,
+                    groups = snapshot.groups,
+                    loopIds = snapshot.loopIds,
+                    meta = snapshot.meta + ProviderConfigMetaEntity(
+                        ProviderMirrorSync.META_KEY, ProviderMirrorSync.PENDING_VALUE,
+                    ),
+                )
+            },
+            writeMirror = { prefs.edit().putString("config", mirrorStr).commit() },
+            markMirrorSynced = {
+                providerDao.upsertMeta(listOf(
+                    ProviderConfigMetaEntity(ProviderMirrorSync.META_KEY, ProviderMirrorSync.SYNCED_VALUE),
+                ))
+            },
         )
-        // commit() not apply(): the json_sync_hash we just stored to DB is
-        // a hash of THIS mirror string. If apply() queues the disk write
-        // and the process dies before it flushes, the next launch sees
-        // DB(hash=new) + JSON-on-disk(content=old) → the hash-mismatch
-        // path interprets it as "old build wrote during downgrade" and
-        // re-imports the stale JSON, blowing away the write that the DB
-        // already persisted synchronously. commit() blocks the writer
-        // (~5–30ms) but guarantees DB and JSON land together.
-        //
-        // commit() returns false (no exception) on disk-full / permission
-        // failure / corrupted prefs XML. We log so the situation is
-        // observable; the DB already holds the new state authoritatively,
-        // and a subsequent successful save will resync the mirror + hash.
-        // The downside if the next save never comes: a hash mismatch on
-        // next cold-start would try to re-import the stale mirror — but
-        // the dbConfig-fallback at the end of loadConfigSuspending keeps
-        // the DB rows when re-import fails or is rejected, so the user's
-        // data is not lost.
-        val mirrorWritten = prefs.edit().putString("config", mirrorStr).commit()
-        if (!mirrorWritten) {
+        if (result == ProviderMirrorSync.Result.PENDING) {
             android.util.Log.w(
                 "ProviderRepo",
-                "[ProviderStore] mirror commit() returned false — DB updated " +
-                    "but JSON write rejected (disk full? prefs corruption?); " +
-                    "DB remains authoritative",
+                "[ProviderStore] DB committed; JSON mirror sync pending, retry on next load or save",
             )
         }
         // Return canonicalized form so the caller's _config.value reflects
         // entry uuids in composite-key shape from this write forward.
-        return snapshot.toProviderConfig(json)
+        return canonical
     }
 
     /**
@@ -548,6 +556,11 @@ class ProviderRepository(private val context: Context) {
         // suppresses the emission. T273 bumps `revision` so equals always
         // returns false and 18+ collectAsState callers see the new value.
         synchronized(configLock) {
+            // nanoMuse: 读取失败仍处于占位状态时，禁止把空基线写回正式配置。
+            if (!_configLoaded.value) {
+                check(!requirePersistence) { "provider_config_not_loaded" }
+                return
+            }
             // [T-android-provider-empty-load-wipe] No "block empty saves" guard
             // here on purpose: mutators pass the SAME object as _config.value
             // and mutate it in place, so at this point an empty `config` and an
@@ -639,9 +652,15 @@ class ProviderRepository(private val context: Context) {
         )
     }
 
-    fun addInstance(instance: ProviderInstance): Unit = synchronized(configLock) {
+    /** nanoMuse: 新增实例可要求确认持久化，相同ID重试沿用现有模型而不重复初始化。 */
+    fun addInstance(instance: ProviderInstance, requirePersistence: Boolean = false): Unit = synchronized(configLock) {
         ensureConfigLoaded()
         val config = workingCopy()
+        // nanoMuse: 页面重试使用同一ID，避免重复实例和重复模型种子。
+        if (config.instances.any { it.id == instance.id }) {
+            updateInstance(instance, requirePersistence = requirePersistence)
+            return@addInstance
+        }
         config.instances.add(instance)
         // Seed built-in model entries ONLY when the seed is appropriate for this
         // instance. Mirrors iOS ProviderConfigStore.addInstance:
@@ -689,7 +708,7 @@ class ProviderRepository(private val context: Context) {
                 "[Voice] addInstance seeded ${voiceSeeds.size} voice-template models for ${instance.label}",
             )
         }
-        saveConfig(config)
+        saveConfig(config, requirePersistence = requirePersistence) // nanoMuse: 新增表单等待数据库提交。
         // Stale from the start so the next background sweep (or an explicit
         // triggerBackgroundRefreshIfStale call) will fetch it.
         invalidateModelCache(instance.id)
@@ -1085,8 +1104,15 @@ class ProviderRepository(private val context: Context) {
         return instance.isEnabled
     }
 
-    fun replaceEntries(instanceId: String, models: List<LLMModel>) = synchronized(configLock) {
+    fun replaceEntries(instanceId: String, models: List<LLMModel>,
+        refreshSnapshot: io.github.nanomuse.models.ProviderRefreshSnapshot? = null) = synchronized(configLock) {
         ensureConfigLoaded()
+        // nanoMuse: 删除实例或更换连接后，迟到列表不能重新引入孤儿模型或覆盖新端点结果。
+        val currentInstance = _config.value.instances.firstOrNull { it.id == instanceId }
+            ?: return@synchronized
+        if (refreshSnapshot != null && !refreshSnapshot.matches(currentInstance, usableApiKey(currentInstance))) {
+            return@synchronized
+        }
         // Hot path for concurrent autoRefreshModels coroutines (one per
         // enabled instance) — without this lock, two replaceEntries() calls
         // race on the shared config.modelEntries ArrayList. The working copy
@@ -1213,7 +1239,7 @@ class ProviderRepository(private val context: Context) {
     // configLock is a plain JVM monitor, so the nested saveConfig re-entry is
     // fine — replaceEntries / ensureVoiceTemplateModels already rely on that.
 
-    fun addEntry(entry: ModelEntry): Unit = synchronized(configLock) {
+    fun addEntry(entry: ModelEntry, requirePersistence: Boolean = false): Unit = synchronized(configLock) { // nanoMuse: 表单等待实际持久化。
         ensureConfigLoaded()
         val config = workingCopy()
         if (!entry.isCustom) {
@@ -1224,18 +1250,37 @@ class ProviderRepository(private val context: Context) {
             // it might only leave the synchronized lambda.
             if (exists) return@addEntry
         }
+        // nanoMuse: 复合主键冲突不能让自定义模型静默覆盖已有配置。
+        io.github.nanomuse.models.ProviderModelDraft.requireUnique(config.modelEntries, entry)
         config.modelEntries.add(entry)
-        saveConfig(config)
+        saveConfig(config, requirePersistence = requirePersistence) // nanoMuse
     }
 
-    fun updateEntry(entry: ModelEntry): Unit = synchronized(configLock) {
+    fun updateEntry(entry: ModelEntry, requirePersistence: Boolean = false): Unit = synchronized(configLock) { // nanoMuse
         ensureConfigLoaded()
         val config = workingCopy()
         val idx = config.modelEntries.indexOfFirst { it.id == entry.id }
+        // nanoMuse: 改ID时也检查冲突，显式编辑遇到已删除记录必须提示失败。
+        if (idx < 0 && requirePersistence) error("model_no_longer_exists")
         if (idx >= 0) {
+            io.github.nanomuse.models.ProviderModelDraft.requireUnique(config.modelEntries, entry, entry.id) // nanoMuse
             config.modelEntries[idx] = entry.copy(userModifiedAt = System.currentTimeMillis())
-            saveConfig(config)
+            saveConfig(config, requirePersistence = requirePersistence) // nanoMuse
         }
+    }
+
+    /** nanoMuse: 在同一配置锁内校验表单原快照并应用草稿，刷新过的模型必须重新打开后编辑。 */
+    fun applyModelDraft(expected: ModelEntry, draft: io.github.nanomuse.models.ProviderModelDraft): Unit = synchronized(configLock) {
+        ensureConfigLoaded()
+        val current = io.github.nanomuse.models.ProviderModelDraft.requireCurrent(_config.value.modelEntries, expected)
+        updateEntry(draft.applyTo(current), requirePersistence = true)
+    }
+
+    /** nanoMuse: 重置也校验原快照，不能把并发更新的模型基础能力写回旧值。 */
+    fun resetModelEntry(expected: ModelEntry): Unit = synchronized(configLock) {
+        ensureConfigLoaded()
+        val current = io.github.nanomuse.models.ProviderModelDraft.requireCurrent(_config.value.modelEntries, expected)
+        updateEntry(current.copy(overrides = ModelOverrides(), isHidden = false), requirePersistence = true)
     }
 
     fun removeEntry(entryId: String): Unit = synchronized(configLock) {
@@ -2157,6 +2202,8 @@ class ProviderRepository(private val context: Context) {
 
 
     suspend fun refreshModels(instance: ProviderInstance) {
+        // nanoMuse: 实例含可变字段，必须复制请求基线，不能让后续修改悄悄改变校验快照。
+        val expectedInstance = instance.copy()
         // nanoMuse: 旧任务持有的实例快照也不得绕过本地版服务边界。
         if (io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(context, instance)) return
         // [T-android-refresh-models-empty-key] usableApiKey, NOT loadApiKey.
@@ -2180,7 +2227,11 @@ class ProviderRepository(private val context: Context) {
         // VisionGroupResolver already resolve credentials through
         // `usableApiKey`, so a keyless local server could be chatted with but
         // not refreshed. That inconsistency was the bug.
-        var apiKey = usableApiKey(instance)
+        var apiKey = synchronized(configLock) {
+            val current = _config.value.instances.firstOrNull { it.id == instance.id }
+            if (current == null || current != expectedInstance) return
+            usableApiKey(current)
+        }
 
         // For OAuth providers, try to refresh the token before using it (mirrors iOS validAccessToken)
         if (instance.credentialType == com.openminis.app.data.model.ProviderCredential.oauth && apiKey != null) {
@@ -2197,6 +2248,7 @@ class ProviderRepository(private val context: Context) {
             }
         }
 
+        val refreshSnapshot = io.github.nanomuse.models.ProviderRefreshSnapshot(expectedInstance, apiKey)
         android.util.Log.i("ProviderRepo", "refreshModels: id=${instance.id} type=${instance.providerType} credential=${instance.credentialType} hasKey=${apiKey != null} keyLen=${apiKey?.length ?: 0} baseURL=${instance.effectiveBaseURL}")
 
         // OpenAI Codex OAuth: fetch live Codex models when signed in, with built-in fallback
@@ -2207,7 +2259,7 @@ class ProviderRepository(private val context: Context) {
             val accountId = runCatching { com.openminis.app.auth.OpenAIOAuthManager(context, instance.id).accountId }.getOrNull()
             val models = OpenAIModelsApi.fetchModelsOAuth(apiKey, accountId)
             if (models.isNotEmpty()) {
-                replaceEntries(instance.id, models)
+                replaceEntries(instance.id, models, refreshSnapshot)
                 return
             }
         }
@@ -2297,7 +2349,7 @@ class ProviderRepository(private val context: Context) {
 
             // Step 2: If API returned results, use them
             if (models.isNotEmpty()) {
-                replaceEntries(instance.id, models)
+                replaceEntries(instance.id, models, refreshSnapshot)
                 return
             }
         }
@@ -2311,7 +2363,7 @@ class ProviderRepository(private val context: Context) {
         val fallbackModels = ModelsDevApi.fetchModels(fallbackBaseURL)
         if (fallbackModels.isNotEmpty()) {
             android.util.Log.i("ProviderRepo", "models.dev fallback returned ${fallbackModels.size} models for ${instance.label}")
-            replaceEntries(instance.id, fallbackModels)
+            replaceEntries(instance.id, fallbackModels, refreshSnapshot)
         } else if (isThirdParty) {
             android.util.Log.i("ProviderRepo", "Third-party endpoint, no models.dev match — preserving existing models for ${instance.label}")
         }
@@ -2420,6 +2472,25 @@ class ProviderRepository(private val context: Context) {
     }
 
     // API Key management
+    /** nanoMuse: 新增表单在后台调用，凭证和实例都成功保存后才允许离开页面。 */
+    fun createInstanceWithKey(instance: ProviderInstance, apiKey: String) {
+        val didCreate = synchronized(configLock) {
+            ensureConfigLoaded()
+            check(_configLoaded.value) { "provider_config_not_loaded" }
+            io.github.nanomuse.models.ProviderCreation.save(instance, apiKey,
+                commitCredential = { id, key ->
+                    val editor = encryptedPrefs.edit()
+                    if (key == null) editor.remove("apikey_$id") else editor.putString("apikey_$id", key)
+                    editor.commit()
+                },
+                commitInstance = { addInstance(it, requirePersistence = true) },
+                isAlreadySaved = { _config.value.instances.any { it.id == instance.id } },
+            )
+        }
+        // nanoMuse: 模型刷新归仓库生命周期管理，表单返回不会取消刚启动的刷新。
+        if (didCreate) loadScope.launch { autoRefreshModels(instance) }
+    }
+
     /** nanoMuse: 后台提交整页连接设置，基于最新实例合并，避免旧快照覆盖模型配置。 */
     fun saveConnection(instanceId: String, baseUrl: String, appendV1: Boolean, userAgent: String, apiKey: String?) = synchronized(configLock) {
         ensureConfigLoaded()

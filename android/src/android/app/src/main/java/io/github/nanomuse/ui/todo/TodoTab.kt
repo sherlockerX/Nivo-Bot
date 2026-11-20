@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +29,7 @@ import com.openminis.app.ui.theme.ChatColors
 import io.github.nanomuse.account.AccountData
 import io.github.nanomuse.todo.TodoStore
 import io.github.nanomuse.todo.TodoTask
+import io.github.nanomuse.todo.TodoEditorSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
@@ -38,6 +40,12 @@ import java.time.LocalDate
 import java.util.UUID
 
 private const val MAX_BACKUP_BYTES = io.github.nanomuse.todo.TodoBackupLimits.MAX_BACKUP_BYTES
+
+/** 编辑入口和提交快照共用恢复方式，避免重建后丢失原修订号或跨账号复用。 */
+internal fun todoEditorTaskSaver(ownerKey: String): Saver<TodoTask?, String> = Saver(
+    save = { task -> task?.let(TodoEditorSnapshot::save) },
+    restore = { value -> TodoEditorSnapshot.restore(value, ownerKey) },
+)
 
 /** 本地待办统一入口；账号变更销毁旧编辑状态，不使用模型服务。 */
 @Composable
@@ -81,7 +89,10 @@ private fun TodoPage(store: TodoStore, header: @Composable () -> Unit, bottomIns
     var changingTaskIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var attemptedTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var quickOperationId by rememberSaveable { mutableStateOf(UUID.randomUUID().toString()) }
-    var editTask by remember { mutableStateOf<TodoTask?>(null) }
+    // 恢复窗口时使用打开编辑器时的完整快照，原revision继续参与冲突校验。
+    var editTask by rememberSaveable(store.ownerKey, stateSaver = todoEditorTaskSaver(store.ownerKey)) {
+        mutableStateOf<TodoTask?>(null)
+    }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var isImportReview by remember { mutableStateOf(false) }
     var importContent by remember { mutableStateOf<String?>(null) }

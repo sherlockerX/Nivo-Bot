@@ -1276,4 +1276,8 @@
     <string name="nm_coach_review_with_ai">Review requirements with AI</string>
     <string name="nm_coach_prompt_review_course">Read course %1$s and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly.</string>
     <string name="nm_coach_other_request_busy">The coach is handling another request. You can save this draft and send it when that request finishes.</string>
+    <string name="nm_provider_save_failed">Salvarea nu a reușit. Datele introduse sunt păstrate. Încearcă din nou.</string>
+    <string name="nm_model_id_conflict">Acest furnizor are deja un model cu acest ID.</string>
+    <string name="nm_model_form_invalid">Introdu un ID de model. Limitele de tokenuri trebuie să fie numere întregi pozitive sau necompletate.</string>
+    <string name="nm_model_edit_conflict">Modelul s-a modificat în timpul editării. Redeschide pagina pentru a verifica setările actuale.</string>
 </resources>

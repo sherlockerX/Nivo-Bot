@@ -1,5 +1,7 @@
 # Roadmap
 
+> **Nivo Bot release scope:** [2.0.7(58) Anchor](releases/v2.0.7.md) updates Android only. The available iOS package remains the unsigned 2.0.5(56) IPA; a shared source-version bump does not publish a new iOS binary. Nivo Bot's current scope is described in [OPEN_SOURCE.md](../OPEN_SOURCE.md). The roadmap and release history below are retained from upstream nanoMuse and do not promise that this fork provides its relay, account sync, desktop releases or TestFlight service. No physical Android phone upgrade test was performed for 2.0.7, and CI compilation does not establish iPhone runtime acceptance.
+
 A personal agent should not live only in someone else's cloud, so nanoMuse is the open-source, low-cost alternative: on your own devices, with a model you choose and a relay you can host yourself. We want to build it with developers and users everywhere, so that each person truly owns a personal agent. Open an [issue](https://github.com/nano-muse/nanoMuse/issues/new/choose) or send a [pull request](../CONTRIBUTING.md); either one helps nanoMuse get better.
 
 This page is a map for people who want to help: what we are working on now, what comes after, and where to put your hands first in each area. No dates: a thing ships when it works on a real phone and a real computer.

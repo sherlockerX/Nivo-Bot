@@ -1,5 +1,13 @@
 package com.openminis.app.ui.settings
 
+// nanoMuse: 表单恢复与异步保存使用独立实现，避免主线程写盘及失败丢草稿。
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import io.github.nanomuse.models.ProviderModelDraft
+import io.github.nanomuse.ui.models.ProviderSaveError
+import io.github.nanomuse.ui.models.ProviderSaveProgress
+import io.github.nanomuse.ui.models.rememberProviderSaveAction
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +30,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
-import com.openminis.app.data.model.ModelOverrides
+import com.openminis.app.data.model.ModelEntry
 import com.openminis.app.data.model.normalizeModalityName
 import com.openminis.app.data.repository.ProviderRepository
 import com.openminis.app.ui.components.RowLabel
@@ -30,6 +38,7 @@ import com.openminis.app.ui.components.SectionTextField
 import com.openminis.app.R
 import com.openminis.app.ui.components.MinisButton
 import com.openminis.app.ui.components.MinisTextButton
+import kotlinx.serialization.json.Json
 
 /**
  * Detail / edit screen for a single ModelEntry. T210: brought to iOS
@@ -49,26 +58,38 @@ fun ModelEntryDetailScreen(
     providerRepository: ProviderRepository,
     onBack: () -> Unit,
 ) {
+    // nanoMuse: 编辑页只在保存落盘后返回，关闭入口遵守相同的忙碌状态。
+    val saveAction = rememberProviderSaveAction()
+    BackHandler(enabled = saveAction.isSaving) { }
+    ProviderSaveError(saveAction)
     val config by providerRepository.config.collectAsState()
+    val isLoaded by providerRepository.configLoaded.collectAsState() // nanoMuse
     val entry = config.modelEntries.find { it.id == entryId && it.providerInstanceId == instanceId }
     val instance = config.instances.find { it.id == instanceId }
 
     if (entry == null) {
-        onBack()
+        // nanoMuse: 改模型ID后旧条目消失，由保存回调返回，避免配置流再次弹出上一页。
+        LaunchedEffect(isLoaded, entryId, saveAction.isSaving, saveAction.hasSaved) {
+            if (isLoaded && !saveAction.isSaving && !saveAction.hasSaved) onBack()
+        }
         return
     }
 
-    val baseModel = entry.baseModel
-    val overrides = entry.overrides
+    // nanoMuse: 基线随草稿共同恢复，配置流刷新和系统重建都不能把旧输入冒充为新快照。
+    val baselineJson = rememberSaveable(entryId) { Json.encodeToString(ModelEntry.serializer(), entry) }
+    val baseline = remember(baselineJson) { Json.decodeFromString(ModelEntry.serializer(), baselineJson) }
+    val baseModel = baseline.baseModel
+    val overrides = baseline.overrides
 
-    var modelId by remember { mutableStateOf(baseModel.id) }
-    var displayName by remember { mutableStateOf(overrides.displayName ?: baseModel.displayName) }
-    var maxOutputTokensText by remember { mutableStateOf(overrides.maxOutputTokens?.toString() ?: "") }
-    var contextWindowText by remember { mutableStateOf(overrides.contextWindow?.toString() ?: "") }
-    var thinkingEnabled by remember {
+    // nanoMuse: 系统重建页面时保留输入，切换模型时使用新的表单状态。
+    var modelId by rememberSaveable(entryId) { mutableStateOf(baseModel.id) }
+    var displayName by rememberSaveable(entryId) { mutableStateOf(overrides.displayName ?: baseModel.displayName) }
+    var maxOutputTokensText by rememberSaveable(entryId) { mutableStateOf(overrides.maxOutputTokens?.toString() ?: "") }
+    var contextWindowText by rememberSaveable(entryId) { mutableStateOf(overrides.contextWindow?.toString() ?: "") }
+    var thinkingEnabled by rememberSaveable(entryId) {
         mutableStateOf(overrides.supportsReasoning ?: baseModel.supportsReasoning ?: false)
     }
-    var isHidden by remember { mutableStateOf(entry.isHidden) }
+    var isHidden by rememberSaveable(entryId) { mutableStateOf(baseline.isHidden) } // nanoMuse
     var showQuickTest by remember { mutableStateOf(false) }
 
     // Modality state — derive from override-or-base so the toggles reflect
@@ -83,13 +104,14 @@ fun ModelEntryDetailScreen(
         .map { it.normalizeModalityName() }
     val effectiveOutput = (overrides.outputModalities ?: baseModel.outputModalities ?: emptyList())
         .map { it.normalizeModalityName() }
-    var imageInput by remember { mutableStateOf("image" in effectiveInput) }
-    var pdfInput by remember { mutableStateOf("pdf" in effectiveInput) }
-    var audioInput by remember { mutableStateOf("audio" in effectiveInput) }
-    var videoInput by remember { mutableStateOf("video" in effectiveInput) }
-    var imageOutput by remember { mutableStateOf("image" in effectiveOutput) }
-    var audioOutput by remember { mutableStateOf("audio" in effectiveOutput) }
-    var videoOutput by remember { mutableStateOf("video" in effectiveOutput) } // nanoMuse: a video model marked by hand
+    // nanoMuse: 能力开关与身份字段共同恢复，防止重建后混合新旧表单。
+    var imageInput by rememberSaveable(entryId) { mutableStateOf("image" in effectiveInput) }
+    var pdfInput by rememberSaveable(entryId) { mutableStateOf("pdf" in effectiveInput) }
+    var audioInput by rememberSaveable(entryId) { mutableStateOf("audio" in effectiveInput) }
+    var videoInput by rememberSaveable(entryId) { mutableStateOf("video" in effectiveInput) }
+    var imageOutput by rememberSaveable(entryId) { mutableStateOf("image" in effectiveOutput) }
+    var audioOutput by rememberSaveable(entryId) { mutableStateOf("audio" in effectiveOutput) }
+    var videoOutput by rememberSaveable(entryId) { mutableStateOf("video" in effectiveOutput) }
 
     SettingsScaffold(
         title = stringResource(R.string.model_entry_model_detail),
@@ -104,6 +126,7 @@ fun ModelEntryDetailScreen(
         navigation = {
             MinisTextButton(
                 onClick = onBack,
+                enabled = !saveAction.isSaving, // nanoMuse
                 modifier = Modifier.padding(start = 8.dp),
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -113,44 +136,21 @@ fun ModelEntryDetailScreen(
         actions = {
             MinisButton(
                 onClick = {
-                    val baseInputs = baseModel.inputModalities ?: emptyList()
-                    val baseOutputs = baseModel.outputModalities ?: emptyList()
-                    val newInputs = buildList {
-                        if (imageInput) add("image")
-                        if (pdfInput) add("pdf")
-                        if (audioInput) add("audio")
-                        if (videoInput) add("video")
-                    }
-                    val newOutputs = buildList {
-                        // nanoMuse: text has no switch here, so it is kept as it was; dropping it
-                        // turned a chat model that also draws into one that cannot answer.
-                        if ("text" in effectiveOutput) add("text")
-                        if (imageOutput) add("image")
-                        if (audioOutput) add("audio")
-                        if (videoOutput) add("video") // nanoMuse
-                    }
-                    val newOverrides = ModelOverrides(
-                        displayName = displayName.trim().takeIf { it.isNotEmpty() && it != baseModel.displayName },
-                        maxOutputTokens = maxOutputTokensText.trim().toIntOrNull()?.takeIf { it > 0 },
-                        contextWindow = contextWindowText.trim().toIntOrNull()?.takeIf { it > 0 },
-                        // supportsReasoning: persist only when user diverged from base.
-                        supportsReasoning = thinkingEnabled.takeIf { it != (baseModel.supportsReasoning ?: false) },
-                        // Modality lists: persist only when user-edited set differs
-                        // from baseModel's set; otherwise leave null so the entry
-                        // tracks future provider updates to the base modalities.
-                        inputModalities = if (newInputs.toSet() != baseInputs.toSet()) newInputs else null,
-                        outputModalities = if (newOutputs.toSet() != baseOutputs.toSet()) newOutputs else null,
+                    // nanoMuse: 先固定点击时的输入，再在后台验证并提交；保留表单未展示的能力。
+                    val draft = ProviderModelDraft(modelId, displayName, maxOutputTokensText,
+                        contextWindowText, thinkingEnabled, isHidden, imageInput, pdfInput,
+                        audioInput, videoInput, imageOutput, audioOutput, videoOutput)
+                    saveAction.submit(
+                        save = { providerRepository.applyModelDraft(baseline, draft) },
+                        onSaved = onBack,
                     )
-                    val updated = if (entry.isCustom) {
-                        entry.copy(baseModel = baseModel.copy(id = modelId), overrides = newOverrides, isHidden = isHidden)
-                    } else {
-                        entry.copy(overrides = newOverrides, isHidden = isHidden)
-                    }
-                    providerRepository.updateEntry(updated)
-                    onBack()
                 },
+                enabled = !saveAction.isSaving && (!entry.isCustom || modelId.isNotBlank()), // nanoMuse
                 modifier = Modifier.padding(end = 8.dp),
-            ) { Text(stringResource(R.string.common_save)) }
+            ) {
+                ProviderSaveProgress(saveAction) // nanoMuse: 写入时给出可见反馈。
+                Text(stringResource(R.string.common_save))
+            }
         },
     ) {
         // ── Identity ────────────────────────────────────────────────────
@@ -163,7 +163,7 @@ fun ModelEntryDetailScreen(
                 RowLabel(text = stringResource(R.string.add_custom_model_model_id))
                 SectionTextField(
                     value = modelId,
-                    onValueChange = { if (entry.isCustom) modelId = it },
+                    onValueChange = { if (entry.isCustom && !saveAction.isSaving) modelId = it }, // nanoMuse
                     singleLine = true,
                     readOnly = !entry.isCustom,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
@@ -172,7 +172,7 @@ fun ModelEntryDetailScreen(
                 RowLabel(text = stringResource(R.string.model_entry_display_name))
                 SectionTextField(
                     value = displayName,
-                    onValueChange = { displayName = it },
+                    onValueChange = { if (!saveAction.isSaving) displayName = it }, // nanoMuse
                     singleLine = true,
                 )
             }
@@ -192,7 +192,7 @@ fun ModelEntryDetailScreen(
                 RowLabel(text = stringResource(R.string.modeldetail_context_window))
                 SectionTextField(
                     value = contextWindowText,
-                    onValueChange = { contextWindowText = it.filter { c -> c.isDigit() } },
+                    onValueChange = { if (!saveAction.isSaving) contextWindowText = it.filter { c -> c.isDigit() } }, // nanoMuse
                     placeholder = baseModel.contextWindow?.toString()
                         ?: stringResource(R.string.modeldetail_provider_default),
                     singleLine = true,
@@ -202,7 +202,7 @@ fun ModelEntryDetailScreen(
                 RowLabel(text = stringResource(R.string.model_entry_max_output_tokens))
                 SectionTextField(
                     value = maxOutputTokensText,
-                    onValueChange = { maxOutputTokensText = it.filter { c -> c.isDigit() } },
+                    onValueChange = { if (!saveAction.isSaving) maxOutputTokensText = it.filter { c -> c.isDigit() } }, // nanoMuse
                     placeholder = baseModel.maxOutputTokens?.toString()
                         ?: stringResource(R.string.modeldetail_provider_default),
                     singleLine = true,
@@ -225,7 +225,7 @@ fun ModelEntryDetailScreen(
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_thinking),
                 checked = thinkingEnabled,
-                onCheckedChange = { thinkingEnabled = it },
+                onCheckedChange = { if (!saveAction.isSaving) thinkingEnabled = it }, // nanoMuse
                 showDivider = false,
             )
         }
@@ -238,7 +238,7 @@ fun ModelEntryDetailScreen(
             SettingsSwitchRow(
                 title = stringResource(R.string.model_entry_hidden),
                 checked = isHidden,
-                onCheckedChange = { isHidden = it },
+                onCheckedChange = { if (!saveAction.isSaving) isHidden = it }, // nanoMuse
                 showDivider = false,
             )
         }
@@ -251,22 +251,22 @@ fun ModelEntryDetailScreen(
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_image_input),
                 checked = imageInput,
-                onCheckedChange = { imageInput = it },
+                onCheckedChange = { if (!saveAction.isSaving) imageInput = it }, // nanoMuse
             )
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_pdf_input),
                 checked = pdfInput,
-                onCheckedChange = { pdfInput = it },
+                onCheckedChange = { if (!saveAction.isSaving) pdfInput = it }, // nanoMuse
             )
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_audio_input),
                 checked = audioInput,
-                onCheckedChange = { audioInput = it },
+                onCheckedChange = { if (!saveAction.isSaving) audioInput = it }, // nanoMuse
             )
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_video_input),
                 checked = videoInput,
-                onCheckedChange = { videoInput = it },
+                onCheckedChange = { if (!saveAction.isSaving) videoInput = it }, // nanoMuse
                 showDivider = false,
             )
         }
@@ -279,19 +279,19 @@ fun ModelEntryDetailScreen(
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_image_output),
                 checked = imageOutput,
-                onCheckedChange = { imageOutput = it },
+                onCheckedChange = { if (!saveAction.isSaving) imageOutput = it }, // nanoMuse
             )
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_audio_output),
                 checked = audioOutput,
-                onCheckedChange = { audioOutput = it },
+                onCheckedChange = { if (!saveAction.isSaving) audioOutput = it }, // nanoMuse
             )
             // nanoMuse: a relay's video model whose name does not say so is marked here,
             // and is then offered for clips (io.github.nanomuse.media.MediaModels).
             SettingsSwitchRow(
                 title = stringResource(R.string.modeldetail_video_output),
                 checked = videoOutput,
-                onCheckedChange = { videoOutput = it },
+                onCheckedChange = { if (!saveAction.isSaving) videoOutput = it }, // nanoMuse
                 showDivider = false,
             )
         }
@@ -305,7 +305,7 @@ fun ModelEntryDetailScreen(
                 icon = Icons.Outlined.Bolt,
                 showChevron = false,
                 showDivider = false,
-                onClick = { showQuickTest = true },
+                onClick = { if (!saveAction.isSaving) showQuickTest = true }, // nanoMuse
             )
         }
 
@@ -320,8 +320,11 @@ fun ModelEntryDetailScreen(
                     showChevron = false,
                     showDivider = false,
                     onClick = {
-                        providerRepository.updateEntry(entry.copy(overrides = ModelOverrides(), isHidden = false))
-                        onBack()
+                        // nanoMuse: 重置同样等待落盘，失败时保留当前输入。
+                        saveAction.submit(
+                            save = { providerRepository.resetModelEntry(baseline) },
+                            onSaved = onBack,
+                        )
                     },
                 )
             }

@@ -1268,4 +1268,8 @@
     <string name="nm_coach_review_with_ai">Review requirements with AI</string>
     <string name="nm_coach_prompt_review_course">Read course %1$s and preserve its source and order. Review simulation and real-action requirements for each unit. Prepare a reviewable draft, show changes, and wait for my explicit confirmation before activating it with the existing course ID. Do not edit files directly.</string>
     <string name="nm_coach_other_request_busy">The coach is handling another request. You can save this draft and send it when that request finishes.</string>
+    <string name="nm_provider_save_failed">저장하지 못했습니다. 입력 내용은 유지됩니다. 다시 시도하세요.</string>
+    <string name="nm_model_id_conflict">이 공급자에 동일한 ID의 모델이 이미 있습니다.</string>
+    <string name="nm_model_form_invalid">모델 ID를 입력하세요. 토큰 한도는 양의 정수로 입력하거나 비워 두세요.</string>
+    <string name="nm_model_edit_conflict">편집 중에 모델 설정이 변경되었습니다. 페이지를 다시 열어 최신 설정을 확인하세요.</string>
 </resources>

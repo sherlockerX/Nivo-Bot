@@ -1343,4 +1343,8 @@
     <string name="nm_lock_stopwatch_running">Only allowed apps and phone calls work until you end this focus.</string>
     <string name="nm_lock_stopwatch_end">End focus</string>
     <string name="nm_lock_stopwatch_end_confirm">End this focus now? The time so far is saved and the phone unlocks.</string>
+    <string name="nm_provider_save_failed">Could not save. Your input is still here. Try again.</string>
+    <string name="nm_model_id_conflict">This provider already has a model with that ID.</string>
+    <string name="nm_model_form_invalid">Enter a model ID. Token limits must be positive whole numbers or blank.</string>
+    <string name="nm_model_edit_conflict">This model changed while you were editing. Reopen its page to review the latest settings.</string>
 </resources>

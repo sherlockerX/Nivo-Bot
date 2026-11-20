@@ -52,8 +52,8 @@ IOS = ROOT / "android" / "src" / "ios"
 
 APP_ID = "io.github.nanomuse.app"
 NAME = "Nicholasx"  # Mosaic: the personal build's product name
-VERSION_NAME = "2.0.6"
-VERSION_CODE = 57
+VERSION_NAME = "2.0.7"
+VERSION_CODE = 58
 # 手机版本使用同一发布来源，完整品牌生成也不能恢复旧的Android版本。
 ANDROID_VERSION_NAME = VERSION_NAME
 ANDROID_VERSION_CODE = VERSION_CODE

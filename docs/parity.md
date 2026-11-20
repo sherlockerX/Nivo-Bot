@@ -1,5 +1,7 @@
 # Feature parity across the clients
 
+> **Nivo Bot scope:** [2.0.7(58) Anchor](releases/v2.0.7.md) is an Android-only release. The iOS download remains the unsigned 2.0.5(56) IPA; no 2.0.7 IPA is provided. Shared source versions, source-level feature coverage, CI builds and device acceptance are separate evidence. This release has no physical Android phone upgrade test, and its version bump does not validate a new iPhone build. The tables below preserve upstream nanoMuse's historical comparison, including services that Nivo Bot's local mode has removed; they are not a current Nivo Bot acceptance checklist. See [OPEN_SOURCE.md](../OPEN_SOURCE.md), the [Android guide](android-development.md) and [iOS focus and Coach notes](ios-focus-and-coach.md) for this fork's scope. Forced focus, recurring lock plans and app allowlists remain Android-only; iOS offers reminders and user-controlled Guided Access.
+
 nanoMuse is one agent on every device: the phone (Android, iOS), the computer (nanoMuse Desktop,
 the `dsh-nanomuse` harness bundle in the Electron shell) and the browser (nanoMuse Web, served by
 the runtime). The rule since 0.1.32 is the **union**: whatever one client can do, every client
