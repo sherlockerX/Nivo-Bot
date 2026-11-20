@@ -1,11 +1,18 @@
 import SwiftUI
 import PhotosUI
+import UIKit
+
+/// 从每日碎片页的「拍照」「相册」进入编辑器时，打开后立即呈现对应的选择器。
+enum NivoMosaicStartAction {
+    case camera, album
+}
 
 /// 碎片编辑器保留草稿和所见任务版本，正式保存一次性提交所有关联状态。
 struct NivoMosaicEditor: View {
     @State var draft: NivoMosaicDraft
     let access: NivoLifeScope
     @ObservedObject var model: NivoMosaicViewModel
+    var startAction: NivoMosaicStartAction? = nil
     @ObservedObject private var life = NivoLifeModel.shared
     @Environment(\.dismiss) private var dismiss
     @State private var photo: PhotosPickerItem?
@@ -17,6 +24,9 @@ struct NivoMosaicEditor: View {
     @State private var errorMessage: String?
     @State private var discardOpen = false
     @State private var hasFinished = false
+    @State private var isCameraOpen = false
+    @State private var isAlbumOpen = false
+    @State private var hasStarted = false
 
     private var canSave: Bool {
         NivoMosaicRules.canSave(draft)
@@ -31,6 +41,7 @@ struct NivoMosaicEditor: View {
         NavigationStack {
             Form {
                 if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red).font(.subheadline) } }
+                photoSection
                 Section(AppLocalized("Reflection")) {
                     DatePicker(AppLocalized("Date"), selection: Binding(get: { NivoLifeDay.date(draft.day) }, set: { draft.day = NivoLifeDay.value($0) }),
                                in: ...latestEditableDate, displayedComponents: .date)
@@ -58,7 +69,6 @@ struct NivoMosaicEditor: View {
                         }, set: { draft.shouldMarkHabitDone = $0 }))
                     }
                 }
-                photoSection
                 Section(AppLocalized("Shape")) {
                     Picker(AppLocalized("Shape"), selection: Binding(get: { draft.shape ?? "rounded" }, set: { draft.shape = $0 })) {
                         ForEach(["square", "rounded", "circle", "hexagon", "triangle", "heart", "blob1"], id: \.self) { kind in
@@ -87,6 +97,22 @@ struct NivoMosaicEditor: View {
             .interactiveDismissDisabled()
             .nmOnChange(of: draft) { value in queueDraft(value) }
             .nmOnChange(of: photo) { item in if let item { Task { await importPhoto(item) } } }
+            .photosPicker(isPresented: $isAlbumOpen, selection: $photo, matching: .images)
+            .fullScreenCover(isPresented: $isCameraOpen) {
+                CameraPicker { image in Task { await importImage(image) } }.ignoresSafeArea()
+            }
+            .task {
+                // 只在第一次出现时执行，旋转或返回不会再次弹出选择器。等编辑器的弹出动画结束再呈现，
+                // 动画期间呈现第二层会被系统忽略。
+                guard !hasStarted, startAction != nil else { return }
+                hasStarted = true
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                switch startAction {
+                case .camera?: isCameraOpen = true
+                case .album?: isAlbumOpen = true
+                case nil: break
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .nanoMuseAccountSwitched)) { _ in autosave?.cancel(); dismiss() }
             .nmOnChange(of: life.accessScope) { if $0 != access { autosave?.cancel(); dismiss() } }
             .onDisappear { autosave?.cancel() }
@@ -108,8 +134,13 @@ struct NivoMosaicEditor: View {
                 cropSlider(AppLocalized("Zoom"), keyPath: \.zoom, range: 1...4)
                 Button(AppLocalized("Remove photo"), role: .destructive) { draft.mediaPath = nil; draft.crop = nil }
             }
-            PhotosPicker(selection: $photo, matching: .images) {
-                Label(AppLocalized("Choose a photo"), systemImage: "photo.badge.plus")
+            HStack(spacing: 12) {
+                Button { isCameraOpen = true } label: {
+                    Label(AppLocalized("Camera"), systemImage: "camera").frame(maxWidth: .infinity)
+                }.buttonStyle(.bordered)
+                Button { isAlbumOpen = true } label: {
+                    Label(AppLocalized("Album"), systemImage: "photo.on.rectangle").frame(maxWidth: .infinity)
+                }.buttonStyle(.bordered)
             }.disabled(isImporting)
             if isImporting { ProgressView(AppLocalized("Importing photo")) }
             Text(AppLocalized("Photos stay on this device. The coach can read your text and whether a photo is attached, not its contents."))
@@ -323,14 +354,29 @@ struct NivoMosaicEditor: View {
         else { errorMessage = model.errorMessage }
     }
 
+    /// 拍照得到的图片按JPEG保存，和相册导入走同一条存储路径。
+    private func importImage(_ image: UIImage) async {
+        guard let data = image.jpegData(compressionQuality: 0.9) else {
+            errorMessage = AppLocalized("The photo could not be read. Try another one.")
+            return
+        }
+        await importData(data)
+    }
+
     private func importPhoto(_ item: PhotosPickerItem) async {
+        defer { photo = nil }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { throw NivoLifeError.accountChanged }
+            await importData(data)
+        } catch { errorMessage = NivoLifeModel.message(error) }
+    }
+
+    private func importData(_ data: Data) async {
         guard !isImporting else { return }
         isImporting = true
-        defer { isImporting = false; photo = nil }
+        defer { isImporting = false }
         do {
-            guard let data = try await item.loadTransferable(type: Data.self), life.accessScope == access else {
-                throw NivoLifeError.accountChanged
-            }
+            guard life.accessScope == access else { throw NivoLifeError.accountChanged }
             let path = try await NivoMosaicMediaStore.shared.add(data, scope: access)
             guard life.accessScope == access else { return }
             draft.mediaPath = path

@@ -17,7 +17,7 @@ enum NivoMosaicDisplay {
         let range = NivoMosaicCalendar.range(scope: scope, anchor: anchor)
         let start = NivoLifeDay.date(range.startDay)
         switch scope {
-        case .day: return start.formatted(date: .abbreviated, time: .omitted)
+        case .day: return start.formatted(.dateTime.year().month(.abbreviated).day().weekday(.abbreviated))
         case .week: return String(format: AppLocalized("Week of %@"), start.formatted(date: .abbreviated, time: .omitted))
         case .month: return start.formatted(.dateTime.year().month(.wide))
         case .quarter:
@@ -185,8 +185,12 @@ struct NivoMosaicDayCanvas: View {
             }.buttonStyle(.plain).accessibilityLabel(habit.title)
         } else {
             Button(action: onEmpty) {
-                NivoMosaicTileShape(kind: "rounded").stroke(NanoMuseTones.action.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
-                    .overlay { Image(systemName: "plus").font(.caption).foregroundStyle(.secondary) }
+                // 空位要看得出当天图案的轮廓：浅色填充加虚线边。
+                ZStack {
+                    NivoMosaicTileShape(kind: "rounded").fill(NanoMuseTones.action.opacity(0.07))
+                    NivoMosaicTileShape(kind: "rounded").stroke(NanoMuseTones.action.opacity(0.38), style: StrokeStyle(lineWidth: 1.2, dash: [4, 4]))
+                    Image(systemName: "plus").font(.caption).foregroundStyle(.secondary)
+                }
             }.buttonStyle(.plain).accessibilityLabel(AppLocalized("Add a fragment"))
                 .disabled(day > NivoLifeDay.value())
         }

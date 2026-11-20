@@ -92,6 +92,8 @@ struct NanoMuseRoot: View {
     @State private var setupDone = NanoMuseFirstRun.isDone
     @State private var showSetupSettings = false
     @State private var showClassicSettings = false
+    // 关闭一个sheet的同时打开另一个会被系统忽略，所以等第一个关闭后再打开完整设置。
+    @State private var opensClassicSettingsAfterSetup = false
     @ObservedObject private var life = NivoLifeModel.shared
     @ObservedObject private var accountData = NanoMuseAccountData.shared
 
@@ -108,18 +110,26 @@ struct NanoMuseRoot: View {
     var body: some View {
         Group {
             if !accountData.isReady || needsSetup == nil {
-                Color.clear
+                // 启动时档案还在准备，显示加载状态而不是一片空白。
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(ChatColors.background.ignoresSafeArea())
             } else if needsSetup == true {
                 NanoMuseFirstRunView(
                     onStart: { setupDone = true },
                     onSettings: { showSetupSettings = true }
                 )
                 // The gear opens Muse's settings page; the OpenMinis list is under "All settings".
-                .sheet(isPresented: $showSetupSettings) {
+                .sheet(isPresented: $showSetupSettings, onDismiss: {
+                    if opensClassicSettingsAfterSetup {
+                        opensClassicSettingsAfterSetup = false
+                        showClassicSettings = true
+                    }
+                }) {
                     NavigationStack {
                         NanoMuseSettingsHomeView(onAllSettings: {
+                            opensClassicSettingsAfterSetup = true
                             showSetupSettings = false
-                            showClassicSettings = true
                         })
                     }
                 }
@@ -180,6 +190,8 @@ struct NanoMuseAgentPagePresenter: ViewModifier {
     var onOpenRoutines: (() -> Void)?
     @State private var shown = false
     @State private var showRoutines = false
+    // 形象页关闭后才打开定时任务列表；同一刻关闭再打开第二个sheet会被系统忽略。
+    @State private var opensRoutinesAfterDismiss = false
 
     func body(content: Content) -> some View {
         content
@@ -187,13 +199,17 @@ struct NanoMuseAgentPagePresenter: ViewModifier {
                 guard enabled else { return }
                 shown = true
             }
-            .sheet(isPresented: $shown) {
+            .sheet(isPresented: $shown, onDismiss: {
+                guard opensRoutinesAfterDismiss else { return }
+                opensRoutinesAfterDismiss = false
+                if let onOpenRoutines { onOpenRoutines() } else { showRoutines = true }
+            }) {
                 NanoMuseAgentPage(
                     onOpenSession: { id in shown = false; onOpenSession(id) },
                     onPrefillChat: { text in shown = false; onPrefillChat(text) },
                     onOpenRoutines: {
+                        opensRoutinesAfterDismiss = true
                         shown = false
-                        if let onOpenRoutines { onOpenRoutines() } else { showRoutines = true }
                     }
                 )
             }
@@ -387,6 +403,8 @@ struct NanoMuseHomeView: View {
     @State private var showClassic = false
     @State private var classicWantsSettings = false
     @State private var showNanoMuseSettings = false
+    // 设置页关闭后再打开完整设置，避免两个sheet在同一刻切换。
+    @State private var opensClassicAfterSettings = false
     @State private var showRoutines = false
     /// The routine an idea just became, while its editor is up (the Ideas room has no sheet of its own).
     @State private var editingRoutine: NanoMuseRoutine?
@@ -520,12 +538,16 @@ struct NanoMuseHomeView: View {
                 NivoCoachLegacyArchive()
             }
         }
-        .sheet(isPresented: $showNanoMuseSettings) {
+        .sheet(isPresented: $showNanoMuseSettings, onDismiss: {
+            guard opensClassicAfterSettings else { return }
+            opensClassicAfterSettings = false
+            classicWantsSettings = true
+            showClassic = true
+        }) {
             NavigationStack {
                 NanoMuseSettingsHomeView(onAllSettings: {
+                    opensClassicAfterSettings = true
                     showNanoMuseSettings = false
-                    classicWantsSettings = true
-                    showClassic = true
                 })
             }
         }
@@ -670,14 +692,7 @@ struct NanoMuseHomeView: View {
                         leading: { drawerDisc },
                         trailing: { chatMenu }
                     )
-                    // Android: the daily ideas strip lives below the main chat header. It only
-                    // prefills the composer; the user still decides whether to send it.
-                    if chatPath.isEmpty && !keyboard.visible && !voiceMode.isVoiceActive {
-                        NivoDailyIdeaStrip { prompt in prefillMainChat(prompt) }
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 6)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                    // 每日点子只在点子页显示；放在主聊天页头下方会压住消息列表。
                 }
                 .onGeometryChange(for: CGFloat.self) { proxy in
                     proxy.size.height

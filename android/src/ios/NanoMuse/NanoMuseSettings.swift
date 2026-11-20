@@ -87,9 +87,8 @@ struct NanoMuseSettingsHomeView: View {
             Group {
                 NanoMuseLinkRow(title: AppLocalized("Soul")) { SoulSettingsView() }
                 NanoMuseRowDivider()
-                NanoMuseActionRow(title: AppLocalized("Avatar")) {
-                    NotificationCenter.default.post(name: .nanoMuseOpenAvatarStudio, object: nil)
-                }
+                // 设置页本身在sheet里，外层无法再弹出形象工作室，所以在设置的导航栈里直接进入。
+                NanoMuseLinkRow(title: AppLocalized("Avatar")) { NanoMuseAvatarStudioView(embedded: true) }
                 NanoMuseRowDivider()
                 NanoMuseLinkRow(title: AppLocalized("Memory")) { MemoryManagementView() }
                 NanoMuseRowDivider()

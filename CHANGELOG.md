@@ -4,6 +4,11 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Fixed iOS pages that opened blank: a new daily fragment, starting focus, the focus reminder, task details, groups and tags, and the Coach training calendar.
+- Gave the iOS daily fragments page the Android layout: a greeting and the date, the day's shape with its empty places outlined, and Camera, Album and Reflection buttons.
+- Made iOS All settings, Manage routines, the Settings Avatar row and the agent page's Avatar studio open again; each had tried to open a second page while the first was closing.
+- Kept the iOS name pill below the corner buttons when the face is small or hidden, and showed a loading indicator instead of a blank screen at launch.
+- Moved iOS Coach, Focus and Tasks to a compact title bar so their buttons no longer cover the agent's face, and removed the daily ideas strip from the main chat.
 - Removed the unused iOS online update requester, GitHub fallback parser and repository/update constants, retained local release-catalog validation, and corrected connector registration text to use Nivo Bot.
 - Resumed iOS OAuth draft cleanup and provider/model initialization after a successful startup-recovery retry, waited for the recovery lock to release, and prevented duplicate initialization within one app run.
 - Migrated legacy iOS files before installing default identity, memory and skills, preserved conflicting originals, and kept failed migrations retryable. Preserved existing bundled skill files and unreadable preset memory.

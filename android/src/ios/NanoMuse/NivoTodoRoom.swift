@@ -10,12 +10,12 @@ struct NivoTodoRoom: View {
     @State private var status = "all"
     @State private var selectedDate = Date()
     @State private var editing: NivoTodoEditTarget?
-    @State private var detail: NivoTodoTask?
+    // 详情、分类管理都用携带账户的目标呈现sheet，内容只读这一个值，避免空白页。
+    @State private var detail: NivoTodoEditTarget?
     @State private var detailScope: NivoLifeScope?
     @State private var pendingFocus: NivoLifeItemTarget?
     @State private var pendingFragment: NivoLifeItemTarget?
-    @State private var isManagingCategories = false
-    @State private var categoryScope: NivoLifeScope?
+    @State private var categoryTarget: NivoTodoScopeTarget?
     @State private var isShowingBackup = false
 
     private var visible: [NivoTodoTask] {
@@ -30,7 +30,8 @@ struct NivoTodoRoom: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                NanoMuseRoomHeader(chrome: chrome) {
+                // 与Android的TodoHeader一致：紧凑标题栏，标题右侧显示当前视图。
+                NivoCompactRoomHeader(title: AppLocalized("Tasks"), onMenu: chrome.onMenu, horizontalPadding: 0) {
                     HStack(spacing: 10) {
                         Menu {
                             ForEach(NivoTodoSection.allCases) { item in
@@ -38,11 +39,10 @@ struct NivoTodoRoom: View {
                             }
                             Divider()
                             Button(AppLocalized("Groups and tags")) {
-                                categoryScope = model.accessScope
-                                isManagingCategories = categoryScope != nil
+                                categoryTarget = model.accessScope.map { NivoTodoScopeTarget(scope: $0) }
                             }.disabled(!model.isReady || model.isBusy)
                             Button(AppLocalized("Task backup")) { isShowingBackup = true }
-                                .disabled(!model.isReady || model.isBusy)
+                                .disabled(!model.isReady || model.isBusy || model.accessScope == nil)
                         } label: { NanoMuseRoundDisc(symbol: section.symbol) }
                         .accessibilityLabel(AppLocalized("Task views"))
                         NanoMuseRoundButton(symbol: "plus", label: AppLocalized("New task")) {
@@ -53,11 +53,8 @@ struct NivoTodoRoom: View {
                             .disabled(!model.isReady || model.isBusy)
                     }
                 }
-                HStack(alignment: .firstTextBaseline) {
-                    Text(AppLocalized("Tasks")).font(.largeTitle.bold())
-                    Spacer()
-                    Text(section.title).font(.subheadline).foregroundStyle(.secondary)
-                }
+                // 页标题已在页头，这里只标出当前视图。
+                Text(section.title).font(.headline).foregroundStyle(.secondary)
                 if !model.isReady {
                     if model.errorMessage == nil { ProgressView().frame(maxWidth: .infinity) }
                     else {
@@ -75,7 +72,8 @@ struct NivoTodoRoom: View {
             .frame(maxWidth: .infinity)
         }
         .background(NanoMuseTones.canvas.ignoresSafeArea())
-        .overlay(alignment: .top) { if model.isBusy { ProgressView().padding(8).background(.regularMaterial, in: Capsule()) } }
+        // 进度提示放在紧凑页头下方，不盖住标题。
+        .overlay(alignment: .top) { if model.isBusy { ProgressView().padding(8).background(.regularMaterial, in: Capsule()).padding(.top, 64) } }
         .task { await model.activate() }
         .nmOnChange(of: scenePhase) { phase in if phase == .active { Task { await model.refresh() } } }
         .onReceive(NotificationCenter.default.publisher(for: .nanoMuseAccountSwitched)) { _ in
@@ -84,32 +82,29 @@ struct NivoTodoRoom: View {
             detailScope = nil
             pendingFocus = nil
             pendingFragment = nil
-            isManagingCategories = false
-            categoryScope = nil
+            categoryTarget = nil
             isShowingBackup = false
             Task { await model.activate() }
         }
         .nmOnChange(of: model.accessScope) { scope in
             if editing?.scope != scope { editing = nil }
-            if categoryScope != scope { isManagingCategories = false; categoryScope = nil }
+            if categoryTarget?.scope != scope { categoryTarget = nil }
             if detailScope != scope { detail = nil; detailScope = nil; pendingFocus = nil; pendingFragment = nil }
         }
         .sheet(item: $editing) { target in NivoTodoEditor(task: target.task, access: target.scope, model: model) }
-        .sheet(item: $detail, onDismiss: navigateAfterDetail) { task in
-            if let detailScope {
-                NivoTodoDetailView(taskID: task.id, access: detailScope, model: model,
-                    onOpenFocus: { pendingFocus = $0; detail = nil },
-                    onOpenFragment: { pendingFragment = $0; detail = nil })
-            }
+        .sheet(item: $detail, onDismiss: navigateAfterDetail) { target in
+            NivoTodoDetailView(taskID: target.task.id, access: target.scope, model: model,
+                onOpenFocus: { pendingFocus = $0; detail = nil },
+                onOpenFragment: { pendingFragment = $0; detail = nil })
         }
-        .sheet(isPresented: $isManagingCategories) {
-            if let categoryScope { NivoTodoCategoriesView(access: categoryScope, model: model) }
+        .sheet(item: $categoryTarget) { target in
+            NivoTodoCategoriesView(access: target.scope, model: model)
         }
         .sheet(isPresented: $isShowingBackup) {
             if let scope = model.accessScope { NivoLifeFileTransferView(kind: .tasks, scope: scope) }
         }
         .alert(AppLocalized("Error"), isPresented: Binding(
-            get: { model.errorMessage != nil && model.isReady && editing == nil && detail == nil && !isManagingCategories && !isShowingBackup },
+            get: { model.errorMessage != nil && model.isReady && editing == nil && detail == nil && categoryTarget == nil && !isShowingBackup },
             set: { if !$0 { model.errorMessage = nil } }
         )) { Button(AppLocalized("Close")) { model.errorMessage = nil } } message: { Text(model.errorMessage ?? "") }
     }
@@ -171,7 +166,7 @@ struct NivoTodoRoom: View {
                     NivoTodoRow(task: task, isBusy: model.isBusy, onEdit: {
                         guard let rowScope, model.accessScope == rowScope else { return }
                         detailScope = rowScope
-                        detail = task
+                        detail = NivoTodoEditTarget(task: task, scope: rowScope)
                     }, onToggle: {
                         if let rowScope {
                             Task { await model.setStatus(task, status: task.status == .done ? .todo : .done, scope: rowScope) }
@@ -204,6 +199,12 @@ struct NivoTodoRoom: View {
             NivoLifeNavigation.shared.openMosaic(entryID: target.id, scope: target.scope)
         }
     }
+}
+
+/// 只需要账户的sheet目标（分类管理）。
+private struct NivoTodoScopeTarget: Identifiable {
+    let scope: NivoLifeScope
+    let id = UUID()
 }
 
 /// 每次编辑使用独立展示身份，固定草稿、账户和代次，不跟随全局模型重新绑定。

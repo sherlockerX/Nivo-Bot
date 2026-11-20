@@ -40,6 +40,7 @@ struct NanoMuseAgentPage: View {
     @State private var pane = 0
     @State private var showShare = false
     @State private var showEditName = false
+    @State private var showsStudio = false
     @State private var soulName = SoulStore.cachedMetadata.name
     /// The name under the face follows Dynamic Type, capped as the header's lines are (NanoMuseHeaderMetrics).
     @ScaledMetric(relativeTo: .title2) private var nameSize: CGFloat = 24
@@ -54,6 +55,7 @@ struct NanoMuseAgentPage: View {
             ScrollView {
                 VStack(spacing: 0) {
                     header
+                        .navigationDestination(isPresented: $showsStudio) { NanoMuseAvatarStudioView(embedded: true) }
                     paneSwitch
                         .padding(.top, 18)
                         .padding(.horizontal, 16)
@@ -110,7 +112,8 @@ struct NanoMuseAgentPage: View {
                     if own.clip != nil {
                         Button { own.clear() } label: { Label(AppLocalized("Default face"), systemImage: "arrow.uturn.backward") }
                     }
-                    NavigationLink { NanoMuseAvatarStudioView(embedded: true) } label: { Label(AppLocalized("Avatar studio…"), systemImage: "wand.and.stars") }
+                    // iOS 16的菜单里放NavigationLink经常不跳转，改为按钮加navigationDestination。
+                    Button { showsStudio = true } label: { Label(AppLocalized("Avatar studio…"), systemImage: "wand.and.stars") }
                 } label: {
                     Image(systemName: "pencil")
                         .font(.system(size: 13, weight: .semibold))
