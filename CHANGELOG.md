@@ -6,6 +6,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [2.0.8] - 2026-11-20 · Clarity
 
+- Replaced the locale-dependent alphabet symbol in iOS System files with a named sort menu. Empty editable files now have an Edit action, failed saves keep drafts, and file and fragment menus have spoken labels.
+
 - Prepared iOS 2.0.8 (59) as an unsigned Release build with clearer tool errors, configuration queries and personal-record recovery. The user reported no issues after checking the audit branch on an iPhone; that feedback does not accept the upcoming 2.0.8 Release binary. Its release CI and artifact verification are pending. Android downloads remain 2.0.7 (58), with the existing APK, source archive, checksums and signing identity. See the [release notes](docs/releases/v2.0.8.md) for platform scope and verification status.
 - Added an explicit Debug/Release choice for manual iOS CI runs and an artifact provenance record containing the actual commit, run URL, build configuration, packaged app identity, architecture, unsigned status and IPA checksum. Automatic push and pull-request checks retain Debug.
 - Enabled test access only for the separate Release application-test compilation and kept three Debug-only badge injection tests out of Release builds. The preserved distribution app does not enable test access or Debug helpers.

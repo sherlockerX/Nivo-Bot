@@ -231,9 +231,9 @@ final class NanoMuseFeedStore: ObservableObject {
         preferences = saved.isEmpty ? Self.defaultPreferences : saved
     }
 
-    func savePreferences(_ text: String) {
+    func savePreferences(_ text: String) throws {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        try? (t + "\n").write(to: preferencesFile, atomically: true, encoding: .utf8)
+        try (t + "\n").write(to: preferencesFile, atomically: true, encoding: .utf8)
         preferences = t.isEmpty ? Self.defaultPreferences : t
     }
 
@@ -807,6 +807,7 @@ struct NanoMuseFeedSettingsSheet: View {
     @State private var text = ""
     @State private var time = Date()
     @State private var knowledge: NanoMuseGrowthSources.Snapshot?
+    @State private var saveError: String?
 
     private var routine: NanoMuseRoutine? { NanoMuseFeedFlow.routine }
 
@@ -834,11 +835,16 @@ struct NanoMuseFeedSettingsSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(AppLocalized("Save")) {
-                        store.savePreferences(text)
-                        dismiss()
+                        do {
+                            try store.savePreferences(text)
+                            dismiss()
+                        } catch { saveError = error.localizedDescription }
                     }
                 }
             }
+            .alert(AppLocalized("Could not save"), isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button(AppLocalized("OK"), role: .cancel) {}
+            } message: { Text(saveError ?? "") }
             .onAppear {
                 text = store.preferences
                 var c = DateComponents()

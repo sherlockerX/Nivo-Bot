@@ -223,7 +223,9 @@ struct NivoMosaicRoom: View {
             Button {
                 Task { _ = await model.markHabit(habit, day: day, status: mark?.status == .done ? nil : .done, scope: access) }
             } label: { Image(systemName: mark?.status == .done ? "checkmark.circle.fill" : "circle").font(.title2).frame(width: 44, height: 44) }
-                .accessibilityLabel(habit.title + ", " + AppLocalized("Done"))
+                .accessibilityLabel(habit.title)
+                .accessibilityValue(mark?.status == .done ? AppLocalized("Done") : mark?.status == .skipped ? AppLocalized("Skipped") : AppLocalized("To do"))
+                .accessibilityHint(mark?.status == .done ? AppLocalized("Clear mark") : AppLocalized("Mark as done"))
             VStack(alignment: .leading, spacing: 3) {
                 Text(habit.title).font(.subheadline.weight(.medium))
                 if mark?.status == .skipped { Text(AppLocalized("Skipped")).font(.caption).foregroundStyle(.secondary) }
@@ -234,6 +236,7 @@ struct NivoMosaicRoom: View {
                 Button(AppLocalized("Skip today")) { Task { _ = await model.markHabit(habit, day: day, status: .skipped, scope: access) } }
                 if mark != nil { Button(AppLocalized("Clear mark")) { Task { _ = await model.markHabit(habit, day: day, status: nil, scope: access) } } }
             } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+            .accessibilityLabel(AppLocalized("More options") + ", " + habit.title)
         }
         .buttonStyle(.plain).padding(.horizontal, 10)
         .background(NanoMuseTones.surface, in: RoundedRectangle(cornerRadius: 16))
@@ -251,7 +254,9 @@ struct NivoMosaicRoom: View {
                     Button(AppLocalized("Edit")) { open(entry) }
                     Button(AppLocalized("Set as day cover")) { setCover(entry) }
                     Button(AppLocalized("Delete"), role: .destructive) { deleting = entry }
-                } label: { Image(systemName: "ellipsis.circle").frame(width: 44, height: 32) }
+                } label: { Image(systemName: "ellipsis.circle").frame(width: 44, height: 44) }
+                .accessibilityLabel(AppLocalized("More options"))
+                .accessibilityValue(entry.habitTitle ?? NivoLifeDay.date(entry.day).formatted(date: .abbreviated, time: .omitted))
             }
             if let path = entry.mediaPath, let access = life.accessScope {
                 NivoMosaicPhoto(path: path, crop: entry.crop ?? NivoMosaicCrop(), access: access)

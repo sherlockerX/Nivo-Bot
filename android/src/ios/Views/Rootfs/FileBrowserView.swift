@@ -346,7 +346,8 @@ struct FileBrowserView: View {
                 )
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            // nanoMuse: 文件操作菜单使用可读名称，避免读屏只读出省略号。
+            Label(AppLocalized("More options"), systemImage: "ellipsis.circle").labelStyle(.iconOnly)
         }
     }
 }

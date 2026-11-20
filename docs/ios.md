@@ -21,6 +21,10 @@ device and service. It does not change the published iOS download or grant addit
 
 ## Unsigned CI builds
 
+In **System files**, **Sort By** offers **Default** (the standard file order) and
+**Last Modified** (most recent first). The menu marks the current choice. An empty editable
+file has an **Edit** button. If saving fails, the editor stays open with your draft intact.
+
 Run **iOS · build check** from GitHub Actions with `portable_only=false` to build the app.
 The manual `configuration` choice accepts `Debug` or `Release`, with `Debug` as the default.
 Push and pull-request runs always use `Debug`. Select `Release` for an optimized distribution

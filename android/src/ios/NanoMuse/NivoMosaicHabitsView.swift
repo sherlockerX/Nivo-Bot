@@ -74,6 +74,7 @@ struct NivoMosaicHabitsView: View {
                 }
                 Button(AppLocalized("Archive"), role: .destructive) { archiving = habit }
             } label: { Image(systemName: "ellipsis.circle").frame(width: 44, height: 44) }
+            .accessibilityLabel(AppLocalized("More options") + ", " + habit.title)
         }
     }
 

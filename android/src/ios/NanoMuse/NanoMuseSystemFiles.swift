@@ -50,30 +50,36 @@ enum NanoMuseSystemFile: String, CaseIterable, Identifiable {
     }
 
     @MainActor
-    func read() -> String {
+    func read() throws -> String {
         switch self {
         case .heartbeat: return NanoMuseSystemFiles.renderHeartbeat()
         case .feed: return NanoMuseFeedStore.shared.preferences
-        default: return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        default: return try Self.readIfPresent(url)
         }
     }
 
+    /// 未创建的文件可从空白开始；读取失败时不能拿空白覆盖原内容。
+    fileprivate static func readIfPresent(_ url: URL) throws -> String {
+        do { return try String(contentsOf: url, encoding: .utf8) }
+        catch let error as CocoaError where error.code == .fileReadNoSuchFile { return "" }
+    }
+
     @MainActor
-    func write(_ text: String) {
+    func write(_ text: String) throws {
         switch self {
         case .heartbeat:
-            return
+            throw CocoaError(.fileWriteNoPermission)
         case .feed:
-            NanoMuseFeedStore.shared.savePreferences(text)
+            try NanoMuseFeedStore.shared.savePreferences(text)
         case .soul:
             // Keep the front matter the app manages; only the body is edited here.
             let parsed = SoulMDParser.parse(text)
             let current = SoulStore.load()
             let file = SoulFile(metadata: text.hasPrefix("---") ? parsed.metadata : (current?.metadata ?? .default), body: text.hasPrefix("---") ? parsed.body : text)
-            try? SoulStore.save(file)
+            try SoulStore.save(file)
         default:
-            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? text.write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 
@@ -92,8 +98,7 @@ enum NanoMuseSystemFile: String, CaseIterable, Identifiable {
 enum NanoMuseSystemFiles {
     /// USER.md in the system prompt — one paragraph, only when the file has content.
     static func userPromptFragment() -> String? {
-        let text = NanoMuseSystemFile.user.read().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
+        guard let text = try? NanoMuseSystemFile.user.read().trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return "## About the user (USER.md, maintained by you and the user)\n"
             + "Read at the start of every conversation. Fill it in over time from what the user tells you (name, how to address them, timezone, what they are working on, preferences); edit it with your shell at /var/minis/memory/USER.md when you learn something durable, and tell the user in one line when you do. Never write secrets into it.\n"
             + String(text.prefix(4000))
@@ -160,10 +165,10 @@ enum NanoMuseSystemFiles {
     @discardableResult
     static func importMemory(pasted: String, from: String?) -> Bool {
         let file = NanoMuseSystemFile.memory.url
-        let existing = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
         let date = Date().formatted(date: .abbreviated, time: .omitted)
-        guard let updated = appendImported(to: existing, pasted: pasted, from: from, heading: "## " + AppLocalized("Imported"), date: date) else { return false }
         do {
+            let existing = try NanoMuseSystemFile.readIfPresent(file)
+            guard let updated = appendImported(to: existing, pasted: pasted, from: from, heading: "## " + AppLocalized("Imported"), date: date) else { return false }
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try updated.write(to: file, atomically: true, encoding: .utf8)
             return true
@@ -179,12 +184,12 @@ enum NanoMuseSystemFiles {
 
 struct NanoMuseSystemFilesView: View {
     @State private var byRecent = false
-    @State private var tick = 0
+    @State private var modifiedDates: [NanoMuseSystemFile: Date] = [:]
 
     private var files: [NanoMuseSystemFile] {
         let all = NanoMuseSystemFile.allCases
         guard byRecent else { return all }
-        return all.sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) }
+        return all.sorted { (modifiedDates[$0] ?? .distantPast) > (modifiedDates[$1] ?? .distantPast) }
     }
 
     var body: some View {
@@ -200,7 +205,7 @@ struct NanoMuseSystemFilesView: View {
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(file.fileName).font(.body.weight(.medium))
-                                if let at = file.modifiedAt {
+                                if let at = modifiedDates[file] {
                                     Text(NanoMuseDay.relative(at)).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
@@ -214,20 +219,27 @@ struct NanoMuseSystemFilesView: View {
                 NavigationLink(AppLocalized("Import memory")) { NanoMuseMemoryImportView() }
             }
         }
-        .id(tick)
         .navigationTitle(AppLocalized("System files"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    byRecent.toggle()
+                Menu {
+                    Picker(AppLocalized("Sort By"), selection: $byRecent) {
+                        Text(AppLocalized("Default")).tag(false)
+                        Text(AppLocalized("Last Modified")).tag(true)
+                    }
+                    .pickerStyle(.inline)
                 } label: {
-                    Image(systemName: byRecent ? "clock" : "textformat.abc")
+                    Text(AppLocalized("Sort By"))
                 }
-                .accessibilityLabel(Text(AppLocalized("Change order")))
+                .accessibilityValue(Text(byRecent ? AppLocalized("Last Modified") : AppLocalized("Default")))
             }
         }
-        .onAppear { tick += 1 }
+        .onAppear {
+            modifiedDates = NanoMuseSystemFile.allCases.reduce(into: [:]) { result, file in
+                result[file] = file.modifiedAt
+            }
+        }
     }
 }
 
@@ -238,6 +250,8 @@ struct NanoMuseSystemFileView: View {
     @State private var draft = ""
     @State private var copied = false
     @State private var share = false
+    @State private var loadError: String?
+    @State private var saveError: String?
 
     var body: some View {
         ScrollView {
@@ -248,7 +262,11 @@ struct NanoMuseSystemFileView: View {
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(NanoMuseTones.fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                if editing {
+                if let loadError {
+                    Text(AppLocalized("Could not read file")).font(.headline)
+                    Text(loadError).font(.footnote).foregroundStyle(.secondary)
+                    Button(AppLocalized("Retry")) { reload() }
+                } else if editing {
                     TextEditor(text: $draft)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 320)
@@ -257,9 +275,12 @@ struct NanoMuseSystemFileView: View {
                     Text(String(format: AppLocalized("Write %@ in Markdown. Headings and bullet points read best; keep secrets out."), file.fileName))
                         .font(.caption).foregroundStyle(.secondary)
                 } else if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(file.editable ? AppLocalized("Nothing here yet. Tap the pencil to write it, or let the agent fill it in as you talk.") : AppLocalized("Nothing here yet."))
+                    Text(AppLocalized("Nothing here yet."))
                         .font(.body).foregroundStyle(.secondary)
                         .padding(.top, 20)
+                    if file.editable {
+                        Button { beginEditing() } label: { Label(AppLocalized("Edit"), systemImage: "pencil") }
+                    }
                 } else {
                     Text(text)
                         .font(.system(.body, design: .monospaced))
@@ -275,15 +296,18 @@ struct NanoMuseSystemFileView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if editing {
+                    Button(AppLocalized("Cancel")) { editing = false }
                     Button(AppLocalized("Save")) {
-                        file.write(draft)
-                        text = file.read()
-                        editing = false
+                        do {
+                            try file.write(draft)
+                            editing = false
+                            reload()
+                        } catch { saveError = error.localizedDescription }
                     }
-                } else {
+                } else if loadError == nil {
                     Menu {
                         if file.editable {
-                            Button { draft = text; editing = true } label: { Label(AppLocalized("Edit"), systemImage: "pencil") }
+                            Button { beginEditing() } label: { Label(AppLocalized("Edit"), systemImage: "pencil") }
                         }
                         Button {
                             UIPasteboard.general.string = text
@@ -291,15 +315,28 @@ struct NanoMuseSystemFileView: View {
                         } label: { Label(copied ? AppLocalized("Copied") : AppLocalized("Copy contents"), systemImage: "doc.on.doc") }
                         Button { share = true } label: { Label(AppLocalized("Share"), systemImage: "square.and.arrow.up") }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Label(AppLocalized("More options"), systemImage: "ellipsis.circle").labelStyle(.iconOnly)
                     }
                 }
             }
         }
-        .onAppear { text = file.read() }
+        .onAppear { if !editing { reload() } }
+        .alert(AppLocalized("Could not save"), isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button(AppLocalized("OK"), role: .cancel) {}
+        } message: { Text(saveError ?? "") }
         .sheet(isPresented: $share) {
             NanoMuseShareSheet(items: [text])
         }
+    }
+
+    private func beginEditing() {
+        draft = text
+        editing = true
+    }
+
+    private func reload() {
+        do { text = try file.read(); loadError = nil }
+        catch { loadError = error.localizedDescription }
     }
 }
 
@@ -338,7 +375,7 @@ struct NanoMuseMemoryImportView: View {
                         result = AppLocalized("Added to GLOBAL.md")
                         pasted = ""
                     } else {
-                        result = AppLocalized("Nothing to add")
+                        result = AppLocalized("Could not save")
                     }
                 }
                 .disabled(pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
