@@ -12,7 +12,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [2.0.6] - 2026-11-19 · Harbor
 
-- Prepared iOS 2.0.6 (57) for an unsigned device build, covering local startup, optional model setup and the repaired daily-page presentations. The shared source versions move together; Android package availability remains as recorded in the download catalogue. See [2.0.6 build notes](docs/releases/v2.0.6.md) for the delivery scope and verification status.
+- Built iOS 2.0.6 (57) as an unsigned device IPA at commit `dcc6e4e`: GitHub run 44680017084 passed 747 portable Swift tests, device compilation, application-test compilation and the NanoMuse source-warning check. The shared source versions move together; Android package availability remains as recorded in the download catalogue. See [2.0.6 build notes](docs/releases/v2.0.6.md) for the delivery scope, checksum and iPhone acceptance steps.
 - Protected iOS fragment drafts throughout photo loading, offered import cancellation, rejected stale media callbacks and saved the draft before opening Camera so canceling capture preserves existing text.
 - Fixed iOS pages that opened blank: a new daily fragment, starting focus, the focus reminder, task details, groups and tags, and the Coach training calendar.
 - Gave the iOS daily fragments page the Android layout: a greeting and the date, the day's shape with its empty places outlined, and Camera, Album and Reflection buttons.
