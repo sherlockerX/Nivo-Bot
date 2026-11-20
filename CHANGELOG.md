@@ -4,6 +4,21 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-11-20 · Clarity
+
+- Replaced the locale-dependent alphabet symbol in iOS System files with a named sort menu. Empty editable files now have an Edit action, failed saves keep drafts, and file and fragment menus have spoken labels.
+- Filled 54 missing Simplified Chinese interface strings across provider setup, tool authorization, backups and related screens. System files and training settings now distinguish an unreadable preference file from an empty one before enabling edits.
+- Completed another 46 interface translations covering native backup and restore controls, voice correction, the browser, Shortcuts and Live Activities. The Dynamic Island uses the same localized running count as the Lock Screen.
+
+- Prepared iOS 2.0.8 (59) as an unsigned Release build with clearer tool errors, configuration queries and personal-record recovery. The user reported no issues after checking the audit branch on an iPhone; that feedback does not accept the upcoming 2.0.8 Release binary. Its release CI and artifact verification are pending. Android downloads remain 2.0.7 (58), with the existing APK, source archive, checksums and signing identity. See the [release notes](docs/releases/v2.0.8.md) for platform scope and verification status.
+- Added an explicit Debug/Release choice for manual iOS CI runs and an artifact provenance record containing the actual commit, run URL, build configuration, packaged app identity, architecture, unsigned status and IPA checksum. Automatic push and pull-request checks retain Debug.
+- Enabled test access only for the separate Release application-test compilation and kept three Debug-only badge injection tests out of Release builds. The preserved distribution app does not enable test access or Debug helpers.
+- Completed missing translations for 13 existing iOS interface strings across seven supported locales, preserving the original English, Simplified Chinese and format placeholders.
+- Fixed iOS config paths containing dotted model IDs, clarified separate authorization for runtime model calls, and preserved JSON scalar values and errors in quiet config output. Removed duplicate session-status envelopes and made failed session actions return failed outer responses and exit codes.
+- Rejected missing leading config metadata and model-provider values before accessing account state. Preserved model-use commands and search terms when output flags appear before them.
+- Made iOS record-query failures explain foreground, conversation, saved-request and storage conditions; accepted framework tool titles without treating them as query fields. Life-log CLI dates now follow the device time zone, compact output is supported, and Markdown pagination names its next offset. Missing scheduled-task IDs and revisions are rejected before account or permission access.
+- Validated iOS map command arguments before network requests, passed cycling through as cycling, exposed resolved endpoints and ambiguous candidates, preserved MapKit error details, and cancelled timed-out requests without accepting late results. Rejected invalid provider coordinates and distances and kept polar and global search regions within valid geographic bounds. These changes do not certify real-world route distances. See the [iOS tool audit](docs/zh/ios-tool-self-audit.md) for verification limits and phone checks.
+
 ## [2.0.7] - 2026-11-20 · Anchor
 
 - Released Android 2.0.7 (58) with the existing Nivo application ID and signing certificate. The APK is 40,969,779 bytes; phone upgrade retention remains untested. The website preserves actual historical iOS downloads, and the release publisher now supports one platform at a time. Shared iOS source version fields do not imply a new iOS binary. See [release notes](docs/releases/v2.0.7.md) for validation and the retained 16KB-page native-library limitation.

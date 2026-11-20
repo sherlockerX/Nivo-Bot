@@ -144,3 +144,63 @@ def test_marked_spots_take_the_block_under_the_comment_and_nothing_else() -> Non
         _keys_in('AppLocalized("a\\"b")') == {'a"b'}
         and _keys_in('AppLocalized("x \\(y)")') == set()
     )
+
+
+def test_production_app_localized_literals_have_simplified_chinese() -> None:
+    """正式界面中的固定键和备份菜单必须能在简体中文环境中显示译文。"""
+    excluded = {"Vendor", "MinisTests", "MinisUITests", "Debug", "Preview Content", ".build", "build"}
+    keys = {"Share…", "Save to Files…", "Reset Progress", "Keep Current Progress"}
+    for path in IOS.rglob("*.swift"):
+        if excluded.isdisjoint(path.relative_to(IOS).parts):
+            keys.update(_keys_in(path.read_text(encoding="utf-8")))
+    catalogue = json.loads((IOS / "Localizable.xcstrings").read_text(encoding="utf-8"))["strings"]
+    missing = []
+    for key in sorted(keys):
+        entry = catalogue.get(key, {})
+        if entry.get("shouldTranslate") is False or not key.strip():
+            continue
+        translation = entry.get("localizations", {}).get("zh-Hans", {})
+        if not (translation.get("stringUnit", {}).get("value") or translation.get("variations")):
+            missing.append(key)
+    assert not missing, f"Missing Simplified Chinese for {len(missing)} UI strings: {missing}"
+
+
+def test_catalogue_includes_chinese_for_native_controls_and_intents() -> None:
+    """原生控件、快捷指令和扩展也直接查目录，不一定调用AppLocalized。"""
+    catalogue = json.loads((IOS / "Localizable.xcstrings").read_bytes())["strings"]
+    technical = {"FB", "LB", "HTTP", "STDIO", "npx", "https://…"}
+    missing = []
+    for key, entry in catalogue.items():
+        words = re.sub(r"%(?:\d+\$)?(?:lld|ld|d|@|f|%)|\d+\s*(?:KB|MB)", "", key)
+        if key in technical or not re.search("[a-zA-Z]{2}", words):
+            continue
+        if entry.get("shouldTranslate") is False:
+            continue
+        zh = entry.get("localizations", {}).get("zh-Hans", {})
+        if not (zh.get("stringUnit", {}).get("value") or zh.get("variations")):
+            missing.append(key)
+    assert not missing, missing
+
+
+def test_native_ui_parameters_survive_translation() -> None:
+    """在九种语言中保留系统要求的参数名称、格式和位置。"""
+    catalogue = json.loads((IOS / "Localizable.xcstrings").read_bytes())["strings"]
+    pattern = re.compile(r"\$\{[^}]+\}|%(?:(\d+)\$)?(lld|@)")
+
+    def parameters(text: str) -> Counter[str]:
+        values: list[str] = []
+        order = 0
+        for match in pattern.finditer(text):
+            if match[2]:
+                order += 1
+                values.append(f"{match[1] or order}:{match[2]}")
+            else:
+                values.append(match[0])
+        return Counter(values)
+
+    for key in ("%@: %lld file(s) weren't in the backup (size limit)", "Loop %lld",
+                "Run ${task} in nanoMuse", "Send ${prompt} to ${session}",
+                "Send ${prompt} to nanoMuse", "Authorization failed: %@"):
+        for locale in ("en", *LOCALES):
+            value = catalogue[key]["localizations"][locale]["stringUnit"]["value"]
+            assert parameters(value) == parameters(key), (key, locale)

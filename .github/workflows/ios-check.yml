@@ -21,6 +21,18 @@ on:
       - 'android/src/ios/**'
       - '.github/workflows/ios-check.yml'
   workflow_dispatch:
+    inputs:
+      portable_only:
+        description: '只运行便携核心和原生协议回归，用于修复前后的快速验证'
+        required: false
+        type: boolean
+        default: false
+      configuration:
+        description: '设备应用及测试目标的构建配置'
+        required: false
+        type: choice
+        default: Debug
+        options: [Debug, Release]
 
 concurrency:
   group: ios-check-${{ github.ref }}
@@ -40,8 +52,26 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
+      # 原生入口回归只需要iSH接口头文件，不构建内核或访问真实地图服务。
+      - name: Map command protocol regression tests
+        id: maps_regression
+        run: |
+          set -euo pipefail
+          git submodule update --init android/deps/ish
+          mkdir -p android/src/ios/build
+          xcrun --sdk macosx clang \
+            -fobjc-arc -fblocks -std=gnu11 -mmacosx-version-min=13.0 \
+            -Wall -Wextra -Werror -Wno-nullability-completeness -Wno-deprecated-declarations \
+            -Iandroid/src/ios/NanoMuse -Iandroid/deps/ish \
+            android/src/ios/NanoMuse/NivoMapsRequest.m \
+            android/src/ios/MinisTests/NivoMapsProtocolHarness.m \
+            -framework Foundation -framework MapKit -framework CoreLocation \
+            -o android/src/ios/build/nivo-maps-check
+          android/src/ios/build/nivo-maps-check 2>&1 | tee android/src/ios/build/maps-tests.log
       # 核心回归与应用构建独立执行，任何一项失败仍使整个工作流失败。
       - name: Portable Swift regression tests
+        # 地图边界断言失败时仍执行独立Swift回归，整项作业继续保留失败状态。
+        if: ${{ !cancelled() && (success() || steps.maps_regression.outcome == 'failure') }}
         working-directory: android/src/ios
         run: |
           set -o pipefail
@@ -53,20 +83,33 @@ jobs:
         continue-on-error: true
         with:
           name: ios-core-log-${{ github.run_number }}
-          path: android/src/ios/build/swift-tests.log
+          path: |
+            android/src/ios/build/swift-tests.log
+            android/src/ios/build/maps-tests.log
           retention-days: 7
           if-no-files-found: warn
 
   build:
     name: xcodebuild (unsigned)
+    # 手动请求快速回归时跳过应用构建，PR和默认手动检查仍完整编译应用。
+    if: github.event_name != 'workflow_dispatch' || inputs.portable_only != true
     runs-on: macos-26-intel
     timeout-minutes: 150
     env:
       GO_VERSION: "1.25"
+      IOS_CONFIGURATION: ${{ github.event_name == 'workflow_dispatch' && inputs.configuration || 'Debug' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
+      # 配置只通过环境变量传递；命令和路径使用前严格限定为两种构建类型。
+      - name: Validate build configuration
+        run: |
+          case "$IOS_CONFIGURATION" in
+            Debug|Release) ;;
+            *) echo '::error::Unsupported iOS build configuration'; exit 1 ;;
+          esac
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
@@ -146,7 +189,7 @@ jobs:
           set -o pipefail
           mkdir -p build
           xcodebuild build \
-            -project Minis.xcodeproj -scheme Minis -configuration Debug \
+            -project Minis.xcodeproj -scheme Minis -configuration "$IOS_CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
@@ -159,7 +202,7 @@ jobs:
         working-directory: android/src/ios
         run: |
           mkdir -p build/unsigned/Payload
-          ditto build/DerivedData/Build/Products/Debug-iphoneos/Minis.app build/unsigned/Payload/Minis.app
+          ditto "build/DerivedData/Build/Products/${IOS_CONFIGURATION}-iphoneos/Minis.app" build/unsigned/Payload/Minis.app
 
       # 先交付设备应用，稍后的测试编译仍独立决定整次检查是否通过。
       - name: Package unsigned iOS app
@@ -170,6 +213,50 @@ jobs:
           zip -qry ../Nivo-Bot-unsigned.ipa Payload
           cd ..
           shasum -a 256 Nivo-Bot-unsigned.ipa > Nivo-Bot-unsigned.sha256
+          # 来源信息读取已打包的应用与实际文件，不从版本清单推测产物身份。
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import plistlib
+          import subprocess
+          import zipfile
+
+          ipa = Path("Nivo-Bot-unsigned.ipa")
+          app = Path("unsigned/Payload/Minis.app")
+          with zipfile.ZipFile(ipa) as archive:
+              info = plistlib.loads(archive.read("Payload/Minis.app/Info.plist"))
+          architectures = subprocess.check_output(
+              ["xcrun", "lipo", "-archs", str(app / info["CFBundleExecutable"])], text=True
+          ).split()
+          signing = subprocess.run(
+              ["codesign", "--display", str(app)], capture_output=True, text=True,
+              env={**os.environ, "LC_ALL": "C"},
+          )
+          if signing.returncode == 0 or "code object is not signed at all" not in signing.stderr:
+              raise SystemExit("Expected an unsigned app; codesign inspection did not confirm it.")
+          digest = hashlib.sha256()
+          with ipa.open("rb") as stream:
+              for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          provenance = {
+              "schemaVersion": 1,
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "runUrl": f'{os.environ["GITHUB_SERVER_URL"]}/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}',
+              "configuration": os.environ["IOS_CONFIGURATION"],
+              "bundleIdentifier": info["CFBundleIdentifier"],
+              "version": info["CFBundleShortVersionString"],
+              "buildNumber": info["CFBundleVersion"],
+              "minimumOSVersion": info["MinimumOSVersion"],
+              "architectures": architectures,
+              "unsigned": True,
+              "ipa": {"name": ipa.name, "sha256": digest.hexdigest(), "sizeBytes": ipa.stat().st_size},
+          }
+          Path("Nivo-Bot-build-provenance.json").write_text(
+              json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -177,6 +264,7 @@ jobs:
           path: |
             android/src/ios/build/Nivo-Bot-unsigned.ipa
             android/src/ios/build/Nivo-Bot-unsigned.sha256
+            android/src/ios/build/Nivo-Bot-build-provenance.json
           retention-days: 14
           if-no-files-found: error
 
@@ -186,9 +274,10 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build-for-testing \
-            -project Minis.xcodeproj -scheme Minis -configuration Debug \
+            -project Minis.xcodeproj -scheme Minis -configuration "$IOS_CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
+            ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
             -skipPackagePluginValidation -skipMacroValidation \
             2>&1 | tee build/xcodebuild-tests.log | grep -E "error:|/NanoMuse/.*warning:|BUILD|Compiling|Linking" || true

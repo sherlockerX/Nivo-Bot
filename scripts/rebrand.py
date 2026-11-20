@@ -52,8 +52,8 @@ IOS = ROOT / "android" / "src" / "ios"
 
 APP_ID = "io.github.nanomuse.app"
 NAME = "Nicholasx"  # Mosaic: the personal build's product name
-VERSION_NAME = "2.0.7"
-VERSION_CODE = 58
+VERSION_NAME = "2.0.8"
+VERSION_CODE = 59
 # 手机版本使用同一发布来源，完整品牌生成也不能恢复旧的Android版本。
 ANDROID_VERSION_NAME = VERSION_NAME
 ANDROID_VERSION_CODE = VERSION_CODE
@@ -752,6 +752,9 @@ def ios_brand_only() -> None:
     soul = IOS / "Agent/Session/SoulStore.swift"
     if soul.is_file():
         edit(soul, [(r'"nanoMuse"', '"Nivo Bot"')])
+    widget = IOS / "AgentWidget/AgentLiveActivityWidget.swift"
+    if widget.is_file():
+        edit(widget, [(r'(soulName\.isEmpty \? )"nanoMuse"', r'\1"Nivo Bot"')])
     connector = IOS / "NanoMuse/NanoMuseConnectors.swift"
     if connector.is_file():
         edit(
@@ -770,6 +773,10 @@ def ios_brand_only() -> None:
         data = json.loads(raw)
         for key in (
             "Welcome to nanoMuse",
+            "Paused — reopen nanoMuse to continue",
+            "Run ${task} in nanoMuse",
+            "Send ${prompt} to nanoMuse",
+            "Saved in nanoMuse ▸ Backups. Use Save to Files to copy it to iCloud Drive, a connected server, or another cloud provider.",
             "Hi, I'm nanoMuse, the assistant that lives on your phone. Let me take a few things off your plate.",
             "Everything else works without it. It lives under iOS Settings → nanoMuse whenever you want it.",
             "Signs in with your %@ account in the browser; nanoMuse registers itself with the service, so there is nothing to type. The token stays on this phone.",

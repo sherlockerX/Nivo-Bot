@@ -1,5 +1,14 @@
 import Foundation
 
+/// 权限拒绝属于执行失败，不能被归类为命令参数错误。
+enum NivoScheduledExecutionError: String, Error, LocalizedError, Sendable {
+    case permissionDenied = "permission_denied"
+
+    var errorDescription: String? {
+        "Scheduled task access was denied. Review Settings > Permissions before retrying."
+    }
+}
+
 /// minis-scheduled的参数保持argv边界，不做shell拼接、展开或隐式脚本执行。
 struct NivoScheduledCommand: Sendable {
     var action: String
@@ -38,11 +47,31 @@ struct NivoScheduledCommand: Sendable {
                 continue
             }
             if parts.count == 2 { options[name, default: []].append(String(parts[1])); continue }
-            guard index < arguments.count else { throw NivoLifeError.invalidField(name) }
+            // ID和版本不能吞掉下一个选项；脚本参数及自由文本仍按argv原样保留。
+            guard index < arguments.count,
+                  !(["id", "expected-revision"].contains(name) && arguments[index].hasPrefix("--")) else {
+                throw NivoLifeError.invalidField(name)
+            }
             options[name, default: []].append(arguments[index])
             index += 1
         }
-        return Self(action: action, options: options)
+        let command = Self(action: action, options: options)
+        try command.validateRequiredOptions()
+        return command
+    }
+
+    /// 缺少目标或版本属于参数错误，不允许继续读取账户或任务造成随机错误。
+    private func validateRequiredOptions() throws {
+        let existingActions: Set<String> = ["update", "delete", "enable", "disable", "run", "logs", "probe"]
+        guard existingActions.contains(action) else { return }
+        guard let identifier = value("id"), !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NivoLifeError.invalidField("id_required")
+        }
+        guard !isReadOnly else { return }
+        guard let raw = value("expected-revision"), !raw.isEmpty,
+              raw.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }), let revision = Int64(raw), revision >= 0 else {
+            throw NivoLifeError.invalidField("expected_revision_required")
+        }
     }
 
     /// 创建与修改共用配置校验；未提供的修改字段保持不变。

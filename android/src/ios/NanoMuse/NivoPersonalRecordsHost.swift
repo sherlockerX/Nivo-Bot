@@ -54,16 +54,16 @@ extension AIChatViewModel {
 
     /// 每个await前后都验证同一令牌、账户代次、前台页面和真实持久化消息签名。
     func nmRequireRecordsAccess(_ captured: NivoPersonalRecordsAuthorization?) async throws -> NivoSavedUserTurn {
-        guard let captured else { throw NivoLifeError.invalidField("foreground_user_turn_required") }
+        guard let captured else { throw NivoPersonalRecordsAccessError.userTurnRequired }
         try nmRequireRecordsContext(captured)
         guard let row = try await ChatStore.shared.nmLoadEvidenceMessage(id: captured.user.id) else {
-            throw NivoLifeError.invalidField("saved_user_turn_deleted")
+            throw NivoPersonalRecordsAccessError.savedTurnDeleted
         }
         try nmRequireRecordsContext(captured)
         guard let user = NivoUserTurnEvidence.validated(row, text: captured.user.text,
             sessionID: captured.user.chatSessionID, owner: captured.scope.ownerKey),
               captured.matches(hostID: nmPersonalRecordsHostID, turnID: nmPersonalRecordsTurnID,
-                scope: captured.scope, user: user) else { throw NivoLifeError.invalidField("saved_user_turn_changed") }
+                scope: captured.scope, user: user) else { throw NivoPersonalRecordsAccessError.savedTurnChanged }
         return user
     }
 
@@ -76,15 +76,15 @@ extension AIChatViewModel {
 
     private func nmRequireRecordsContext(_ captured: NivoPersonalRecordsAuthorization) throws {
         try Task.checkCancellation()
-        guard !userDidCancel, nmPersonalRecordsVisible, UIApplication.shared.applicationState == .active,
-              nmScheduledRunID == nil, remoteDeviceId == nil, sessionSource != "shortcut",
-              NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
-              nmPersonalRecordsAuthorization == captured, nmPersonalRecordsTurnID == captured.turnID,
-              nmPersonalRecordsVisibilityID == captured.visibilityID,
-              nmPersonalRecordsHostID == captured.hostID, sessionId == captured.user.chatSessionID,
-              NivoLifeModel.shared.accessScope == captured.scope,
-              NanoMuseAccountData.shared.current == captured.scope.ownerKey,
-              NanoMuseSync.shared.shows(captured.user.chatSessionID) else { throw NivoLifeError.accountChanged }
+        guard !userDidCancel else { throw CancellationError() }
+        try NivoPersonalRecordsAccessContext(hostID: nmPersonalRecordsHostID, turnID: nmPersonalRecordsTurnID,
+            visibilityID: nmPersonalRecordsVisibilityID, authorization: nmPersonalRecordsAuthorization,
+            scope: NivoLifeModel.shared.accessScope, ownerKey: NanoMuseAccountData.shared.current,
+            sessionID: sessionId, isForeground: UIApplication.shared.applicationState == .active,
+            isVisible: nmPersonalRecordsVisible,
+            isAccountReady: NanoMuseAccountData.shared.isReady && !NanoMuseAccountData.shared.isChangingAccount,
+            isDispatch: nmScheduledRunID != nil || remoteDeviceId != nil || sessionSource == "shortcut",
+            isSessionOwned: NanoMuseSync.shared.shows(captured.user.chatSessionID)).require(captured)
     }
 }
 
@@ -148,7 +148,7 @@ enum NivoPersonalRecordsToolBridge {
                 output = try NivoPersonalRecordsPlanningQuery.routines(request, rows: rows)
             }
         default:
-            guard NivoLifeModel.shared.isMosaicReady else { throw NivoLifeError.accountChanged }
+            guard NivoLifeModel.shared.isMosaicReady else { throw NivoPersonalRecordsAccessError.dataNotReady }
             let state = try await NivoLifeModel.shared.repository.mosaicSnapshot(scope: authorization.scope)
             _ = try await host.nmRequireRecordsAccess(authorization)
             if request.kind == "reflection_range" { output = try NivoPersonalRecordsOutput.reflectionRange(state) }

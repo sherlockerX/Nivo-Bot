@@ -5717,7 +5717,8 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
                 do { _ = try await nmRequireRecordsAccess(nmBatchAuthorization) }
                 catch {
                     for (index, entry) in toolEntries.enumerated() where NivoPersonalRecordsToolBridge.isPersonalTool(entry.name) {
-                        let refusal = "Personal records access expired; no record result is available."
+                        // nanoMuse: 生命周期撤销不是计时过期，保留具体原因和恢复步骤。
+                        let refusal = NivoLifeToolFailure.output(error)
                         outcomesByIndex[index] = ToolExecOutcome(toolId: entry.id, toolName: entry.name,
                             resultPart: .toolResult(id: entry.id, name: entry.name, content: refusal, isError: true),
                             snapshotEntry: nil, snapshotItem: nil, cancelled: error is CancellationError)

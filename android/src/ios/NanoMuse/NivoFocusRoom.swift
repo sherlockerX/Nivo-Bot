@@ -350,10 +350,13 @@ private struct NivoFocusStartView: View {
                 }
                 Section(AppLocalized("Background")) {
                     Button { isChoosingBackground = true } label: {
-                        NivoFocusBackdropView(backgroundID: backgroundID, ownerKey: model.ownerKey, thumbnail: true)
-                            .frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 18))
+                        VStack(alignment: .leading, spacing: 8) {
+                            NivoFocusBackdropView(backgroundID: backgroundID, ownerKey: model.ownerKey, thumbnail: true)
+                                .frame(height: 180).clipShape(RoundedRectangle(cornerRadius: 18))
+                            Text(AppLocalized("Choose background")).foregroundStyle(NanoMuseTones.action)
+                        }
+                        .contentShape(Rectangle())
                     }.buttonStyle(.plain).accessibilityLabel(AppLocalized("Choose background"))
-                    Button(AppLocalized("Choose background")) { isChoosingBackground = true }
                 }
                 if let error = model.errorMessage { Text(error).foregroundStyle(.red) }
             }

@@ -6,7 +6,8 @@ final class NivoRoutineScheduleTests: XCTestCase {
     func testNotificationSettingsAndExplicitFalseAreAccepted() throws {
         let settings = try NivoScheduledCommand.parse(["settings", "--quiet-hours", "22:00-07:00"])
         XCTAssertEqual(settings.value("quiet-hours"), "22:00-07:00")
-        let update = try NivoScheduledCommand.parse(["update", "--notify", "on_failure", "--silent=false"])
+        let update = try NivoScheduledCommand.parse(["update", "--id", "routine", "--expected-revision", "0",
+            "--notify", "on_failure", "--silent=false"])
         XCTAssertEqual(update.value("silent"), "false")
         XCTAssertEqual(update.value("notify"), "on_failure")
     }

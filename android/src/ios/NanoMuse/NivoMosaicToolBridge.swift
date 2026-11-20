@@ -16,7 +16,8 @@ enum NivoMosaicToolBridge {
             "days": AgentToolParam(type: .integer, description: "1..366, defaults to 7"),
             "limit": AgentToolParam(type: .integer, description: "Whole days per page, 1..366, defaults to 31"),
             "offset": AgentToolParam(type: .integer, description: "Whole-day offset, 0..365"),
-            "format": AgentToolParam(type: .string, description: "json or md", enumValues: ["json", "md"])
+            "format": AgentToolParam(type: .string, description: "json or md", enumValues: ["json", "md"]),
+            "tool_title": AgentToolParam(type: .string, description: "Optional display title; does not change the query")
         ], required: [])
     }
 
@@ -24,23 +25,12 @@ enum NivoMosaicToolBridge {
     static func execute(args: [String: Any], currentUser: NivoSavedUserTurn?, sessionID: String?,
                         host: AIChatViewModel, authorization: NivoPersonalRecordsAuthorization?) async throws -> NivoLifeToolBridge.Result {
         let life = NivoLifeModel.shared
-        guard UIApplication.shared.applicationState == .active, life.isMosaicReady, let access = life.accessScope,
-              let sessionID, let currentUser, currentUser.chatSessionID == sessionID,
-              currentUser.ownerKey == access.ownerKey else {
-            return .init(output: "An authorized foreground user conversation is required.", success: false)
-        }
         do {
             _ = try await host.nmRequireRecordsAccess(authorization)
-            try NivoLifeToolInput.requireFields(args, allowed: ["kind", "date", "start", "end", "days", "limit", "offset", "format"])
-            var arguments = [try NivoLifeToolInput.text(args, "kind", default: "list")]
-            for key in ["date", "start", "end", "days", "limit", "offset", "format"] {
-                guard args[key] != nil else { continue }
-                if ["days", "limit", "offset"].contains(key) {
-                    guard let number = try NivoLifeToolInput.integer(args, key) else { throw NivoLifeError.invalidField(key) }
-                    arguments += ["--" + key, String(number)]
-                } else { arguments += ["--" + key, try NivoLifeToolInput.text(args, key)] }
-            }
-            let query = try NivoJigsawQuery.parse(arguments, timeZone: .current)
+            guard life.isMosaicReady, let access = life.accessScope else { throw NivoPersonalRecordsAccessError.dataNotReady }
+            guard let sessionID, let currentUser, currentUser.chatSessionID == sessionID,
+                  currentUser.ownerKey == access.ownerKey else { throw NivoPersonalRecordsAccessError.userTurnRequired }
+            let query = try NivoJigsawQuery.parseTool(args)
             // 原生模型工具使用宿主回合授权；CLI继续沿用其独立权限，不把只读能力传给子进程。
             let state = try await life.repository.mosaicSnapshot(scope: access)
             _ = try await host.nmRequireRecordsAccess(authorization)
@@ -48,7 +38,7 @@ enum NivoMosaicToolBridge {
             _ = try await host.nmRequireRecordsAccess(authorization)
             return .init(output: output, success: true)
         } catch is CancellationError { throw CancellationError()
-        } catch { return .init(output: error.localizedDescription, success: false) }
+        } catch { return .init(output: NivoLifeToolFailure.output(error), success: false) }
     }
 
     /// 只说明读取方法，不在系统提示里自动泄露日记或将草稿当成经历。

@@ -47,7 +47,7 @@ enum NivoCoachToolBridge {
             _ = try await host.nmRequireRecordsAccess(authorization)
             // 全局历史查询只读取现有快照，不触发课程初始化、迁移或来源对账。
             if name == query {
-                try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "limit", "offset"])
+                try NivoLifeToolInput.requireFields(args, allowed: ["kind", "targetId", "limit", "offset", "tool_title"])
                 var parameters = args
                 parameters["kind"] = "coach"
                 parameters["section"] = args["kind"] ?? "overview"
@@ -75,10 +75,8 @@ enum NivoCoachToolBridge {
             NotificationCenter.default.post(name: .nivoCoachStateChanged, object: scope.ownerKey)
             return result
         } catch is CancellationError { throw CancellationError()
-        } catch let error as NivoLifeError {
-            if case .staleRevision = error { return failure("State changed. Query again before a new operation.", code: "stale_revision") }
-            return failure(NivoLifeModel.message(error))
-        } catch { return failure(error.localizedDescription) }
+        } catch let error as ToolError { return failure(error.localizedDescription)
+        } catch { return .init(output: NivoLifeToolFailure.output(error), success: false) }
     }
 
     private static func query(_ args: [String: Any], state: NivoCoachState) throws -> Result {

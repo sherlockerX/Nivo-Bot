@@ -861,8 +861,10 @@ extension AIChatViewModel {
                 messages[msgIdx].blocks[blockIdx].toolStatus = .cancelled
             }
         } catch {
-            ctLogger.error("Tool execution threw non-cancellation error: \(error)")
-            toolOutput = "Error: \(error.localizedDescription)"
+            // nanoMuse: 个人工具输出固定结构化原因，日志不写入可能含记录或文件路径的异常。
+            if isPersonalTool { ctLogger.error("Personal record tool failed; details are available in its structured result.") }
+            else { ctLogger.error("Tool execution threw non-cancellation error: \(error)") }
+            toolOutput = isPersonalTool ? NivoLifeToolFailure.output(error) : "Error: \(error.localizedDescription)"
             toolSuccess = false
         }
 
@@ -893,7 +895,8 @@ extension AIChatViewModel {
                     throw NivoJigsawQuery.QueryError("Result is too large; narrow the query. No text was truncated.")
                 }
             } catch {
-                toolOutput = "Personal records unavailable: \(error.localizedDescription)"
+                // nanoMuse: 最后复核不能抹掉前台、回合或账户变化的具体恢复原因。
+                toolOutput = NivoLifeToolFailure.output(error)
                 toolSuccess = false
                 cancelledHere = error is CancellationError
             }

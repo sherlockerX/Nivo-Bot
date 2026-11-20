@@ -227,13 +227,17 @@ final class NanoMuseFeedStore: ObservableObject {
             })
         }
         posts = all
-        let saved = ((try? String(contentsOf: preferencesFile, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        preferences = saved.isEmpty ? Self.defaultPreferences : saved
+        if let saved = try? readPreferences() { preferences = saved }
     }
 
-    func savePreferences(_ text: String) {
+    /// 系统文件和训练设置都从磁盘读取；缓存不能证明原文件可编辑。
+    func readPreferences() throws -> String {
+        try NivoEditableText.preferences(at: preferencesFile, fallback: Self.defaultPreferences)
+    }
+
+    func savePreferences(_ text: String) throws {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        try? (t + "\n").write(to: preferencesFile, atomically: true, encoding: .utf8)
+        try (t + "\n").write(to: preferencesFile, atomically: true, encoding: .utf8)
         preferences = t.isEmpty ? Self.defaultPreferences : t
     }
 
@@ -807,6 +811,9 @@ struct NanoMuseFeedSettingsSheet: View {
     @State private var text = ""
     @State private var time = Date()
     @State private var knowledge: NanoMuseGrowthSources.Snapshot?
+    @State private var saveError: String?
+    @State private var loadError: String?
+    @State private var hasLoadedDraft = false
 
     private var routine: NanoMuseRoutine? { NanoMuseFeedFlow.routine }
 
@@ -820,7 +827,13 @@ struct NanoMuseFeedSettingsSheet: View {
                 skillsSection
                 knowledgeSection
                 Section {
-                    TextEditor(text: $text).frame(minHeight: 120)
+                    if let loadError {
+                        Text(AppLocalized("Could not read file")).font(.headline)
+                        Text(loadError).font(.footnote).foregroundStyle(.secondary)
+                        Button(AppLocalized("Retry")) { loadPreferences() }
+                    } else {
+                        TextEditor(text: $text).frame(minHeight: 120)
+                    }
                 } header: {
                     Text(AppLocalized("Steering sentence"))
                 } footer: {
@@ -834,13 +847,18 @@ struct NanoMuseFeedSettingsSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(AppLocalized("Save")) {
-                        store.savePreferences(text)
-                        dismiss()
-                    }
+                        do {
+                            try store.savePreferences(text)
+                            dismiss()
+                        } catch { saveError = error.localizedDescription }
+                    }.disabled(!hasLoadedDraft)
                 }
             }
+            .alert(AppLocalized("Could not save"), isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button(AppLocalized("OK"), role: .cancel) {}
+            } message: { Text(saveError ?? "") }
             .onAppear {
-                text = store.preferences
+                if !hasLoadedDraft { loadPreferences() }
                 var c = DateComponents()
                 c.hour = routine?.hour ?? NanoMuseFeedFlow.defaultHour
                 c.minute = routine?.minute ?? NanoMuseFeedFlow.defaultMinute
@@ -848,6 +866,14 @@ struct NanoMuseFeedSettingsSheet: View {
                 knowledge = NanoMuseGrowthSources.snapshot()
             }
         }
+    }
+
+    private func loadPreferences() {
+        do {
+            text = try store.readPreferences()
+            loadError = nil
+            hasLoadedDraft = true
+        } catch { loadError = error.localizedDescription }
     }
 
     /// Each ability with the skill that trains it; a tap opens the skill.

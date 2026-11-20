@@ -87,12 +87,14 @@ Learning, tasks, focus records and fragments use local storage with module-speci
 |---|---|
 | Product website | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0+, arm64 | [Nivo Bot v2.0.7 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16+, personal signing required | [Unsigned IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
+| iOS 16+, personal signing required | [Unsigned IPA v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
 | Source corresponding to the APK | [v2.0.7 source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| Source corresponding to the iOS IPA | [v2.0.8 iOS source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
 | Download checksums | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| Release details | [Release notes](docs/releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| iOS download checksums | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
+| Release details | [Android2.0.7](docs/releases/v2.0.7.md) · [iOS2.0.8](docs/releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-2.0.7(58) Anchor updates Android only. The iOS download remains 2.0.5(56); this release does not provide a 2.0.7 IPA. Updating the shared source version does not publish a new iOS binary. iOS is delivered as an unsigned IPA from GitHub Actions and must be signed before installation. This fork has no Apple Developer Program account and provides no TestFlight or App Store distribution. Forced focus, recurring lock plans and app whitelists are Android-only; iOS provides focus reminders and Guided Access instructions, which the user starts and ends in iOS. CI compilation does not establish iPhone runtime acceptance.
+iOS2.0.8(59) Clarity is prepared as an unsigned Release IPA; release CI and artifact verification are pending. Android downloads remain 2.0.7(58), with the same APK, source archive, checksums and signing identity. The user reported no issues with the audit branch on an iPhone; this does not accept the new 2.0.8 Release binary. The iOS links above are prepared publication destinations. Personal signing is required before installation. This fork has no Apple Developer Program account and provides no TestFlight or App Store distribution. Forced focus, recurring lock plans and app whitelists are Android-only; iOS provides focus reminders and Guided Access instructions, which the user starts and ends in iOS. CI compilation does not establish iPhone runtime acceptance.
 
 The application ID remains `io.github.nanomuse.app`, with the same formal signing identity as the previous Nivo Bot releases. An in-place upgrade on a physical Android phone has not been tested for this release. Installations signed with an old Debug or upstream key normally cannot be updated with this release. Check backup and restore coverage before uninstalling anything; see the [version and signing guide](docs/android-development.md#nivo-bot的android版本与签名).
 
