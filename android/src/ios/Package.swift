@@ -102,6 +102,7 @@ let coreTests = [
     "NivoPersonalRecordsPolicyTests.swift", "NivoPersonalRecordsQueryTests.swift", "NivoPersonalRecordsBoundaryTests.swift",
     "NivoPersonalRecordsPlanningQueryTests.swift",
     "NivoScheduledScriptTests.swift", "NivoScheduledRuntimeTests.swift",
+    "NivoScheduledCommandTests.swift",
     "NivoScheduledProcessWaiterTests.swift", "NivoScheduledHomeMigrationTests.swift", "NivoRoutineBackupTests.swift",
     "NivoRoutineHomeFilesTests.swift", "NivoPersonalBackupBoundaryTests.swift", "NivoBackupRecoveryStateTests.swift", "NivoBackupRollbackFilesTests.swift",
     "NivoReleaseCatalogTests.swift", "NivoCloudInboundCheckpointTests.swift", "NivoCloudCheckpointWriterTests.swift",

@@ -21,6 +21,12 @@ on:
       - 'android/src/ios/**'
       - '.github/workflows/ios-check.yml'
   workflow_dispatch:
+    inputs:
+      portable_only:
+        description: '只运行便携核心和原生协议回归，用于修复前后的快速验证'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ios-check-${{ github.ref }}
@@ -59,6 +65,8 @@ jobs:
 
   build:
     name: xcodebuild (unsigned)
+    # 手动请求快速回归时跳过应用构建，PR和默认手动检查仍完整编译应用。
+    if: github.event_name != 'workflow_dispatch' || inputs.portable_only != true
     runs-on: macos-26-intel
     timeout-minutes: 150
     env:
