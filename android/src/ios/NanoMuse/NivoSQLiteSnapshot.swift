@@ -26,6 +26,8 @@ enum NivoSQLiteSnapshot {
             if !didFinish { try? FileManager.default.removeItem(at: saved) }
         }
         try copy(source: source, destination: destination)
+        // 备份会继承源库的WAL标志；封存为单文件，后续只读校验不能再生成清单外的辅助文件。
+        try seal(destination)
         try validate(destination)
         didFinish = true
     }
@@ -61,6 +63,17 @@ enum NivoSQLiteSnapshot {
         let connection = try open(file, flags: SQLITE_OPEN_READONLY)
         defer { sqlite3_close(connection) }
         try validate(connection)
+    }
+
+    /// 旧快照可能仍使用WAL；仅按数据库头识别，不能因文件名像辅助文件就放宽清单。
+    static func usesWAL(_ file: URL) throws -> Bool {
+        try requireSnapshotHeader(file)
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        guard let header = try handle.read(upToCount: 20), header.count == 20 else {
+            throw NivoSQLiteSnapshotError.invalidDatabase
+        }
+        return header[18] == 2 && header[19] == 2
     }
 
     /// SQLite会接受零字节文件作为新库；恢复材料必须有已落盘的数据库头，避免清空正式库。
@@ -105,6 +118,20 @@ enum NivoSQLiteSnapshot {
         let finish = sqlite3_backup_finish(backup)
         guard step == SQLITE_DONE else { throw NivoSQLiteSnapshotError.sqlite(operation: "backup_step", code: step) }
         guard finish == SQLITE_OK else { throw NivoSQLiteSnapshotError.sqlite(operation: "backup_finish", code: finish) }
+    }
+
+    /// 只修改新建快照的日志模式，源库继续使用WAL；确认切换完成后才允许登记恢复清单。
+    private static func seal(_ connection: OpaquePointer) throws {
+        var statement: OpaquePointer?
+        let prepared = sqlite3_prepare_v2(connection, "PRAGMA journal_mode=DELETE", -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        guard prepared == SQLITE_OK else {
+            throw NivoSQLiteSnapshotError.sqlite(operation: "snapshot_seal_prepare", code: prepared)
+        }
+        guard sqlite3_step(statement) == SQLITE_ROW, let mode = sqlite3_column_text(statement, 0),
+              String(cString: mode).lowercased() == "delete", sqlite3_step(statement) == SQLITE_DONE else {
+            throw NivoSQLiteSnapshotError.sqlite(operation: "snapshot_seal", code: sqlite3_errcode(connection))
+        }
     }
 
     private static func validate(_ connection: OpaquePointer) throws {

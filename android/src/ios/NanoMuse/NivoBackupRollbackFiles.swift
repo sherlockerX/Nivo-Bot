@@ -30,13 +30,20 @@ enum NivoBackupRollbackFiles {
     static func entries(in root: URL, expectedNames: [String]?) throws -> [Entry] {
         try requireType(root, .typeDirectory)
         let names = try FileManager.default.contentsOfDirectory(atPath: root.path).sorted()
+        let companions = try sqliteCompanions(in: root, names: names, registered: expectedNames ?? names)
+        let companionNames = Set(companions.values.flatMap { $0 })
         if let expectedNames {
-            guard Set(names) == Set(expectedNames) else { throw CocoaError(.fileReadCorruptFile) }
+            // 旧版只读校验可能生成WAL辅助文件；清单原有项仍必须齐全，只允许已登记数据库的配对文件。
+            guard Set(expectedNames).isSubset(of: Set(names)),
+                  Set(names).subtracting(expectedNames).isSubset(of: companionNames) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
         } else if names.isEmpty { throw CocoaError(.fileReadCorruptFile) }
         var result: [Entry] = []
         var consumed = Set<String>()
         for name in names where !consumed.contains(name) {
             guard NivoBackupRecoveryState.isSnapshotName(name) else { throw CocoaError(.fileReadCorruptFile) }
+            if companionNames.contains(name) { continue }
             let saved = root.appendingPathComponent(name)
             if name.hasSuffix(absentSidecarSuffix) {
                 result.append(Entry(kind: .absent, saved: saved, live: try liveURL(from: saved, root: root)))
@@ -50,7 +57,11 @@ enum NivoBackupRollbackFiles {
                 }
                 let payload = root.appendingPathComponent(payloadName)
                 try requireType(payload, .typeRegular)
-                if isDatabase { try NivoSQLiteSnapshot.validate(payload) }
+                if isDatabase {
+                    // 让SQLite读取真实WAL中已提交的内容，不能删除辅助文件或使用immutable忽略WAL。
+                    try NivoSQLiteSnapshot.validate(payload)
+                    consumed.formUnion(companions[payloadName] ?? [])
+                }
                 result.append(Entry(kind: isDatabase ? .sqlite : .file, saved: payload, live: try liveURL(from: saved, root: root)))
                 consumed.formUnion([name, payloadName])
             } else if names.contains(name + fileSidecarSuffix) || names.contains(name + sqliteSidecarSuffix) {
@@ -65,6 +76,27 @@ enum NivoBackupRollbackFiles {
         }
         guard consumed == Set(names), Set(result.map { $0.live.standardizedFileURL.path }).count == result.count else {
             throw CocoaError(.fileReadCorruptFile)
+        }
+        return result
+    }
+
+    /// 辅助文件仅属于同一清单内的SQLite载荷与路径标记，目录、链接和无关文件仍拒绝。
+    private static func sqliteCompanions(in root: URL, names: [String], registered: [String]) throws -> [String: Set<String>] {
+        var result: [String: Set<String>] = [:]
+        let registeredNames = Set(registered)
+        let actualNames = Set(names)
+        for sidecar in registered where sidecar.hasSuffix(sqliteSidecarSuffix) {
+            let payload = String(sidecar.dropLast(sqliteSidecarSuffix.count))
+            guard !payload.isEmpty, registeredNames.contains(payload), actualNames.contains(sidecar),
+                  actualNames.contains(payload), NivoBackupRecoveryState.isSnapshotName(payload) else { continue }
+            let candidates = actualNames.intersection([payload + "-wal", payload + "-shm"])
+            guard !candidates.isEmpty else { continue }
+            try requireType(root.appendingPathComponent(sidecar), .typeRegular)
+            guard try NivoSQLiteSnapshot.usesWAL(root.appendingPathComponent(payload)) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            for name in candidates { try requireType(root.appendingPathComponent(name), .typeRegular) }
+            result[payload] = candidates
         }
         return result
     }

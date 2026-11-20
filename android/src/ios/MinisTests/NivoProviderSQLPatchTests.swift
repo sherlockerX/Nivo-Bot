@@ -202,6 +202,81 @@ final class NivoProviderSQLPatchTests: XCTestCase {
         }
     }
 
+    /// 候选先提交、普通保存随后失败时，补偿必须撤销候选并重试当前页面的真实修改。
+    func testExplicitCandidateCompensationAfterConcurrentWriteFailurePreservesCurrentIntent() throws {
+        try withDatabase { database in
+            let original = NivoProviderSQLPatch.Snapshot(rows: [.instances: [provider("owner", label: "original", enabled: true)],
+                .entries: [model("original")]])
+            let candidate = NivoProviderSQLPatch.Snapshot(rows: [.instances: original.rows[.instances]!,
+                .entries: [model("original"), model("candidate")]])
+            let current = NivoProviderSQLPatch.Snapshot(rows: [.instances: [provider("owner", label: "concurrent", enabled: true)],
+                .entries: original.rows[.entries]!])
+            try apply(database, before: .init(rows: [:]), after: original)
+            try apply(database, before: original, after: candidate)
+            try NivoSQLiteWrite.execute(database, sql: "CREATE TRIGGER fail_normal BEFORE UPDATE ON provider_instances BEGIN SELECT RAISE(ABORT, 'ordinary-write-failed'); END")
+            XCTAssertThrowsError(try apply(database, before: original, after: current))
+            try NivoSQLiteWrite.execute(database, sql: "DROP TRIGGER fail_normal")
+
+            // 旧失败基线看不到candidate行，能重现它在补偿后残留的根因。
+            try apply(database, before: original, after: current)
+            XCTAssertEqual(try text(database, "SELECT count(*) FROM provider_model_entries WHERE id='candidate'"), "1")
+            try apply(database, before: candidate, after: current)
+            XCTAssertEqual(try text(database, "SELECT count(*) FROM provider_model_entries WHERE id='candidate'"), "0")
+            XCTAssertEqual(try text(database, "SELECT id FROM provider_model_entries"), "original")
+            XCTAssertEqual(try text(database, "SELECT label FROM provider_instances WHERE id='owner'"), "concurrent")
+        }
+    }
+
+    /// 候选事务从未提交时，反向差异删除不存在的新增行应无操作，原记录及版本保持不变。
+    func testExplicitCandidateCompensationAfterCandidateFailureLeavesOriginalRowsUntouched() throws {
+        try withDatabase { database in
+            let original = NivoProviderSQLPatch.Snapshot(rows: [.instances: [provider("owner", label: "original", enabled: true)],
+                .entries: [model("original")]])
+            let candidate = NivoProviderSQLPatch.Snapshot(rows: [.instances: [provider("owner", label: "candidate", enabled: true)],
+                .entries: [model("original", displayName: "candidate"), model("candidate")]])
+            try apply(database, before: .init(rows: [:]), after: original)
+            let originalProviderTime = try number(database, "SELECT updated_at FROM provider_instances")
+            let originalModelTime = try number(database, "SELECT updated_at FROM provider_model_entries")
+            let originalModelJSON = try text(database, "SELECT overrides_json FROM provider_model_entries")
+            try NivoSQLiteWrite.execute(database, sql: "CREATE TRIGGER fail_candidate BEFORE INSERT ON provider_model_entries WHEN NEW.id='candidate' BEGIN SELECT RAISE(ABORT, 'candidate-write-failed'); END")
+            XCTAssertThrowsError(try apply(database, before: original, after: candidate))
+            try apply(database, before: candidate, after: original)
+
+            XCTAssertEqual(try text(database, "SELECT label FROM provider_instances"), "original")
+            XCTAssertEqual(try text(database, "SELECT id FROM provider_model_entries"), "original")
+            XCTAssertEqual(try text(database, "SELECT overrides_json FROM provider_model_entries"), originalModelJSON)
+            XCTAssertEqual(try number(database, "SELECT updated_at FROM provider_instances"), originalProviderTime)
+            XCTAssertEqual(try number(database, "SELECT updated_at FROM provider_model_entries"), originalModelTime)
+        }
+    }
+
+    /// 普通并发写入已经成功时，补偿只撤销候选变化，保留它和未见过的数据库记录。
+    func testExplicitCandidateCompensationPreservesSuccessfulConcurrentEditAndUnseenRow() throws {
+        try withDatabase { database in
+            let original = NivoProviderSQLPatch.Snapshot(rows: [.instances: [provider("owner", label: "original", enabled: true)],
+                .entries: [model("original")]])
+            let candidate = NivoProviderSQLPatch.Snapshot(rows: [.instances: original.rows[.instances]!,
+                .entries: [model("original", displayName: "candidate"), model("candidate")]])
+            let current = NivoProviderSQLPatch.Snapshot(rows: [.instances: [provider("owner", label: "concurrent", enabled: true)],
+                .entries: original.rows[.entries]!])
+            try apply(database, before: .init(rows: [:]), after: original)
+            try apply(database, before: original, after: candidate)
+            try apply(database, before: original, after: current)
+            try NivoSQLiteWrite.execute(database, sql: "INSERT INTO provider_model_entries(id,base_model_json,overrides_json,updated_at) VALUES ('remote','{}','{}',30)")
+            try apply(database, before: candidate, after: current)
+
+            XCTAssertEqual(try text(database, "SELECT label FROM provider_instances"), "concurrent")
+            XCTAssertEqual(try text(database, "SELECT overrides_json FROM provider_model_entries WHERE id='original'"), "{\"displayName\":\"original\"}")
+            XCTAssertEqual(try text(database, "SELECT count(*) FROM provider_model_entries WHERE id='candidate'"), "0")
+            XCTAssertEqual(try number(database, "SELECT updated_at FROM provider_model_entries WHERE id='remote'"), 30)
+        }
+    }
+
+    private func model(_ identifier: String, displayName: String = "original") -> NivoProviderSQLPatch.Row {
+        ["id": .text(identifier), "base_model_json": .text("{\"id\":\"\(identifier)\"}"),
+         "overrides_json": .text("{\"displayName\":\"\(displayName)\"}")]
+    }
+
     private func provider(_ id: String, label: String, enabled: Bool) -> NivoProviderSQLPatch.Row {
         ["id": .text(id), "label": .text(label), "is_enabled": .integer(enabled ? 1 : 0), "sort_order": .integer(0)]
     }

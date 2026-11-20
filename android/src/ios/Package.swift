@@ -68,6 +68,8 @@ let coreSources = [
     "NivoOAuthPersistence.swift",
     "NivoOAuthLifecycle.swift",
     "NivoProviderImportCommit.swift",
+    "NivoProviderSaveFailure.swift",
+    "NivoProviderModelIdentity.swift",
     "NivoProviderMigrationJournal.swift",
 ]
 let coreTests = [
@@ -88,6 +90,8 @@ let coreTests = [
     "NivoOAuthFlightTests.swift",
     "NivoOAuthLifecycleTests.swift",
     "NivoProviderImportCommitTests.swift",
+    "NivoProviderSaveFailureTests.swift",
+    "NivoProviderModelIdentityTests.swift",
     "NivoOAuthPersistenceTests.swift",
     "NivoProviderMigrationTests.swift",
     "NivoEnvVarTransactionTests.swift",

@@ -118,9 +118,9 @@ enum NivoProviderJSONImport {
         let lease = try NivoPersonalBackupAccess.beginProviderRestore(personalLeaseID: nil)
         let instance: ProviderInstance
         do {
-            try await store.nmBeginRestore(lease)
+            try await awaiting(.baseline) { try await store.nmBeginRestore(lease) }
             let previous = store.config
-            let prepared = try prepare()
+            let prepared = try checking(.preparation, operation: prepare)
             try await commit(prepared, previous: previous, rotation: rotation, lease: lease)
             instance = prepared.instance
         } catch {
@@ -142,43 +142,75 @@ enum NivoProviderJSONImport {
     private static func commit(_ prepared: NivoPreparedProviderImport, previous: ProviderConfig,
                                rotation: Rotation?, lease: UUID) async throws {
         let store = ProviderConfigStore.shared
-        let credentialPlan = try NivoCredentialRestore.prepare(prepared.credentials)
+        let credentialPlan = try checking(.credentials) { try NivoCredentialRestore.prepare(prepared.credentials) }
         guard credentialPlan.kept.isEmpty else { throw NivoOAuthPersistenceError.conflictingCredential }
         let runID = UUID().uuidString
         let staging = BackupRestoreJournal.stagingRoot(runId: runID)
-        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         let importer = BackupImporter()
-        let snapshot = try await importer.snapshotForRollback(category: .providers, staging: staging)
+        let snapshot = try await awaiting(.snapshot) {
+            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+            return try await importer.snapshotForRollback(category: .providers, staging: staging)
+        }
         let syncPlan = NivoProviderSetupConfiguration.syncPlan(prepared, previous: previous)
-        let queueReceipt = try await ChatStore.shared.nmPrepareProviderSetup(syncPlan, zoneName: DeviceIdentity.zoneName)
+        let queueReceipt = try await awaiting(.journal) {
+            try await ChatStore.shared.nmPrepareProviderSetup(syncPlan, zoneName: DeviceIdentity.zoneName)
+        }
         let keyReceipt = try rotation.map {
             guard prepared.instance.credentialType == .apiKey else { throw NivoOAuthPersistenceError.invalidValue }
             return try NivoProviderKeyRotationKeychain.prepare($0.value, instanceID: prepared.instance.id, expected: $0.expected)
         }
         do {
-            try BackupRestoreJournal.begin(backupId: "provider-json-" + runID, categories: [BackupCategory.providers.rawValue],
-                runId: runID, credentialRestore: credentialPlan.receipt,
-                providerKeyRotation: keyReceipt, providerSetupQueue: queueReceipt)
+            try checking(.journal) {
+                try BackupRestoreJournal.begin(backupId: "provider-json-" + runID, categories: [BackupCategory.providers.rawValue],
+                    runId: runID, credentialRestore: credentialPlan.receipt,
+                    providerKeyRotation: keyReceipt, providerSetupQueue: queueReceipt)
+            }
         } catch {
             // 尚未建立日志，也未改正式存储；暂存清理失败留给冷启动处理。
             if let keyReceipt { try? NivoProviderKeyRotationKeychain.discard(keyReceipt.identifier) }
             throw error
         }
         try await NivoProviderImportCommit.run(writeCredentials: {
-            let outcome = try NivoCredentialRestore.apply(credentialPlan)
-            guard outcome.kept.isEmpty else { throw NivoOAuthPersistenceError.conflictingCredential }
-            if let keyReceipt { try NivoProviderKeyRotationKeychain.apply(keyReceipt) }
+            try checking(.credentials) {
+                let outcome = try NivoCredentialRestore.apply(credentialPlan)
+                guard outcome.kept.isEmpty else { throw NivoOAuthPersistenceError.conflictingCredential }
+                if let keyReceipt { try NivoProviderKeyRotationKeychain.apply(keyReceipt) }
+            }
         }, persist: {
-            try await store.nmCommitImportedConfiguration(prepared.configuration, token: lease)
+            try await awaiting(.configuration) { try await store.nmCommitImportedConfiguration(prepared.configuration, token: lease) }
         }, synchronize: {
-            try await ChatStore.shared.nmCommitProviderSetup(queueReceipt)
+            try await awaiting(.configuration) { try await ChatStore.shared.nmCommitProviderSetup(queueReceipt) }
         }, finish: {
-            try BackupRestoreJournal.finish(runId: runID)
+            try checking(.completion) { try BackupRestoreJournal.finish(runId: runID) }
         }, isPending: { BackupRestoreJournal.hasPendingRecovery }, rollback: {
-            try await importer.rollback(snapshot)
-            try NivoCredentialRestore.rollback(credentialPlan.receipt)
-            if let keyReceipt { try NivoProviderKeyRotationKeychain.rollback(keyReceipt) }
-            try await ChatStore.shared.nmRollbackProviderSetup(queueReceipt)
+            try await awaiting(.rollback) {
+                try await importer.rollback(snapshot)
+                try NivoCredentialRestore.rollback(credentialPlan.receipt)
+                if let keyReceipt { try NivoProviderKeyRotationKeychain.rollback(keyReceipt) }
+                try await ChatStore.shared.nmRollbackProviderSetup(queueReceipt)
+            }
         })
+    }
+
+    /// 错误只附上固定阶段，取消仍按原路径传播，输入和系统错误详情不写入诊断码。
+    private static func checking<Value>(_ stage: NivoProviderSaveFailure.Stage,
+                                        operation: @MainActor () throws -> Value) throws -> Value {
+        do { return try operation() }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw report(error, stage: stage) }
+    }
+
+    private static func awaiting<Value>(_ stage: NivoProviderSaveFailure.Stage,
+                                        operation: @MainActor () async throws -> Value) async throws -> Value {
+        do { return try await operation() }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw report(error, stage: stage) }
+    }
+
+    /// 原始失败与之后的恢复失败分别保留诊断，不记录输入、密钥或底层路径。
+    private static func report(_ error: any Error, stage: NivoProviderSaveFailure.Stage) -> NivoProviderSaveFailure {
+        let failure = NivoProviderSaveFailure.capture(error, stage: stage)
+        AppLogger(category: "ProviderSave").error("[Nivo] provider save: \(failure.diagnosticCode)")
+        return failure
     }
 }

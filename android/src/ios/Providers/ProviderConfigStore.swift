@@ -610,12 +610,14 @@ final class ProviderConfigStore: ObservableObject {
                 let inferred = base.withInferredModality()
                 if inferred.modalityOverride != nil {
                     config.modelEntries[i] = ModelEntry(
-                        uuid: entry.id,
+                        // nanoMuse: 旧模型补全能力不改变数据库UUID，也不清除人工编辑版本。
+                        uuid: entry.uuid,
                         providerInstanceId: entry.providerInstanceId,
                         model: inferred,
                         overrides: entry.overrides,
                         isCustom: entry.isCustom,
-                        isHidden: entry.isHidden
+                        isHidden: entry.isHidden,
+                        userModifiedAt: entry.userModifiedAt
                     )
                 }
             }
@@ -660,9 +662,11 @@ final class ProviderConfigStore: ObservableObject {
     var nmCanUseProviderCredentials: Bool { nmRestoreToken == nil && !NivoProviderDeletionHost.hasPendingRecovery && loadDegradation == .none }
     private var nmActiveThinkingRuleWrites = 0
     private var nmIsBranchWriteActive = false
+    // nanoMuse: 模型表单等待落盘期间阻止备份截取尚未发布的候选。
+    private var nmIsModelEditActive = false
 
     private var nmHasScopedConfigurationWrite: Bool {
-        nmIsBranchWriteActive || nmActiveThinkingRuleWrites > 0
+        nmIsBranchWriteActive || nmIsModelEditActive || nmActiveThinkingRuleWrites > 0
     }
 
     /// 将当前配置交给现有数据库镜像和同步队列，不重复写JSON文件。
@@ -679,13 +683,15 @@ final class ProviderConfigStore: ObservableObject {
     @discardableResult
     private func nmEnqueueConfiguration(_ snapshot: ProviderConfig, prior: ProviderConfig?,
                                         markDirty: Bool, preserveLocalOnlyStateIfEmpty: Bool = false,
-                                        replacingDatabase: Bool = false) -> Task<Void, Error> {
+                                        replacingDatabase: Bool = false,
+                                        compensationBaseline: ProviderConfig? = nil) -> Task<Void, Error> {
         let database = db
         let destination = fileURL
         // nanoMuse: 独立配置仓库不向应用共享同步账本登记测试数据。
         let shouldMarkDirty = markDirty && nmUsesDefaultDatabase
         let task = nmWrites.enqueue { isRetryAfterFailure in
-            let baseline = await MainActor.run { self.nmFailedDatabaseBaseline ?? prior ?? .empty }
+            // nanoMuse: 补偿必须撤销指定候选；普通保存失败的旧基线可能根本不包含候选新增行。
+            let baseline = await MainActor.run { compensationBaseline ?? self.nmFailedDatabaseBaseline ?? prior ?? .empty }
             let persisted: ProviderConfig
             do {
                 _ = try JSONEncoder().encode(snapshot)
@@ -1576,33 +1582,89 @@ final class ProviderConfigStore: ObservableObject {
     /// Returns `false` if a duplicate already exists.
     @discardableResult
     func addEntry(_ entry: ModelEntry) -> Bool {
-        guard !config.modelEntries.contains(where: {
-            $0.providerInstanceId == entry.providerInstanceId && $0.baseModel.id == entry.baseModel.id
-        }) else { return false }
-        let inferredModel = entry.baseModel.withInferredModality()
-        // Stamp userModifiedAt — addEntry is only called when the user explicitly
-        // creates a custom entry (UI "Add Model" flow), so the entry carries user intent.
-        // [T-provider-entry-composite-key] uuid param wants the random uuid,
-        // not entry.id (which is now the composite key).
-        let e = ModelEntry(uuid: entry.uuid, providerInstanceId: entry.providerInstanceId,
-                           model: inferredModel, overrides: entry.overrides,
-                           isCustom: entry.isCustom, isHidden: entry.isHidden,
-                           userModifiedAt: Date())
-        config.modelEntries.append(e)
+        // nanoMuse: 兼容同步调用方，但页面使用下方可等待入口确认真正落盘。
+        guard let candidate = try? NivoProviderModelEditConfiguration.adding(entry, to: config) else { return false }
+        config = candidate
         save()
         return true
     }
 
     func updateEntry(_ entry: ModelEntry) {
-        guard let idx = config.modelEntries.firstIndex(where: { $0.id == entry.id }) else { return }
-        // Stamp userModifiedAt on every UI-driven edit so iCloud merge can resolve
-        // same-field conflicts by last-write-wins. This is the single funnel for
-        // override edits from ProviderInstanceDetailView.
-        var stamped = entry
-        // nanoMuse: 用户修改时间在内存中也立即前进，快速连续编辑无需等待缓存刷新。
-        stamped.userModifiedAt = NivoProviderEditClock.next(after: [config.modelEntries[idx].userModifiedAt].compactMap { $0 })
-        config.modelEntries[idx] = stamped
+        // nanoMuse: 按UUID定位原模型并迁移引用，新ID冲突时不改动任何配置。
+        guard let candidate = try? NivoProviderModelEditConfiguration.updating(entry, in: config) else { return }
+        config = candidate
         save()
+    }
+
+    // nanoMuse: 新增和编辑表单必须等待双存储完成，失败保留表单输入。
+    /// 新增模型在父提供商和身份校验成功后保存，不提前发布可见模型。
+    func nmAddEntry(_ entry: ModelEntry, sourceScope: NivoOAuthScope? = nil) async throws {
+        try await nmCommitEditorChange(sourceScope: sourceScope) {
+            try NivoProviderModelEditConfiguration.adding(entry, to: $0)
+        }
+    }
+
+    /// 以表单打开时的模型快照校验版本，成功后返回实际保存的模型供继续编辑。
+    func nmUpdateEntry(_ entry: ModelEntry, expected: ModelEntry,
+                       sourceScope: NivoOAuthScope? = nil) async throws -> ModelEntry {
+        try await nmCommitEditorChange(sourceScope: sourceScope) {
+            try NivoProviderModelEditConfiguration.updating(entry, expected: expected, in: $0)
+        }
+        guard let saved = config.modelEntries.first(where: { $0.uuid == entry.uuid }) else {
+            throw NivoProviderModelIdentity.Failure.changed
+        }
+        return saved
+    }
+
+    /// 首个分组及默认选择一次保存，失败不会留下未完成的半份配置。
+    func nmAddGroup(_ group: ModelGroup, sourceScope: NivoOAuthScope? = nil) async throws {
+        try await nmCommitEditorChange(sourceScope: sourceScope) { prior in
+            guard !prior.modelGroups.contains(where: { $0.id == group.id }) else { throw NivoProviderModelIdentity.Failure.changed }
+            var candidate = prior
+            candidate.modelGroups.append(group)
+            if prior.modelGroups.isEmpty { candidate.defaultPrimaryGroupId = group.id }
+            return candidate
+        }
+    }
+
+    /// 排空旧写入后构造候选，失败恢复原意图；并发编辑时保留最新缓存而不覆盖其他页面。
+    private func nmCommitEditorChange(sourceScope: NivoOAuthScope?,
+                                     change: (ProviderConfig) throws -> ProviderConfig) async throws {
+        guard !nmHasScopedConfigurationWrite, nmRestoreToken == nil,
+              !NivoProviderDeletionHost.hasPendingRecovery, !BackupRestoreJournal.hasPendingRecovery else {
+            throw NivoPersonalBackupError.busy
+        }
+        if let sourceScope { try NivoOAuthAccess.validateScope(sourceScope) }
+        nmIsModelEditActive = true
+        defer { nmIsModelEditActive = false }
+        try await nmWaitForConfigurationWrites(ignoringWriteFailure: true)
+        try Task.checkCancellation()
+        guard loadDegradation == .none, nmRestoreToken == nil else { throw CocoaError(.fileReadUnknown) }
+        if let sourceScope { try NivoOAuthAccess.validateScope(sourceScope) }
+        let prior = config
+        let candidate = try change(prior)
+        let revision = configRevision
+        let generation = nmRestoreGeneration
+        do {
+            try await nmEnqueueConfiguration(candidate, prior: prior, markDirty: true).value
+            try Task.checkCancellation()
+            if let sourceScope { try NivoOAuthAccess.validateScope(sourceScope) }
+            guard configRevision == revision, nmRestoreGeneration == generation else {
+                throw NivoProviderModelIdentity.Failure.changed
+            }
+            let persisted = try JSONDecoder().decode(ProviderConfig.self, from: Data(contentsOf: fileURL))
+            config = persisted
+            lastSavedSnapshot = persisted
+            configRevision &+= 1
+        } catch {
+            // 尚未发布的失败候选不能被下一次保存顺带提交；恢复失败仍由写队列保留错误。
+            if nmRestoreGeneration == generation {
+                let recovery = configRevision == revision ? prior : config
+                _ = try? await nmEnqueueConfiguration(recovery, prior: candidate, markDirty: true,
+                    compensationBaseline: candidate).value
+            }
+            throw error
+        }
     }
 
     func removeEntry(_ entryId: String) {
@@ -1721,6 +1783,9 @@ final class ProviderConfigStore: ObservableObject {
         config.modelGroups.removeAll { $0.id == groupId }
         if config.defaultPrimaryGroupId == groupId { config.defaultPrimaryGroupId = nil }
         if config.defaultSubGroupId == groupId { config.defaultSubGroupId = nil }
+        // nanoMuse: 删除确认承诺同时清除语音输入与输出选择，不能留下失效指针。
+        if config.voiceInputGroupId == groupId { config.voiceInputGroupId = nil }
+        if config.voiceOutputGroupId == groupId { config.voiceOutputGroupId = nil }
         // [T-ios-vision-group #182] Clear the vision pointer too, so deleting the
         // group turns the feature off cleanly instead of leaving a dangling id
         // that would keep `read_image` exposed to a non-vision model with no
@@ -1732,7 +1797,10 @@ final class ProviderConfigStore: ObservableObject {
         save()
         // [T-icloud-provider-sync-consistency] Explicit V3 delete tombstone —
         // emitV3MarkDirty no longer diff-infers group deletions.
-        Task { await ChatStore.shared.markDirty(recordType: "ProviderModelGroupV3", recordId: groupId, operation: "delete") }
+        // nanoMuse: 独立仓库测试不能把夹具分组删除写进应用共享同步账本。
+        if nmUsesDefaultDatabase {
+            Task { await ChatStore.shared.markDirty(recordType: "ProviderModelGroupV3", recordId: groupId, operation: "delete") }
+        }
     }
 
     func group(for id: String) -> ModelGroup? {
@@ -1915,7 +1983,7 @@ final class ProviderConfigStore: ObservableObject {
     /// 同时保存或清除一个新分支的模型绑定和推理设置，磁盘错误交给调用方处理。
     func nmSetBranchConfiguration(sessionID: String, binding: SessionModelBinding?,
                                    inference: SessionInferenceConfig?) async throws {
-        guard !nmIsBranchWriteActive, nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery,
+        guard !nmHasScopedConfigurationWrite, nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery,
               !BackupRestoreJournal.hasPendingRecovery else { throw NivoPersonalBackupError.busy }
         // 同一时间只允许一份分支候选状态等待落盘，恢复不能截取尚未发布的中间状态。
         nmIsBranchWriteActive = true
@@ -2215,7 +2283,7 @@ final class ProviderConfigStore: ObservableObject {
         let mapping = try await database.nmLegacyUuidMap()
         try Task.checkCancellation()
         guard revision == configRevision, generation == nmRestoreGeneration,
-              nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !nmIsBranchWriteActive, pendingSyncApply == nil,
+              nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !nmIsBranchWriteActive, !nmIsModelEditActive, pendingSyncApply == nil,
               !BackupRestoreJournal.hasPendingRecovery, !shouldDeferSyncApply() else {
             throw NivoPersonalBackupError.snapshotChanged
         }
@@ -2253,7 +2321,7 @@ final class ProviderConfigStore: ObservableObject {
         while true {
             try await nmWaitForConfigurationWrites(allowingMirrorFailure: true)
             try Task.checkCancellation()
-            guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !nmIsBranchWriteActive,
+            guard nmRestoreToken == nil, !NivoProviderDeletionHost.hasPendingRecovery, !nmIsBranchWriteActive, !nmIsModelEditActive,
                   !BackupRestoreJournal.hasPendingRecovery, loadDegradation == .none,
                   pendingSyncApply == nil else { throw NivoPersonalBackupError.busy }
             if !shouldDeferSyncApply() { return }
@@ -2287,6 +2355,8 @@ final class ProviderConfigStore: ObservableObject {
     private static let postForegroundSettleSeconds: TimeInterval = 1.5
 
     private func shouldDeferSyncApply() -> Bool {
+        // nanoMuse: 可等待表单提交期间，缓存发布延后到候选成功或回滚完成。
+        if nmIsModelEditActive { return true }
         // Backgrounded: apply immediately as before. Rendering is suspended
         // (no async-render race), and a long-running background agent must
         // keep reading fresh provider config for routing.
@@ -2751,6 +2821,29 @@ final class ProviderConfigStore: ObservableObject {
         } catch {
             logger.error("[ModelList] refreshModels (MANUAL): instance=\(instance.label) FAILED — \(error)")
         }
+    }
+
+    // nanoMuse: 详情页使用与恢复协调的可等待入口，旧网络响应不能覆盖恢复后的目录。
+    /// 来源实例、恢复代次和账户在请求前后及实际保存前都必须保持一致。
+    func nmRefreshModels(for instance: ProviderInstance, sourceScope: NivoOAuthScope? = nil,
+                         fetch: (@MainActor (ProviderInstance) async throws -> ModelFetchResult)? = nil) async throws -> ModelFetchResult {
+        guard nmRestoreToken == nil, loadDegradation == .none else { throw NivoPersonalBackupError.busy }
+        if let sourceScope { try NivoOAuthAccess.validateScope(sourceScope) }
+        let generation = nmRestoreGeneration
+        let result: ModelFetchResult
+        if let fetch { result = try await fetch(instance) }
+        else { result = try await Self.fetchModelsWithFallback(instance, forceRefresh: true) }
+        try Task.checkCancellation()
+        guard generation == nmRestoreGeneration else { throw NivoProviderModelIdentity.Failure.changed }
+        try await nmCommitEditorChange(sourceScope: sourceScope) { current in
+            guard generation == self.nmRestoreGeneration,
+                  current.instances.first(where: { $0.id == instance.id }) == instance else {
+                throw NivoProviderModelIdentity.Failure.changed
+            }
+            return try NivoProviderSetupConfiguration.updating(instance: instance, current: current,
+                models: result.models, defaultChatModel: nil).configuration
+        }
+        return result
     }
 
     /// Auto-refresh: fetch models for a single instance, skipping if user has custom models.

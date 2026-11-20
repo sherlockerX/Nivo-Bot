@@ -1,6 +1,20 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "nivo.providers.save.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die Anbietereinstellungen konnten nicht gespeichert werden. Behalte deine Eingaben und versuche es erneut. Diagnosecode: %@." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Provider settings could not be saved. Keep your input and try again. Diagnostic code: %@." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudieron guardar los ajustes del proveedor. Conserva los datos introducidos e inténtalo de nuevo. Código de diagnóstico: %@." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les paramètres du fournisseur n’ont pas pu être enregistrés. Conservez votre saisie et réessayez. Code de diagnostic : %@." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロバイダー設定を保存できませんでした。入力内容を保持して、もう一度お試しください。診断コード：%@。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "공급자 설정을 저장하지 못했습니다. 입력 내용을 유지하고 다시 시도하세요. 진단 코드: %@." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось сохранить настройки провайдера. Сохраните введённые данные и повторите попытку. Код диагностики: %@." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "供应商设置未能保存。请保留当前输入后重试。诊断代码：%@。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "供應商設定未能儲存。請保留目前輸入後重試。診斷代碼：%@。" } }
+      }
+    },
     "I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose." : {
       "extractionState" : "manual",
       "localizations" : {

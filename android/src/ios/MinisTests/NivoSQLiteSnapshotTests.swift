@@ -8,6 +8,164 @@ import CNivoSQLite
 
 /// 使用系统SQLite和真实WAL文件验证在线快照，不以JSON或内存镜像替代数据库。
 final class NivoSQLiteSnapshotTests: XCTestCase {
+    /// 旧版只读校验产生的辅助文件不在日志清单中，升级恢复仍须完整读取这份快照。
+    func testLegacyWALValidationCompanionsRemainRecoverable() throws {
+        let root = try directory()
+        let rollback = root.appendingPathComponent("rollback-legacy", isDirectory: true)
+        try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+        let saved = rollback.appendingPathComponent("providers.db")
+        let live = root.appendingPathComponent("live.db")
+        try withDatabase(saved) { database in
+            try execute(database, "PRAGMA journal_mode=WAL; CREATE TABLE items(value TEXT); INSERT INTO items VALUES('original');")
+        }
+        let sidecar = saved.appendingPathExtension("sqlite-path-of")
+        try Data(live.path.utf8).write(to: sidecar)
+        let names = [saved.lastPathComponent, sidecar.lastPathComponent].sorted()
+        try NivoSQLiteSnapshot.validate(saved)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saved.path + "-wal"))
+        let entries = try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names)
+        XCTAssertEqual(entries.count, 1)
+        try NivoSQLiteSnapshot.restore(from: saved, to: live)
+        try withDatabase(live) { database in
+            XCTAssertEqual(try scalar(database, "SELECT value FROM items"), "original")
+        }
+        XCTAssertEqual(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names).count, 1)
+    }
+
+    /// 兼容旧清单不能通过删除WAL实现，其中尚未合入主文件的已提交数据必须恢复。
+    func testLegacyWALCompanionsRetainCommittedRowsDuringRecovery() throws {
+        let root = try directory()
+        let rollback = root.appendingPathComponent("rollback-legacy", isDirectory: true)
+        try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+        let saved = rollback.appendingPathComponent("providers.db")
+        let live = root.appendingPathComponent("live.db")
+        let sidecar = saved.appendingPathExtension("sqlite-path-of")
+        try Data(live.path.utf8).write(to: sidecar)
+        let names = [saved.lastPathComponent, sidecar.lastPathComponent].sorted()
+        try withDatabase(saved) { database in
+            try execute(database, "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE items(value TEXT); INSERT INTO items VALUES('base'); PRAGMA wal_checkpoint(TRUNCATE); INSERT INTO items VALUES('wal-only');")
+            XCTAssertGreaterThan(try Data(contentsOf: URL(fileURLWithPath: saved.path + "-wal")).count, 32)
+            XCTAssertEqual(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names).count, 1)
+            try NivoSQLiteSnapshot.restore(from: saved, to: live)
+            try withDatabase(live) { restored in
+                XCTAssertEqual(try scalar(restored, "SELECT COUNT(*) FROM items"), "2")
+                XCTAssertEqual(try scalar(restored, "SELECT value FROM items WHERE value='wal-only'"), "wal-only")
+            }
+            let unexpected = rollback.appendingPathComponent("other.db-wal")
+            try Data().write(to: unexpected)
+            XCTAssertThrowsError(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names))
+            try FileManager.default.removeItem(at: unexpected)
+            XCTAssertThrowsError(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names + ["missing"]))
+            try FileManager.default.removeItem(at: sidecar)
+            XCTAssertThrowsError(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names))
+        }
+    }
+
+    /// 非WAL快照不能借辅助文件规则隐藏清单外内容。
+    func testSealedSnapshotRejectsUnregisteredWALCompanion() throws {
+        let root = try directory()
+        let rollback = root.appendingPathComponent("rollback-sealed", isDirectory: true)
+        try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+        let saved = rollback.appendingPathComponent("providers.db")
+        let live = root.appendingPathComponent("live.db")
+        try withDatabase(saved) { try execute($0, "CREATE TABLE items(value TEXT);") }
+        let sidecar = saved.appendingPathExtension("sqlite-path-of")
+        try Data(live.path.utf8).write(to: sidecar)
+        try Data().write(to: URL(fileURLWithPath: saved.path + "-wal"))
+        XCTAssertThrowsError(try NivoBackupRollbackFiles.entries(in: rollback,
+            expectedNames: [saved.lastPathComponent, sidecar.lastPathComponent]))
+    }
+
+    func testLegacyWALCompanionCannotBeDirectoryOrSymbolicLink() throws {
+        let root = try directory()
+        let rollback = root.appendingPathComponent("rollback-legacy", isDirectory: true)
+        try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+        let saved = rollback.appendingPathComponent("providers.db")
+        try withDatabase(saved) { try execute($0, "PRAGMA journal_mode=WAL; CREATE TABLE items(value TEXT);") }
+        let sidecar = saved.appendingPathExtension("sqlite-path-of")
+        try Data(root.appendingPathComponent("live.db").path.utf8).write(to: sidecar)
+        let names = [saved.lastPathComponent, sidecar.lastPathComponent]
+        let companion = URL(fileURLWithPath: saved.path + "-wal")
+        try FileManager.default.createDirectory(at: companion, withIntermediateDirectories: false)
+        XCTAssertThrowsError(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names))
+        try FileManager.default.removeItem(at: companion)
+        #if !os(Windows)
+        // Windows普通进程不能创建符号链接；Apple平台实际执行这一边界，目录检查在所有平台运行。
+        let outside = root.appendingPathComponent("outside")
+        try Data("keep".utf8).write(to: outside)
+        try FileManager.default.createSymbolicLink(at: companion, withDestinationURL: outside)
+        XCTAssertThrowsError(try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names))
+        XCTAssertEqual(try Data(contentsOf: outside), Data("keep".utf8))
+        #endif
+    }
+
+    /// 串起新增配置实际使用的快照、日志、写入和清理边界，保留真实文件与SQLite。
+    @MainActor
+    func testFreshProviderSaveCommitsThroughWALSnapshotAndRecoveryJournal() async throws {
+        let root = try directory()
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        let rollback = support.appendingPathComponent("rollback-provider", isDirectory: true)
+        try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+        let live = root.appendingPathComponent("provider-config.db")
+        let saved = rollback.appendingPathComponent("providers-provider-config.db")
+        var database: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(live.path, &database), SQLITE_OK)
+        let connection = try XCTUnwrap(database)
+        defer { sqlite3_close(connection) }
+        try execute(connection, "PRAGMA journal_mode=WAL; CREATE TABLE providers(id TEXT PRIMARY KEY);")
+        try NivoSQLiteSnapshot.capture(from: connection, to: saved)
+        try Data(live.path.utf8).write(to: saved.appendingPathExtension("sqlite-path-of"))
+        let names = try FileManager.default.contentsOfDirectory(atPath: rollback.path).sorted()
+        _ = try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names)
+        let markerFile = support.appendingPathComponent("in-progress.json")
+        let marker = NivoBackupRecoveryState.Marker(backupId: "provider-json-provider", startedAt: Date(),
+            categories: ["providers"], runId: "provider", snapshotNames: names,
+            credentialRestore: .init(identifier: UUID(), targets: []),
+            providerSetupQueue: .init(changes: []))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(marker).write(to: markerFile, options: .atomic)
+        try await NivoProviderImportCommit.run(writeCredentials: {}, persist: {
+            try self.execute(connection, "INSERT INTO providers VALUES('custom');")
+        }, finish: {
+            let persisted = try XCTUnwrap(NivoBackupRecoveryState.read(markerFile).marker)
+            XCTAssertEqual(persisted.runId, "provider")
+            try NivoBackupRollbackFiles.finish(marker: markerFile, root: rollback)
+        }, isPending: { NivoBackupRecoveryState.read(markerFile).requiresRecovery }, rollback: {
+            try NivoSQLiteSnapshot.restore(from: saved, into: connection)
+        })
+        XCTAssertEqual(try scalar(connection, "SELECT id FROM providers"), "custom")
+        XCTAssertFalse(NivoBackupRecoveryState.read(markerFile).requiresRecovery)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: rollback.path))
+    }
+
+    /// 提供商使用WAL库；快照从准备到恢复都必须匹配同一份完整目录清单。
+    func testProviderWALSnapshotKeepsRecoveryManifestStableAcrossValidation() throws {
+        let root = try directory()
+        let rollback = root.appendingPathComponent("rollback-provider", isDirectory: true)
+        try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
+        let saved = rollback.appendingPathComponent("providers-provider-config.db")
+        let live = root.appendingPathComponent("provider-config.db")
+        try withDatabase(live) { database in
+            try execute(database, "PRAGMA journal_mode=WAL; CREATE TABLE items(value TEXT); INSERT INTO items VALUES('original');")
+            try NivoSQLiteSnapshot.capture(from: database, to: saved)
+            XCTAssertEqual(try scalar(database, "PRAGMA journal_mode"), "wal")
+            let sidecar = saved.appendingPathExtension("sqlite-path-of")
+            try Data(live.path.utf8).write(to: sidecar)
+            let names = try FileManager.default.contentsOfDirectory(atPath: rollback.path).sorted()
+            XCTAssertEqual(names, [saved.lastPathComponent, sidecar.lastPathComponent].sorted())
+            let prepared = try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names)
+            XCTAssertEqual(prepared.count, 1)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: rollback.path).sorted(), names)
+            let recovered = try NivoBackupRollbackFiles.entries(in: rollback, expectedNames: names)
+            XCTAssertEqual(recovered.first?.kind, .sqlite)
+            try execute(database, "UPDATE items SET value='changed';")
+            try NivoSQLiteSnapshot.restore(from: saved, into: database)
+            XCTAssertEqual(try scalar(database, "SELECT value FROM items"), "original")
+            XCTAssertEqual(try scalar(database, "PRAGMA journal_mode"), "wal")
+        }
+    }
+
     func testSnapshotIncludesCommittedWALAndRestoresThroughExistingConnection() throws {
         let root = try directory()
         let live = root.appendingPathComponent("live.db")

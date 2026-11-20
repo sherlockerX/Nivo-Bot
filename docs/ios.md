@@ -62,6 +62,32 @@ product and model-guide links, privacy information, the GPL license and upstream
 The unused online update requester and GitHub release fallback have also been removed from
 the iOS build; local release-catalog parsing and version validation remain covered by tests.
 
+## Provider saves and local recovery
+
+Provider creation, JSON import and key changes share a local rollback transaction. New SQLite
+snapshots are sealed as single files. Recovery also accepts the exact WAL/SHM companions of an
+older registered WAL snapshot, checks their file types, and reads committed WAL data through
+SQLite. Missing registered files and unrelated files still block recovery; the app never fixes
+a recovery error by deleting the user's database or discarding its WAL.
+
+Save errors include a `PV-` diagnostic code identifying the failing stage and NSError bridge code.
+The code contains no API key, endpoint or file path. Original and rollback failures are logged
+separately. If saving still fails, retain the form and report this code with the action taken.
+
+Custom model ID edits keep the original model UUID and update group and conversation references.
+An ID already used by another model in the same provider is rejected. Model add/edit and new-group
+forms wait for local persistence and retain input on failure. A model-list response from before a
+provider change or restore cannot replace the newer catalogue. Removing a group also clears any
+voice input or output selection pointing to it.
+
+Editing a model preserves reasoning tiers, thinking limits and capabilities not exposed by the
+form. Renaming a dedicated speech or video model keeps its input and output directions. Resetting
+a model with an unknown base context window clears the previous value instead of saving it again.
+
+The reported initial custom-provider failure has not yet been reproduced end to end on an iPhone.
+The confirmed recovery and model-editing defects are covered by regression tests; compilation
+and portable tests do not replace the [iPhone acceptance steps](ios-provider-save-verification.md).
+
 ## Built-in iCloud removal
 
 The personal iOS build no longer starts CloudKit sync, cloud migration or the legacy iCloud

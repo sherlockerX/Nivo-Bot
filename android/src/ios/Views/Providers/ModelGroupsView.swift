@@ -13,6 +13,10 @@ struct ModelGroupsView: View {
     /// until the confirmation alert is answered.
     @State private var editingGroupId: String?
     @State private var pendingDeleteGroup: ModelGroup?
+    // nanoMuse: 新分组及首次默认值需确认落盘，失败时保留名称供重试。
+    @State private var nmIsSaving = false
+    @State private var nmSaveError: String?
+    @State private var nmFormScope: NivoOAuthScope?
     // nanoMuse: 内置云同步已移除，旧偏好不能恢复强制同步入口。
     private let iCloudSyncEnabled = false
 
@@ -138,6 +142,9 @@ struct ModelGroupsView: View {
         }
         .navigationTitle("Model Groups")
         .navigationBarTitleDisplayMode(.inline)
+        // nanoMuse: 保存时禁止重复创建，账户范围固定在页面首次打开时。
+        .disabled(nmIsSaving)
+        .onAppear { if nmFormScope == nil { nmFormScope = NivoOAuthAccess.captureScope() } }
         .sheet(isPresented: $showAddAgentModels) {
             NavigationStack {
                 UnifiedModelPicker(config: .agentLoopAddModels())
@@ -199,6 +206,14 @@ struct ModelGroupsView: View {
             } label: { EmptyView() }
             .opacity(0)
         }
+        // nanoMuse: 磁盘失败留在列表并允许重新打开仍带原名称的创建表单。
+        .alert(AppLocalized("Could not save"), isPresented: Binding(
+            get: { nmSaveError != nil }, set: { if !$0 { nmSaveError = nil } }
+        )) {
+            Button(AppLocalized("Retry")) { showCreateGroup = true }
+            Button(AppLocalized("Cancel"), role: .cancel) {}
+        } message: { Text(nmSaveError ?? "") }
+        .overlay { if nmIsSaving { ProgressView(AppLocalized("Saving…")) } }
         // Names the group and spells out the consequence the store actually
         // has: removeGroup clears any default / voice / vision pointer aimed
         // at it, which is not obvious from "delete a group".
@@ -230,13 +245,15 @@ struct ModelGroupsView: View {
     // MARK: - Actions
 
     private func createGroup() {
-        let trimmed = newGroupName.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        // nanoMuse: 单次候选包含新分组与默认选择，后台排队不等于成功。
+        let trimmed = newGroupName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !nmIsSaving, let sourceScope = nmFormScope else { return }
         let group = ModelGroup(name: trimmed, memberEntryIds: [])
-        store.addGroup(group)
-        // Auto-set as primary default if it's the first group
-        if store.modelGroups.count == 1 {
-            store.defaultPrimaryGroupId = group.id
+        nmIsSaving = true
+        Task {
+            defer { nmIsSaving = false }
+            do { try await store.nmAddGroup(group, sourceScope: sourceScope) }
+            catch { nmSaveError = error.localizedDescription }
         }
     }
 
