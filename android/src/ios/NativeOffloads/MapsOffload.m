@@ -118,6 +118,24 @@ static NSDictionary *resolve_endpoint(NSDictionary *endpoint, NSString *name, NS
     return result.data;
 }
 
+// nanoMuse:搜索返回值先验证再创建CLLocation，避免非法坐标进入距离计算。
+static BOOL maps_search_coordinate_is_valid(CLLocationCoordinate2D coordinate) {
+    return isfinite(coordinate.latitude) && isfinite(coordinate.longitude) &&
+        CLLocationCoordinate2DIsValid(coordinate);
+}
+
+/// 搜索结果只序列化有效坐标和有限非负距离，保留原有整米精度且避免整数强制转换溢出。
+static NSDictionary *maps_search_measurements(CLLocationCoordinate2D coordinate, double distance) {
+    if (!maps_search_coordinate_is_valid(coordinate) || !isfinite(distance) || distance < 0) return nil;
+    return @{@"lat": @(coordinate.latitude), @"lon": @(coordinate.longitude), @"distance_m": @(round(distance))};
+}
+
+/// 异常供应商结果终止本次搜索，不伪造零距离或忽略异常项后声称完整成功。
+static NSError *maps_invalid_search_result(void) {
+    return NivoMapsErrorAtStage(NivoMapsMakeError(NivoMapsErrorNoData,
+        @"Search returned invalid coordinates or distance.", @{}), @"search_result");
+}
+
 // ── Subcommands ──
 
 // nanoMuse:只接收完整验证后的请求，超时后取消实际服务且封闭结果写入。
@@ -158,14 +176,25 @@ static int cmd_search(NivoMapsRequest *input, int stdout_fd, BOOL compact, BOOL 
 
             NSMutableArray *results = [NSMutableArray array];
             for (MKMapItem *item in items) {
+                // nanoMuse:坐标与距离异常返回失败，不能穿透到JSON序列化后仍报告成功退出。
+                CLLocationCoordinate2D coordinate = item.placemark.coordinate;
+                if (!maps_search_coordinate_is_valid(coordinate)) {
+                    [result finish:nil error:maps_invalid_search_result()];
+                    return;
+                }
+                CLLocation *itemLoc = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
+                NSDictionary *measurements = maps_search_measurements(coordinate, [centerLoc distanceFromLocation:itemLoc]);
+                if (measurements == nil) {
+                    [result finish:nil error:maps_invalid_search_result()];
+                    return;
+                }
                 NSMutableDictionary *d = [NSMutableDictionary dictionary];
                 d[@"name"] = item.name ?: @"";
 
                 // nanoMuse:共用地址字段提取，不对既有坐标体系作猜测性改写。
                 d[@"address"] = maps_address(item.placemark);
 
-                d[@"lat"] = @(item.placemark.coordinate.latitude);
-                d[@"lon"] = @(item.placemark.coordinate.longitude);
+                [d addEntriesFromDictionary:measurements];
                 if (!gcj_isOutOfChina(center.latitude, center.longitude)) {
                     d[@"coordinate_system"] = @"GCJ-02";
                 }
@@ -177,12 +206,6 @@ static int cmd_search(NivoMapsRequest *input, int stdout_fd, BOOL compact, BOOL 
                 } else {
                     d[@"category"] = [NSNull null];
                 }
-
-                CLLocation *itemLoc = [[CLLocation alloc]
-                    initWithLatitude:item.placemark.coordinate.latitude
-                           longitude:item.placemark.coordinate.longitude];
-                double distM = [centerLoc distanceFromLocation:itemLoc];
-                d[@"distance_m"] = @((int)round(distM));
 
                 [results addObject:d];
             }
@@ -220,6 +243,12 @@ static NSDictionary *maps_measurements(double distance, double duration) {
              @"duration_minutes": @(round(duration / 6.0) / 10.0)};
 }
 
+// nanoMuse:每个步骤距离独立验证，总距离有效不代表所有步骤数值都可被JSON序列化。
+static NSDictionary *maps_route_step(NSString *instruction, double distance) {
+    if (!isfinite(distance) || distance < 0) return nil;
+    return @{@"instruction": instruction, @"distance_m": @(round(distance))};
+}
+
 /// 只提取供应商提供的路线信息，所有原生对象留在主线程回调内。
 static void maps_route_result(MKDirections *directions, NivoMapsAsyncResult *result) {
     [directions calculateDirectionsWithCompletionHandler:^(MKDirectionsResponse *response, NSError *error) {
@@ -233,8 +262,14 @@ static void maps_route_result(MKDirections *directions, NivoMapsAsyncResult *res
         }
         NSMutableArray *steps = [NSMutableArray array];
         for (MKRouteStep *step in route.steps) {
+            NSDictionary *stepData = maps_route_step(step.instructions, step.distance);
+            if (stepData == nil) {
+                [result finish:nil error:NivoMapsErrorAtStage(NivoMapsMakeError(
+                    NivoMapsErrorNoData, @"Route returned an invalid step distance.", @{}), @"route_step")];
+                return;
+            }
             if (step.instructions.length == 0) continue;
-            [steps addObject:@{@"instruction": step.instructions, @"distance_m": @(round(step.distance))}];
+            [steps addObject:stepData];
         }
         NSMutableDictionary *data = [measurements mutableCopy];
         data[@"steps"] = steps;

@@ -183,6 +183,78 @@ static void testCommandEntry(void) {
     maps_require([NSJSONSerialization isValidJSONObject:capturedOutput], @"真实入口错误可序列化");
 }
 
+/// 注入异常供应商坐标和距离，验证生产搜索输出规则在序列化前拒绝它们。
+static void testSearchResultNumbers(void) {
+    CLLocationCoordinate2D valid = CLLocationCoordinate2DMake(-30, -120);
+    CLLocationCoordinate2D invalid[] = {
+        {NAN, 1}, {1, NAN}, {INFINITY, 1}, {1, INFINITY}, {-INFINITY, 1}, {1, -INFINITY},
+        {91, 1}, {-91, 1}, {1, 181}, {1, -181},
+    };
+    for (NSUInteger index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+        maps_require(!maps_search_coordinate_is_valid(invalid[index]), @"异常坐标不能创建搜索结果位置对象");
+        maps_require(maps_search_measurements(invalid[index], 10) == nil, @"异常坐标不能进入JSON");
+    }
+    double invalidDistances[] = {NAN, INFINITY, -INFINITY, -1};
+    for (NSUInteger index = 0; index < sizeof(invalidDistances) / sizeof(invalidDistances[0]); index++) {
+        maps_require(maps_search_measurements(valid, invalidDistances[index]) == nil, @"异常搜索距离不能补零或通过");
+    }
+    NSDictionary *zero = maps_search_measurements(valid, 0);
+    maps_require([zero[@"lat"] doubleValue] == -30 && [zero[@"lon"] doubleValue] == -120 &&
+        [zero[@"distance_m"] doubleValue] == 0, @"合法负经纬度和零距离保留原义");
+    NSDictionary *rounded = maps_search_measurements(valid, 12.6);
+    maps_require([rounded[@"distance_m"] doubleValue] == 13 && [NSJSONSerialization isValidJSONObject:rounded],
+        @"正常搜索距离仍按整米输出且可序列化");
+    maps_require(emit_maps_error(@"search", maps_invalid_search_result(), -1, NO, NO) == NOFF_EXIT_ERROR,
+        @"供应商异常搜索结果必须返回失败退出码");
+    maps_require([capturedOutput[@"error"][@"stage"] isEqualToString:@"search_result"] &&
+        [NSJSONSerialization isValidJSONObject:capturedOutput], @"搜索异常有可序列化的具体阶段");
+}
+
+/// 每条步骤独立拒绝非有限和负距离，合法零距离与原有整米精度继续可用。
+static void testRouteStepNumbers(void) {
+    double invalidDistances[] = {NAN, INFINITY, -INFINITY, -1};
+    for (NSUInteger index = 0; index < sizeof(invalidDistances) / sizeof(invalidDistances[0]); index++) {
+        maps_require(maps_route_step(@"Turn", invalidDistances[index]) == nil, @"异常步骤距离不能被序列化或替换成零");
+    }
+    NSDictionary *zero = maps_route_step(@"Arrive", 0);
+    NSDictionary *rounded = maps_route_step(@"Continue", 12.6);
+    maps_require(zero != nil && [zero[@"distance_m"] doubleValue] == 0, @"合法零距离步骤保留");
+    maps_require([rounded[@"distance_m"] doubleValue] == 13 && [NSJSONSerialization isValidJSONObject:rounded],
+        @"正常步骤仍按整米输出且可序列化");
+}
+
+/// 仅构造区域并赋给请求，覆盖全球尺度和极区；不创建搜索服务或启动网络。
+static void testSearchRegionBounds(void) {
+    double latitudes[] = {0, 85, 89.99999, 90, -90};
+    double radii[] = {1000, 20000000};
+    NSUInteger failures = 0;
+    for (NSUInteger latitudeIndex = 0; latitudeIndex < sizeof(latitudes) / sizeof(latitudes[0]); latitudeIndex++) {
+        for (NSUInteger radiusIndex = 0; radiusIndex < sizeof(radii) / sizeof(radii[0]); radiusIndex++) {
+            double latitude = latitudes[latitudeIndex];
+            double radius = radii[radiusIndex];
+            @try {
+                MKCoordinateRegion region = MKCoordinateRegionMakeWithDistance(
+                    CLLocationCoordinate2DMake(latitude, 0), radius * 2, radius * 2);
+                MKLocalSearchRequest *request = [[MKLocalSearchRequest alloc] init];
+                request.region = region;
+                MKCoordinateRegion assigned = request.region;
+                BOOL valid = CLLocationCoordinate2DIsValid(assigned.center) &&
+                    isfinite(assigned.span.latitudeDelta) && assigned.span.latitudeDelta > 0 && assigned.span.latitudeDelta <= 180 &&
+                    isfinite(assigned.span.longitudeDelta) && assigned.span.longitudeDelta > 0 && assigned.span.longitudeDelta <= 360;
+                printf("Maps region probe lat=%.5f radius=%.0f center=%.8f,%.8f span=%.8f,%.8f valid=%s\n",
+                    latitude, radius, assigned.center.latitude, assigned.center.longitude,
+                    assigned.span.latitudeDelta, assigned.span.longitudeDelta, valid ? "yes" : "no");
+                if (!valid) failures++;
+            } @catch (NSException *exception) {
+                NSLog(@"Maps region probe lat=%.5f radius=%.0f exception=%@ reason=%@",
+                    latitude, radius, exception.name, exception.reason);
+                failures++;
+            }
+        }
+    }
+    maps_require(failures == 0, @"区域构造或赋值存在异常，需依据探针输出处理，不提前推测半径上限");
+}
+
 /// macOS命令行入口仅执行注入数据，不触发定位权限或真实网络。
 int main(void) {
     @autoreleasepool {
@@ -191,6 +263,9 @@ int main(void) {
         testAsyncBoundary();
         testConcurrentCompletion();
         testCommandEntry();
+        testSearchResultNumbers();
+        testRouteStepNumbers();
+        testSearchRegionBounds();
         puts("Nivo Maps protocol checks passed");
     }
     return 0;
