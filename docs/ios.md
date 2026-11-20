@@ -88,6 +88,19 @@ page explains the iOS operation limits. These pages and the main shell no longer
 computer relay, coding-agent relay or remote-approval sheets. User-configured API providers,
 MCP connections and local routines remain available.
 
+## Fragment photo imports
+
+The fragment editor marks a photo import as busy before reading the selected image, including
+the time the system photo picker needs to download an original. Save, Close and Discard wait
+for the import to finish. Cancel stops that import and keeps the editable draft; a delayed
+result from a canceled import cannot replace a newer selection or change a closed editor.
+Changing the local data scope also invalidates the pending result.
+
+Opening Camera first saves the current draft. If that write fails, the editor shows the error
+and keeps the camera closed. Canceling the camera therefore leaves the preceding text saved.
+These protections have portable regression coverage; system photo downloads, camera permission
+prompts and the visible transitions still require an iPhone check.
+
 ## Where it lives
 
 `android/` is the whole OpenMinis repository as a `git subtree`, not just the Android app. The

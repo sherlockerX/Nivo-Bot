@@ -8,6 +8,12 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 - Rebuilt the Android Coach page around a list of skills: a continue card, one card per skill with its current unit, progress and today's status, and a profile per skill with its units as a checklist. Course records and results moved into each profile, and the header keeps only the calendar and Coach settings.
 - Added Android Coach settings for the lesson-preparation agent: what it does and cannot do, an on/off switch, its model, the default lesson length, the skills it reads and its last five runs.
+- Split Android CI debug/test and release builds into sequential Gradle processes with one worker each to avoid sharing the Kotlin compiler heap across both variants.
+
+## [2.0.6] - 2026-11-19 · Harbor
+
+- Prepared iOS 2.0.6 (57) for an unsigned device build, covering local startup, optional model setup and the repaired daily-page presentations. The shared source versions move together; Android package availability remains as recorded in the download catalogue. See [2.0.6 build notes](docs/releases/v2.0.6.md) for the delivery scope and verification status.
+- Protected iOS fragment drafts throughout photo loading, offered import cancellation, rejected stale media callbacks and saved the draft before opening Camera so canceling capture preserves existing text.
 - Fixed iOS pages that opened blank: a new daily fragment, starting focus, the focus reminder, task details, groups and tags, and the Coach training calendar.
 - Gave the iOS daily fragments page the Android layout: a greeting and the date, the day's shape with its empty places outlined, and Camera, Album and Reflection buttons.
 - Made iOS All settings, Manage routines, the Settings Avatar row and the agent page's Avatar studio open again; each had tried to open a second page while the first was closing.
@@ -23,7 +29,6 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 - Removed obsolete computer-relay links, coding-relay sheets and remote approval prompts from iOS local settings and navigation, while preserving local routines and user-configured API and MCP access.
 - Removed the personal iOS build's built-in CloudKit sync and iCloud backup entry points, including background startup, debug access and cloud entitlements, while retaining local backups and existing data.
 - Prevented iOS startup from crashing when personal signing removes App Group access, kept main-app storage in one persistent local fallback, and made unavailable extensions fail without creating inaccessible copies.
-- Split Android CI debug/test and release builds into sequential Gradle processes with one worker each to avoid sharing the Kotlin compiler heap across both variants.
 
 ## [2.0.5] - 2026-11-19 · Cadence
 

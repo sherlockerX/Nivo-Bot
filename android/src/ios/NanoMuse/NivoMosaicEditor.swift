@@ -16,14 +16,14 @@ struct NivoMosaicEditor: View {
     @ObservedObject private var life = NivoLifeModel.shared
     @Environment(\.dismiss) private var dismiss
     @State private var photo: PhotosPickerItem?
-    @State private var isImporting = false
+    @StateObject private var mediaLifecycle = NivoMosaicEditorLifecycle()
+    @State private var importTask: Task<Void, Never>?
     @State private var isSubmitting = false
     @State private var autosave: Task<Void, Never>?
     @State private var pendingSave: NivoMosaicDraft?
     @State private var operationID = UUID().uuidString
     @State private var errorMessage: String?
     @State private var discardOpen = false
-    @State private var hasFinished = false
     @State private var isCameraOpen = false
     @State private var isAlbumOpen = false
     @State private var hasStarted = false
@@ -31,6 +31,8 @@ struct NivoMosaicEditor: View {
     private var canSave: Bool {
         NivoMosaicRules.canSave(draft)
     }
+
+    private var hasFinished: Bool { mediaLifecycle.hasFinished }
 
     private var latestEditableDate: Date {
         guard let original = model.entries.first(where: { $0.id == draft.entryID }) else { return Date() }
@@ -81,41 +83,48 @@ struct NivoMosaicEditor: View {
                 Section {
                     Text(AppLocalized("Task changes are applied only when you save this fragment."))
                         .font(.footnote).foregroundStyle(.secondary)
-                    Button(AppLocalized("Discard draft"), role: .destructive) { discardOpen = true }.disabled(isImporting)
+                    Button(AppLocalized("Discard draft"), role: .destructive) { discardOpen = true }.disabled(mediaLifecycle.isBusy)
                 }
             }
             .navigationTitle(draft.entryID == nil ? AppLocalized("New fragment") : AppLocalized("Edit fragment"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(AppLocalized("Close")) { Task { await closeKeepingDraft() } } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(AppLocalized("Close")) { Task { await closeKeepingDraft() } }.disabled(mediaLifecycle.isBusy)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     if isSubmitting { ProgressView() }
-                    else { Button(AppLocalized("Save")) { Task { await save() } }.disabled(!canSave || isImporting) }
+                    else { Button(AppLocalized("Save")) { Task { await save() } }.disabled(!canSave || mediaLifecycle.isBusy) }
                 }
             }
-            .disabled(isSubmitting || hasFinished || life.accessScope != access)
+            .disabled(isSubmitting || mediaLifecycle.isPreparingCamera || hasFinished || life.accessScope != access)
             .interactiveDismissDisabled()
             .nmOnChange(of: draft) { value in queueDraft(value) }
-            .nmOnChange(of: photo) { item in if let item { Task { await importPhoto(item) } } }
+            .nmOnChange(of: photo) { item in if let item { importPhoto(item) } }
             .photosPicker(isPresented: $isAlbumOpen, selection: $photo, matching: .images)
             .fullScreenCover(isPresented: $isCameraOpen) {
-                CameraPicker { image in Task { await importImage(image) } }.ignoresSafeArea()
+                CameraPicker { image in importImage(image) }.ignoresSafeArea()
             }
             .task {
                 // 只在第一次出现时执行，旋转或返回不会再次弹出选择器。等编辑器的弹出动画结束再呈现，
                 // 动画期间呈现第二层会被系统忽略。
                 guard !hasStarted, startAction != nil else { return }
                 hasStarted = true
-                try? await Task.sleep(nanoseconds: 450_000_000)
+                do { try await Task.sleep(nanoseconds: 450_000_000) }
+                catch { return }
+                guard !hasFinished, life.accessScope == access else { return }
                 switch startAction {
-                case .camera?: isCameraOpen = true
+                case .camera?: await openCamera()
                 case .album?: isAlbumOpen = true
                 case nil: break
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .nanoMuseAccountSwitched)) { _ in autosave?.cancel(); dismiss() }
-            .nmOnChange(of: life.accessScope) { if $0 != access { autosave?.cancel(); dismiss() } }
-            .onDisappear { autosave?.cancel() }
+            .onReceive(NotificationCenter.default.publisher(for: .nanoMuseAccountSwitched)) { _ in finishEditing(); dismiss() }
+            .nmOnChange(of: life.accessScope) { if $0 != access { finishEditing(); dismiss() } }
+            .onDisappear {
+                // 系统照片选择器覆盖编辑器不代表结束；相机打开前已保存草稿，回调仍须能正常导入。
+                if !isCameraOpen && !isAlbumOpen { finishEditing() }
+            }
             .confirmationDialog(AppLocalized("Discard this saved draft?"), isPresented: $discardOpen, titleVisibility: .visible) {
                 Button(AppLocalized("Discard draft"), role: .destructive) {
                     Task { await discardDraft() }
@@ -135,14 +144,20 @@ struct NivoMosaicEditor: View {
                 Button(AppLocalized("Remove photo"), role: .destructive) { draft.mediaPath = nil; draft.crop = nil }
             }
             HStack(spacing: 12) {
-                Button { isCameraOpen = true } label: {
+                Button { Task { await openCamera() } } label: {
                     Label(AppLocalized("Camera"), systemImage: "camera").frame(maxWidth: .infinity)
                 }.buttonStyle(.bordered)
                 Button { isAlbumOpen = true } label: {
                     Label(AppLocalized("Album"), systemImage: "photo.on.rectangle").frame(maxWidth: .infinity)
                 }.buttonStyle(.bordered)
-            }.disabled(isImporting)
-            if isImporting { ProgressView(AppLocalized("Importing photo")) }
+            }.disabled(mediaLifecycle.isBusy)
+            if mediaLifecycle.isImporting {
+                HStack {
+                    ProgressView(AppLocalized("Importing photo"))
+                    Spacer()
+                    Button(AppLocalized("Cancel")) { cancelImport() }.buttonStyle(.borderless)
+                }
+            }
             Text(AppLocalized("Photos stay on this device. The coach can read your text and whether a photo is attached, not its contents."))
                 .font(.footnote).foregroundStyle(.secondary)
         }
@@ -290,7 +305,7 @@ struct NivoMosaicEditor: View {
     }
 
     private func queueDraft(_ value: NivoMosaicDraft) {
-        guard !isSubmitting, !hasFinished else { return }
+        guard !isSubmitting, !hasFinished, life.accessScope == access else { return }
         pendingSave = nil
         operationID = UUID().uuidString
         let previous = autosave
@@ -316,7 +331,7 @@ struct NivoMosaicEditor: View {
     }
 
     private func save() async {
-        guard !isSubmitting, !hasFinished else { return }
+        guard !isSubmitting, !mediaLifecycle.isBusy, !hasFinished else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         await finishAutosave()
@@ -326,12 +341,12 @@ struct NivoMosaicEditor: View {
             pendingSave = candidate
         }
         guard let candidate = pendingSave else { return }
-        if await model.save(candidate, operationID: operationID, scope: access) { hasFinished = true; dismiss() }
+        if await model.save(candidate, operationID: operationID, scope: access) { finishEditing(); dismiss() }
         else { errorMessage = model.errorMessage }
     }
 
     private func closeKeepingDraft() async {
-        guard !isSubmitting, !isImporting, !hasFinished else { return }
+        guard !isSubmitting, !mediaLifecycle.isBusy, !hasFinished else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         await finishAutosave()
@@ -339,48 +354,81 @@ struct NivoMosaicEditor: View {
             var candidate = draft
             candidate.updatedAt = NivoMosaicViewModel.now
             try await model.saveDraft(candidate, scope: access)
-            hasFinished = true
+            finishEditing()
             dismiss()
         } catch { errorMessage = NivoLifeModel.message(error) }
     }
 
     /// 放弃期间冻结输入并排空自动保存，避免删除后迟到写入重新生成草稿。
     private func discardDraft() async {
-        guard !isSubmitting, !isImporting, !hasFinished else { return }
+        guard !isSubmitting, !mediaLifecycle.isBusy, !hasFinished else { return }
         isSubmitting = true
         defer { isSubmitting = false }
         await finishAutosave()
-        if await model.discard(draft, scope: access) { hasFinished = true; dismiss() }
+        if await model.discard(draft, scope: access) { finishEditing(); dismiss() }
         else { errorMessage = model.errorMessage }
     }
 
-    /// 拍照得到的图片按JPEG保存，和相册导入走同一条存储路径。
-    private func importImage(_ image: UIImage) async {
-        guard let data = image.jpegData(compressionQuality: 0.9) else {
-            errorMessage = AppLocalized("The photo could not be read. Try another one.")
-            return
+    /// 相机展示前排空防抖任务并保存当前草稿；失败时留在编辑器中显示错误。
+    private func openCamera() async {
+        guard !isSubmitting, !isCameraOpen, !isAlbumOpen else { return }
+        await mediaLifecycle.prepareCamera(saveDraft: {
+            await finishAutosave()
+            var candidate = draft
+            candidate.updatedAt = NivoMosaicViewModel.now
+            try await model.saveDraft(candidate, scope: access)
+        }, scopeIsCurrent: { life.accessScope == access }, present: {
+            isCameraOpen = true
+        }, onError: { errorMessage = NivoLifeModel.message($0) })
+    }
+
+    /// 拍照回调同步取得导入身份，编码和媒体落盘共用同一次操作。
+    private func importImage(_ image: UIImage) {
+        guard isCameraOpen else { return }
+        beginImport {
+            guard let data = image.jpegData(compressionQuality: 0.9) else { throw NivoFocusBackgroundError.unreadable }
+            return data
         }
-        await importData(data)
     }
 
-    private func importPhoto(_ item: PhotosPickerItem) async {
-        defer { photo = nil }
-        do {
-            guard let data = try await item.loadTransferable(type: Data.self) else { throw NivoLifeError.accountChanged }
-            await importData(data)
-        } catch { errorMessage = NivoLifeModel.message(error) }
+    /// 从相册读取之前即占用导入状态，云端原图下载期间也不能提前保存或关闭。
+    private func importPhoto(_ item: PhotosPickerItem) {
+        beginImport {
+            guard let data = try await item.loadTransferable(type: Data.self) else { throw NivoFocusBackgroundError.unreadable }
+            return data
+        }
     }
 
-    private func importData(_ data: Data) async {
-        guard !isImporting else { return }
-        isImporting = true
-        defer { isImporting = false }
-        do {
-            guard life.accessScope == access else { throw NivoLifeError.accountChanged }
-            let path = try await NivoMosaicMediaStore.shared.add(data, scope: access)
-            guard life.accessScope == access else { return }
-            draft.mediaPath = path
-            draft.crop = NivoMosaicCrop()
-        } catch { errorMessage = NivoLifeModel.message(error) }
+    private func beginImport(read: @escaping @MainActor () async throws -> Data) {
+        guard !isSubmitting, life.accessScope == access,
+              let identifier = mediaLifecycle.beginImport() else { return }
+        importTask = Task { @MainActor in
+            let canClearSelection = await mediaLifecycle.importPhoto(id: identifier, read: read, store: {
+                try await NivoMosaicMediaStore.shared.add($0, scope: access)
+            }, scopeIsCurrent: { life.accessScope == access }, apply: { path in
+                draft.mediaPath = path
+                draft.crop = NivoMosaicCrop()
+            }, onError: { errorMessage = NivoLifeModel.message($0) })
+            // 已取消的读取可能迟到返回，不能清掉下一次选图或取消下一次操作的任务句柄。
+            if canClearSelection {
+                photo = nil
+                importTask = nil
+            }
+        }
+    }
+
+    /// 云端原图读取再慢也可主动退出；先撤销身份，再取消不一定响应取消的系统任务。
+    private func cancelImport() {
+        mediaLifecycle.cancelImport()
+        importTask?.cancel()
+        importTask = nil
+        photo = nil
+    }
+
+    /// 结束时撤销身份再取消任务，底层忽略取消也无法把照片写回旧草稿。
+    private func finishEditing() {
+        mediaLifecycle.finish()
+        importTask?.cancel()
+        autosave?.cancel()
     }
 }
