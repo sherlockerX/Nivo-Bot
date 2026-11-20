@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from build_site import build
-from check_site import check, site_files, validate_releases
+from check_site import CORE_FILES, Page, check, site_files, validate_releases
 from content import FEATURES, PROVIDERS
 from deploy_netcatty import deploy, unpack
 from render_site import (
@@ -264,6 +264,218 @@ class ProductSiteTests(unittest.TestCase):
                 bundle.addfile(member)
             with self.assertRaisesRegex(ValueError, "Unexpected deployment archive entry"):
                 unpack(archive, folder / "release")
+
+
+class ResponsiveImageTests(unittest.TestCase):
+    """响应图片的每个候选都必须存在于发布白名单内，只开放实际需要的位图格式。"""
+
+    def setUp(self) -> None:
+        """复制站点到独立临时目录，图片测试不修改页面源或生成产物。"""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name) / "site"
+        shutil.copytree(ROOT, self.root)
+        self.page = self.root / "features/chat.html"
+
+    def append_markup(self, markup: str) -> None:
+        """向测试页面添加资源引用，保留既有页面检查条件。"""
+        self.page.write_text(self.page.read_text(encoding="utf-8") + markup, encoding="utf-8")
+
+    def publish_asset(self, name: str) -> None:
+        """创建路径占位并列入白名单，本检查器只验证资源引用而不解码图片。"""
+        asset = self.root / name
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_bytes(b"image-path-fixture")
+        manifest_path = self.root / "site-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["files"].append(name)
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    def test_img_and_source_srcset_collect_every_candidate_url(self) -> None:
+        """本站使用逗号分隔的候选，可带宽度或像素密度描述符及查询参数。"""
+        parser = Page()
+        parser.feed(
+            '<picture><source srcset="../media/shot.webp?v=2&amp;fit=contain 480w, '
+            '../media/shot-large.webp?v=2 960w">'
+            '<img alt="应用截图" src="../brand-mark.svg" '
+            'srcset="../media/shot.png?v=2 1x,\n ../media/shot-large.png?v=2 2x">'
+            "</picture>"
+        )
+        self.assertEqual(
+            parser.links,
+            [
+                "../media/shot.webp?v=2&fit=contain",
+                "../media/shot-large.webp?v=2",
+                "../brand-mark.svg",
+                "../media/shot.png?v=2",
+                "../media/shot-large.png?v=2",
+            ],
+        )
+
+    def test_srcset_missing_candidate_is_rejected_despite_valid_fallback(self) -> None:
+        """有效的默认图和首候选不能掩盖img或source的另一张缺失图。"""
+        self.append_markup(
+            '<picture><source srcset="../brand-mark.svg 480w, ../media/missing.webp?v=2 960w">'
+            '<img alt="应用截图" src="../brand-mark.svg" '
+            'srcset="../brand-mark.svg 1x, ../media/missing.png?v=2 2x"></picture>'
+        )
+        report = check(self.root)
+        self.assertFalse(report["passed"])
+        for candidate in ("../media/missing.webp?v=2", "../media/missing.png?v=2"):
+            self.assertIn(
+                f"features/chat.html: Missing local target: {candidate}", report["errors"]
+            )
+
+    def test_srcset_existing_unlisted_candidate_is_rejected(self) -> None:
+        """磁盘上的候选若未列入发布白名单，也不能被误判为可用资源。"""
+        for name in ("unlisted.png", "unlisted.webp"):
+            (self.root / "media" / name).write_bytes(b"unlisted-image-fixture")
+        self.append_markup(
+            '<picture><source srcset="../media/unlisted.webp?width=640 640w">'
+            '<img alt="应用截图" src="../brand-mark.svg" '
+            'srcset="../media/unlisted.png?v=3 1x"></picture>'
+        )
+        report = check(self.root)
+        self.assertFalse(report["passed"])
+        for candidate in ("../media/unlisted.webp?width=640", "../media/unlisted.png?v=3"):
+            self.assertIn(
+                f"features/chat.html: Target excluded from deployment: {candidate}",
+                report["errors"],
+            )
+
+    def test_published_png_and_webp_allow_relative_paths_and_queries(self) -> None:
+        """PNG与WebP能随白名单发布，嵌套页的../及查询参数仍解析到正确文件。"""
+        for name in ("shot.png", "shot.webp", "shot-large.webp"):
+            self.publish_asset("media/" + name)
+        self.append_markup(
+            '<picture><source srcset="../media/shot.webp?v=2&amp;fit=contain 480w, '
+            '../media/shot-large.webp?v=2 960w">'
+            '<img alt="应用截图" src="../media/shot.png?v=2" '
+            'srcset="../media/shot.png?v=2 1x, ../media/shot-large.webp?v=2 2x"></picture>'
+        )
+        report = check(self.root)
+        self.assertTrue(report["passed"], report["errors"])
+        output = self.root.parent / "output"
+        published = build(self.root, output)
+        for name in ("shot.png", "shot.webp", "shot-large.webp"):
+            self.assertIn("media/" + name, published)
+            self.assertEqual((output / "media" / name).read_bytes(), b"image-path-fixture")
+
+
+class OpenGraphImageTests(unittest.TestCase):
+    """使用独立最小站点验证分享预览资源，不依赖模拟器截图准备进度。"""
+
+    def setUp(self) -> None:
+        """构造检查器所需的公开元信息，全部文件仅写入测试临时目录。"""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name) / "site"
+        self.root.mkdir()
+        self.files = sorted(CORE_FILES | {"features/chat.html"})
+        for name in self.files:
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("<h1>测试页</h1>" if name.endswith(".html") else "", encoding="utf-8")
+        (self.root / "index.html").write_text(
+            '<h1>测试站点</h1><meta name="google-site-verification" content="fixture">'
+            '<meta name="msvalidate.01" content="1BD387A09BAFE629130E03EFB5265857">'
+            '<script type="application/ld+json">{"@type":"SoftwareApplication",'
+            '"operatingSystem":"Android 8.0 and later"}</script>',
+            encoding="utf-8",
+        )
+        (self.root / "releases.json").write_text(
+            '{"schemaVersion":2,"platforms":[],"releases":[]}', encoding="utf-8"
+        )
+        (self.root / "release.json").write_text('{"channel":"stable"}', encoding="utf-8")
+        (self.root / "sitemap.xml").write_text("<lastmod>2026-11-19</lastmod>", encoding="utf-8")
+        self.write_manifest()
+        self.assertTrue(check(self.root)["passed"])
+
+    def write_manifest(self) -> None:
+        """更新当前独立夹具的发布清单。"""
+        (self.root / "site-manifest.json").write_text(
+            json.dumps({"schemaVersion": 1, "files": self.files}), encoding="utf-8"
+        )
+
+    def set_preview(self, value: str, property_name: str = "og:image") -> None:
+        """从嵌套详情页引用图片，以验证绝对地址按站点根目录解析。"""
+        (self.root / "features/chat.html").write_text(
+            f'<h1>聊天</h1><meta property="{property_name}" content="{value}">',
+            encoding="utf-8",
+        )
+
+    def test_missing_absolute_same_origin_image_fails(self) -> None:
+        """缺少OG图片时，即使该页面没有img标签也必须阻止发布。"""
+        address = "https://nivo.8666886.xyz/media/screenshots/chat.png?v=fixture"
+        self.set_preview(address)
+        report = check(self.root)
+        self.assertFalse(report["passed"])
+        self.assertIn(
+            f"features/chat.html: Missing local Open Graph image: {address}", report["errors"]
+        )
+
+    def test_existing_image_outside_manifest_fails(self) -> None:
+        """磁盘上已有截图但未加入部署白名单时，分享预览仍不可发布。"""
+        (self.root / "unlisted.png").write_bytes(b"path-validation-fixture")
+        address = "https://nivo.8666886.xyz/unlisted.png"
+        self.set_preview(address)
+        report = check(self.root)
+        self.assertFalse(report["passed"])
+        self.assertIn(
+            f"features/chat.html: Open Graph image excluded from deployment: {address}",
+            report["errors"],
+        )
+
+    def test_published_image_accepts_encoding_query_and_default_https_port(self) -> None:
+        """已发布图片支持URL编码、查询参数与显式默认HTTPS端口。"""
+        name = "media/screenshots/演示 shot.png"
+        target = self.root / name
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"path-validation-fixture")
+        self.files.append(name)
+        self.write_manifest()
+        self.set_preview(
+            "https://nivo.8666886.xyz:443/media/screenshots/"
+            "%E6%BC%94%E7%A4%BA%20shot.png?v=1&amp;preview=1"
+        )
+        report = check(self.root)
+        self.assertTrue(report["passed"], report["errors"])
+
+    def test_encoded_parent_path_cannot_escape_site(self) -> None:
+        """即使站点外存在同名文件，也不能把编码后的越界路径视为有效预览。"""
+        (self.root.parent / "outside.png").write_bytes(b"outside-fixture")
+        self.set_preview("https://nivo.8666886.xyz/%2e%2e/outside.png")
+        report = check(self.root)
+        self.assertFalse(report["passed"])
+        self.assertTrue(
+            any("Missing local Open Graph image" in error for error in report["errors"])
+        )
+
+    def test_external_origin_is_not_mapped_to_local_disk(self) -> None:
+        """外站或不同端口不属于当前部署源，检查器不假装已验证远端图片。"""
+        for address in (
+            "https://example.com/unlisted.png",
+            "https://nivo.8666886.xyz.example.com/unlisted.png",
+            "https://nivo.8666886.xyz:444/unlisted.png",
+        ):
+            with self.subTest(address=address):
+                self.set_preview(address)
+                report = check(self.root)
+                self.assertTrue(report["passed"], report["errors"])
+
+    def test_all_open_graph_image_aliases_are_checked(self) -> None:
+        """规范支持的图片地址别名不能绕过同源资源检查。"""
+        for name in ("og:image", "og:image:url", "og:image:secure_url"):
+            with self.subTest(property=name):
+                self.set_preview("https://nivo.8666886.xyz/missing.png", name)
+                self.assertFalse(check(self.root)["passed"])
+
+    def test_empty_open_graph_image_url_fails(self) -> None:
+        """空content不能当作未声明预览而静默放过。"""
+        self.set_preview(" ")
+        report = check(self.root)
+        self.assertFalse(report["passed"])
+        self.assertIn("features/chat.html: Open Graph image missing URL", report["errors"])
 
 
 class DeploymentEvidenceTests(unittest.TestCase):

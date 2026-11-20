@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Redesigned the Nivo Bot product website with a daily-use story, a manual feature gallery, readable model guides and a clearer download page. Replaced application illustrations with original screenshots from a fresh Android emulator build using example records. Kept separate URLs and persistent navigation, restored both platform downloads after catalogue failures or timeouts, and improved keyboard navigation and search recovery.
+
 - Rebuilt the Android Coach page around a list of skills: a continue card, one card per skill with its current unit, progress and today's status, and a profile per skill with its units as a checklist. Course records and results moved into each profile, and the header keeps only the calendar and Coach settings.
 - Added Android Coach settings for the lesson-preparation agent: what it does and cannot do, an on/off switch, its model, the default lesson length, the skills it reads and its last five runs.
 - Fixed iOS pages that opened blank: a new daily fragment, starting focus, the focus reminder, task details, groups and tags, and the Coach training calendar.
