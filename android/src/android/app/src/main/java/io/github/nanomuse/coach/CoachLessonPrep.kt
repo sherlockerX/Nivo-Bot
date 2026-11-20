@@ -158,7 +158,10 @@ Output keys: task (what the learner will do, one or two sentences), reason (why 
                 it.minutes == minutes && it.need == need.trim() }?.let { return@withLock it }
             val base = CoachSkillProfile.basePlan(state, courseId, today, zone, minutes, need.trim(), now)
             val started = System.currentTimeMillis()
-            val (plan, attempts) = runCatching { draft(app, providers, state, base, minutes, need.trim(), now, zone) }
+            val settings = CoachPrepSettings.read(app)
+            // 用户在教练设置里关闭备课时，直接采用课程的基础练习，不调用模型。
+            val (plan, attempts) = if (!settings.isEnabled) base.copy(degradeReason = "prep_off") to 0
+                else runCatching { draft(app, providers, state, base, minutes, need.trim(), now, zone, settings.modelEntryId) }
                 .getOrElse { failure ->
                     if (failure is CancellationException) throw failure
                     base.copy(degradeReason = reason(failure)) to 0
@@ -175,8 +178,8 @@ Output keys: task (what the learner will do, one or two sentences), reason (why 
     }
 
     private suspend fun draft(context: Context, providers: ProviderRepository, state: CoachState, base: CoachLessonPlan,
-        minutes: Int, need: String, now: Long, zone: ZoneId): Pair<CoachLessonPlan, Int> {
-        val entry = candidate(providers) ?: return base.copy(degradeReason = "no_model") to 0
+        minutes: Int, need: String, now: Long, zone: ZoneId, modelEntryId: String): Pair<CoachLessonPlan, Int> {
+        val entry = candidate(providers, modelEntryId) ?: return base.copy(degradeReason = "no_model") to 0
         val instance = providers.instance(entry.providerInstanceId) ?: return base.copy(degradeReason = "no_model") to 0
         val apiKey = providers.usableApiKey(instance) ?: return base.copy(degradeReason = "no_model") to 0
         val provider = ProviderFactory.create(instance, apiKey, entry.model, context)
@@ -226,31 +229,54 @@ Output keys: task (what the learner will do, one or two sentences), reason (why 
         throw failure ?: IllegalStateException("prep_failed")
     }
 
-    /** 与旁聊同一默认模型；没有默认组时取第一个可见模型。 */
-    private fun candidate(providers: ProviderRepository): com.openminis.app.data.model.ModelEntry? {
+    /**
+     * 备课用的模型：设置里选定且仍可用时用它，否则与旁聊同一默认模型；
+     * 没有默认组时取第一个可见模型。
+     */
+    fun candidate(providers: ProviderRepository, preferredEntryId: String = ""): com.openminis.app.data.model.ModelEntry? {
+        preferredEntryId.takeIf { it.isNotBlank() }
+            ?.let { id -> modelChoices(providers).firstOrNull { it.id == id } }
+            ?.let { return it }
         val group = providers.defaultPrimaryGroupId?.let(providers::group)
         return group?.let { providers.availableMemberEntries(it).firstOrNull() } ?: providers.allVisibleEntries().firstOrNull()
     }
 
+    /** 设置页可选的模型：只列能输出文字的对话模型，排除语音、向量、图像和视频模型。 */
+    fun modelChoices(providers: ProviderRepository): List<com.openminis.app.data.model.ModelEntry> =
+        providers.allVisibleEntries().filter { entry ->
+            val outputs = entry.model.outputModalities
+            val id = entry.model.id.lowercase()
+            (outputs == null || outputs.isEmpty() || outputs.contains("text")) &&
+                NON_CHAT_MARKERS.none { id.contains(it) }
+        }
+
+    /** 一门课程备课时加载的skill：领域教学一份，练习与检验设计一份。 */
+    fun skillIds(course: CoachCourse): List<String> = listOf(when (course.kind) {
+        CoachKind.JUDGMENT -> "growth-principles"; CoachKind.PERSPECTIVES -> "growth-lenses"
+        CoachKind.ENGLISH -> "growth-english"; CoachKind.EXPRESSION -> "growth-expression"
+        CoachKind.LEADERSHIP -> "growth-leadership"; CoachKind.EXECUTION -> "growth-habits"
+        CoachKind.CUSTOM -> "growth-general"
+    }, "learning-coach")
+
+    /** 读取skill文本：优先用户可编辑的副本，其次应用自带的预置版本。 */
+    fun skillText(context: Context, id: String): String? =
+        runCatching { File(context.filesDir, "minis-global/skills/$id/SKILL.md").readText() }.getOrNull()
+            ?: runCatching { context.assets.open("preset/skills/$id/SKILL.md").bufferedReader().use { it.readText() } }.getOrNull()
+
+    /** skill文件头里的版本号，没有时为 "0"。 */
+    fun skillVersion(text: String): String = Regex("""(?m)^version:\s*(\S+)""").find(text)?.groupValues?.get(1) ?: "0"
+
     /** 按需加载的skills：领域教学一份，练习与检验设计一份，记录版本供质量对照。 */
-    private fun skills(context: Context, course: CoachCourse): List<Pair<String, String>> {
-        val ids = listOfNotNull(when (course.kind) {
-            CoachKind.JUDGMENT -> "growth-principles"; CoachKind.PERSPECTIVES -> "growth-lenses"
-            CoachKind.ENGLISH -> "growth-english"; CoachKind.EXPRESSION -> "growth-expression"
-            CoachKind.LEADERSHIP -> "growth-leadership"; CoachKind.EXECUTION -> "growth-habits"
-            CoachKind.CUSTOM -> "growth-general"
-        }, "learning-coach")
-        return ids.mapNotNull { id ->
-            val text = runCatching { File(context.filesDir, "minis-global/skills/$id/SKILL.md").readText() }.getOrNull()
-                ?: runCatching { context.assets.open("preset/skills/$id/SKILL.md").bufferedReader().use { it.readText() } }.getOrNull()
-                ?: return@mapNotNull null
-            val version = Regex("""(?m)^version:\s*(\S+)""").find(text)?.groupValues?.get(1) ?: "0"
+    private fun skills(context: Context, course: CoachCourse): List<Pair<String, String>> =
+        skillIds(course).mapNotNull { id ->
+            val text = skillText(context, id) ?: return@mapNotNull null
             val body = text.replace("\r\n", "\n").let { raw ->
                 if (raw.startsWith("---")) raw.substringAfter("\n---", raw).trimStart('-', '\n') else raw
             }
-            "$id@$version" to body.take(SKILL_LIMIT)
+            "$id@${skillVersion(text)}" to body.take(SKILL_LIMIT)
         }
-    }
+
+    private val NON_CHAT_MARKERS = listOf("tts", "voiceclone", "voicedesign", "embedding", "embed-", "whisper", "image", "video")
 
     /** 降级原因只记类型，不记原始训练文本。 */
     private fun reason(failure: Throwable): String = when (failure) {

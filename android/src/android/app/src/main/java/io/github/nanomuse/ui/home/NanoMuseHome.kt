@@ -642,6 +642,7 @@ fun NanoMuseHome(
                                     onOpenPractice = { openPractice(it) },
                                     isOpeningPractice = isOpeningPractice,
                                     onOpenConversation = { id, messageId -> showCoachConversation(id, messageId) },
+                                    providerRepository = providerRepository,
                                     header = header,
                                     onDiscuss = { discussPost(it) },
                                     onEditRoutine = { navController.safeNavigate(Routes.scheduledTaskEdit(it)) },

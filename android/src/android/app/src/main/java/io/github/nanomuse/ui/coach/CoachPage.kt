@@ -87,7 +87,8 @@ fun CoachPage(header: @Composable () -> Unit, bottomInset: Dp, onChat: (String) 
     onOpenPractice: (String) -> Unit = {},
     isOpeningPractice: Boolean = false,
     onOpenConversation: (String, String?) -> Unit = { _, _ -> },
-    viewModel: com.openminis.app.ui.chat.ChatViewModel? = null) {
+    viewModel: com.openminis.app.ui.chat.ChatViewModel? = null,
+    providerRepository: com.openminis.app.data.repository.ProviderRepository? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     CoachPageSpeech()
@@ -124,6 +125,8 @@ fun CoachPage(header: @Composable () -> Unit, bottomInset: Dp, onChat: (String) 
         }
     }
     val selected = state.tracks.firstOrNull { it.course.id == selectedId } ?: state.tracks.firstOrNull()
+    // 标题栏在技能档案页显示这项技能的名字。
+    LaunchedEffect(selected?.course?.title) { CoachUi.skillTitle.value = selected?.course?.title.orEmpty() }
     val visibleRequest = coachRequest?.takeIf { request ->
         state.sessions.any { it.id == request.sessionId && it.course.id == selected?.course?.id } ||
             (request.sessionId == null && view != "training")
@@ -163,21 +166,14 @@ fun CoachPage(header: @Composable () -> Unit, bottomInset: Dp, onChat: (String) 
                     viewModel?.nmCancelCoachRequest()
                 }) { Text(stringResource(R.string.nm_coach_cancel_request)) }
             } }
-            if (view !in setOf("courses", "training", "results")) {
-                coachProfileItems(state, selected, isOpeningPractice, onOpenPractice, onOpenConversation,
-                    onResume = { courseId -> actions.run("resume_course", courseId) })
-            } else if (view == "courses") {
-                item(key = "course_library") { LibraryPanel(state, selected, actions, onChat, onOpenPractice) }
-            } else {
-                if (view == "training") item(key = "training_intro") { TrainingPanel(state, selected, onOpenPractice) }
-                val sessions = state.sessions.filter { selected == null || it.course.id == selected.course.id }.asReversed()
-                if (sessions.isEmpty()) item(key = "archive_empty") { Panel {
-                    SectionTitle(stringResource(if (view == "results") R.string.nm_coach_results else R.string.nm_coach_chat_records))
-                    Text(stringResource(R.string.nm_coach_no_turns))
-                } }
-                items(sessions, key = { "archive:${it.id}" }, contentType = { "coach_archive" }) { session ->
-                    SessionArchive(state, session, state.tracks.firstOrNull { it.course.id == session.course.id }, onOpenPractice, onOpenConversation)
-                }
+            // 四个页面：技能列表 → 技能档案；课程库和教练设置从列表进入，返回都回到列表。
+            when (view) {
+                "skill" -> coachProfileItems(state, selected, isOpeningPractice, onOpenPractice, onOpenConversation,
+                    onCourseAction = { action, courseId -> actions.run(action, courseId) },
+                    onReviewCourse = { courseId -> onChat(context.getString(R.string.nm_coach_prompt_review_course, courseId)) })
+                "courses" -> item(key = "course_library") { LibraryPanel(state, selected, actions, onChat, onOpenPractice) }
+                "settings" -> item(key = "coach_settings") { CoachSettingsPage(state, providerRepository) }
+                else -> coachHomeItems(state, isOpeningPractice, onOpenPractice)
             }
         }
     }
@@ -312,40 +308,6 @@ private fun CourseDetail(course: CoachCourse) {
     var showSource by rememberSaveable(course.id, course.version) { mutableStateOf(false) }
     TextButton(onClick = { showSource = !showSource }, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.nm_coach_source)) }
     if (showSource) SelectionContainer { Text(course.source, style = MaterialTheme.typography.bodySmall) }
-}
-
-/** 区域详情只展示目标和存档，开始与继续均交给同一聊天导航。 */
-@Composable
-private fun TrainingPanel(
-    state: CoachState,
-    track: CoachTrack?,
-    onOpenPractice: (String) -> Unit,
-) {
-    if (track == null) {
-        Panel { Text(stringResource(R.string.nm_coach_empty)) }
-        return
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Panel {
-            CoachSceneArt(track.course.kind, Modifier.fillMaxWidth().height(144.dp))
-            SectionTitle(coachPlaceName(track.course))
-            Text(track.course.title, style = MaterialTheme.typography.titleMedium)
-            val unit = track.course.units.firstOrNull { it.id == track.currentUnitId }
-            Text(unit?.title ?: stringResource(R.string.nm_coach_missing_course))
-            unit?.let { Text(it.focus) }
-            Text(stringResource(R.string.nm_coach_chat_archive_intro))
-            if (track.course.needsCriteriaReview) {
-                Text(stringResource(R.string.nm_coach_criteria_unreviewed))
-                TextButton(onClick = { CoachUi.open("courses") }) {
-                    Text(stringResource(R.string.nm_coach_courses))
-                }
-            }
-            Button(onClick = { onOpenPractice(track.course.id) },
-                modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.nm_coach_chat_open_practice))
-            }
-        }
-    }
 }
 
 /** 原始回合保留提示来源和情境，只有保存的消息标识才能提供跳转。 */

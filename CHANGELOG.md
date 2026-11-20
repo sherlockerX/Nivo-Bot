@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Rebuilt the Android Coach page around a list of skills: a continue card, one card per skill with its current unit, progress and today's status, and a profile per skill with its units as a checklist. Course records and results moved into each profile, and the header keeps only the calendar and Coach settings.
+- Added Android Coach settings for the lesson-preparation agent: what it does and cannot do, an on/off switch, its model, the default lesson length, the skills it reads and its last five runs.
 - Fixed iOS pages that opened blank: a new daily fragment, starting focus, the focus reminder, task details, groups and tags, and the Coach training calendar.
 - Gave the iOS daily fragments page the Android layout: a greeting and the date, the day's shape with its empty places outlined, and Camera, Album and Reflection buttons.
 - Made iOS All settings, Manage routines, the Settings Avatar row and the agent page's Avatar studio open again; each had tried to open a second page while the first was closing.
