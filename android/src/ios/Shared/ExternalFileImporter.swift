@@ -63,7 +63,8 @@ enum ExternalFileImporter {
             items: [PendingShare.Item(kind: .attachment, value: stagedName)],
             timestamp: Date()
         )
-        SharedContainerStore.savePendingShare(share)
+        // nanoMuse: 本地回退和共享模式均检查待导入记录已写入，失败不触发后续页面。
+        guard SharedContainerStore.savePendingShare(share) else { return false }
         importLog.info("[Share] ingest: staged \(url.lastPathComponent) as \(stagedName) and raising pending share")
         Task { @MainActor in coordinator.raisePendingShare() }
         return true

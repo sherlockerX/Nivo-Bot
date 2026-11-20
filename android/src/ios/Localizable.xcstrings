@@ -1,6 +1,256 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "nivo.providers.save.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die Anbietereinstellungen konnten nicht gespeichert werden. Behalte deine Eingaben und versuche es erneut. Diagnosecode: %@." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Provider settings could not be saved. Keep your input and try again. Diagnostic code: %@." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudieron guardar los ajustes del proveedor. Conserva los datos introducidos e inténtalo de nuevo. Código de diagnóstico: %@." } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les paramètres du fournisseur n’ont pas pu être enregistrés. Conservez votre saisie et réessayez. Code de diagnostic : %@." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロバイダー設定を保存できませんでした。入力内容を保持して、もう一度お試しください。診断コード：%@。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "공급자 설정을 저장하지 못했습니다. 입력 내용을 유지하고 다시 시도하세요. 진단 코드: %@." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось сохранить настройки провайдера. Сохраните введённые данные и повторите попытку. Код диагностики: %@." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "供应商设置未能保存。请保留当前输入后重试。诊断代码：%@。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "供應商設定未能儲存。請保留目前輸入後重試。診斷代碼：%@。" } }
+      }
+    },
+    "I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich kann dir bei Dateien, Aufgaben, Fokus und Lernen helfen. Deine Chats und Aufzeichnungen werden auf diesem Gerät gespeichert. Modell- und Konnektoranfragen senden die nötigen Daten an die von dir gewählten Dienste."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puedo ayudarte con archivos, tareas, concentración y aprendizaje. Tus chats y registros se guardan en este dispositivo. Las solicitudes a modelos y conectores envían los datos necesarios a los servicios que elijas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je peux vous aider avec vos fichiers, tâches, séances de concentration et apprentissages. Vos conversations et notes sont stockées sur cet appareil. Les requêtes aux modèles et connecteurs transmettent les données nécessaires aux services que vous choisissez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル、タスク、集中、学習をお手伝いできます。チャットと記録はこの端末に保存されます。モデルやコネクターへのリクエストでは、選択したサービスに必要なデータを送信します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일, 할 일, 집중과 학습을 도울 수 있습니다. 대화와 기록은 이 기기에 저장됩니다. 모델 및 커넥터 요청은 선택한 서비스에 필요한 데이터를 전송합니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Я могу помогать с файлами, задачами, концентрацией и обучением. Чаты и записи хранятся на этом устройстве. Запросы к моделям и коннекторам передают необходимые данные выбранным вами сервисам."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我可以帮你处理文件、待办、专注和学习。你的对话与记录保存在本机。模型和连接器请求会将必要的数据发送给你选择的服务。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我可以幫你處理檔案、待辦、專注和學習。你的對話與紀錄儲存在本機。模型和連接器請求會將必要的資料傳送給你選擇的服務。"
+          }
+        }
+      }
+    },
+    "Connected services receive only the data needed for the features you enable." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbundene Dienste erhalten nur die Daten, die für deine aktivierten Funktionen erforderlich sind."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected services receive only the data needed for the features you enable."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los servicios conectados solo reciben los datos necesarios para las funciones que actives."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les services connectés ne reçoivent que les données nécessaires aux fonctions que vous activez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続したサービスには、有効にした機能に必要なデータのみが送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결된 서비스에는 활성화한 기능에 필요한 데이터만 전송됩니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключённые сервисы получают только данные, необходимые для включённых вами функций."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已连接的服务只会接收你启用的功能所需的数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已連接的服務只會接收你啟用的功能所需的資料。"
+          }
+        }
+      }
+    },
+    "Nivo Bot stores your chats and settings on this device. Model requests go directly to the provider you configure." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot speichert Chats und Einstellungen auf diesem Gerät. Modellanfragen gehen direkt an den von dir eingerichteten Anbieter."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot stores your chats and settings on this device. Model requests go directly to the provider you configure."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot guarda tus chats y ajustes en este dispositivo. Las solicitudes al modelo se envían directamente al proveedor que configures."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot conserve vos conversations et réglages sur cet appareil. Les requêtes au modèle vont directement au fournisseur que vous configurez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Botはチャットと設定をこの端末に保存します。モデルへのリクエストは、設定したプロバイダーに直接送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot은 대화와 설정을 이 기기에 저장합니다. 모델 요청은 설정한 제공업체에 직접 전송됩니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot хранит чаты и настройки на этом устройстве. Запросы к модели отправляются напрямую настроенному вами провайдеру."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot将对话和设置保存在本机。模型请求直接发送给你配置的服务商。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nivo Bot將對話和設定儲存在本機。模型請求直接傳送給你設定的服務商。"
+          }
+        }
+      }
+    },
+    "nivo.local.cloud_removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built-in cloud accounts and sync have been removed. Your records stay on this device. Add your own model provider in Settings."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内置云账号和同步功能已移除。记录保存在本机，请在设置中添加自己的模型提供商。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "內建雲端帳號和同步功能已移除。記錄儲存在本機，請在設定中加入自己的模型供應商。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Integrierte Cloud-Konten und die Synchronisierung wurden entfernt. Ihre Daten bleiben auf diesem Gerät. Fügen Sie in den Einstellungen Ihren eigenen Modellanbieter hinzu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se han eliminado las cuentas en la nube y la sincronización integradas. Tus registros permanecen en este dispositivo. Añade tu proveedor de modelos en Ajustes."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les comptes cloud et la synchronisation intégrés ont été supprimés. Vos données restent sur cet appareil. Ajoutez votre fournisseur de modèles dans les réglages."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内蔵のクラウドアカウントと同期機能は削除されました。記録はこのデバイスに保存されます。設定でモデルプロバイダーを追加してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "내장 클라우드 계정과 동기화 기능이 제거되었습니다. 기록은 이 기기에 보관됩니다. 설정에서 사용할 모델 제공업체를 추가하세요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Встроенные облачные аккаунты и синхронизация удалены. Записи остаются на этом устройстве. Добавьте своего поставщика моделей в настройках."
+          }
+        }
+      }
+    },
     "Recent focus records": {
       "extractionState": "manual",
       "localizations": {
@@ -137982,55 +138232,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Meldet sich im Browser mit deinem %@-Konto an; nanoMuse registriert sich selbst beim Dienst, es gibt also nichts einzutippen. Das Token bleibt auf diesem Telefon."
+            "value" : "Meldet sich im Browser mit deinem %@-Konto an; Nivo Bot registriert sich selbst beim Dienst, es gibt also nichts einzutippen. Das Token bleibt auf diesem Telefon."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Signs in with your %@ account in the browser; nanoMuse registers itself with the service, so there is nothing to type. The token stays on this phone."
+            "value" : "Signs in with your %@ account in the browser; Nivo Bot registers itself with the service, so there is nothing to type. The token stays on this phone."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inicia sesión con tu cuenta de %@ en el navegador; nanoMuse se registra solo en el servicio, así que no hay nada que escribir. El token se queda en este teléfono."
+            "value" : "Inicia sesión con tu cuenta de %@ en el navegador; Nivo Bot se registra solo en el servicio, así que no hay nada que escribir. El token se queda en este teléfono."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se connecte avec votre compte %@ dans le navigateur ; nanoMuse s’enregistre lui-même auprès du service, donc rien à saisir. Le jeton reste sur ce téléphone."
+            "value" : "Se connecte avec votre compte %@ dans le navigateur ; Nivo Bot s’enregistre lui-même auprès du service, donc rien à saisir. Le jeton reste sur ce téléphone."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ブラウザーで %@ のアカウントにサインインします。nanoMuse が自分でサービスに登録するので、入力するものはありません。トークンはこの端末に残ります。"
+            "value" : "ブラウザーで %@ のアカウントにサインインします。Nivo Bot が自分でサービスに登録するので、入力するものはありません。トークンはこの端末に残ります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "브라우저에서 %@ 계정으로 로그인합니다. nanoMuse가 서비스에 스스로 등록하므로 입력할 것이 없습니다. 토큰은 이 휴대전화에 머뭅니다."
+            "value" : "브라우저에서 %@ 계정으로 로그인합니다. Nivo Bot가 서비스에 스스로 등록하므로 입력할 것이 없습니다. 토큰은 이 휴대전화에 머뭅니다."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Входит с вашим аккаунтом %@ в браузере; nanoMuse регистрируется в сервисе сам, так что вводить ничего не нужно. Токен остаётся на этом телефоне."
+            "value" : "Входит с вашим аккаунтом %@ в браузере; Nivo Bot регистрируется в сервисе сам, так что вводить ничего не нужно. Токен остаётся на этом телефоне."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在浏览器里用你的 %@ 账号登录；nanoMuse 会自动向该服务注册，不用填任何东西。令牌只保存在这台手机上。"
+            "value" : "在浏览器里用你的 %@ 账号登录；Nivo Bot 会自动向该服务注册，不用填任何东西。令牌只保存在这台手机上。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在瀏覽器裡用你的 %@ 帳號登入；nanoMuse 會自動向該服務註冊，不用填任何東西。權杖只保存在這支手機上。"
+            "value" : "在瀏覽器裡用你的 %@ 帳號登入；Nivo Bot 會自動向該服務註冊，不用填任何東西。權杖只保存在這支手機上。"
           }
         }
       }
@@ -192133,6 +192383,244 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的情境或材料（选填）"
+          }
+        }
+      }
+    },
+    "A photo, a reflection or a habit marked done each fills a place. The rest can stay empty." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A photo, a reflection or a habit marked done each fills a place. The rest can stay empty."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一张照片、一段心得或一次完成，都会填进一个位置。其余的位置可以空着。"
+          }
+        }
+      }
+    },
+    "Album" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相册"
+          }
+        }
+      }
+    },
+    "Automatic (%@)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic (%@)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动（%@）"
+          }
+        }
+      }
+    },
+    "Camera" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍照"
+          }
+        }
+      }
+    },
+    "Not here yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not here yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没到来"
+          }
+        }
+      }
+    },
+    "Nothing recorded this day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing recorded this day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这天没有记录"
+          }
+        }
+      }
+    },
+    "The habits planned for this day show below. Records can be added once the day comes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The habits planned for this day show below. Records can be added once the day comes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下面是这一天计划的习惯，到了那天才能记录。"
+          }
+        }
+      }
+    },
+    "The photo could not be read. Try another one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photo could not be read. Try another one."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张照片读取失败，请换一张。"
+          }
+        }
+      }
+    },
+    "This day's shape: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This day's shape: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天的形状：%@"
+          }
+        }
+      }
+    },
+    "This day, in pieces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This day, in pieces"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一天的生活碎片"
+          }
+        }
+      }
+    },
+    "Today's shape: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's shape: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的形状：%@"
+          }
+        }
+      }
+    },
+    "Today, in pieces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today, in pieces"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的生活碎片"
+          }
+        }
+      }
+    },
+    "What do you want to keep from today?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What do you want to keep from today?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天，想留下什么？"
+          }
+        }
+      }
+    },
+    "You can still add something for this day." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can still add something for this day."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还可以给这一天补记。"
           }
         }
       }

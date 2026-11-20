@@ -84,7 +84,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
 
     // MARK: - State
 
-    private let container: CKContainer
+    // nanoMuse: 仅保留传输接口兼容旧数据，不创建云容器。
+    private let container: CKContainer?
     private var syncEngine: CKSyncEngine?
     private var stateSerialization: CKSyncEngine.State.Serialization?
     private let stateURL: URL
@@ -357,7 +358,7 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     // MARK: - Init
 
     override init() {
-        self.container = CKContainer(identifier: Self.containerIdentifier)
+        self.container = NivoICloudPolicy.container
         let dir = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("MinisChat/cloud-sync-v2", isDirectory: true)
@@ -529,6 +530,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     }
 
     func start() async throws {
+        // nanoMuse: 即使旧设置启用同步，也必须在创建CKSyncEngine之前退出。
+        guard let container else { throw NivoICloudPolicy.unavailable }
         guard syncEngine == nil else { return }
         let generation = nmAccountGeneration
         logger.info("[SyncTransport] start STEP=enter")
@@ -770,6 +773,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
             // main thread idle through each CK round-trip; we only return back
             // to the actor with the cheap [(CKRecord.ID, CKRecord, Portable?)]
             // result list, then mutate state in a tight loop.
+            // nanoMuse: 调试或恢复调用也不能绕过云功能移除。
+            guard let container else { return }
             let db = container.privateCloudDatabase
             // [T-icloud-fresh-restore-provider-groups] A full-history pull
             // (fresh device, cutoff=.distantPast) must follow queryCursor to
@@ -953,6 +958,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// Bypasses the 24h time window of fetchRecentV2.
     // nanoMuse: 必须拉完全部分页且每条结果有效，不能把部分结果交给破坏性替换。
     func fetchSessionPortables(sessionId: String) async throws -> [PortableRecord] {
+        // nanoMuse: 不能将不可用的云查询误认为空会话并覆盖本地内容。
+        guard let container else { throw NivoICloudPolicy.unavailable }
         guard let engine = syncEngine else { throw SyncTransportError.notStarted }
         let generation = nmAccountGeneration
         let zoneID = CKRecordZone.ID(zoneName: Self.sharedZoneName)
@@ -989,6 +996,8 @@ final class ICloudSharedZoneTransport: NSObject, SyncTransport {
     /// server has actually committed the zone. Uses CKModifyRecordZonesOperation
     /// because CKSyncEngine doesn't expose a "wait for zone create" hook.
     private func ensureZonesExist() async {
+        // nanoMuse: 个人构建不创建任何远端数据区。
+        guard let container else { return }
         logger.info("[SyncTransport] ensureZonesExist: starting modifyRecordZones")
         let zones = [Self.sharedZoneName, Self.devicesZoneName, Self.secretsZoneName]
             .map { CKRecordZone(zoneID: CKRecordZone.ID(zoneName: $0)) }
@@ -1958,7 +1967,9 @@ extension ICloudSharedZoneTransport: CKSyncEngineDelegate {
         pendingV1Deletions.removeFirst(batch.count)
         v1DeleteInFlight = true
         Self.republishV1DeletePending(pendingV1Deletions.count)
-        let db = CKContainer.default().privateCloudDatabase
+        // nanoMuse: 不通过默认容器重新接入已移除的云服务。
+        guard let container else { return }
+        let db = container.privateCloudDatabase
         let op = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: batch)
         op.savePolicy = .changedKeys
         // Per-record completion lets us classify .unknownItem (already

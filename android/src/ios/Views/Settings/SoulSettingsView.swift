@@ -29,7 +29,8 @@ struct SoulSettingsView: View {
     /// Mirrors `SyncV2Bootstrap.isEnabled` so the Force iCloud Sync row
     /// shows / hides reactively when the user toggles iCloud sync in
     /// Settings. Same pattern as SkillDetailView (#440 / 3a4fe546).
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，旧偏好不能恢复强制同步入口。
+    private let iCloudSyncEnabled = false
 
     private static var langOptions: [(label: String, value: String)] {
         [

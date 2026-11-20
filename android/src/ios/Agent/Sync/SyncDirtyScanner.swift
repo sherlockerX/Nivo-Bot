@@ -50,6 +50,8 @@ final class SyncDirtyScanner {
 
     /// Start the periodic scanner on the main run loop.
     func start() {
+        // nanoMuse: 云服务移除后不再调度后台脏记录扫描。
+        guard NivoICloudPolicy.isEnabled else { return }
         guard timer == nil else { return }
         logger.info("[SyncDirtyScanner] Starting (interval: \(self.interval)s)")
         // Run an initial scan immediately

@@ -1,18 +1,134 @@
 # iOS
 
-nanoMuse on the iPhone is the iOS half of OpenMinis 1.13 under nanoMuse's name, built by CI on a
-Mac runner and handed to TestFlight. This page says what is in the tree, how it is built, what
-the TestFlight pipeline needs, and what is still to be ported from the Android app.
+Nivo Bot for iPhone uses the native SwiftUI/UIKit application and iSH runtime inherited from
+OpenMinis and nanoMuse. GitHub macOS CI builds an unsigned IPA for personal signing. This fork
+does not distribute through TestFlight or the App Store; current installation files and
+requirements are listed on the [product download page](https://nivo.8666886.xyz/downloads.html).
 
-**Status.** The tree, the branding, the nanoMuse Cloud sign-in, the hub client and the pipeline
-were written on a Linux machine. The app **builds, signs and is on TestFlight**: the first build,
-0.1.31 (2), went through the *iOS · TestFlight* workflow on 2026-10-03; 1.0.0 is build 16, which
-passed Apple's beta review, so the public link
-(`https://testflight.apple.com/join/ZHexbDqc`) installed it first; 1.0.1 is build 18 and 1.0.2 is build 19, both through the review
-since 2026-10-12; 1.0.3 is build 22 and 1.0.4 is build 26, both through the review since 2026-10-13, so the link installs build 26 today; 1.0.5 is build 28, submitted on 2026-10-14; 1.0.6 is build 29, built from the tag `v1.0.6` and uploaded on 2026-10-24 (*Where it stands* below). Builds 20 and 21 (1.0.2), 23, 24 and 25 (1.0.3 with fixes merged after the tag) and 27 (1.0.4 the same way) went to the internal testers only. The testers' reports have driven the fixes in the release
-notes (the composer, onboarding, sign-out); the Devices section and notifications from other
-devices still have the fewest hours on a real device. The first archive taught the pipeline
-that automatic signing wants a registered device, which is why it signs manually now.
+The current maintenance branch removes the original project account, relay and cross-device
+sync, stores records and credentials locally, and lets users skip model configuration. API,
+OAuth and MCP connections use services chosen by the user. The sections immediately below
+describe these changes; older download packages keep the behavior documented in their releases.
+
+Later implementation notes retain upstream development history, including earlier cloud and
+TestFlight work. Those historical services and distribution claims do not apply to this fork.
+Build success verifies compilation; iPhone startup and interaction require device testing.
+
+## Sideloaded storage
+
+Personal re-signing can remove the App Group entitlement. The main app then keeps its files,
+private configuration and incoming file attachments together under
+`Library/NivoLocalContainer/` inside its own sandbox. Memory, skills, personal records and
+in-app imports use this same path selection. With a working App Group, the existing
+`MinisFileProvider/`, `MinisConfig/` and `ShareExtension/` locations remain unchanged.
+
+Without App Group access, Share extensions, Files-provider access, Shortcuts actions and the
+Live Activity audio control report unavailable or remain disabled. Extensions never create a
+private substitute for shared storage. Existing shared files are not deleted or moved into
+the fallback directory; data that the signing profile no longer permits the app to access
+cannot be recovered by guessing its path. Restoring App Group access selects the original
+shared locations again and leaves any locally stored files in place.
+
+Folder-visibility preferences use the same permission check: the main app stores them locally
+when shared storage is unavailable, and extensions never write a private copy of shared settings.
+
+Legacy `Library/MinisChat/{shared,memory,skills}` files and an accessible `MinisShared` folder
+are merged before default identity, memory or skills are installed. Missing nested files move
+into the active location; conflicting originals remain in the legacy folder. Migration never
+follows directory links. A read or move failure keeps the startup recovery screen available
+for retry. Existing `skill-creator` files are preserved rather than replaced by a bundled
+version, and unreadable preset memory is never treated as blank.
+
+After startup recovery succeeds, including an in-app retry, OAuth draft cleanup and legacy
+provider migration resume once the account recovery lock is released. Repeated appearance or
+completion notifications do not repeat this initialization during the same app run.
+
+## Local setup and model access
+
+The welcome screen offers **Skip for now**. Skipping is remembered across launches, and local
+tasks, focus sessions and records remain available without a model. Chat shows an add-provider
+or model-selection action when no conversational model is available; tapping Send then keeps
+the draft and attachments while the person configures a model.
+
+New-provider lists show official services and a custom endpoint entry. Catalogue entries marked
+`is_relay` are hidden from these lists, including their suggested OAuth plans. Existing provider
+instances, saved compatible URLs and protocol decoders remain supported. Provider OAuth and MCP
+authorization remain available for services the user chooses. Connector authorization identifies
+the client as Nivo Bot and links to the current product website.
+
+The app no longer presents legacy account onboarding, GitHub star prompts, allowance or invite
+cards, upstream feedback links or update-check controls. About retains the installed version,
+product and model-guide links, privacy information, the GPL license and upstream attribution.
+The unused online update requester and GitHub release fallback have also been removed from
+the iOS build; local release-catalog parsing and version validation remain covered by tests.
+
+## Provider saves and local recovery
+
+Provider creation, JSON import and key changes share a local rollback transaction. New SQLite
+snapshots are sealed as single files; after closing their destination connection, capture removes
+only auxiliary files belonging to that newly created snapshot. Recovery also accepts the exact WAL/SHM companions of an
+older registered WAL snapshot, checks their file types, and reads committed WAL data through
+SQLite. Missing registered files and unrelated files still block recovery; the app never fixes
+a recovery error by deleting the user's database or discarding its WAL.
+
+Save errors include a `PV-` diagnostic code identifying the failing stage and NSError bridge code.
+The code contains no API key, endpoint or file path. Original and rollback failures are logged
+separately. If saving still fails, retain the form and report this code with the action taken.
+
+Custom model ID edits keep the original model UUID and update group and conversation references.
+An ID already used by another model in the same provider is rejected. Model add/edit and new-group
+forms wait for local persistence and retain input on failure. A model-list response from before a
+provider change or restore cannot replace the newer catalogue. Removing a group also clears any
+voice input or output selection pointing to it.
+
+Editing a model preserves reasoning tiers, thinking limits and capabilities not exposed by the
+form. Renaming a dedicated speech or video model keeps its input and output directions. Resetting
+a model with an unknown base context window clears the previous value instead of saving it again.
+
+The macOS regression reproduced the same file-format error during a first-save transaction because
+Apple SQLite retained a snapshot's shared-memory file after changing journal mode. The complete
+reported custom-provider flow still requires verification on an iPhone.
+The confirmed recovery and model-editing defects are covered by regression tests; compilation
+and portable tests do not replace the [iPhone acceptance steps](ios-provider-save-verification.md).
+
+## Built-in iCloud removal
+
+The personal iOS build no longer starts CloudKit sync, cloud migration or the legacy iCloud
+backup service. Cold launch, foreground resume and debug RPCs cannot construct a CloudKit
+container, even if an older version saved an enabled sync preference. The app no longer
+requests iCloud container entitlements or the silent-push background mode.
+
+Local Backup & Restore and user-selected folders remain available. Files already downloaded
+to a selected folder can still be read; the app does not request downloads of iCloud placeholder
+files. Existing database sync metadata and cloud backups are retained without remote deletion.
+
+New provider API keys, OAuth tokens, environment variables and restored credentials are stored
+in device-only Keychain items. After pending local recovery finishes, startup copies each old
+synchronizable credential into a missing local item, reads it back, and only then removes the
+old item. An existing local value always wins. Any failed read, write or confirmation stops
+the migration and leaves recoverable data for the next attempt. MCP credentials and device
+identity are outside this migration. Old interrupted key rotations recover into local storage.
+
+Missing Anthropic OAuth build configuration now returns a provider error when that request is
+made; it no longer traps during static initialization. API-key requests remain available.
+
+Background & notifications shows this phone's notification and refresh permissions. The Hands
+page explains the iOS operation limits. These pages and the main shell no longer open the old
+computer relay, coding-agent relay or remote-approval sheets. User-configured API providers,
+MCP connections and local routines remain available.
+
+## Fragment photo imports
+
+The fragment editor marks a photo import as busy before reading the selected image, including
+the time the system photo picker needs to download an original. Save, Close and Discard wait
+for the import to finish. Cancel stops that import and keeps the editable draft; a delayed
+result from a canceled import cannot replace a newer selection or change a closed editor.
+Changing the local data scope also invalidates the pending result.
+
+Opening Camera first saves the current draft. If that write fails, the editor shows the error
+and keeps the camera closed. Canceling the camera therefore leaves the preceding text saved.
+These protections have portable regression coverage; system photo downloads, camera permission
+prompts and the visible transitions still require an iPhone check.
 
 ## Where it lives
 

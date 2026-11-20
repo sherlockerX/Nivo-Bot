@@ -1238,4 +1238,8 @@
     <string name="nm_coach_review_with_ai">和AI核对完成标准</string>
     <string name="nm_coach_prompt_review_course">请读取课程%1$s，保留原文和顺序，逐单元核对模拟表现与现实行动要求。先生成可审阅草案，展示变更，等我明确确认再用原课程ID激活。不得直接改文件。</string>
     <string name="nm_coach_other_request_busy">教练正在处理另一轮请求。当前草稿仍可保存，待该请求结束后再发送。</string>
+    <string name="nm_provider_save_failed">無法儲存，已保留輸入，請重試。</string>
+    <string name="nm_model_id_conflict">此供應商已有相同ID的模型。</string>
+    <string name="nm_model_form_invalid">請填寫模型ID。權杖上限須為正整數，或留空。</string>
+    <string name="nm_model_edit_conflict">模型設定已變更。請重新開啟編輯頁，確認最新設定後再修改。</string>
 </resources>

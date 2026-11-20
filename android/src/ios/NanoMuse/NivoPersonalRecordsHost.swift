@@ -138,10 +138,7 @@ enum NivoPersonalRecordsToolBridge {
             // nanoMuse: 账户切换先关闭宿主权限；这里不跨await读盘，也不初始化会写盘的调度器。
             guard !BackupRestoreJournal.hasPendingPersonalDataRecovery else { throw NivoLifeError.corruptStore }
             // nanoMuse: 只计算固定路径，避免root与minisConfigRoot的getter隐式创建目录。
-            guard let container = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-            ) else { throw NivoLifeError.invalidField("personal_records_container_unavailable") }
-            let directory = container.appendingPathComponent("MinisConfig", isDirectory: true)
+            let directory = NivoStoragePaths.layout.applicationConfig
                 .appendingPathComponent("nanomuse", isDirectory: true)
             if request.kind == "goals" {
                 let rows = try NivoPersonalRecordsPlanningQuery.readGoals(directory: directory)

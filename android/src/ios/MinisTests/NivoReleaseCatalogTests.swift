@@ -1,7 +1,7 @@
 import XCTest
 @testable import Minis
 
-/// 版本检查使用本地结构化样本，验证平台选择，不访问真实发行服务。
+/// 使用本地结构化样本验证清单平台和版本规则，不访问发行服务。
 final class NivoReleaseCatalogTests: XCTestCase {
     private func catalog(_ releases: [[String: Any]], status: String = "available") -> [String: Any] {
         ["schemaVersion": 2, "platforms": [["id": "ios", "status": status]], "releases": releases]
@@ -41,20 +41,6 @@ final class NivoReleaseCatalogTests: XCTestCase {
         row["distribution"] = "appstore"
         row["downloadUrl"] = "https://apps.apple.com/app/id000000000"
         XCTAssertNotNil(NivoReleaseCatalog.lookup(catalog([row])))
-    }
-
-    func testGitHubFallbackRequiresPublishedIPA() {
-        var row: [String: Any] = ["tag_name": "v2.1.0", "html_url": "https://github.com/sherlockerX/Nicholasx/releases/tag/v2.1.0"]
-        XCTAssertNil(NivoReleaseCatalog.github(row))
-        row["assets"] = [["name": "app.apk", "browser_download_url": "https://github.com/sherlockerX/Nicholasx/releases/download/v2.1.0/app.apk"]]
-        XCTAssertNil(NivoReleaseCatalog.github(row))
-        row["assets"] = [["name": "app.ipa", "browser_download_url": "https://github.com/sherlockerX/Nicholasx/releases/download/v2.1.0/app.ipa"]]
-        XCTAssertEqual(NivoReleaseCatalog.github(row)?.version, "v2.1.0")
-        row["draft"] = true
-        XCTAssertNil(NivoReleaseCatalog.github(row))
-        row["draft"] = false
-        row["prerelease"] = true
-        XCTAssertNil(NivoReleaseCatalog.github(row))
     }
 
     func testVersionsUseNumericComponentsAndIgnoreBuildMetadata() {

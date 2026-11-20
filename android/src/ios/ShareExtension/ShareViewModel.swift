@@ -12,6 +12,9 @@ final class ShareViewModel {
     func processExtensionItems(_ extensionItems: [NSExtensionItem]) async {
         pendingItems.removeAll()
 
+        // nanoMuse: 即使从控制器之外调用，也不处理无法交付给主App的内容。
+        guard NivoStoragePaths.hasSharedContainer else { return }
+
         let fm = FileManager.default
         if let dir = SharedContainerStore.sharedFileDirectory {
             try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -55,8 +58,8 @@ final class ShareViewModel {
             items = existing.items + items
         }
         let share = PendingShare(items: items, timestamp: Date())
-        SharedContainerStore.savePendingShare(share)
-        return true
+        // nanoMuse: 保存结果须来自持久化入口，不能把无权限的写入当作成功。
+        return SharedContainerStore.savePendingShare(share)
     }
 
     // MARK: - Processors

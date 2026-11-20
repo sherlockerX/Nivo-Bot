@@ -7,8 +7,12 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
     private let parentID: NSFileProviderItemIdentifier
     private let attrs: [FileAttributeKey: Any]?
     private let isRoot: Bool
+    // nanoMuse: 条目仅描述创建它时已经验证过的共享目录。
+    private let providerRoot: URL
 
-    init(url: URL, parentIdentifier: NSFileProviderItemIdentifier, isRoot: Bool = false) {
+    // nanoMuse: 根目录由调用方显式传入，避免共享容器缺失时再次强制解包。
+    init(url: URL, parentIdentifier: NSFileProviderItemIdentifier, providerRoot: URL, isRoot: Bool = false) {
+        self.providerRoot = providerRoot
         self.fileURL = url
         self.parentID = parentIdentifier
         self.attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
@@ -18,7 +22,8 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
 
     var itemIdentifier: NSFileProviderItemIdentifier {
         if isRoot { return .rootContainer }
-        let root = FileProviderExtension.providerRoot
+        // nanoMuse: 使用条目绑定的实际根目录。
+        let root = providerRoot
         let relative = fileURL.path.replacingOccurrences(of: root.path, with: "")
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         if relative.isEmpty {

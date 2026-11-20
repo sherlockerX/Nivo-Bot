@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-/// Keychain普通同步使用严格读取和原位更新，值与版本在同一系统写入中提交。
+/// 凭据仅写本机Keychain，旧同步读取只为升级兼容，值与版本仍原子提交。
 enum NivoCredentialSyncKeychain {
     private static let lock = NSRecursiveLock()
 
@@ -55,13 +55,13 @@ enum NivoCredentialSyncKeychain {
         let data = Data(value.utf8)
         guard data.count <= 1_048_576 else { throw NivoCredentialRestoreError.invalidValue }
         try lock.withLock {
-            let sync = try read(target, synchronizable: true)
-            _ = try read(target, synchronizable: false)
+            let local = try read(target, synchronizable: false)
+            if local == nil { _ = try read(target, synchronizable: true) }
             let previous = ProviderKeychainHelper.apiKeySavedAt(instanceId: instanceID).timeIntervalSince1970
             let seconds = max(Date().timeIntervalSince1970, max(previous + 0.001, previous.nextUp))
             guard seconds.isFinite else { throw NivoCredentialRestoreError.invalidValue }
             let version = Date(timeIntervalSince1970: seconds)
-            try install(data, target: target, version: version, updatesExisting: sync != nil)
+            try install(data, target: target, version: version, updatesExisting: local != nil)
             ProviderKeychainHelper.stampAPIKeySavedAt(version, instanceId: instanceID)
             ProviderKeychainHelper.nmDeviceKeyChanged(instanceId: instanceID)
         }
@@ -71,8 +71,8 @@ enum NivoCredentialSyncKeychain {
     static func providerValue(instanceID: String) throws -> Data? {
         try lock.withLock {
             let target = NivoCredentialRestoreReceipt.Target(kind: .providerAPIKey, owner: instanceID)
-            if let sync = try read(target, synchronizable: true) { return sync.value }
-            return try read(target, synchronizable: false)?.value
+            if let local = try read(target, synchronizable: false) { return local.value }
+            return try read(target, synchronizable: true)?.value
         }
     }
 
@@ -90,9 +90,8 @@ enum NivoCredentialSyncKeychain {
     static func providerSnapshot(instanceID: String) throws -> ProviderSnapshot? {
         try lock.withLock {
             let target = NivoCredentialRestoreReceipt.Target(kind: .providerAPIKey, owner: instanceID)
-            let sync = try read(target, synchronizable: true)
-            let legacy = try read(target, synchronizable: false)
-            guard let saved = sync ?? legacy else { return nil }
+            let local = try read(target, synchronizable: false)
+            guard let saved = try local ?? read(target, synchronizable: true) else { return nil }
             return ProviderSnapshot(value: saved.value,
                 version: saved.version ?? ProviderKeychainHelper.apiKeySavedAt(instanceId: instanceID))
         }
@@ -102,8 +101,8 @@ enum NivoCredentialSyncKeychain {
     static func savedProviderDate(instanceID: String) throws -> Date? {
         try lock.withLock {
             let target = NivoCredentialRestoreReceipt.Target(kind: .providerAPIKey, owner: instanceID)
-            if let sync = try read(target, synchronizable: true) { return sync.version }
-            return try read(target, synchronizable: false)?.version
+            if let local = try read(target, synchronizable: false) { return local.version }
+            return try read(target, synchronizable: true)?.version
         }
     }
 
@@ -116,9 +115,8 @@ enum NivoCredentialSyncKeychain {
     static func environmentSnapshot(key: String) throws -> (value: String, version: Date?)? {
         try lock.withLock {
             let target = NivoCredentialRestoreReceipt.Target(kind: .environment, owner: key)
-            let sync = try read(target, synchronizable: true)
-            let legacy = try read(target, synchronizable: false)
-            guard let saved = sync ?? legacy else { return nil }
+            let local = try read(target, synchronizable: false)
+            guard let saved = try local ?? read(target, synchronizable: true) else { return nil }
             guard let value = String(data: saved.value, encoding: .utf8) else { throw NivoCredentialRestoreError.invalidValue }
             return (value, saved.version)
         }
@@ -133,14 +131,14 @@ enum NivoCredentialSyncKeychain {
         return try lock.withLock {
             let sync = try read(target, synchronizable: true)
             let legacy = try read(target, synchronizable: false)
-            let seenVersion = (sync ?? legacy)?.version ?? .distantPast
+            let seenVersion = (legacy ?? sync)?.version ?? .distantPast
             if !isLocal, seenVersion > version { return seenVersion }
-            if !isLocal, let saved = sync ?? legacy, saved.version == version {
+            if !isLocal, let saved = legacy ?? sync, saved.version == version {
                 guard saved.value == data else { throw NivoCredentialRestoreError.verificationFailed }
                 return version
             }
             let next = isLocal ? try NivoEnvVarState.nextVersion(after: seenVersion, now: version) : version
-            try install(data, target: target, version: next, updatesExisting: sync != nil)
+            try install(data, target: target, version: next, updatesExisting: legacy != nil)
             return next
         }
     }
@@ -149,11 +147,11 @@ enum NivoCredentialSyncKeychain {
         let target = NivoCredentialRestoreReceipt.Target(kind: .providerAPIKey, owner: entry.owner)
         let sync = try read(target, synchronizable: true)
         let legacy = try read(target, synchronizable: false)
-        let local = sync ?? legacy
+        let local = legacy ?? sync
         let localDate = local?.version ?? ProviderKeychainHelper.apiKeySavedAt(instanceId: entry.owner)
         let decision = NivoCredentialSync.decision(local: local?.value, localUpdatedAt: localDate, remote: entry, now: Date())
         guard case .write(let version) = decision else { return }
-        try install(entry.value, target: target, version: version, updatesExisting: sync != nil)
+        try install(entry.value, target: target, version: version, updatesExisting: legacy != nil)
         ProviderKeychainHelper.stampAPIKeySavedAt(version, instanceId: entry.owner)
         ProviderKeychainHelper.nmDeviceKeyChanged(instanceId: entry.owner)
     }
@@ -181,9 +179,9 @@ enum NivoCredentialSyncKeychain {
 
     private static func install(_ value: Data, target: NivoCredentialRestoreReceipt.Target,
                                 version: Date?, updatesExisting: Bool) throws {
-        let query = match(target, synchronizable: true)
+        let query = match(target, synchronizable: false)
         var attributes: [String: Any] = [kSecValueData as String: value,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock, kSecAttrComment as String: ""]
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, kSecAttrComment as String: ""]
         if let version {
             attributes[kSecAttrGeneric as String] = try JSONEncoder().encode(Version(schema: 1, seconds: version.timeIntervalSince1970))
         }
@@ -192,7 +190,7 @@ enum NivoCredentialSyncKeychain {
         else { status = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil) }
         // 新条目并发出现时保留它并重试，不能未读取其版本就直接覆盖。
         guard status == errSecSuccess else { throw NivoCredentialRestoreError.keychain(operation: "sync_write", status: status) }
-        let written = try read(target, synchronizable: true)
+        let written = try read(target, synchronizable: false)
         guard written?.value == value, written?.version == version else { throw NivoCredentialRestoreError.verificationFailed }
     }
 

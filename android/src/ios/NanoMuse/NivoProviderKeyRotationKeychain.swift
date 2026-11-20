@@ -22,8 +22,9 @@ enum NivoProviderKeyRotationKeychain {
             let date = NivoProviderEditClock.next(after: [seen], now: Date())
             let version = try JSONEncoder().encode(NivoProviderKeyRotation.Version(schema: 1, seconds: date.timeIntervalSince1970))
             let replacement = Secret(value: Data(value.utf8), version: version, comment: receipt.comment,
-                accessibility: kSecAttrAccessibleAfterFirstUnlock as String)
-            let stage = Stage(receipt: receipt, previousSync: previousSync, previousLocal: previousLocal, replacement: replacement)
+                accessibility: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+            let stage = Stage(receipt: receipt, previousSync: previousSync, previousLocal: previousLocal,
+                replacement: replacement, targetIsLocal: true)
             try stage.validate()
             guard try stage.matchesPrevious(value: expected?.value, version: expected?.version,
                 fallbackVersion: ProviderKeychainHelper.apiKeySavedAt(instanceId: instanceID)) else {
@@ -43,18 +44,19 @@ enum NivoProviderKeyRotationKeychain {
     static func apply(_ receipt: NivoProviderKeyRotation.Receipt) throws {
         try NivoCredentialSyncKeychain.withEnvironmentLock {
             let stage = try requireStage(receipt)
+            guard stage.targetIsLocal == true else { throw NivoCredentialRestoreError.invalidValue }
             guard try readSecret(instanceID: receipt.instanceID, synchronizable: true) == stage.previousSync,
                   try readSecret(instanceID: receipt.instanceID, synchronizable: false) == stage.previousLocal else {
                 throw NivoOAuthPersistenceError.conflictingCredential
             }
             defer { ProviderKeychainHelper.nmDeviceKeyChanged(instanceId: receipt.instanceID) }
-            var query = secretQuery(instanceID: receipt.instanceID, synchronizable: true)
+            var query = secretQuery(instanceID: receipt.instanceID, synchronizable: false)
             let attributes = attributes(stage.replacement)
             let status: OSStatus
-            if let previous = stage.previousSync {
+            if let previous = stage.previousLocal {
                 // 将读到的旧版本和标记交给系统匹配，读取之后到达的同步不能被无条件覆盖。
-                query[kSecAttrGeneric as String] = previous.version ?? Data()
-                query[kSecAttrComment as String] = previous.comment
+                if let version = previous.version { query[kSecAttrGeneric as String] = version }
+                if !previous.comment.isEmpty { query[kSecAttrComment as String] = previous.comment }
                 status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
             } else {
                 status = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
@@ -63,7 +65,7 @@ enum NivoProviderKeyRotationKeychain {
                 throw NivoOAuthPersistenceError.conflictingCredential
             }
             try check(status, operation: "rotation_apply")
-            guard try readSecret(instanceID: receipt.instanceID, synchronizable: true) == stage.replacement else {
+            guard try readSecret(instanceID: receipt.instanceID, synchronizable: false) == stage.replacement else {
                 throw NivoCredentialRestoreError.verificationFailed
             }
         }
@@ -73,11 +75,15 @@ enum NivoProviderKeyRotationKeychain {
     static func rollback(_ receipt: NivoProviderKeyRotation.Receipt) throws {
         try NivoCredentialSyncKeychain.withEnvironmentLock {
             let stage = try requireStage(receipt)
-            let current = try readSecret(instanceID: receipt.instanceID, synchronizable: true)
+            if stage.targetIsLocal != true {
+                try rollbackLegacy(stage)
+                return
+            }
+            let current = try readSecret(instanceID: receipt.instanceID, synchronizable: false)
             let decision = try stage.rollback(current: current)
             if decision == .preserve { return }
             defer { ProviderKeychainHelper.nmDeviceKeyChanged(instanceId: receipt.instanceID) }
-            var query = secretQuery(instanceID: receipt.instanceID, synchronizable: true)
+            var query = secretQuery(instanceID: receipt.instanceID, synchronizable: false)
             query[kSecAttrComment as String] = receipt.comment
             query[kSecAttrGeneric as String] = stage.replacement.version
             switch decision {
@@ -90,9 +96,44 @@ enum NivoProviderKeyRotationKeychain {
                 if status != errSecItemNotFound { try check(status, operation: "rotation_restore") }
             }
             // 比较条件未命中说明系统同步已经更新条目；不能降级为无条件写入。
-            let after = try readSecret(instanceID: receipt.instanceID, synchronizable: true)
+            let after = try readSecret(instanceID: receipt.instanceID, synchronizable: false)
             guard try stage.rollback(current: after) == .preserve else { throw NivoCredentialRestoreError.verificationFailed }
         }
+    }
+
+    /// 旧日志恢复到本机副本，读回完成后才移除旧事务拥有的同步替换值。
+    private static func rollbackLegacy(_ stage: Stage) throws {
+        let receipt = stage.receipt
+        let current = try readSecret(instanceID: receipt.instanceID, synchronizable: true)
+        let decision = try stage.rollback(current: current)
+        if decision == .preserve { return }
+        if case .restore(let previous) = decision {
+            try preserveLegacyLocally(previous, instanceID: receipt.instanceID)
+        }
+        guard try readSecret(instanceID: receipt.instanceID, synchronizable: true) == current else {
+            throw NivoOAuthPersistenceError.conflictingCredential
+        }
+        var query = secretQuery(instanceID: receipt.instanceID, synchronizable: true)
+        query[kSecAttrComment as String] = receipt.comment
+        query[kSecAttrGeneric as String] = stage.replacement.version
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecItemNotFound { try check(status, operation: "rotation_legacy_remove") }
+        let after = try readSecret(instanceID: receipt.instanceID, synchronizable: true)
+        guard try stage.rollback(current: after) == .preserve else { throw NivoCredentialRestoreError.verificationFailed }
+        ProviderKeychainHelper.nmDeviceKeyChanged(instanceId: receipt.instanceID)
+    }
+
+    /// 不覆盖已经存在或并发创建的本机值，恢复材料始终保留到事务完成。
+    private static func preserveLegacyLocally(_ previous: Secret, instanceID: String) throws {
+        if try readSecret(instanceID: instanceID, synchronizable: false) != nil { return }
+        var query = secretQuery(instanceID: instanceID, synchronizable: false)
+        var localAttributes = attributes(previous)
+        localAttributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        query.merge(localAttributes) { _, new in new }
+        try check(SecItemAdd(query as CFDictionary, nil), operation: "rotation_legacy_local")
+        let confirmed = try readSecret(instanceID: instanceID, synchronizable: false)
+        guard confirmed?.value == previous.value, confirmed?.version == previous.version,
+              confirmed?.comment == previous.comment else { throw NivoCredentialRestoreError.verificationFailed }
     }
 
     /// 日志提交后清理，不得在尚需恢复时调用。

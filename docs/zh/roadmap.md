@@ -1,5 +1,7 @@
 # 路线图
 
+> **Nivo Bot本次发行范围**：[2.0.7(58)Anchor](../releases/v2.0.7.md)仅更新Android。iOS实际安装包仍为2.0.5(56)未签名IPA，共用源码版本更新不代表已发布新的iOS安装包。当前维护范围见[OPEN_SOURCE.md](../../OPEN_SOURCE.md)。下方路线图与发行历史保留自上游nanoMuse，不代表本分支承诺提供其中的中继、账号同步、桌面发行或TestFlight服务。本次未进行Android真机覆盖升级实测，CI编译也不能代替iPhone运行验收。
+
 个人智能体不该只长在别人的云里，nanoMuse 想做一个开源、低成本的平替：装在自己的设备上，模型自己选，中继也能自己架。我们希望和全球的开发者、使用者一起，让每个人真正拥有自己的个人智能体。提个 [issue](https://github.com/nano-muse/nanoMuse/issues/new/choose) 或者发个 [PR](../../CONTRIBUTING.md) 都是在帮 nanoMuse 变得更好。
 
 这一页是给想来帮忙的人画的地图：我们现在在做什么，接下来做什么，每个领域先从哪里下手。不写日期：一样东西在一台真手机和一台真电脑上能用了，就发。

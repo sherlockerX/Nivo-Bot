@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
+  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">产品网站</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">问题反馈</a> · <a href="../../OPEN_SOURCE.md">参与贡献</a>
 </p>
@@ -86,15 +86,17 @@ AI通过应用工具保存任务变更，聊天里说“建好了”不等于任
 |资源|链接|
 |---|---|
 |产品网站|[nivo.8666886.xyz](https://nivo.8666886.xyz/)|
-|Android8.0及以上，arm64|[Nivo Bot v2.0.5安装包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk)|
+|Android8.0及以上，arm64|[Nivo Bot v2.0.7安装包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk)|
 |iOS16及以上，需自行签名|[未签名IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa)|
-|与安装包对应的源码|[v2.0.5源码包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip)|
-|下载校验和|[SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt)|
-|发行详情|[发行说明](../releases/v2.0.5.md)·[构建检查](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)|
+|与安装包对应的源码|[v2.0.7源码包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip)|
+|下载校验和|[SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt)|
+|发行详情|[发行说明](../releases/v2.0.7.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)|
 
-本次发布包含Android、iOS与产品网站。iOS通过GitHub Actions提供未签名IPA，安装前需要自行签名。本分支目前没有Apple Developer Program账号，不提供TestFlight或App Store分发。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒与引导式访问说明，由用户在iOS中手动开启和结束。CI编译成功不等于iPhone真机验收。
+2.0.7(58)Anchor仅更新Android。iOS下载仍为2.0.5(56)，本次不提供2.0.7的IPA。共用源码版本更新不等于已发布新的iOS安装包。iOS通过GitHub Actions提供未签名IPA，安装前需要自行签名。本分支目前没有Apple Developer Program账号，不提供TestFlight或App Store分发。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒与引导式访问说明，由用户在iOS中手动开启和结束。CI编译成功不等于iPhone真机验收。
 
-应用ID仍为`io.github.nanomuse.app`。旧Debug签名或上游签名的安装通常不能直接覆盖升级。卸载前请核对备份与恢复范围，详见[版本与签名指南](../android-development.md#nivo-bot的android版本与签名)。
+应用ID仍为`io.github.nanomuse.app`，延续此前Nivo Bot正式版的签名身份。本次尚未在Android真机上测试覆盖升级。旧Debug签名或上游签名的安装通常不能直接覆盖升级。卸载前请核对备份与恢复范围，详见[版本与签名指南](../android-development.md#nivo-bot的android版本与签名)。
+
+Android源码包从构建使用的固定commit导出，下载清单记录该commit与源码包校验和；检查或重新构建时，请选择与已安装版本对应的源码。
 
 ## 从源码构建
 

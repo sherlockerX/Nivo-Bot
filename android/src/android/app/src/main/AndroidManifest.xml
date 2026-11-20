@@ -27,7 +27,6 @@
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- nanoMuse: the hub connection (this phone reachable from the user's other devices) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <!-- nanoMuse: the screen-lock confirmation on the approval card's "always" for a payment
          (guard/DeviceCredential.kt, the framework BiometricPrompt); a normal permission, granted
          at install, and the prompt refuses the call without it -->
@@ -181,10 +180,8 @@
          uses for its list<->detail back transition. Required on Android 13-15;
          16+ enables it by default, so this is the compatibility switch rather
          than a new behaviour. -->
-    <!-- nanoMuse: allowBackup="false" — chats, memory and the account's data stay on this phone and
-         never go to Google's device backup; a reinstall starts empty and the account's chats come
-         back through sync at sign-in (docs/sync.md). The two rule files below are kept for the day
-         the switch is turned on again. -->
+    <!-- nanoMuse: 关闭系统自动云备份；本地版不通过账号同步恢复重装后的数据。
+         用户仍可在备份与恢复页面手动导出、导入自己的备份。 -->
     <application
         android:name=".MinisApp"
         android:allowBackup="false"
@@ -592,10 +589,7 @@
         </service>
 
         <!-- nanoMuse: keeps the phone on the hub in the background -->
-        <service
-            android:name="io.github.nanomuse.hub.HubService"
-            android:exported="false"
-            android:foregroundServiceType="remoteMessaging" />
+        <!-- nanoMuse: 本地版不注册内置设备中继服务。 -->
 
         <!-- nanoMuse: 专注到时结算仅由系统PendingIntent触发，不接收外部广播。 -->
         <receiver android:name="io.github.nanomuse.focus.FocusAlarmReceiver" android:exported="false" />

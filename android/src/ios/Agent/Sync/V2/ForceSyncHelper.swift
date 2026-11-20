@@ -24,6 +24,8 @@ enum ForceSyncHelper {
     @MainActor
     @discardableResult
     static func bidirectionalSync(recordTypes: [String]) async -> Int {
+        // nanoMuse: 旧强制同步调用仅保持接口兼容，不发起传输。
+        guard NivoICloudPolicy.isEnabled else { return 0 }
         // 1. Re-mark every row of the given types as dirty. We don't
         //    have a generic "for every X" enumerator here, so each
         //    record type's own helper is responsible for re-marking

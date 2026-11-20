@@ -382,10 +382,9 @@ Do not create extraneous files: README.md, INSTALLATION_GUIDE.md, CHANGELOG.md, 
 
     private func installBundledSkills() {
         let bundledId = "skill-creator"
-        if let existing = skills.first(where: { $0.id == bundledId }) {
-            // Upgrade if the bundled version is newer
-            guard existing.version < Self.skillCreatorVersion else { return }
-        }
+        // nanoMuse: 迁移后的用户文件优先，不能凭旧版本号覆盖自定义技能或无法解析的原文件。
+        let existingFile = skillDirectoryURL(for: bundledId).appendingPathComponent("SKILL.md")
+        guard !fm.fileExists(atPath: existingFile.path) else { return }
         _ = try? importSkill(content: Self.skillCreatorContent, source: .bundled)
     }
 

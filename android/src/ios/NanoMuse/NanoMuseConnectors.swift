@@ -109,8 +109,8 @@ enum NanoMuseConnectorsCatalogue {
 /// OAuth sign-in (with the client registered on the spot when the
 /// authorization server allows it).
 enum NanoMuseMcpAuthDiscovery {
-    static let clientName = "nanoMuse"
-    static let clientURI = "https://nanomuse.cn"
+    static let clientName = NivoProduct.name
+    static let clientURI = NivoProduct.website.absoluteString
     static let protocolVersion = "2025-06-18"
 
     enum Probe {
@@ -246,7 +246,7 @@ enum NanoMuseMcpAuthDiscovery {
             (code, text) = try await postJSON(endpoint, body)
         }
         guard (200..<300).contains(code) else {
-            throw Failure(message: "The authorization server refused to register nanoMuse (\(code)): \(text.prefix(200))")
+            throw Failure(message: "The authorization server refused to register \(NivoProduct.name) (\(code)): \(text.prefix(200))")
         }
         guard let reg = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any],
               let clientId = reg["client_id"] as? String, !clientId.isEmpty else {

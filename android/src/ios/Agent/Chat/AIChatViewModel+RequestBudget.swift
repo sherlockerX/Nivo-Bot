@@ -259,18 +259,16 @@ extension AIChatViewModel {
     /// FileProvider extension. Keep ONLY user-facing subdirs (shared, skills,
     /// memory) here — anything else leaks into "On My iPhone → nanoMuse".
     nonisolated static var minisAppGroupRoot: URL {
-        FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("MinisFileProvider", isDirectory: true)
+        // nanoMuse: 侧载签名可能没有App Group，主App统一回退到自身持久目录。
+        NivoStoragePaths.layout.applicationFiles
     }
 
     /// App Group subdirectory for private metadata that must NOT be exposed
     /// to iOS Files (mounted-folders.json, FileProvider extension logs, etc).
     /// Sibling of `minisAppGroupRoot` inside the same App Group container.
     nonisolated static var minisConfigRoot: URL {
-        let url = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedContainerStore.appGroupID
-        )!.appendingPathComponent("MinisConfig", isDirectory: true)
+        // nanoMuse: 配置与文件使用同一个容器决策，避免读写落到不同位置。
+        let url = NivoStoragePaths.layout.applicationConfig
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

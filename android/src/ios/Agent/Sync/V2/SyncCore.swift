@@ -203,6 +203,8 @@ final class SyncCore {
 
     /// Boot all registered transports. Idempotent.
     func start() async {
+        // nanoMuse: 不启动传输、重试或网络监控，保留旧同步模型兼容本地数据。
+        guard NivoICloudPolicy.isEnabled else { return }
         guard !isRunning else { return }
         logger.info("[SyncCore] start STEP=enter transports=\(self.transports.count)")
         // Hook each transport's observe(handler:) so inbound batches

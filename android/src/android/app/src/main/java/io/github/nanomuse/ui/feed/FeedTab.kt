@@ -95,6 +95,7 @@ fun FeedTab(
     onOpenPractice: (String) -> Unit = {},
     isOpeningPractice: Boolean = false, // 打开练习要写档案和数据库，期间在教练页显示进度。
     onOpenConversation: (String, String?) -> Unit = { _, _ -> },
+    providerRepository: com.openminis.app.data.repository.ProviderRepository? = null,
     header: @Composable () -> Unit,
     onDiscuss: (FeedPost) -> Unit,
     onEditRoutine: (String) -> Unit,
@@ -124,6 +125,7 @@ fun FeedTab(
         isOpeningPractice = isOpeningPractice,
         onOpenConversation = onOpenConversation,
         viewModel = coachViewModel,
+        providerRepository = providerRepository,
     )
 
     if (calendarOpen) {

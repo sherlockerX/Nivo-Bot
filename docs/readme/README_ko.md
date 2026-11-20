@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
+  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">제품 사이트</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">문제 보고</a> · <a href="../../OPEN_SOURCE.md">기여하기</a>
 </p>
@@ -86,15 +86,17 @@ AI는 앱 도구를 통해 할 일 변경을 저장합니다. 대화 답변만�
 | 자료 | 링크 |
 |---|---|
 | 제품 사이트 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 이상, arm64 | [Nivo Bot v2.0.5 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| Android 8.0 이상, arm64 | [Nivo Bot v2.0.7 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
 | iOS 16 이상, 개인 서명 필요 | [서명되지 않은 IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
-| APK에 대응하는 소스 | [v2.0.5 소스 묶음](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
-| 다운로드 체크섬 | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| 릴리스 정보 | [릴리스 노트](../releases/v2.0.5.md) · [빌드 검사](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| APK에 대응하는 소스 | [v2.0.7 소스 묶음](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| 다운로드 체크섬 | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
+| 릴리스 정보 | [릴리스 노트](../releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-이번 릴리스는 Android, iOS와 제품 사이트를 포함합니다. iOS는 GitHub Actions에서 서명되지 않은 IPA로 제공되며 설치 전에 서명해야 합니다. 이 포크에는 Apple Developer Program 계정이 없어 TestFlight 또는 App Store 배포를 제공하지 않습니다. 강제 집중, 반복 잠금 일정과 앱 허용 목록은 Android 전용입니다. iOS는 집중 알림과 사용법 유도 안내를 제공하며, 사용자가 iOS에서 직접 시작하고 종료합니다. CI 컴파일은 iPhone 실행 검증을 의미하지 않습니다.
+2.0.7(58) Anchor는 Android만 업데이트합니다. iOS 다운로드는 2.0.5(56)로 유지되며 이번 릴리스에는 2.0.7 IPA가 없습니다. 공유 소스 버전을 변경해도 새 iOS 바이너리가 배포되는 것은 아닙니다. iOS는 GitHub Actions에서 서명되지 않은 IPA로 제공되며 설치 전에 서명해야 합니다. 이 포크에는 Apple Developer Program 계정이 없어 TestFlight 또는 App Store 배포를 제공하지 않습니다. 강제 집중, 반복 잠금 일정과 앱 허용 목록은 Android 전용입니다. iOS는 집중 알림과 사용법 유도 안내를 제공하며, 사용자가 iOS에서 직접 시작하고 종료합니다. CI 컴파일은 iPhone 실행 검증을 의미하지 않습니다.
 
-앱 ID는 `io.github.nanomuse.app`입니다. 이전 Debug 키나 원본 프로젝트 키로 서명한 설치는 보통 이 버전으로 덮어쓰지 못합니다. 삭제 전에 백업과 복원 범위를 확인하세요. [버전 및 서명 안내](../android-development.md#nivo-bot的android版本与签名)를 참고하세요.
+앱 ID는 `io.github.nanomuse.app`이며 이전 Nivo Bot 정식 릴리스와 같은 서명 식별자를 유지합니다. 이번 릴리스는 실제 Android 휴대전화에서 기존 설치를 덮어쓰는 업데이트를 테스트하지 않았습니다. 이전 Debug 키나 원본 프로젝트 키로 서명한 설치는 보통 이 버전으로 덮어쓰지 못합니다. 삭제 전에 백업과 복원 범위를 확인하세요. [버전 및 서명 안내](../android-development.md#nivo-bot的android版本与签名)를 참고하세요.
+
+Android 소스 아카이브는 빌드에 사용한 고정 커밋에서 내보냅니다. 다운로드 목록에 해당 커밋과 아카이브 체크섬을 기록합니다. 검토하거나 다시 빌드할 때는 설치한 버전에 대응하는 소스를 사용하세요.
 
 ## 소스에서 빌드
 

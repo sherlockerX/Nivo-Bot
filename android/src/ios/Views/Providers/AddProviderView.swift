@@ -26,7 +26,8 @@ struct AIDataSharingConsentView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("We Do Not Collect Your Data")
                                 .font(.headline)
-                            Text("nanoMuse does not operate any server and does not collect, store, or process any of your personal data. All data stays on your device.")
+                            // nanoMuse: 本地保存与用户主动调用外部服务分别说明。
+                            Text("Nivo Bot stores your chats and settings on this device. Model requests go directly to the provider you configure.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             Text("However, when you add a third-party AI provider and use it for conversations, the following data may be sent directly from your device to that provider's servers:")
@@ -53,7 +54,7 @@ struct AIDataSharingConsentView: View {
                                 providerRow("Anthropic", description: "Claude models (anthropic.com)", color: .purple)
                                 providerRow("OpenAI", description: "GPT and o-series models (openai.com)", color: .green)
                                 providerRow("Google", description: "Gemini models (google.com)", color: .blue)
-                                providerRow("OpenRouter", description: "Multi-provider routing (openrouter.ai)", color: .cyan)
+                                // nanoMuse: 仅列官方服务与自定义兼容地址，不内置推荐聚合中转商。
                                 providerRow("Custom Endpoints", description: "Self-hosted or third-party compatible APIs you configure", color: .gray)
                             }
 
@@ -72,12 +73,13 @@ struct AIDataSharingConsentView: View {
                                 dataItem("API keys and tokens are stored only in the iOS Keychain on your device and are never sent to us")
                                 dataItem("Data is sent only to the specific provider you choose for each conversation")
                                 dataItem("You can remove any provider and its credentials at any time from Settings")
-                                dataItem("No data is shared with nanoMuse or any other party beyond the provider you select")
+                                dataItem("Connected services receive only the data needed for the features you enable.")
                             }
                         }
                     }
 
-                    Link("Read our full Privacy Policy", destination: URL(string: "https://github.com/nano-muse/nanoMuse/blob/main/docs/privacy.md")!)
+                    // nanoMuse: 隐私说明使用当前产品网站。
+                    Link("Read our full Privacy Policy", destination: NivoProduct.privacy)
                         .font(.footnote)
 
                     Spacer(minLength: 80)
@@ -433,7 +435,8 @@ struct AddProviderView: View {
 
     private var visibleProviderTypes: [ProviderType] {
         ProviderType.allCases.filter {
-            $0 != .openAIResponses && $0 != .antigravity
+            // nanoMuse: 保留已有实例的协议支持，只从新建列表移除聚合中转商。
+            $0 != .openAIResponses && $0 != .antigravity && $0 != .openRouter
                 && !$0.isUnsupported
         }
     }

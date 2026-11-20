@@ -59,9 +59,8 @@ object SharedConnectors {
 
     /** The other devices' connections, as last read from the account; kept across restarts. */
     fun others(context: Context): StateFlow<List<Entry>> {
-        if (_others.value == null) {
-            _others.value = runCatching { parse(JSONArray(prefs(context).getString(KEY_OTHERS, "[]"))) }.getOrDefault(emptyList())
-        }
+        // 保留原缓存供备份恢复，但本地版不展示其他云账号设备的连接器。
+        _others.value = emptyList()
         @Suppress("UNCHECKED_CAST")
         return _others.asStateFlow() as StateFlow<List<Entry>>
     }

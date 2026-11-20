@@ -48,6 +48,8 @@ final class NanoMuseAllowance: ObservableObject {
     /// A model call came back with an allowance refusal (from `NanoMuseRelaySignal`, through
     /// `lineForError`); the card goes up under the header, over the chat that was open.
     func refused(_ refusal: NanoMuseRelayRefusal.Refusal, facts: NanoMuseRelayRefusal.AllowanceFacts?) {
+        // 本地构建不会根据旧额度信号提示登录、邀请或中转服务。
+        guard !NanoMuseOffline.isOn else { return }
         guard refusal.isAllowance else { return }
         var f = facts ?? NanoMuseRelayRefusal.AllowanceFacts()
         if f.guidance == nil { f.guidance = Self.storedGuidance() } else { Self.store(guidance: f.guidance) }
@@ -70,6 +72,7 @@ final class NanoMuseAllowance: ObservableObject {
     /// once per pool size (`spend.warn`; the grant is the size). A pool that is spent or
     /// paused has the card instead, when a turn is refused.
     func absorb(me: [String: Any]) {
+        guard !NanoMuseOffline.isOn else { return }
         guard let spend = me["spend"] as? [String: Any] else { return }
         if let g = NanoMuseGuidance.parse(spend["guidance"] as? [String: Any]) { Self.store(guidance: g) }
         func num(_ v: Any?) -> Double? {

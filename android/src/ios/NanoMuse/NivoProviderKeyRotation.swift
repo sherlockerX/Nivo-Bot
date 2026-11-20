@@ -44,10 +44,13 @@ enum NivoProviderKeyRotation {
         var previousSync: Secret?
         var previousLocal: Secret?
         var replacement: Secret
+        // 缺失表示旧版同步事务；新事务明确标记本机目标，避免重启时回滚错条目。
+        var targetIsLocal: Bool? = nil
 
         /// 再次核对真正进入暂存的值与版本，不能让两次Keychain读取之间的新值成为可覆盖基线。
         func matchesPrevious(value: Data?, version: Date?, fallbackVersion: Date) throws -> Bool {
-            guard let previous = previousSync ?? previousLocal else { return value == nil && version == nil }
+            let selected = targetIsLocal == true ? previousLocal ?? previousSync : previousSync ?? previousLocal
+            guard let previous = selected else { return value == nil && version == nil }
             guard let value, let version else { return false }
             let savedVersion = try previous.savedVersion(fallback: fallbackVersion)
             return previous.value == value && savedVersion == version
@@ -71,7 +74,8 @@ enum NivoProviderKeyRotation {
             try validate()
             guard let current, current.value == replacement.value,
                   current.version == replacement.version, current.comment == receipt.comment else { return .preserve }
-            return previousSync.map(Rollback.restore) ?? .remove
+            let previous = targetIsLocal == true ? previousLocal : previousSync
+            return previous.map(Rollback.restore) ?? .remove
         }
     }
 }

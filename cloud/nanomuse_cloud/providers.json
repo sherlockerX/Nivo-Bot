@@ -109,6 +109,7 @@
     },
     {
       "id": "siliconflow",
+      "is_relay": true,
       "name": "SiliconFlow",
       "name_zh": "硅基流动",
       "protocol": "openai",
@@ -193,6 +194,7 @@
     },
     {
       "id": "openrouter",
+      "is_relay": true,
       "name": "OpenRouter",
       "name_zh": "OpenRouter",
       "protocol": "openai",
@@ -391,6 +393,7 @@
     },
     {
       "id": "opencode-zen",
+      "is_relay": true,
       "name": "OpenCode Zen",
       "name_zh": "OpenCode Zen",
       "protocol": "openai",
@@ -408,6 +411,7 @@
     },
     {
       "id": "opencode-go",
+      "is_relay": true,
       "name": "OpenCode Go",
       "name_zh": "OpenCode Go",
       "protocol": "openai",
@@ -426,6 +430,7 @@
     },
     {
       "id": "standardcompute",
+      "is_relay": true,
       "name": "Standard Compute",
       "name_zh": "Standard Compute",
       "protocol": "openai",
@@ -444,6 +449,7 @@
     },
     {
       "id": "cheaperinference",
+      "is_relay": true,
       "name": "Cheaper Inference",
       "name_zh": "Cheaper Inference",
       "protocol": "openai",

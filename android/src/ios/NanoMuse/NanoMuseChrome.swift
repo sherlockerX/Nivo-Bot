@@ -209,8 +209,13 @@ struct NanoMuseMuseHeader<Leading: View, Trailing: View>: View {
     var body: some View {
         let disc = appearance.avatarSize.points
         let pillAreaHeight = NanoMuseHeaderMetrics.capped(pillArea, base: NanoMuseHeaderMetrics.pillAreaBase)
+        // 角上按钮占据顶部约56pt；头像较小或隐藏时名字胶囊会落在按钮那一行，长名字会钻到按钮下面。
+        // 把头像和胶囊整体下移到按钮下方，大号头像不受影响。
+        let pillTop = disc.map { $0 - nmPillOverlap } ?? 10
+        let clearance = max(0, 56 - pillTop)
         ZStack(alignment: .top) {
             VStack(spacing: 0) {
+                if clearance > 0 { Color.clear.frame(height: clearance) }
                 if let disc {
                     Button(action: onFace) {
                         NanoMuseFaceView(mood: mood, size: disc)

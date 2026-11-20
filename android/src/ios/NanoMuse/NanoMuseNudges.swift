@@ -40,7 +40,7 @@ struct NanoMuseNudgePolicy: Equatable, Sendable {
     /// The built-in fallback — identical on Android, iOS, desktop and web.
     static let defaults = NanoMuseNudgePolicy(
         enabled: true,
-        url: "https://github.com/nano-muse/nanoMuse",
+        url: "https://nivo.8666886.xyz/",
         signedIn: true,
         tasks: [3, 10, 30],
         newLook: true,
@@ -233,6 +233,12 @@ final class NanoMuseNudges: ObservableObject {
     private var fetching = false
 
     private init() {
+        if NanoMuseOffline.isOn {
+            var retired = NanoMuseNudgePolicy.defaults
+            retired.enabled = false
+            policy = retired
+            return
+        }
         if let data = UserDefaults.standard.data(forKey: Keys.policy),
            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
             policy = NanoMuseNudgePolicy.parse(json)
@@ -264,6 +270,7 @@ final class NanoMuseNudges: ObservableObject {
 
     /// The `nudges` field of a `/v1/me` reply, when the relay sends one.
     func absorb(me reply: [String: Any]) {
+        guard !NanoMuseOffline.isOn else { return }
         guard let json = reply["nudges"] as? [String: Any] else { return }
         absorb(json)
     }

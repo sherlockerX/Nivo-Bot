@@ -1,4 +1,4 @@
-"""从可审查内容源生成独立产品页面和原创SVG功能图，不请求模型或远程素材。"""
+"""从可审查内容源生成产品页面，展示本地保存的真实应用截图。"""
 
 from __future__ import annotations
 
@@ -9,6 +9,15 @@ import json
 from pathlib import Path
 
 from content import FEATURES, PROVIDERS
+from presentation import day_story, icon
+from screenshots import (
+    SCREENSHOT_HEIGHT,
+    SCREENSHOT_NOTE,
+    SCREENSHOT_WIDTH,
+    SCREENSHOTS,
+    screenshot_link,
+    screenshot_url,
+)
 
 ROOT = Path(__file__).resolve().parents[2] / "site"
 ORIGIN = "https://nivo.8666886.xyz/"
@@ -21,7 +30,7 @@ INDEXNOW_KEY = "1f804be1a33b1ddba7ee8b064dab28f5"
 
 
 def esc(value: object) -> str:
-    """转义写入HTML和SVG的内容。"""
+    """转义写入HTML的内容。"""
     return html.escape(str(value), quote=True)
 
 
@@ -79,6 +88,9 @@ def page(
 ) -> str:
     """生成具有统一导航、元信息和无障碍入口的真实独立页面。"""
     prefix = "../" * (len(Path(path).parts) - 1)
+    screenshot_id = Path(path).stem if path.startswith("features/") else "chat"
+    preview_url = screenshot_url(screenshot_id, ORIGIN, ASSET_HASH)
+    preview_alt = SCREENSHOTS[screenshot_id]["alt"]
     navigation = [
         ("index.html", "认识Nivo", "home"),
         ("features.html", "功能画廊", "features"),
@@ -109,6 +121,9 @@ def page(
     local_nav = (
         f'<nav class="page-nav wrap" aria-label="当前栏目">{sublinks}</nav>' if sublinks else ""
     )
+    if path == "features.html":
+        # 画廊已有六个功能标签，脚本关闭时再展示独立详情导航。
+        local_nav = f"<noscript>{local_nav}</noscript>"
     structured_data = ""
     if path == "index.html":
         structured_data = (
@@ -130,24 +145,25 @@ def page(
         )
     return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#f4f3ec"><meta name="description" content="{esc(description)}">
+<meta name="theme-color" content="#f6f8fc"><meta name="description" content="{esc(description)}">
 <meta name="google-site-verification" content="{GOOGLE_SITE_VERIFICATION}">
 <meta name="msvalidate.01" content="{BING_SITE_VERIFICATION}">
 <meta property="og:title" content="{esc(title)} · Nivo Bot"><meta property="og:description" content="{esc(description)}"><meta property="og:type" content="website">
-<meta property="og:image" content="{ORIGIN}media/chat.svg"><link rel="canonical" href="{ORIGIN}{path if path != "index.html" else ""}">
+<meta property="og:image" content="{esc(preview_url)}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="{SCREENSHOT_WIDTH}"><meta property="og:image:height" content="{SCREENSHOT_HEIGHT}"><meta property="og:image:alt" content="{esc(preview_alt)}"><link rel="canonical" href="{ORIGIN}{path if path != "index.html" else ""}">
 <title>{esc(title)} · Nivo Bot</title><link rel="icon" href="{prefix}brand-mark.svg" type="image/svg+xml">{structured_data}
-<link rel="stylesheet" href="{prefix}product.css?v={ASSET_HASH}"><script src="{prefix}product.js?v={ASSET_HASH}" defer></script></head>
+<link rel="stylesheet" href="{prefix}product.css?v={ASSET_HASH}"><script src="{prefix}product.js?v={ASSET_HASH}" defer></script>
+<noscript><style>.story-tabs,.gallery-tabs,.gallery-controls>div,.menu-button,.filter-pills,.search-box,.platform-tabs,.download-filters,#release-message{{display:none}}</style></noscript></head>
 <body data-root="{prefix or "./"}" data-page="{section}"><a class="skip" href="#main">跳到正文</a>
-<div class="site-header"><header class="header"><a class="brand" href="{prefix}index.html"><img src="{prefix}brand-mark.svg" width="32" height="32" alt=""><span>Nivo Bot<span class="accent">.</span></span></a>
+<div class="site-header"><header class="header"><a class="brand" href="{prefix}index.html"><img src="{prefix}brand-mark.svg" width="32" height="32" alt=""><span>Nivo Bot</span></a>
 <button class="menu-button" type="button" aria-controls="navigation" aria-expanded="false">导航<span aria-hidden="true">＋</span></button><nav id="navigation" aria-label="主导航">{nav}</nav></header><nav class="mobile-page-tabs" aria-label="页面切换">{mobile_nav}</nav></div>
 <main id="main">{local_nav}{body}</main>
-<footer class="footer wrap"><a class="brand" href="{prefix}index.html">Nivo Bot<span class="accent">.</span></a><nav aria-label="页脚导航"><a href="{prefix}developers.html">开放项目</a><a href="{prefix}privacy.html">数据与隐私</a>{link(REPO, "GitHub ↗")}</nav><small>GPL-3.0-or-later · 致谢nanoMuse与OpenMinis</small></footer>
+<footer class="footer wrap"><div class="footer-brand"><a class="brand" href="{prefix}index.html">Nivo Bot</a><p>从对话开始，在日常积累。</p></div><nav aria-label="页脚导航"><a href="{prefix}developers.html">开放项目</a><a href="{prefix}privacy.html">数据与隐私</a>{link(REPO, "GitHub")}</nav><small>GPL-3.0-or-later<br>致谢nanoMuse与OpenMinis</small></footer>
 <p class="sr-only" id="page-status" role="status" aria-live="polite"></p></body></html>'''
 
 
 def title_block(kicker: str, title: str, summary: str) -> str:
     """生成紧凑的页面引言。"""
-    return f'<div class="page-intro wrap"><p class="eyebrow">{kicker}</p><h1>{title}</h1><p class="lead">{summary}</p></div>'
+    return f'<div class="page-intro wrap"><h1>{title}</h1><p class="lead">{summary}</p></div>'
 
 
 def carousel(prefix: str = "") -> str:
@@ -155,21 +171,26 @@ def carousel(prefix: str = "") -> str:
     slides, tabs = [], []
     for index, feature in enumerate(FEATURES):
         active = index == 0
-        slides.append(f'''<article class="slide" id="slide-{feature["id"]}" role="tabpanel" aria-labelledby="slide-tab-{feature["id"]}"{"" if active else " hidden"}>
-<img src="{prefix}media/{feature["id"]}.svg?v={ASSET_HASH}" width="1280" height="800" alt="{feature["name"]}功能示意：{esc(feature["summary"])}" {'fetchpriority="high"' if active else 'loading="lazy"'}>
-<div class="slide-caption"><div><span class="eyebrow">{index + 1:02d} / 06</span><h3>{feature["name"]}</h3><p>{feature["summary"]}</p></div><a class="text-link" href="{prefix}features/{feature["id"]}.html">了解这个功能 <span>↗</span></a></div></article>''')
+        slides.append(f'''<article class="slide" style="--scene-color:{feature["color"]}" id="slide-{feature["id"]}" role="tabpanel" aria-labelledby="slide-tab-{feature["id"]}"{"" if active else " hidden"}>
+<div class="slide-image">{screenshot_link(feature["id"], prefix, ASSET_HASH, is_priority=active)}</div>
+<div class="slide-caption"><div>{icon(feature["id"])}<h3>{feature["name"]}</h3><p>{feature["summary"]}</p><ul>{"".join(f"<li>{esc(item)}</li>" for item in feature["bullets"])}</ul></div><a class="button primary" href="{prefix}features/{feature["id"]}.html">了解{feature["name"]}</a></div></article>''')
         tabs.append(
-            f'<button role="tab" id="slide-tab-{feature["id"]}" aria-controls="slide-{feature["id"]}" aria-selected="{str(active).lower()}" tabindex="{0 if active else -1}" data-slide="{index}">{feature["name"]}</button>'
+            f'<button type="button" role="tab" id="slide-tab-{feature["id"]}" aria-controls="slide-{feature["id"]}" aria-selected="{str(active).lower()}" tabindex="{0 if active else -1}" data-slide="{index}">{icon(feature["id"])}{feature["name"]}</button>'
         )
     return f"""<section class="gallery" aria-label="Nivo Bot功能轮播" aria-roledescription="图片轮播" tabindex="0" data-carousel>
 <div class="gallery-tabs" role="tablist" aria-label="选择要了解的功能">{"".join(tabs)}</div><div class="gallery-stage">{"".join(slides)}</div>
-<div class="gallery-controls"><span class="muted">原创功能示意，使用示例内容，并非手机截图</span><div><span data-carousel-count aria-live="polite" aria-atomic="true">01 / 06</span><button type="button" data-carousel-prev aria-label="上一个功能">←</button><button type="button" data-carousel-play aria-label="暂停自动轮播">暂停</button><button type="button" data-carousel-next aria-label="下一个功能">→</button></div></div></section>"""
+<div class="gallery-controls"><span class="muted">{SCREENSHOT_NOTE}</span><div><span data-carousel-count aria-live="polite" aria-atomic="true">01 / 06</span><button type="button" data-carousel-prev aria-label="上一个功能">←</button><button type="button" data-carousel-play aria-label="播放自动轮播">播放</button><button type="button" data-carousel-next aria-label="下一个功能">→</button></div></div></section>"""
 
 
 def home() -> str:
     """首页只解释定位并提供页面入口，不重复功能、教程和下载正文。"""
-    return f"""<section class="hero wrap home-hero"><div><p class="eyebrow"><span class="live-dot"></span>开源AI日常工作台</p><h1>想法说出来，<br>生活<span class="accent">动起来。</span></h1><p class="hero-copy">把AI对话、待办、专注和个人成长连起来。<br>从聊清一件事，到做完一件事，再留下自己的积累。</p><div class="actions"><a class="button primary" href="features.html">探索六项功能 ↗</a><a class="text-link" href="downloads.html">选择Android或iOS ↓</a></div><div class="hero-facts"><span>Android与iOS</span><span>自主选择模型</span><span>免费开源客户端</span></div><div class="home-flow" aria-label="日常使用流程"><span>对话</span><b>→</b><span>待办</span><b>→</b><span>专注</span><b>→</b><span>回顾</span></div></div><a class="home-preview" href="features/focus.html" aria-label="了解沉浸专注"><div class="preview-label"><span>一段时间，一件事。</span><span>沉浸专注 ↗</span></div><img src="media/focus-preview.svg?v={ASSET_HASH}" width="450" height="690" alt="沉浸专注功能示意，非手机截图" fetchpriority="high"><span class="preview-caption">功能示意 · 实际界面以App为准</span></a></section>
-<nav class="wrap entry-grid" aria-label="选择下一步"><a href="features.html"><span class="entry-number">01 / EXPLORE</span><h2>先看看，能做什么。</h2><p>六项功能、图片轮播与具体用法。</p><span class="entry-arrow">打开功能画廊 ↗</span></a><a href="models.html"><span class="entry-number">02 / CONNECT</span><h2>连接你自己的模型。</h2><p>按服务商找到完整的配置教程。</p><span class="entry-arrow">选择模型服务商 ↗</span></a><a href="downloads.html"><span class="entry-number">03 / GET NIVO</span><h2>从今天开始使用。</h2><p>选择平台和版本，查看安装包与签名要求。</p><span class="entry-arrow">前往下载中心 ↗</span></a></nav>"""
+    feature_links = "".join(
+        f'<a href="features/{feature["id"]}.html">{icon(feature["id"])}<span>{feature["name"]}</span></a>'
+        for feature in FEATURES
+    )
+    return f"""<section class="hero wrap home-hero"><div class="hero-content"><p class="product-label">属于你的AI日常工作台</p><h1>把一个想法，<br>带进日常。</h1><p class="hero-copy">聊清楚，动手做，回头看。<br>Nivo把AI对话、待办、专注与成长记录连在一起，让每一小步都有迹可循。</p><div class="actions"><a class="button primary" href="downloads.html">获取Nivo Bot{icon("download")}</a><a class="text-link" href="features.html">看看怎么用</a></div><p class="hero-availability">Android与iOS · 免费开源客户端</p><div class="hero-model-note">模型由你选择，记录留在本机。<a href="privacy.html">了解数据去向</a><small>本地模式以对应版本说明为准。</small></div></div>{day_story(ASSET_HASH)}</section>
+<section class="wrap feature-strip"><h2>六个入口，<br>接住同一天。</h2><nav aria-label="探索各项功能">{feature_links}</nav></section>
+<nav class="wrap entry-grid" aria-label="选择下一步"><a href="features.html">{icon("chat")}<h2>先看一眼日常用法</h2><p>从聊天开始，到一条可以回看的记录。也为学习和灵感留个位置。</p><span class="entry-action">打开功能画廊</span></a><a href="models.html">{icon("model")}<h2>接上熟悉的模型</h2><p>官方API、本地模型、自定义服务。找到你的方式，按教程配置。</p><span class="entry-action">阅读接入教程</span></a><a href="downloads.html">{icon("download")}<h2>选好版本，再开始</h2><p>查看Android安装包、iOS签名要求，以及每个版本的变化。</p><span class="entry-action">进入下载中心</span></a></nav>"""
 
 
 def feature_index() -> str:
@@ -177,8 +198,8 @@ def feature_index() -> str:
     return (
         title_block(
             "FEATURE GALLERY / 01",
-            "找到你今天需要的功能。",
-            "切换图片了解六种用途，打开详情查看具体用法。",
+            "每一件小事，都接得上。",
+            "切换六个入口，看想法怎样进入行动，经历怎样成为积累。",
         )
         + f'<div class="wrap gallery-page">{carousel()}</div>'
     )
@@ -196,15 +217,15 @@ def feature_detail(feature: dict, index: int) -> str:
     return (
         f"""<div class="wrap breadcrumb"><a href="../features.html">功能画廊</a><span>／</span><span>{feature["name"]}</span></div>"""
         + title_block(feature["kicker"], title, feature["description"])
-        + f'''<section class="wrap"><div class="feature-badges">{bullets}</div><figure class="feature-figure"><img src="../media/{feature["id"]}.svg?v={ASSET_HASH}" width="1280" height="800" alt="{feature["name"]}功能示意"><figcaption>原创功能示意 · 使用虚构示例，实际界面与可用功能以对应平台App为准</figcaption></figure></section>
-<section class="wrap narrow section">{steps}<aside class="callout"><h3>把使用边界说清楚</h3><p>{feature["boundary"]}</p></aside><div class="actions"><a class="button primary" href="../downloads.html">下载后试一试 ↗</a><a class="text-link" href="{next_feature["id"]}.html">下一个：{next_feature["name"]} →</a></div></section>'''
+        + f'''<section class="wrap"><div class="feature-badges">{bullets}</div><figure class="feature-figure">{screenshot_link(feature["id"], "../", ASSET_HASH, is_priority=True)}<figcaption>{SCREENSHOT_NOTE}各平台及历史安装包的界面与功能以对应版本为准。</figcaption></figure></section>
+<section class="wrap narrow section">{steps}<aside class="callout"><h3>使用说明</h3><p>{feature["boundary"]}</p></aside><div class="actions"><a class="button primary" href="../downloads.html">下载后试一试</a><a class="text-link" href="{next_feature["id"]}.html">下一个：{next_feature["name"]}</a></div></section>'''
     )
 
 
 def provider_cards() -> str:
     """生成无需JS也可访问的厂商导航列表。"""
     return "".join(
-        f'''<a class="provider-card" data-provider data-category="{p["category"]}" data-search="{esc(p["id"] + " " + p["name"] + " " + p["category"])}" href="models/{p["id"]}.html"><span class="provider-mark">{p["mark"]}</span><span class="chip">{p["category"]}</span><h3>{p["name"]}</h3><p>{p["intro"]}</p><span class="text-link">查看详细教程 ↗</span></a>'''
+        f'''<a class="provider-card" data-provider data-category="{p["category"]}" data-search="{esc(p["id"] + " " + p["name"] + " " + p["category"])}" href="models/{p["id"]}.html"><span class="provider-mark" aria-hidden="true">{p["mark"]}</span><div><span class="provider-category">{p["category"]}</span><h3>{p["name"]}</h3><p>{p["intro"]}</p><span class="text-link">配置教程</span></div></a>'''
         for p in PROVIDERS
     )
 
@@ -213,15 +234,15 @@ def models_index() -> str:
     """分层说明接入概念，提供厂商搜索和独立教程。"""
     groups = "".join(
         f'<button type="button" data-provider-filter="{name}" aria-pressed="{str(i == 0).lower()}">{name}</button>'
-        for i, name in enumerate(["全部", "国内平台", "国际平台", "聚合服务", "本地与自建"])
+        for i, name in enumerate(["全部", "国内平台", "国际平台", "本地与自建"])
     )
     return (
         title_block(
             "BRING YOUR OWN INTELLIGENCE",
-            "选一个模型，<br>开始你的<span class='accent'>第一次对话。</span>",
-            "从账号、API Key、地址和模型ID开始。按你选择的厂商阅读，不用在一张长页面里翻找。",
+            "选一个模型，聊起来。",
+            "连接官方API，或使用自己的兼容服务。凭证只需填写在App里。",
         )
-        + f"""<section class="wrap catalogue-panel"><a class="entry-banner" href="getting-started.html"><span>第一次接入？先读设置入门与常见问题</span><span>打开入门指南 ↗</span></a><div class="catalogue-toolbar" id="providers"><div><p class="eyebrow">CHOOSE YOUR PROVIDER</p><h2>从你使用的平台开始。</h2></div><label class="search-box"><span>查找服务商</span><input type="search" id="provider-search" placeholder="搜索百炼、DeepSeek、Claude…" autocomplete="off"></label></div><div class="filter-pills" aria-label="按服务类别筛选">{groups}</div><p class="muted" id="provider-count" role="status" aria-live="polite">{len(PROVIDERS)}种接入入口</p><div class="provider-grid">{provider_cards()}</div><p id="provider-empty" class="empty-state" hidden>没有匹配的服务商。试试英文品牌名，或查看“其他OpenAI兼容服务”。</p></section>"""
+        + f"""<section class="wrap catalogue-panel"><a class="entry-banner" href="getting-started.html"><span>{icon("model")}第一次连接模型？从Key、地址和模型ID开始。</span><span>阅读入门指南</span></a><div class="catalogue-toolbar" id="providers"><h2>找到你使用的平台</h2><label class="search-box"><span>查找服务商</span><input type="search" id="provider-search" placeholder="名称或英文品牌名" autocomplete="off"></label></div><div class="filter-pills" aria-label="按服务类别筛选">{groups}</div><p class="muted" id="provider-count" role="status" aria-live="polite">{len(PROVIDERS)}种接入入口</p><div class="provider-grid">{provider_cards()}</div><div id="provider-empty" class="empty-state" hidden><h3>没有找到匹配的平台</h3><p>可以清除筛选，也可以直接配置自己的兼容服务。</p><div class="actions"><button type="button" class="button primary" data-provider-reset>清除筛选</button><a class="text-link" href="models/custom.html">自定义服务教程</a></div></div></section>"""
     )
 
 
@@ -231,9 +252,9 @@ def getting_started() -> str:
         title_block(
             "MODEL SETUP / START HERE", "第一次连接模型。", "先理解几个设置，再选择你自己的服务商。"
         )
-        + """<section class="wrap"><div class="start-guide"><div><span class="eyebrow">第一次接入？</span><h2>先走通文字对话，<br>其他能力慢慢加。</h2><p>App里通常从“设置 → 模型”或“添加AI服务商”进入。优先选对应厂商预置；名称会随版本略有差异。</p></div><ol><li><b>01</b><span>去厂商控制台准备账号、额度与Key。</span></li><li><b>02</b><span>在App选择协议，填写基础URL和Key。</span></li><li><b>03</b><span>刷新模型或手动添加精确模型ID。</span></li><li><b>04</b><span>在设置中选择“对话”模型，发一条短问候。</span></li></ol></div>
+        + """<section class="wrap"><aside class="callout"><h2>可以先用起来，再连接AI。</h2><p>本地模式更新允许首次打开时选择“暂时跳过”，先使用待办、普通专注和生活记录。需要AI回复时再从设置添加服务商。Nivo账号与模型厂商账号是两件事：新版不需要Nivo登录，模型API仍按你选择的服务进行认证。</p><p>本说明对应正在维护的本地模式版本；下载包的实际改动请核对各版本说明。</p></aside><div class="start-guide"><div><span class="eyebrow">第一次接入？</span><h2>先走通文字对话，<br>其他能力慢慢加。</h2><p>从“设置 → 模型”或“添加AI服务商”进入。选官方厂商，或选择自定义服务并填写自己的地址；模型名称、协议和服务地址应同时核对。</p></div><ol><li><b>01</b><span>在所选服务管理方准备可用的API凭证。</span></li><li><b>02</b><span>在App选择协议，填写基础URL和Key。</span></li><li><b>03</b><span>刷新模型或手动添加精确模型ID。</span></li><li><b>04</b><span>在设置中选择“对话”模型，发一条短问候。</span></li></ol></div>
 <div class="concept-grid"><article><h3>API Key是凭证</h3><p>只填App的服务商设置。这里不会要求你输入Key，也不会替你测试真实请求。</p></article><article><h3>Base URL是服务入口</h3><p>不是控制台网址，也通常不是完整的/chat/completions操作地址。</p></article><article><h3>模型ID是准确名字</h3><p>优先从平台列表复制，厂商前缀、大小写和日期后缀都可能有意义。</p></article></div>
-</section><section class="wrap section reading-grid"><div><p class="eyebrow">BEFORE YOU CONNECT</p><h2>四个设置，<br>先弄清它们的关系。</h2></div><div><details open><summary>对话、操作屏幕、生成图片、生成视频要全部配置吗？</summary><p>不需要。先选“对话”模型。操作屏幕需要视觉能力，生成图片和视频需要专用模型及App已适配的接口，不能用普通文本模型代替。</p></details><details><summary>为什么自动追加/v1会影响连接？</summary><p>App会根据开关拼接地址。基础URL已经含/v1时不要再追加；智谱的/v4、方舟的/v3和Gemini原生/v1beta也不能再追加。每篇教程都给出字段和开关的对应值。</p></details><details><summary>聊天会员、API余额、Coding套餐是一回事吗？</summary><p>通常分别管理。订阅能否用于第三方App、可用端点及客户端范围，须以具体产品条款为准。不要把编程套餐当作通用无限聊天额度。</p></details><details><summary>没有模型列表怎么办？</summary><p>有些服务不支持列举模型。在App服务商详情里使用“添加自定义模型”，填写控制台给出的精确ID；普通聊天成功后再验证流式和工具。</p></details><details><summary>朗读和语音输入也要买模型服务吗？</summary><p>回复可使用手机系统TTS。语音输入可以沿用手机输入法；专门的实时语音服务是另一项可选配置，不是文字聊天的前提。</p></details><details><summary>这些教程是否代表全部厂商都经过实机验证？</summary><p>教程根据当前App源码和官方资料整理，核对日期为2026-11-13；没有使用你的Key逐一请求所有厂商。模型、计费和账号可用性以实际控制台为准。</p></details></div></section><div class="wrap page-end"><a class="button primary" href="models.html">选择服务商 ↗</a></div>"""
+</section><section class="wrap section reading-grid"><div><p class="eyebrow">连接模型之前</p><h2>四个设置，<br>先弄清它们的关系。</h2></div><div><details open><summary>对话、操作屏幕、生成图片、生成视频要全部配置吗？</summary><p>不需要。先选“对话”模型。操作屏幕需要视觉能力，生成图片和视频需要专用模型及App已适配的接口，不能用普通文本模型代替。</p></details><details><summary>为什么自动追加/v1会影响连接？</summary><p>App会根据开关拼接地址。基础URL已经含/v1时不要再追加；智谱的/v4、方舟的/v3和Gemini原生/v1beta也不能再追加。每篇教程都给出字段和开关的对应值。</p></details><details><summary>聊天会员、API余额、Coding套餐是一回事吗？</summary><p>通常分别管理。订阅能否用于第三方App、可用端点及客户端范围，须以具体产品条款为准。不要把编程套餐当作通用无限聊天额度。</p></details><details><summary>没有模型列表怎么办？</summary><p>有些服务不支持列举模型。在App服务商详情里使用“添加自定义模型”，填写控制台给出的精确ID；普通聊天成功后再验证流式和工具。</p></details><details><summary>朗读和语音输入也要买模型服务吗？</summary><p>回复可使用手机系统TTS。语音输入可以沿用手机输入法；专门的实时语音服务是另一项可选配置，不是文字聊天的前提。</p></details><details><summary>这些教程是否代表全部厂商都经过实机验证？</summary><p>教程根据当前App源码和官方资料整理，核对日期为2026-11-13；没有使用你的Key逐一请求所有厂商。模型、计费和账号可用性以实际控制台为准。</p></details></div></section><div class="wrap page-end"><a class="button primary" href="models.html">选择服务商</a></div>"""
     )
 
 
@@ -260,13 +281,13 @@ def provider_detail(provider: dict) -> str:
         for code, reason in p["failures"]
     )
     local = p["category"] == "本地与自建" and p["id"] != "custom"
-    return f'''<div class="wrap breadcrumb"><a href="../models.html">模型接入</a><span>／</span><span>{p["name"]}</span></div><div class="wrap guide-layout"><aside class="guide-nav"><details open><summary>接入目录</summary>{sidebar}</details></aside><article class="guide-article"><p class="eyebrow">{p["category"]} / SETUP GUIDE</p><h1>{p["name"]}<br><span class="accent">接入指南。</span></h1><p class="lead">{p["intro"]}</p><p class="guide-meta">按当前App配置逻辑编写 · 官方资料核对：2026-11-13</p><nav class="article-toc" aria-label="本篇目录"><a href="#prepare">账号与凭证</a><a href="#configure">App怎么填</a><a href="#verify">逐步验证</a><a href="#troubleshoot">排查问题</a><a href="#sources">官方资料</a></nav>
-<section id="prepare"><h2>01 / {"准备本地服务" if local else "准备账号与API服务"}</h2><p>{p["account"]}</p>{link(p["console"], "打开官方控制台／下载入口 ↗", "text-link")}<h3>取得正确的凭证</h3><p>{p["key"]}</p></section>
+    return f'''<div class="wrap breadcrumb"><a href="../models.html">模型接入</a><span>／</span><span>{p["name"]}</span></div><div class="wrap guide-layout"><aside class="guide-nav"><details open><summary>切换服务商</summary>{sidebar}</details></aside><article class="guide-article"><p class="eyebrow">{p["category"]}</p><h1>{p["name"]}接入指南</h1><p class="lead">{p["intro"]}</p><p class="guide-meta">按当前App配置逻辑编写 · 官方资料核对：2026-11-13</p><nav class="article-toc" aria-label="本篇目录"><a href="#prepare">账号与凭证</a><a href="#configure">App怎么填</a><a href="#verify">逐步验证</a><a href="#troubleshoot">排查问题</a><a href="#sources">官方资料</a></nav>
+<section id="prepare"><h2>01 / {"准备本地服务" if local else "准备账号与API服务"}</h2><p>{p["account"]}</p>{link(p["console"], "打开官方控制台／下载入口", "text-link")}<h3>取得正确的凭证</h3><p>{p["key"]}</p></section>
 <section id="configure"><h2>02 / 在App里填写</h2><p>进入添加AI服务商，选择对应预置或下面指定的协议。API Key只写入App的凭证字段；不要发到主要聊天，也不要贴在本网页。</p><div class="config-card"><div class="config-card-title"><span>{p["mark"]}</span><div><strong>{p["name"]}</strong><small>字段对应表 · 非真实密钥</small></div></div><dl><dt>服务商类型／协议</dt><dd>{protocol}</dd><dt>基础URL字段</dt><dd><code>{esc(form)}</code><button type="button" class="copy-button" data-copy="{esc(form)}" aria-label="复制{p["name"]}基础URL">复制</button></dd><dt>自动追加/v1</dt><dd><span class="toggle-label">{"开启" if append else "关闭"}</span></dd><dt>最终API入口</dt><dd><code>{esc(url)}</code></dd><dt>API Key</dt><dd>{"按自建服务的认证设置填写；无认证时无需厂商Key" if local else "填写上一步取得的完整Key，不附加Bearer或请求头名称"}</dd><dt>模型ID参考</dt><dd><code>{esc(p["model"])}</code><small>示例不保证你的账号已开通；优先使用当前列表中的准确ID。</small></dd></dl></div><ul class="guide-points">{specials}</ul>{('<h3>其他地域</h3><ul class="endpoint-list">' + regions + "</ul><p>地域地址和API Key一起切换，再按结尾路径检查/v1开关。</p>") if regions else ""}</section>
 <section id="verify"><h2>03 / 从一条回复开始验证</h2><ol class="numbered-list"><li><strong>保存连接设置。</strong>修改URL和/v1开关后，点击保存URL设置；不要只编辑后直接返回。</li><li><strong>刷新模型。</strong>在服务商详情点击刷新模型；不提供列表时，使用添加自定义模型并填精确ID。</li><li><strong>选为对话模型。</strong>在设置的模型选择中选中该服务商下的模型，主要聊天和新对话使用所选模型；已有旁聊可能保留原选择。</li><li><strong>先发短文本。</strong>例如“请用一句话说你好”。看到完整回复后，再检查流式输出是否正常。</li><li><strong>再试应用工具。</strong>请求查询现有待办或建立一个明确任务，回到待办页确认工具是否实际保存；普通文字回复不算工具成功。</li><li><strong>最后加可选能力。</strong>图片理解、操作屏幕、图像或视频分别验证。系统TTS可沿用手机语音引擎。</li></ol><aside class="callout"><h3>如何判断接入成功？</h3><p>保存配置、读取模型列表、普通回复、流式回复、工具执行是不同检查。只看到模型名或一句“可以帮你”不足以证明全部功能已适配。</p></aside></section>
 <section id="troubleshoot"><h2>04 / 出问题时先看哪里</h2><div class="table-wrap"><table><thead><tr><th>现象</th><th>优先排查</th></tr></thead><tbody>{errors}<tr><th scope="row">地址或协议报错</th><td>检查是否填了网页登录地址、完整操作路径，或重复追加/v1。协议必须与服务端一致。</td></tr><tr><th scope="row">能聊天，不能创建任务</th><td>检查模型工具调用支持及应用授权；改用服务商中明确支持工具的模型，再查看工具返回结果。</td></tr><tr><th scope="row">长对话才失败</th><td>新开一个短对话，降低上下文和输出长度，检查服务端限额及错误详情。</td></tr></tbody></table></div></section>
-<section><h2>05 / 费用与数据去向</h2><p>{p["cost"]}</p><p>请求会发送到你填入的服务端。使用聚合网关时还可能到达其上游模型；本地服务也可能因所选模型或工具联网。请按实际端点和启用的功能判断数据流。</p><a href="../privacy.html" class="text-link">了解Nivo的数据边界 →</a></section>
-<section id="sources"><h2>官方资料与维护依据</h2><p>本篇将官方端点资料与Nivo的实际表单逻辑对照整理，未使用个人Key逐一请求厂商。后续遇到控制台迁移，以官方最新文档为准。</p><ul><li>{link(p["docs"], esc(p["name"]) + "官方文档 ↗")}</li><li>{link(p["console"], "控制台／产品入口 ↗")}</li><li>{link(REPO + "/blob/master/android/src/android/app/src/main/java/io/github/nanomuse/cloud/OwnKeyPresets.kt", "App预置与/v1拼接逻辑 ↗")}</li></ul></section><div class="article-end"><a href="../models.html" class="text-link">← 返回全部服务商</a><a class="button primary" href="../downloads.html">获取App ↗</a></div></article></div>'''
+<section><h2>05 / 费用与数据去向</h2><p>{p["cost"]}</p><p>请求会发送到你填入的服务端。使用聚合网关时还可能到达其上游模型；本地服务也可能因所选模型或工具联网。请按实际端点和启用的功能判断数据流。</p><a href="../privacy.html" class="text-link">了解Nivo的数据边界</a></section>
+<section id="sources"><h2>官方资料与维护依据</h2><p>本篇将官方端点资料与Nivo的实际表单逻辑对照整理，未使用个人Key逐一请求厂商。后续遇到控制台迁移，以官方最新文档为准。</p><ul><li>{link(p["docs"], esc(p["name"]) + "官方文档")}</li><li>{link(p["console"], "控制台／产品入口")}</li><li>{link(REPO + "/blob/master/android/src/android/app/src/main/java/io/github/nanomuse/cloud/OwnKeyPresets.kt", "App预置与/v1拼接逻辑")}</li></ul></section><div class="article-end"><a href="../models.html" class="text-link">返回全部服务商</a><a class="button primary" href="../downloads.html">获取App</a></div></article></div>'''
 
 
 def release_installation(release: dict) -> str:
@@ -298,7 +319,7 @@ def release_card(release: dict, prefix: str = "") -> str:
     }[kind]
     if release.get("signing") == "unsigned":
         method = "未签名IPA"
-    action = {"apk": "下载APK ↓", "ipa": f"下载{method} ↓"}.get(kind, "打开官方安装入口 ↗")
+    action = {"apk": "下载APK", "ipa": f"下载{method}"}.get(kind, "打开官方安装入口")
     facts = [
         f"{platform} {release['minimumOs']}+",
         release.get("architecture"),
@@ -316,7 +337,7 @@ def release_card(release: dict, prefix: str = "") -> str:
     checksum = ""
     if release.get("sha256"):
         checksum = f'''<div class="checksum"><span>安装文件SHA256</span><code>{esc(release["sha256"])}</code><button class="copy-button" data-copy="{esc(release["sha256"])}" type="button" aria-label="复制安装文件SHA256">复制校验和</button></div>'''
-    return f'''<div class="release-card"><div class="release-heading"><span class="platform-symbol">↗</span><div><p class="eyebrow">{platform.upper()} / {esc(release["channel"].upper())}</p><h2>Nivo Bot <span>v{esc(release["version"])}</span></h2></div><span class="chip">{method}</span></div><p class="release-summary">{esc(release["summary"])}</p><div class="release-facts">{facts_html}</div>{install}<div class="actions">{link(release["downloadUrl"], action, "button primary")}<a class="text-link" href="{prefix}{esc(release["notesUrl"])}">查看更新说明 ↗</a></div>{checksum}<div class="release-links">{link(release["sourceUrl"], "本版对应源码 ↗")}{link(ORIGIN + "downloads/SHA256SUMS.txt", "校验清单 ↗")}</div></div>'''
+    return f'''<div class="release-card"><div class="release-heading"><span class="platform-symbol">↗</span><div><p class="eyebrow">{platform} {"稳定版" if release["channel"] == "stable" else "测试版"}</p><h2>Nivo Bot <span>v{esc(release["version"])}</span></h2></div><span class="chip">{method}</span></div><p class="release-summary">{esc(release["summary"])}</p><div class="release-facts">{facts_html}</div>{install}<div class="actions">{link(release["downloadUrl"], action, "button primary")}<a class="text-link" href="{prefix}{esc(release["notesUrl"])}">查看更新说明</a></div>{checksum}<div class="release-links">{link(release["sourceUrl"], "本版对应源码")}{link(ORIGIN + "downloads/SHA256SUMS.txt", "校验清单")}</div></div>'''
 
 
 def downloads(releases: dict) -> str:
@@ -326,8 +347,9 @@ def downloads(releases: dict) -> str:
         raise ValueError("The download page requires a stable Android release")
     ios = latest_release(releases, "ios")
     noscript_ios = release_card(ios) if ios else "<p>iOS当前没有公开发行文件。</p>"
+    fallback = release_card(first) + noscript_ios
     tabs = "".join(
-        f'<button role="tab" data-platform="{p["id"]}" aria-selected="{str(p["id"] == "android").lower()}" aria-controls="release-content" id="platform-{p["id"]}" tabindex="{0 if p["id"] == "android" else -1}">{p["name"]} <span>{"已发布" if p["status"] == "available" else "尚未公开发布"}</span></button>'
+        f'<button type="button" role="tab" data-platform="{p["id"]}" aria-selected="{str(p["id"] == "android").lower()}" aria-controls="release-content" id="platform-{p["id"]}" tabindex="{0 if p["id"] == "android" else -1}">{p["name"]} <span>{"已发布" if p["status"] == "available" else "尚未公开发布"}</span></button>'
         for p in releases["platforms"]
     )
     return (
@@ -336,15 +358,15 @@ def downloads(releases: dict) -> str:
             "下载Nivo Bot。",
             "选择你的平台、渠道与版本。安装说明和历史发行可从上方栏目单独打开。",
         )
-        + f'''<section class="wrap download-layout" data-downloads><div><div class="platform-tabs" role="tablist" aria-label="选择平台">{tabs}</div><div class="download-filters"><label>发行渠道<select id="release-channel"><option value="stable">稳定版</option><option value="beta">测试版</option><option value="all">全部已发布版本</option></select></label><label>选择版本<select id="release-version"><option value="{first["id"]}">v{first["version"]}（{first["versionCode"]}）· {first["releasedAt"]}</option></select></label></div><p id="release-message" role="status" aria-live="polite" class="muted">正在同步版本目录；下方提供当前正式版。</p><div id="release-content" role="tabpanel" aria-labelledby="platform-android" tabindex="0">{release_card(first)}</div><button type="button" id="release-retry" class="text-button" hidden>重新加载版本目录</button><noscript><p>未启用JavaScript时，Android下载见上方，iOS发行状态与安装前提见下方。</p>{noscript_ios}</noscript></div><aside class="download-aside"><span class="eyebrow">A FEW THINGS TO KNOW</span><h2>开始之前，<br>把这些准备好。</h2><ol><li><strong>选择对的设备</strong><p>Android使用arm64-v8a安装包。iOS未签名IPA需自行签名；请先阅读安装说明，确认设备与签名条件。</p></li><li><strong>保留原有数据</strong><p>同包名应用通常需要相同签名才能覆盖升级。旧Debug签名或上游签名包请先核对备份，不要直接卸载。</p></li><li><strong>连接一个模型</strong><p>客户端开源；模型服务由你选择，调用费用遵循服务商规则。</p><a href="models.html" class="text-link">接入教程 →</a></li></ol></aside></section>
-<div class="wrap page-end"><a class="text-link" href="versions.html">查看所有历史版本 ↗</a><a class="text-link" href="install.html">安装与升级说明 ↗</a></div>'''
+        + f'''<section class="wrap download-layout" data-downloads><div><div class="platform-tabs" role="tablist" aria-label="选择平台">{tabs}</div><div class="download-filters"><label>发行渠道<select id="release-channel"><option value="stable">稳定版</option><option value="beta">测试版</option><option value="all">全部已发布版本</option></select></label><label>选择版本<select id="release-version"><option value="{first["id"]}">v{first["version"]}（{first["versionCode"]}）· {first["releasedAt"]}</option></select></label></div><p id="release-message" role="status" aria-live="polite" class="muted">正在同步版本目录；下方提供当前正式版。</p><div id="release-content" role="tabpanel" aria-labelledby="platform-android" tabindex="0">{release_card(first)}</div><button type="button" id="release-retry" class="text-button" hidden>重新加载版本目录</button><section id="release-fallback" aria-label="静态发行下载入口" hidden><h2>直接选择发行文件</h2><p>以下来自本站随页面保留的发行记录，安装前请核对版本与签名要求。</p>{fallback}</section><noscript><p>未启用JavaScript时，Android下载见上方，iOS发行状态与安装前提见下方。</p>{noscript_ios}</noscript></div><aside class="download-aside"><span class="eyebrow">安装前须知</span><h2>开始之前，<br>把这些准备好。</h2><ol><li><strong>选择对的设备</strong><p>Android使用arm64-v8a安装包。iOS未签名IPA需自行签名；请先阅读安装说明，确认设备与签名条件。</p></li><li><strong>保留原有数据</strong><p>同包名应用通常需要相同签名才能覆盖升级。旧Debug签名或上游签名包请先核对备份，不要直接卸载。</p></li><li><strong>连接一个模型</strong><p>客户端开源；模型服务由你选择，调用费用遵循服务商规则。</p><a href="models.html" class="text-link">接入教程</a></li></ol></aside></section>
+<p class="wrap release-maintenance">2.0.5历史发行包不包含免Nivo登录、跳过模型配置等后续维护改动。每个安装包的实际行为请以<a href="versions.html">版本说明</a>为准。</p><div class="wrap page-end"><a class="text-link" href="versions.html">查看所有历史版本</a><a class="text-link" href="install.html">安装与升级说明</a></div>'''
     )
 
 
 def version_history(releases: dict) -> str:
     """每条真实发行记录都保留独立说明和对应源码入口。"""
     rows = "".join(
-        f'<tr><td>{esc(r["platform"].upper())}</td><td>v{esc(r["version"])}（{r.get("versionCode", "")}）</td><td>{"稳定版" if r["channel"] == "stable" else "测试版"}</td><td>{r["releasedAt"]}</td><td><a href="{r["notesUrl"]}">更新说明 ↗</a></td></tr>'
+        f'<tr><td>{esc(r["platform"].upper())}</td><td>v{esc(r["version"])}（{r.get("versionCode", "")}）</td><td>{"稳定版" if r["channel"] == "stable" else "测试版"}</td><td>{r["releasedAt"]}</td><td><a href="{r["notesUrl"]}">更新说明</a></td></tr>'
         for r in sorted(
             releases["releases"],
             key=lambda r: (r["releasedAt"], r.get("versionCode", 0)),
@@ -354,7 +376,7 @@ def version_history(releases: dict) -> str:
     return (
         title_block(
             "RELEASE ARCHIVE",
-            "每个版本，都有来处。",
+            "版本历史",
             "查找发行时间、更新内容与对应源码，历史文件保留各自的身份。",
         )
         + f'<section class="wrap standalone-panel"><div class="table-wrap" id="release-history"><table><thead><tr><th>平台</th><th>版本</th><th>渠道</th><th>发布日期</th><th>详情</th></tr></thead><tbody>{rows}</tbody></table></div><p class="muted archive-note">每条记录独立保留平台与分发方式。iOS未签名IPA的安装前提见对应版本说明。</p></section>'
@@ -395,7 +417,7 @@ def release_detail(release: dict) -> str:
             title,
             f"{release['releasedAt']} · {platform} {release['minimumOs']}及以上 · 构建{release.get('versionCode', '未注明')}",
         )
-        + f"""<section class="wrap narrow"><h2>这一版的变化</h2><p>{esc(release["summary"])}</p><ul class="guide-points">{notes}</ul><h2>安装与升级</h2><p>{esc(release_installation(release))}</p><p><a href="../install.html">查看平台安装步骤与功能差异 ↗</a></p>{certificate_html}<h2>验证范围</h2><p>发行包提供对应源码和文件身份信息，不代表每个手机、模型服务或全部业务流程均已实机验收。历史安装包与源码保持原发行文件不变。</p><h2>本版对应源码</h2><p>安装文件与本版源码对应；GitHub默认分支可能包含之后的维护提交。</p><div class="actions">{link(release["downloadUrl"], "下载未签名IPA ↓" if release.get("signing") == "unsigned" else "打开本版安装入口 ↓", "button primary")}{link(release["sourceUrl"], "本版对应源码 ↗", "text-link")}</div>{source_hash}<a class="text-link" href="../downloads.html">← 返回下载中心</a></section>"""
+        + f"""<section class="wrap narrow"><h2>这一版的变化</h2><p>{esc(release["summary"])}</p><ul class="guide-points">{notes}</ul><h2>安装与升级</h2><p>{esc(release_installation(release))}</p><p><a href="../install.html">查看平台安装步骤与功能差异</a></p>{certificate_html}<h2>验证范围</h2><p>发行包提供对应源码和文件身份信息，不代表每个手机、模型服务或全部业务流程均已实机验收。历史安装包与源码保持原发行文件不变。</p><h2>本版对应源码</h2><p>安装文件与本版源码对应；GitHub默认分支可能包含之后的维护提交。</p><div class="actions">{link(release["downloadUrl"], "下载未签名IPA" if release.get("signing") == "unsigned" else "打开本版安装入口", "button primary")}{link(release["sourceUrl"], "本版对应源码", "text-link")}</div>{source_hash}<a class="text-link" href="../downloads.html">返回下载中心</a></section>"""
     )
 
 
@@ -404,18 +426,21 @@ def developers() -> str:
     return (
         title_block(
             "BUILD IN THE OPEN",
-            "看得见的代码，<br>接得上的<span class='accent'>改变。</span>",
+            "一起把日常工具做好。",
             "Nivo Bot是一个持续维护的开源衍生项目。了解构建方式、模块边界与每次发行对应的源码。",
         )
-        + f"""<div class="wrap narrow"><section id="start"><h2>从源码开始</h2><p>{link(REPO, "打开sherlockerX/Nivo-Bot仓库 ↗", "text-link")}</p><pre><code>git clone --recurse-submodules {REPO}.git
+        + f"""<div class="wrap narrow"><section id="start"><h2>从源码开始</h2><p>{link(REPO, "打开sherlockerX/Nivo-Bot仓库", "text-link")}</p><pre><code>git clone --recurse-submodules {REPO}.git
 cd Nivo-Bot
 bash scripts/android/build-natives.sh
 cd android/src/android
-bash gradlew :app:assembleDebug --console=plain --no-daemon</code></pre><p>使用JDK21、Android SDK36、NDK27.2.12479018和CMake3.22.1。完整工具链与Windows入口以仓库文档为准。</p><p>{link(REPO + "/blob/master/docs/android-development.md", "Android构建与签名文档 ↗")} · {link(REPO + "/actions/workflows/android.yml", "GitHub自动打包 ↗")}</p></section>
-<section><h2>模块有各自的职责</h2><div class="table-wrap"><table><thead><tr><th>入口</th><th>职责</th></tr></thead><tbody><tr><td>chat / ui/chat</td><td>主要聊天、工具协作、回复朗读</td></tr><tr><td>todo</td><td>任务、分组、标签、版本冲突与完成证据</td></tr><tr><td>focus</td><td>计时、感悟、分组统计及Android强制专注</td></tr><tr><td>mosaic</td><td>生活碎片、草稿和任务／专注关联</td></tr><tr><td>coach</td><td>技能档案、今日训练、原话证据与复核</td></tr></tbody></table></div><p>Android扩展主要位于io.github.nanomuse命名空间，iOS页面与业务代码位于NanoMuse目录。上游包名、沙盒协议与许可继续保留。</p>{link(REPO + "/blob/master/docs/android-code-map.md", "阅读源码地图 ↗")}</section>
+bash gradlew :app:assembleDebug --console=plain --no-daemon</code></pre><p>使用JDK21、Android SDK36、NDK27.2.12479018和CMake3.22.1。完整工具链与Windows入口以仓库文档为准。</p><p>{link(REPO + "/blob/master/docs/android-development.md", "Android构建与签名文档")} · {link(REPO + "/actions/workflows/android.yml", "GitHub自动打包")}</p></section>
+<section><h2>在macOS构建iOS</h2><p>iOS使用Swift与SwiftUI，最低支持iOS16。Windows开发可以通过仓库的GitHub Actions执行macOS编译检查；编译通过不能代替iPhone运行验收。</p><pre><code>cd android/src/ios
+xcodebuild build -project Minis.xcodeproj -scheme Minis \
+  -configuration Debug -destination 'generic/platform=iOS' \
+  CODE_SIGNING_ALLOWED=NO</code></pre><p>{link(REPO + "/actions/workflows/ios-check.yml", "iOS构建记录")} · {link(REPO + "/blob/master/docs/ios.md", "iOS开发文档")}</p><p>公开下载是未签名IPA，需要自行签名安装。本项目当前没有TestFlight或App Store分发。</p></section><section><h2>模块有各自的职责</h2><div class="table-wrap"><table><thead><tr><th>入口</th><th>职责</th></tr></thead><tbody><tr><td>chat / ui/chat</td><td>主要聊天、工具协作、回复朗读</td></tr><tr><td>todo</td><td>任务、分组、标签、版本冲突与完成证据</td></tr><tr><td>focus</td><td>计时、感悟、分组统计及Android强制专注</td></tr><tr><td>mosaic</td><td>生活碎片、草稿和任务／专注关联</td></tr><tr><td>coach</td><td>技能档案、今日训练、原话证据与复核</td></tr></tbody></table></div><p>Android扩展主要位于io.github.nanomuse命名空间，iOS页面与业务代码位于NanoMuse目录。上游包名、沙盒协议与许可继续保留。</p>{link(REPO + "/blob/master/docs/android-code-map.md", "阅读源码地图")}</section>
 <section><h2>给之后的版本留好位置</h2><p>下载中心由版本清单驱动。每个发行记录保存平台、渠道、版本、架构、日期、安装地址、SHA256、对应源码和说明页。加入新版本即可继续显示历史版本；只有实际可用的文件会显示下载入口。</p><p>Android APK与iOS IPA分别记录。未签名IPA明确说明自行签名要求；TestFlight和App Store只有实际公开入口存在时才会列出。</p></section>
-<section><h2>参与贡献</h2><p>带着具体场景、预期、实际结果和复现步骤提交Issue；日志先脱敏。修改任务或计时逻辑时关注账号隔离、重复请求和中断恢复。代码提交遵循DCO签署及原项目规范。</p>{link(REPO + "/blob/master/CONTRIBUTING.md", "贡献指南 ↗")}</section>
-<section id="origins"><h2>开放，也保留来处</h2><p>本项目在nanoMuse基础上演进，Android底座来自OpenMinis，继续使用GPL-3.0-or-later并保留相关版权和第三方许可。本项目不代表上游官方服务，也不隶属于Meta或其Muse产品。</p><p>{link("https://github.com/nano-muse/nanoMuse", "致谢nanoMuse ↗")} · {link("https://github.com/OpenMinis/OpenMinis", "致谢OpenMinis ↗")} · {link(REPO + "/blob/master/LICENSE", "查看许可 ↗")}</p></section></div>"""
+<section><h2>参与贡献</h2><p>带着具体场景、预期、实际结果和复现步骤提交Issue；日志先脱敏。修改任务或计时逻辑时关注账号隔离、重复请求和中断恢复。代码提交遵循DCO签署及原项目规范。</p>{link(REPO + "/blob/master/CONTRIBUTING.md", "贡献指南")}</section>
+<section id="origins"><h2>开放，也保留来处</h2><p>本项目在nanoMuse基础上演进，Android底座来自OpenMinis，继续使用GPL-3.0-or-later并保留相关版权和第三方许可。本项目不代表上游官方服务，也不隶属于Meta或其Muse产品。</p><p>{link("https://github.com/nano-muse/nanoMuse", "致谢nanoMuse")} · {link("https://github.com/OpenMinis/OpenMinis", "致谢OpenMinis")} · {link(REPO + "/blob/master/LICENSE", "查看许可")}</p></section></div>"""
     )
 
 
@@ -424,158 +449,15 @@ def privacy() -> str:
     return (
         title_block(
             "YOUR DATA, IN CONTEXT",
-            "说清楚，<br>数据<span class='accent'>去了哪里。</span>",
+            "数据去了哪里，说清楚。",
             "是否联网，取决于你选择的服务、模型和功能。",
         )
-        + """<div class="wrap narrow"><section><h2>这个网站</h2><p>产品图使用虚构示例，不展示真实聊天、任务或学习档案。轮播、厂商筛选和版本选择在浏览器中运行。网站不要求填写API Key，不发起模型调用；站点源码不自行集成分析追踪器、远程字体或广告SDK。</p><p>线上网站通过Cloudflare提供内容分发与安全防护，其当前设置会在部分响应中加入性能统计或安全检查脚本。访问网站和下载文件也会产生正常的网络请求；托管和网络服务可能保留常规访问日志。复制按钮使用浏览器剪贴板权限，拒绝时会提示手动复制。</p></section><section><h2>App里的记录</h2><p>待办、专注和生活碎片具有本地存储。账号、同步、远程操作及其他云端功能的数据流由实际启用的服务决定。本地记录不等于整个App永不联网。</p></section><section><h2>与模型对话</h2><p>AI请求会发送到你配置的服务端。上下文、附件或工具返回内容是否被送出，取决于当前对话和授权。使用聚合服务时，还需核对其上游路由及数据保留政策。</p><p>本地模型地址指向自己的设备或服务器；仍要留意模型是否实际使用云推理、工具是否联网、是否启用了其他同步服务。</p></section><section><h2>密钥与备份</h2><p>API Key只应填写在App服务商设置中，不要发给聊天模型、贴到公开Issue或上传截图。导出备份前检查包含的数据范围；不同模块和附件的覆盖范围需分别核验。</p><a class="text-link" href="models.html">返回模型接入指南 →</a></section></div>"""
+        + """<div class="wrap narrow">
+<section><h2>这个网站</h2><p>产品截图来自当前维护版本在独立Android模拟器中运行的真实界面，使用专门准备的演示数据。聊天图中的输入草稿尚未发送，专注图展示正在计时的状态。截图不代表iOS实机验证或历史安装包的界面。轮播、厂商筛选和版本选择在浏览器中运行。网站不要求填写API Key，不发起模型调用；站点源码不自行集成分析追踪器、远程字体或广告SDK。</p><p>线上网站通过Cloudflare提供内容分发与安全防护，其当前设置会在部分响应中加入性能统计或安全检查脚本。访问网站和下载文件会产生网络请求，托管和网络服务可能保留常规访问日志。复制按钮使用浏览器剪贴板权限，拒绝时会提示手动复制。</p></section>
+<section><h2>App里的记录留在本机</h2><p>本地模式更新移除了原项目账号验证、设备中继和跨设备同步。聊天、待办、专注、生活碎片和教练档案继续保存在本机；旧记录的归属保持不变，无需重新注册Nivo账号。iOS不再启用内置iCloud同步或同步Keychain，新凭证只写入本机Keychain。</p><p>这项说明对应当前维护版本；历史安装包保留原发行行为，请核对下载页的版本说明。系统级整机备份、用户主动导出文件和第三方应用各自有数据处理规则。</p></section>
+<section><h2>模型和联网工具仍按你的选择请求</h2><p>AI请求发送到你配置的服务端。上下文、附件和工具返回内容是否送出，取决于当前对话及授权。可以使用官方API，也可以填写自己选择的中转站或自建服务；App不提供默认中转站推荐。</p><p>本地模型地址指向自己的设备或服务器，仍需确认该服务是否使用云推理。用户添加的MCP、搜索和其他联网工具也会产生各自的请求。本机Shell和原生工具桥接本身不等于项目云中继。</p></section>
+<section><h2>凭证与手动备份</h2><p>API Key只应填写在App服务商设置中，不要发给聊天模型或上传截图。升级时先验证本机凭证副本，再清理旧同步条目；迁移失败会保留恢复入口。手动导出、导入备份仍可使用，保存位置和分享对象由你选择。</p><p>卸载应用或更换签名可能影响本机数据和Keychain访问。升级前保留可用的手动备份；文件提供器和共享扩展还取决于实际签名权限。</p><a class="text-link" href="models/custom.html">查看自定义服务配置</a></section></div>"""
     )
-
-
-def svg_text(
-    x: int, y: int, text: str, size: int = 20, fill: str = "#21453b", weight: str = "400"
-) -> str:
-    """生成不依赖远程字体的SVG文字。"""
-    return f'<text x="{x}" y="{y}" font-size="{size}" fill="{fill}" font-weight="{weight}">{esc(text)}</text>'
-
-
-def rect(x: int, y: int, width: int, height: int, fill: str, radius: int = 18) -> str:
-    """生成圆角UI图形。"""
-    return f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="{radius}" fill="{fill}"/>'
-
-
-def screen_chat() -> str:
-    """绘制聊天与任务工具反馈。"""
-    return (
-        rect(699, 220, 300, 72, "#e4ebda")
-        + svg_text(720, 251, "想每天读一点书，")
-        + svg_text(720, 278, "先从今天的一章开始。")
-        + rect(670, 325, 327, 86, "#f0f0e7")
-        + svg_text(690, 358, "先把‘读一章’放进待办，")
-        + svg_text(690, 387, "再留25分钟给自己。")
-        + rect(670, 444, 327, 110, "#e1e8dc")
-        + svg_text(692, 478, "✓  读一章，留下一句笔记", 21, weight="600")
-        + svg_text(692, 512, "个人成长 · 阅读 · 已保存", 15, "#637c6c")
-        + rect(670, 599, 327, 52, "#f0f0e7")
-        + svg_text(687, 631, "和你的AI说点什么…", 17, "#7a8275")
-    )
-
-
-def screen_tasks() -> str:
-    """绘制真实功能分类和任务状态示意。"""
-    out = svg_text(675, 226, "今天，先做好三件事。", 21, weight="600")
-    for i, (title, tag, done) in enumerate(
-        [
-            ("读一章，留一句笔记", "个人成长", False),
-            ("完成项目的第一版草稿", "分内工作", False),
-            ("出门走一段路", "生活", True),
-        ]
-    ):
-        y = 260 + i * 94
-        out += (
-            rect(667, y, 334, 78, "#f0f2e9")
-            + f'<circle cx="692" cy="{y + 31}" r="9" fill="none" stroke="#64816a" stroke-width="2"/>'
-            + svg_text(714, y + 36, title, 18)
-            + svg_text(714, y + 61, ("已完成 · " if done else "待办 · ") + tag, 14, "#74816f")
-        )
-    return (
-        out
-        + rect(670, 584, 325, 58, "#21453b")
-        + svg_text(692, 621, "＋  记下一件要做的事", 18, "#fffdf4")
-    )
-
-
-def screen_focus() -> str:
-    """绘制全屏风景与倒计时，不使用外部图片。"""
-    return (
-        '<g clip-path="url(#screen)">'
-        + rect(642, 171, 386, 516, "#b9cabe")
-        + '<circle cx="935" cy="292" r="51" fill="#e9dcc0"/><path d="M642 432Q720 238 825 418T1040 365V690H642Z" fill="#6c9483"/><path d="M635 535Q760 369 900 506T1040 460V690H635Z" fill="#3b6b5b"/><path d="M640 617Q787 489 1035 585V700H640Z" fill="#234b40"/>'
-        + svg_text(705, 270, "此刻，只做这一件事", 20)
-        + svg_text(700, 398, "24:59", 77, "#fffdf3", "500")
-        + svg_text(736, 441, "读一章，留一句笔记", 17, "#fffdf3")
-        + rect(739, 542, 184, 51, "#edf0df")
-        + svg_text(787, 575, "Ⅱ  暂停", 21)
-        + "</g>"
-    )
-
-
-def screen_fragments() -> str:
-    """绘制日常记录及任务与计时关联。"""
-    return (
-        svg_text(674, 227, "今天，留下一点痕迹。", 21, weight="600")
-        + rect(668, 263, 331, 220, "#f4e9db")
-        + svg_text(689, 301, "11月13日  ·  平静", 16, "#826f5c")
-        + svg_text(689, 350, "今天给阅读留了25分钟。", 19)
-        + svg_text(689, 386, "读得不多，但开始了。", 19)
-        + svg_text(689, 451, "生活中的一小片", 15, "#8a7763")
-        + rect(670, 510, 328, 57, "#e6ecdf")
-        + svg_text(690, 545, "✓  关联待办：读一章", 18)
-        + rect(670, 586, 328, 57, "#e6ecdf")
-        + svg_text(690, 621, "◴  已专注：25分钟", 18)
-    )
-
-
-def screen_coach() -> str:
-    """绘制竹海与讨论主题，避免用同一种房屋图形代表所有能力。"""
-    bamboo = "".join(
-        f'<path d="M{x} 393V254m0 38-14-22m14 53 17-20m-17 43-12-17" fill="none" stroke="#5d7b5f" stroke-width="3"/>'
-        for x in (707, 737, 775)
-    )
-    return (
-        svg_text(674, 226, "今天，想探索哪个方向？", 21, weight="600")
-        + rect(670, 254, 327, 161, "#e1e8d5")
-        + bamboo
-        + svg_text(812, 308, "决策书房", 22, weight="600")
-        + svg_text(812, 340, "打磨原则与判断", 16)
-        + rect(670, 437, 327, 109, "#eee0d0")
-        + '<ellipse cx="726" cy="494" rx="34" ry="16" fill="#b6997b"/><circle cx="704" cy="468" r="11" fill="#d1aa8e"/><circle cx="751" cy="470" r="11" fill="#8a9e85"/>'
-        + svg_text(790, 482, "圆桌讨论", 22, weight="600")
-        + svg_text(790, 514, "从不同角度理解", 16)
-        + rect(670, 580, 327, 65, "#21453b")
-        + svg_text(693, 620, "继续每日练习  ↗", 20, "#fffdf3")
-    )
-
-
-def screen_ideas() -> str:
-    """绘制每日点子分类和可继续对话的灵感卡。"""
-    out = svg_text(674, 225, "给今天，一个新的开始。", 21, weight="600")
-    for i, label in enumerate(["工作", "生活", "学习", "关系"]):
-        out += rect(670 + i * 82, 254, 72, 35, "#e5e9dc") + svg_text(687 + i * 82, 278, label, 16)
-    for i, (title, sub) in enumerate(
-        [
-            ("把复杂任务缩成20分钟", "工作 · 从最小的一步开始"),
-            ("试着表达一个真实偏好", "关系 · 不必等到重要场合"),
-            ("拍一段自己的普通日常", "自媒体 · 从身边的素材出发"),
-        ]
-    ):
-        y = 320 + i * 101
-        out += (
-            rect(670, y, 327, 83, ["#ede0cc", "#dce6d6", "#e8d8cc"][i])
-            + svg_text(688, y + 34, title, 19, weight="600")
-            + svg_text(688, y + 64, sub, 14, "#73816e")
-        )
-    return out
-
-
-def feature_svg(feature: dict, index: int) -> str:
-    """生成统一品牌下各有场景的原创产品插画。"""
-    screens = dict(
-        chat=screen_chat,
-        tasks=screen_tasks,
-        focus=screen_focus,
-        fragments=screen_fragments,
-        coach=screen_coach,
-        ideas=screen_ideas,
-    )
-    out = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc"><title id="title">{feature["name"]}功能示意</title><desc id="desc">{esc(feature["summary"])}。使用虚构内容，不是手机截图。</desc><defs><clipPath id="screen"><rect x="649" y="172" width="373" height="512" rx="14"/></clipPath></defs><g font-family="'Times New Roman','SimSun','Songti SC',serif">{rect(0, 0, 1280, 800, "#f1f2e9", 0)}<circle cx="1040" cy="250" r="385" fill="{feature["color"]}"/>
-{svg_text(72, 80, "n.  Nivo Bot", 27, weight="600")}{svg_text(72, 191, f"{index + 1:02d} / {feature['kicker']}", 14, "#ae6247")}
-{"".join(svg_text(72, 278 + i * 69, line, 49, weight="600") for i, line in enumerate(feature["title"].split(chr(10))))}
-{svg_text(72, 425, feature["summary"][:22], 20, "#668071")}
-{"".join(rect(72, 475 + i * 47, 365, 34, "#e5e9db") + svg_text(88, 498 + i * 47, line, 16) for i, line in enumerate(feature["bullets"]))}
-{rect(632, 69, 406, 645, "#21453b", 43)}{rect(644, 82, 382, 618, "#fffef8", 32)}{rect(773, 91, 123, 19, "#21453b", 10)}
-{svg_text(672, 149, feature["name"], 24, weight="600")}{svg_text(977, 147, "···", 22)}{screens[feature["id"]]()}
-{svg_text(72, 736, "原创功能示意 · 示例内容，并非手机截图", 14, "#80907d")}{svg_text(1097, 736, f"{index + 1:02d} / 06", 23, "#6e8270")}</g></svg>'''
-    return out
 
 
 def generated(root: Path) -> dict[str, str]:
@@ -586,6 +468,9 @@ def generated(root: Path) -> dict[str, str]:
         + (root / "product.js").read_bytes()
         + Path(__file__).read_bytes()
         + Path(__file__).with_name("content.py").read_bytes()
+        + Path(__file__).with_name("presentation.py").read_bytes()
+        + Path(__file__).with_name("screenshots.py").read_bytes()
+        + b"".join((root / screenshot["path"]).read_bytes() for screenshot in SCREENSHOTS.values())
     ).hexdigest()[:12]
     releases = json.loads((root / "releases.json").read_text(encoding="utf-8"))
     outputs = {
@@ -659,11 +544,6 @@ def generated(root: Path) -> dict[str, str]:
         outputs[path] = page(
             path, feature["name"], feature["summary"], feature_detail(feature, i), "features"
         )
-        outputs[f"media/{feature['id']}.svg"] = feature_svg(feature, i)
-        if feature["id"] == "focus":
-            outputs["media/focus-preview.svg"] = feature_svg(feature, i).replace(
-                'viewBox="0 0 1280 800"', 'viewBox="610 45 450 690"'
-            )
     for provider in PROVIDERS:
         path = f"models/{provider['id']}.html"
         outputs[path] = page(
@@ -701,6 +581,7 @@ def generated(root: Path) -> dict[str, str]:
     files = sorted(
         [
             *outputs,
+            *(screenshot["path"] for screenshot in SCREENSHOTS.values()),
             "product.css",
             "product.js",
             "releases.json",

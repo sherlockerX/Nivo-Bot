@@ -41,14 +41,40 @@ final class NivoProviderKeyRotationKeychainTests: XCTestCase {
         XCTAssertThrowsError(try NivoProviderKeyRotationKeychain.rollback(receipt))
     }
 
-    func testLegacyOnlyRollbackRemovesReplacementAndKeepsLocalSecret() throws {
+    func testLegacyStageRollbackRestoresOriginalToDeviceOnlyKeychain() throws {
+        let owner = makeOwner()
+        let stage = try installLegacyStage(owner: owner)
+        try NivoProviderKeyRotationKeychain.rollback(stage.receipt)
+        let local = try XCTUnwrap(readAttributes(owner: owner, synchronizable: false))
+        XCTAssertEqual(local[kSecValueData as String] as? Data, stage.previousSync?.value)
+        XCTAssertEqual(local[kSecAttrGeneric as String] as? Data, stage.previousSync?.version)
+        XCTAssertEqual(local[kSecAttrAccessible as String] as? String,
+            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+        XCTAssertNil(try readAttributes(owner: owner, synchronizable: true))
+        try NivoProviderKeyRotationKeychain.rollback(stage.receipt)
+        XCTAssertEqual(try NivoCredentialSyncKeychain.providerValue(instanceID: owner), stage.previousSync?.value)
+    }
+
+    func testLegacyStageRollbackPreservesNewerLocalValue() throws {
+        let owner = makeOwner()
+        let stage = try installLegacyStage(owner: owner)
+        try NivoCredentialSyncKeychain.saveLocalProvider("fixture-newer-local", instanceID: owner)
+        let observed = try NivoCredentialSyncKeychain.providerSnapshot(instanceID: owner)
+        try NivoProviderKeyRotationKeychain.rollback(stage.receipt)
+        XCTAssertNil(try readAttributes(owner: owner, synchronizable: true))
+        XCTAssertEqual(try NivoCredentialSyncKeychain.providerSnapshot(instanceID: owner), observed)
+    }
+
+    func testLegacyLocalRollbackRestoresLocalSecretWithoutCreatingSyncEntry() throws {
         let owner = makeOwner()
         try insertUnversioned("fixture-legacy", owner: owner, synchronizable: false)
         ProviderKeychainHelper.stampAPIKeySavedAt(Date(timeIntervalSince1970: 100), instanceId: owner)
         let original = try NivoCredentialSyncKeychain.providerSnapshot(instanceID: owner)
         let receipt = try prepare("fixture-new", owner: owner, expected: original)
         try NivoProviderKeyRotationKeychain.apply(receipt)
-        XCTAssertNotNil(try readAttributes(owner: owner, synchronizable: true))
+        XCTAssertNil(try readAttributes(owner: owner, synchronizable: true))
+        XCTAssertEqual(try readAttributes(owner: owner, synchronizable: false)?[kSecValueData as String] as? Data,
+            Data("fixture-new".utf8))
         try NivoProviderKeyRotationKeychain.rollback(receipt)
         XCTAssertNil(try readAttributes(owner: owner, synchronizable: true))
         XCTAssertEqual(try NivoCredentialSyncKeychain.providerSnapshot(instanceID: owner), original)
@@ -147,6 +173,35 @@ final class NivoProviderKeyRotationKeychainTests: XCTestCase {
         let receipt = try NivoProviderKeyRotationKeychain.prepare(value, instanceID: owner, expected: expected)
         addTeardownBlock { try NivoProviderKeyRotationKeychain.discard(receipt.identifier) }
         return receipt
+    }
+
+    /// 模拟旧版本中断后留下的同步替换值和无目标字段的暂存，确保升级恢复路径可读。
+    private func installLegacyStage(owner: String) throws -> NivoProviderKeyRotation.Stage {
+        let receipt = NivoProviderKeyRotation.Receipt(identifier: UUID(), instanceID: owner)
+        let oldVersion = try JSONEncoder().encode(NivoProviderKeyRotation.Version(schema: 1, seconds: 100))
+        let newVersion = try JSONEncoder().encode(NivoProviderKeyRotation.Version(schema: 1, seconds: 200))
+        let previous = NivoProviderKeyRotation.Secret(value: Data("fixture-legacy-original".utf8),
+            version: oldVersion, comment: "fixture-original", accessibility: kSecAttrAccessibleAfterFirstUnlock as String)
+        let replacement = NivoProviderKeyRotation.Secret(value: Data("fixture-legacy-replacement".utf8),
+            version: newVersion, comment: receipt.comment, accessibility: kSecAttrAccessibleAfterFirstUnlock as String)
+        let stage = NivoProviderKeyRotation.Stage(receipt: receipt, previousSync: previous,
+            previousLocal: nil, replacement: replacement)
+        var current = secretQuery(owner: owner, synchronizable: true)
+        current[kSecValueData as String] = replacement.value
+        current[kSecAttrGeneric as String] = replacement.version
+        current[kSecAttrComment as String] = replacement.comment
+        current[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        let stored = SecItemAdd(current as CFDictionary, nil)
+        guard stored == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(stored)) }
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "io.github.nanomuse.app.provider-key-rotation",
+            kSecAttrAccount as String: receipt.identifier.uuidString, kSecAttrSynchronizable as String: false,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            kSecValueData as String: try JSONEncoder().encode(stage)]
+        let staged = SecItemAdd(query as CFDictionary, nil)
+        guard staged == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(staged)) }
+        addTeardownBlock { try NivoProviderKeyRotationKeychain.discard(receipt.identifier) }
+        return stage
     }
 
     private func insertUnversioned(_ value: String, owner: String, synchronizable: Bool, comment: String? = nil) throws {

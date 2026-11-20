@@ -17,17 +17,66 @@ enum NivoSQLiteSnapshot {
     /// 读取源连接的已提交状态，快照必须写到本次运行中新建的路径。
     static func capture(from source: OpaquePointer, to saved: URL) throws {
         try requireDifferent(source: source, destination: saved)
-        guard !FileManager.default.fileExists(atPath: saved.path) else { throw NivoSQLiteSnapshotError.invalidPath }
+        try requireNewSnapshot(saved)
         try FileManager.default.createDirectory(at: saved.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let destination = try open(saved, flags: SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)
         var didFinish = false
         defer {
-            sqlite3_close(destination)
             if !didFinish { try? FileManager.default.removeItem(at: saved) }
         }
-        try copy(source: source, destination: destination)
-        try validate(destination)
+        try writeSealedSnapshot(from: source, to: saved)
+        try removeSealedCompanions(saved)
         didFinish = true
+    }
+
+    /// 必须确认唯一目标连接已关闭，随后才可清理Apple SQLite可能保留的共享内存文件。
+    private static func writeSealedSnapshot(from source: OpaquePointer, to saved: URL) throws {
+        let destination = try open(saved, flags: SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)
+        var isClosed = false
+        defer { if !isClosed { sqlite3_close(destination) } }
+        try copy(source: source, destination: destination)
+        // 备份会继承源库的WAL标志；封存为单文件，后续只读校验不能再生成清单外的辅助文件。
+        try seal(destination)
+        try validate(destination)
+        let closed = sqlite3_close(destination)
+        guard closed == SQLITE_OK else { throw NivoSQLiteSnapshotError.sqlite(operation: "snapshot_close", code: closed) }
+        isClosed = true
+    }
+
+    /// 打开前拒绝全部同名材料，包含悬空链接；清理阶段只能处理本次新建的快照。
+    private static func requireNewSnapshot(_ saved: URL) throws {
+        for suffix in ["", "-wal", "-shm"] {
+            if try fileType(URL(fileURLWithPath: saved.path + suffix)) != nil {
+                throw NivoSQLiteSnapshotError.invalidPath
+            }
+        }
+    }
+
+    /// DELETE转换、校验和关闭均成功后，残留辅助文件已不再持有独立提交，不用于旧快照或正式库。
+    private static func removeSealedCompanions(_ saved: URL) throws {
+        try requireSnapshotHeader(saved)
+        let handle = try FileHandle(forReadingFrom: saved)
+        defer { try? handle.close() }
+        let header = try handle.read(upToCount: 20)
+        guard let header, header.count == 20, header[18] == 1, header[19] == 1 else {
+            throw NivoSQLiteSnapshotError.invalidDatabase
+        }
+        for suffix in ["-wal", "-shm"] {
+            let companion = URL(fileURLWithPath: saved.path + suffix)
+            guard let type = try fileType(companion) else { continue }
+            guard type == .typeRegular else { throw NivoSQLiteSnapshotError.invalidPath }
+            try FileManager.default.removeItem(at: companion)
+        }
+    }
+
+    /// 仅把明确的不存在解释为缺席，权限错误和未知文件类型必须阻止后续写入。
+    private static func fileType(_ file: URL) throws -> FileAttributeType? {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            guard let type = attributes[.type] as? FileAttributeType else { throw NivoSQLiteSnapshotError.invalidPath }
+            return type
+        } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+            return nil
+        }
     }
 
     /// 活动仓库在自己的actor内调用，恢复对现有连接原子可见，失败时保留原数据库和快照。
@@ -61,6 +110,17 @@ enum NivoSQLiteSnapshot {
         let connection = try open(file, flags: SQLITE_OPEN_READONLY)
         defer { sqlite3_close(connection) }
         try validate(connection)
+    }
+
+    /// 旧快照可能仍使用WAL；仅按数据库头识别，不能因文件名像辅助文件就放宽清单。
+    static func usesWAL(_ file: URL) throws -> Bool {
+        try requireSnapshotHeader(file)
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        guard let header = try handle.read(upToCount: 20), header.count == 20 else {
+            throw NivoSQLiteSnapshotError.invalidDatabase
+        }
+        return header[18] == 2 && header[19] == 2
     }
 
     /// SQLite会接受零字节文件作为新库；恢复材料必须有已落盘的数据库头，避免清空正式库。
@@ -105,6 +165,20 @@ enum NivoSQLiteSnapshot {
         let finish = sqlite3_backup_finish(backup)
         guard step == SQLITE_DONE else { throw NivoSQLiteSnapshotError.sqlite(operation: "backup_step", code: step) }
         guard finish == SQLITE_OK else { throw NivoSQLiteSnapshotError.sqlite(operation: "backup_finish", code: finish) }
+    }
+
+    /// 只修改新建快照的日志模式，源库继续使用WAL；确认切换完成后才允许登记恢复清单。
+    private static func seal(_ connection: OpaquePointer) throws {
+        var statement: OpaquePointer?
+        let prepared = sqlite3_prepare_v2(connection, "PRAGMA journal_mode=DELETE", -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        guard prepared == SQLITE_OK else {
+            throw NivoSQLiteSnapshotError.sqlite(operation: "snapshot_seal_prepare", code: prepared)
+        }
+        guard sqlite3_step(statement) == SQLITE_ROW, let mode = sqlite3_column_text(statement, 0),
+              String(cString: mode).lowercased() == "delete", sqlite3_step(statement) == SQLITE_DONE else {
+            throw NivoSQLiteSnapshotError.sqlite(operation: "snapshot_seal", code: sqlite3_errcode(connection))
+        }
     }
 
     private static func validate(_ connection: OpaquePointer) throws {

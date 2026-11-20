@@ -19,7 +19,7 @@ import com.openminis.app.ui.theme.MinisTheme
 import io.github.nanomuse.ui.coach.CoachHeader
 import io.github.nanomuse.ui.coach.CoachSceneCard
 import io.github.nanomuse.ui.coach.CoachUi
-import io.github.nanomuse.ui.coach.coachProfileItems
+import io.github.nanomuse.ui.coach.coachHomeItems
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -43,14 +43,15 @@ class CoachExploreInstrumentedTest {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
                 scenario.onActivity { activity -> activity.setContent {
                     MinisTheme(darkTheme = false) {
-                        Column { CoachHeader {}; LazyColumn { coachProfileItems(CoachState(tracks = tracks), tracks.first(), false, {}, { _, _ -> }, {}) } }
+                        Column { CoachHeader {}; LazyColumn { coachHomeItems(CoachState(tracks = tracks), false, {}) } }
                     }
                 } }
-                waitForText(label("nm_coach_profile_today"))
+                waitForText(label("nm_coach_home_intro"))
                 screenshot("coach-explore-light")
-                // 切换技能只改变浏览的档案，不打开对话。
+                // 点技能卡进入这项技能的档案，不打开对话。
                 clickText(tracks[1].course.title)
-                waitFor { CoachUi.selectedCourseId.value == tracks[1].course.id }
+                waitFor { CoachUi.selectedCourseId.value == tracks[1].course.id && CoachUi.view.value == "skill" }
+                CoachUi.open("city")
                 tracks.forEach { track ->
                     scenario.onActivity { activity -> activity.setContent {
                         MinisTheme(darkTheme = false) { Column(Modifier.padding(top = 48.dp)) { CoachSceneCard(track) { CoachUi.selectedCourseId.value = track.course.id } } }
@@ -69,15 +70,17 @@ class CoachExploreInstrumentedTest {
             scenario.onActivity { activity -> activity.setContent {
                 MinisTheme(darkTheme = true) {
                     CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.5f)) {
-                        Column { CoachHeader {}; LazyColumn { coachProfileItems(CoachState(tracks = tracks), tracks.first(), false, {}, { _, _ -> }, {}) } }
+                        Column { CoachHeader {}; LazyColumn { coachHomeItems(CoachState(tracks = tracks), false, {}) } }
                     }
                 }
             } }
-            waitForText(label("nm_coach_profile_today"))
+            waitForText(label("nm_coach_home_intro"))
             screenshot("coach-explore-dark-large")
-            clickText(label("nm_coach_explore_more"), allowScroll = true)
+            // 首页标题栏只有日历和设置两个入口，设置打开教练设置页。
             waitForText(label("nm_growth_calendar"))
-            waitForText(label("nm_growth_settings_title"))
+            clickText(label("nm_coach_settings_title"))
+            waitFor { CoachUi.view.value == "settings" }
+            CoachUi.open("city")
         }
     }
     private fun label(name: String): String {

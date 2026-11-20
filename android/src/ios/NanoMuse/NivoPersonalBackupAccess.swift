@@ -29,6 +29,7 @@ enum NivoPersonalBackupAccess {
     private(set) static var token: UUID?
     private static var providerRestoreToken: UUID?
     private static var accountWaiters: [CheckedContinuation<Void, Never>] = []
+    private static var transitionCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private static var accountTransitions = 0
     private static let transitionLock = NivoAccountTransitionLock()
     private static var hasActiveLease: Bool { token != nil || providerRestoreToken != nil }
@@ -137,9 +138,21 @@ enum NivoPersonalBackupAccess {
         await transitionLock.acquire()
     }
 
+    /// 只供独立启动任务等待；恢复持有者不能等待自己的退出，也不申请新的账户租约。
+    static func waitForAccountTransitionToFinish() async {
+        while hasAccountTransition {
+            await withCheckedContinuation { transitionCompletionWaiters.append($0) }
+        }
+    }
+
     /// 排队切换同样阻止备份开始，最后一次切换结束后才恢复备份入口。
     static func endAccountChange() {
         accountTransitions = max(0, accountTransitions - 1)
         transitionLock.release()
+        if accountTransitions == 0 {
+            let waiters = transitionCompletionWaiters
+            transitionCompletionWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+        }
     }
 }

@@ -1,0 +1,48 @@
+{
+  "version": "2.0.7",
+  "versionCode": 58,
+  "platform": "android",
+  "abi": "arm64-v8a",
+  "jdk": "OpenJDK 21.0.8 (Android Studio JBR)",
+  "ndk": "27.2.12479018",
+  "gradle": "8.11.1",
+  "nativeInputsRebuiltInThisRelease": false,
+  "reproducibleApkClaim": false,
+  "limitations": [
+    "Retained rclone libgojni.so uses 4KB ELF alignment; 16KB memory-page compatibility is not established.",
+    "Fixed proot-loader binaries are retained inputs; build_proot.sh documents the source reconstruction gap.",
+    "Pinned native sources and build scripts are included; these input hashes record the local build inputs rather than proving reproducible native builds."
+  ],
+  "files": [
+    {
+      "path": "android/src/android/app/libs/rclone.aar",
+      "sizeBytes": 9941004,
+      "sha256": "5a719999cf9cc2d84441c871ec13e08c96fd1fe025936581d7ee63f013c1f90a"
+    },
+    {
+      "path": "android/src/android/app/src/main/assets/proot-aarch64",
+      "sizeBytes": 254024,
+      "sha256": "46c314c9a68cad71a349757996e6b0fd7c32052fc312fe34ef95caa13469134d"
+    },
+    {
+      "path": "android/src/android/app/src/main/assets/alpine-minirootfs.tar.gz",
+      "sizeBytes": 3846099,
+      "sha256": "279fee4ea4dfe43dc6f3b9a65ea15b310d57c6dc571c618e2420b58ba68a885f"
+    },
+    {
+      "path": "android/src/android/app/src/main/jniLibs/arm64-v8a/libproot-loader.so",
+      "sizeBytes": 18136,
+      "sha256": "44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04"
+    },
+    {
+      "path": "android/src/android/app/src/main/jniLibs/arm64-v8a/libproot-loader32.so",
+      "sizeBytes": 6244,
+      "sha256": "25f6bd90bc5a3d3088026289a0d3eaf3e502bd2b00e5cb74fadd9791132efa34"
+    },
+    {
+      "path": "android/src/android/app/src/main/jniLibs/arm64-v8a/libproot.so",
+      "sizeBytes": 254024,
+      "sha256": "46c314c9a68cad71a349757996e6b0fd7c32052fc312fe34ef95caa13469134d"
+    }
+  ]
+}

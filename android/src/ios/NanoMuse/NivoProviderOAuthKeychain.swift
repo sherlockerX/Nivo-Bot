@@ -9,25 +9,23 @@ enum NivoProviderOAuthKeychain {
     /// 删除与OAuth原位写入共享进程锁，避免本机清理在值核对之间交错。
     static func withMutationLock<Value>(_ body: () throws -> Value) rethrows -> Value { try lock.withLock(body) }
 
-    /// 同步条目优先；只有确实不存在时才读取旧的本机条目。
+    /// 本机条目优先；旧同步条目只在启动迁移之前作为只读兼容来源。
     static func read(instanceID: String, account: String) throws -> Data? {
         try lock.withLock {
             try validate(instanceID: instanceID, account: account)
             let service = "io.github.nanomuse.app.provider." + instanceID
-            if let value = try read(service: service, account: account, synchronizable: true) { return value }
-            return try read(service: service, account: account, synchronizable: false)
+            if let value = try read(service: service, account: account, synchronizable: false) { return value }
+            return try read(service: service, account: account, synchronizable: true)
         }
     }
 
-    /// 使用原位写入及读回确认，不清除旧的非同步条目作为写入前置步骤。
+    /// 仅原位写入本机条目并读回确认，保留旧同步来源供启动迁移处理。
     static func save(_ value: Data, instanceID: String, account: String) throws {
         try lock.withLock {
             try validate(instanceID: instanceID, account: account)
             let service = "io.github.nanomuse.app.provider." + instanceID
-            // 旧条目读取受限时也不能新建另一份并假装替换成功。
-            _ = try read(service: service, account: account, synchronizable: false)
             try NivoOAuthPersistence.save(value,
-                read: { try read(service: service, account: account, synchronizable: true) },
+                read: { try read(service: service, account: account, synchronizable: false) },
                 update: { try write($0, service: service, account: account, isUpdate: true) },
                 insert: { try write($0, service: service, account: account, isUpdate: false) })
         }
@@ -72,9 +70,9 @@ enum NivoProviderOAuthKeychain {
     }
 
     private static func write(_ data: Data, service: String, account: String, isUpdate: Bool) throws {
-        let query = match(service: service, account: account, synchronizable: true)
+        let query = match(service: service, account: account, synchronizable: false)
         let attributes: [String: Any] = [kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock, kSecAttrComment as String: ""]
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, kSecAttrComment as String: ""]
         let status = isUpdate ? SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
             : SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
         guard status == errSecSuccess else { throw NivoOAuthPersistenceError.storage(operation: "write", status: status) }

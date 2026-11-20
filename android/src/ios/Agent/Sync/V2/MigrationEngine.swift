@@ -430,6 +430,8 @@ final class MigrationEngine {
     /// completed or failed, returns immediately. Caller is expected to
     /// ensure v1 sync is paused before calling.
     func runIfNeeded() async {
+        // nanoMuse: 只保留迁移记录，不再启动历史云数据迁移。
+        guard NivoICloudPolicy.isEnabled else { return }
         // Re-entrancy guard. Launch (startIfEnabled) and the Sync-sheet
         // "Start / Retry Migration" button can both call this; overlapping
         // runs corrupt migration-state.json. If one is already driving the
@@ -798,7 +800,8 @@ final class MigrationEngine {
     /// permanent failure. [T-ios-icloud-v1v2-migration-fails]
     @available(iOS 17.0, *)
     private static func countCloudSessionsV2() async -> Int? {
-        let container = CKContainer(identifier: ICloudSharedZoneTransport.containerIdentifier)
+        // nanoMuse: 云服务已移除，不能将未执行查询误认为云端记录为零。
+        guard let container = NivoICloudPolicy.container else { return nil }
         let zoneID = CKRecordZone.ID(zoneName: ICloudSharedZoneTransport.sharedZoneName)
         let query = CKQuery(recordType: "SessionV2", predicate: NSPredicate(value: true))
         do {
@@ -913,7 +916,8 @@ enum V1FetcherShim {
     static func countOwnZone() async throws -> Int {
         let myDeviceId = DeviceIdentity.deviceId
         let zoneID = CKRecordZone.ID(zoneName: "device-\(myDeviceId)")
-        let container = CKContainer(identifier: ICloudSharedZoneTransport.containerIdentifier)
+        // nanoMuse: 兼容旧迁移接口，但禁止重新创建CloudKit容器。
+        guard let container = NivoICloudPolicy.container else { throw NivoICloudPolicy.unavailable }
         let db = container.privateCloudDatabase
 
         // v1 record types in the device-<id> zone, paired with a
@@ -1001,7 +1005,8 @@ enum V1FetcherShim {
 
     static func deleteOwnZone(zoneName: String) async throws {
         if #available(iOS 17.0, *) {
-            let container = CKContainer(identifier: ICloudSharedZoneTransport.containerIdentifier)
+            // nanoMuse: 云服务移除后保留远端旧数据，不执行清理迁移。
+            guard let container = NivoICloudPolicy.container else { throw NivoICloudPolicy.unavailable }
             let zoneID = CKRecordZone.ID(zoneName: zoneName)
             do {
                 _ = try await container.privateCloudDatabase.deleteRecordZone(withID: zoneID)
@@ -1028,7 +1033,8 @@ enum V1FetcherShim {
     /// the "iCloud Zones" inventory + per-zone delete control.
     @available(iOS 17.0, *)
     static func listAllZones() async throws -> [ZoneInfo] {
-        let container = CKContainer(identifier: ICloudSharedZoneTransport.containerIdentifier)
+        // nanoMuse: 旧设置或调试入口不能重新枚举远端数据区。
+        guard let container = NivoICloudPolicy.container else { throw NivoICloudPolicy.unavailable }
         let zones = try await container.privateCloudDatabase.allRecordZones()
         let myDeviceId = DeviceIdentity.deviceId
         let myZoneName = "device-\(myDeviceId)"

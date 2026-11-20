@@ -87,7 +87,8 @@ final class ICloudBackupManager: ObservableObject {
     // MARK: - iCloud Container
 
     private var iCloudContainerURL: URL? {
-        fm.url(forUbiquityContainerIdentifier: containerID)
+        // nanoMuse: 本地备份由BackupAndRestore管理，旧云备份不再访问ubiquity容器。
+        nil
     }
 
     var isICloudAvailable: Bool { iCloudContainerURL != nil }
@@ -621,31 +622,15 @@ final class ICloudBackupManager: ObservableObject {
     // MARK: - Download from iCloud
 
     private func ensureDownloaded(_ url: URL) async throws {
-        let values = try url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
-        if values.ubiquitousItemDownloadingStatus == .current {
-            return
-        }
-
-        try fm.startDownloadingUbiquitousItem(at: url)
-
-        // Poll until downloaded (with timeout)
-        let deadline = Date().addingTimeInterval(120) // 2 min timeout
-        while Date() < deadline {
-            try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
-            let updated = try url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
-            if updated.ubiquitousItemDownloadingStatus == .current {
-                return
-            }
-        }
-
-        throw BackupError.downloadTimeout
+        // nanoMuse: 即使直接调用旧恢复接口，也不访问云端文件。
+        throw NivoICloudPolicy.unavailable
     }
 
     // MARK: - Delete Backup
 
     func deleteBackup(_ entry: BackupEntry) throws {
-        try fm.removeItem(at: entry.url)
-        availableBackups.removeAll { $0.id == entry.id }
+        // nanoMuse: 功能移除只关闭入口，不能删除用户已有的云备份。
+        throw NivoICloudPolicy.unavailable
     }
 
     // MARK: - Errors

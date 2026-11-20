@@ -42,7 +42,47 @@
       button.setAttribute('aria-expanded', String(open)); nav.dataset.open = String(open);
     });
     nav.addEventListener('click', event => { if (event.target.closest('a')) close(); });
-    document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || button.getAttribute('aria-expanded') !== 'true') return;
+      close(); button.focus();
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.site-header')) close();
+    });
+    const desktop = matchMedia('(min-width: 761px)');
+    desktop.addEventListener('change', close);
+  }
+
+  /** 首页示意由访客选择阶段，不自动切换，不写入任何应用数据。 */
+  function dayStory(region) {
+    const tabs = [...region.querySelectorAll('[data-story-tab]')];
+    const panels = [...region.querySelectorAll('[role=tabpanel]')];
+    const show = index => {
+      tabs.forEach((tab, position) => {
+        const selected = position === index;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        panels[position].hidden = !selected;
+      });
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => show(index));
+      tab.addEventListener('keydown', event => {
+        const targets = {ArrowLeft: (index + tabs.length - 1) % tabs.length,
+          ArrowRight: (index + 1) % tabs.length, Home: 0, End: tabs.length - 1};
+        if (!(event.key in targets)) return;
+        event.preventDefault(); show(targets[event.key]); tabs[targets[event.key]].focus();
+      });
+    });
+  }
+
+  /** 手机先展示教程内容，仍保留随时展开的服务商目录。 */
+  function guideNavigation() {
+    const directory = document.querySelector('.guide-nav details');
+    if (!directory) return;
+    const mobile = matchMedia('(max-width: 760px)');
+    const update = () => { directory.open = !mobile.matches; };
+    mobile.addEventListener('change', update); update();
   }
 
   /** 轮播提供键盘、触摸、暂停，以及视口和减少动态效果处理。 */
@@ -51,8 +91,9 @@
     const tabs = [...region.querySelectorAll('[data-slide]')];
     const count = region.querySelector('[data-carousel-count]');
     const playButton = region.querySelector('[data-carousel-play]');
+    const stage = region.querySelector('.gallery-stage');
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-    let current = 0, playing = !reduced.matches, inView = false, hovering = false, focused = false;
+    let current = 0, playing = false, inView = false, hovering = false, focused = false;
     let timer = null, touch = null;
     const pauseLabel = () => {
       playButton.textContent = playing ? '暂停' : '播放';
@@ -74,6 +115,7 @@
     region.querySelector('[data-carousel-next]').addEventListener('click', () => show(current + 1));
     playButton.addEventListener('click', () => { playing = !playing; pauseLabel(); schedule(); });
     region.addEventListener('keydown', event => {
+      if (event.target !== region && !event.target.matches('[role=tab]')) return;
       const keys = { ArrowLeft: current - 1, ArrowRight: current + 1, Home: 0, End: panels.length - 1 };
       if (!(event.key in keys)) return;
       event.preventDefault(); show(keys[event.key]);
@@ -83,8 +125,10 @@
     region.addEventListener('mouseleave', () => { hovering = false; schedule(); });
     region.addEventListener('focusin', () => { focused = true; schedule(); });
     region.addEventListener('focusout', event => { focused = region.contains(event.relatedTarget); schedule(); });
-    region.addEventListener('touchstart', event => { touch = event.changedTouches[0]; }, { passive: true });
-    region.addEventListener('touchend', event => {
+    // 标签栏需要独立横向滚动，只有画面区域的手势可以切换当前功能。
+    stage.addEventListener('touchstart', event => { touch = event.changedTouches[0]; }, { passive: true });
+    stage.addEventListener('touchcancel', () => { touch = null; }, { passive: true });
+    stage.addEventListener('touchend', event => {
       if (!touch) return;
       const end = event.changedTouches[0], dx = end.clientX - touch.clientX, dy = end.clientY - touch.clientY;
       if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) show(current + (dx < 0 ? 1 : -1));
@@ -118,6 +162,11 @@
       filters.forEach(item => item.setAttribute('aria-pressed', String(item === button))); update();
     }));
     input.addEventListener('input', update);
+    document.querySelector('[data-provider-reset]')?.addEventListener('click', () => {
+      category = '全部'; input.value = '';
+      filters.forEach(item => item.setAttribute('aria-pressed', String(item.dataset.providerFilter === category)));
+      update(); input.focus();
+    });
   }
 
   /** 数字比较版本，避免2.10.0被排在2.9.0之前。 */
@@ -151,8 +200,7 @@
   function renderRelease(release) {
     const card = node('div', undefined, 'release-card');
     const heading = node('div', undefined, 'release-heading');
-    heading.append(node('span', '↗', 'platform-symbol'));
-    const title = node('div'); title.append(node('p', `${release.platform.toUpperCase()} / ${release.channel.toUpperCase()}`, 'eyebrow'), node('h2', `Nivo Bot v${release.version}`));
+    const title = node('div'); title.append(node('p', `${release.platform === 'android' ? 'Android' : 'iOS'} ${release.channel === 'stable' ? '稳定版' : '测试版'}`, 'eyebrow'), node('h2', `Nivo Bot v${release.version}`));
     const distribution = release.distribution || 'apk';
     const isUnsigned = release.signing === 'unsigned';
     const method = isUnsigned ? '未签名IPA' : {apk:'正式签名', ipa:'IPA', 'app-store':'App Store', testflight:'TestFlight'}[distribution];
@@ -163,18 +211,18 @@
     if (isUnsigned) {
       const installation = node('aside', undefined, 'callout');
       installation.append(node('h3', '安装前需要自行签名'), node('p', '这是未签名IPA，不能下载后直接安装到iPhone。需要使用自己的Apple开发签名与适用的安装工具重新签名；能否安装、签名有效期和可用权限取决于你的账户与签名方式。本文件没有TestFlight或App Store安装入口。'));
-      installation.append(anchor('查看iOS安装说明 ↗', 'install.html', 'text-link', true)); card.append(installation);
+      installation.append(anchor('查看iOS安装说明', 'install.html', 'text-link', true)); card.append(installation);
     }
     const actions = node('div', undefined, 'actions');
-    const downloadLabel = {apk:'下载APK ↓', ipa:`下载${method} ↓`}[distribution] || '打开官方安装入口 ↗';
-    actions.append(anchor(downloadLabel, release.downloadUrl, 'button primary'), anchor('查看更新说明 ↗', release.notesUrl, 'text-link', true));
+    const downloadLabel = {apk:'下载APK', ipa:`下载${method}`}[distribution] || '打开官方安装入口';
+    actions.append(anchor(downloadLabel, release.downloadUrl, 'button primary'), anchor('查看更新说明', release.notesUrl, 'text-link', true));
     card.append(actions);
     if (release.sha256) {
       const checksum = node('div', undefined, 'checksum'), copy = node('button', '复制校验和', 'copy-button');
       copy.type = 'button'; copy.dataset.copy = release.sha256; copy.setAttribute('aria-label', '复制安装文件SHA256');
       checksum.append(node('span', '安装文件 SHA256'), node('code', release.sha256), copy); card.append(checksum);
     }
-    const links = node('div', undefined, 'release-links'); links.append(anchor('本版对应源码 ↗', release.sourceUrl)); card.append(links);
+    const links = node('div', undefined, 'release-links'); links.append(anchor('本版对应源码', release.sourceUrl)); card.append(links);
     return card;
   }
 
@@ -185,6 +233,7 @@
     const channel = document.querySelector('#release-channel'), version = document.querySelector('#release-version');
     const content = document.querySelector('#release-content'), historyTable = document.querySelector('#release-history');
     const message = document.querySelector('#release-message'), retry = document.querySelector('#release-retry');
+    const fallback = document.querySelector('#release-fallback');
     let data = null, currentPlatform = 'android';
     const urlState = () => new URL(location.href).searchParams;
     const writeUrl = () => {
@@ -201,7 +250,7 @@
       releases.forEach(release => {
         const row = node('tr');
         [release.platform === 'android' ? 'Android' : 'iOS', `v${release.version}${release.versionCode ? `（${release.versionCode}）` : ''}`, release.channel === 'stable' ? '稳定版' : '测试版', release.releasedAt].forEach(value => row.append(node('td', value)));
-        const cell = node('td'); cell.append(anchor('更新说明 ↗', release.notesUrl, '', true)); row.append(cell); body.append(row);
+        const cell = node('td'); cell.append(anchor('更新说明', release.notesUrl, '', true)); row.append(cell); body.append(row);
       });
       table.append(head, body); historyTable.append(table);
     };
@@ -230,7 +279,7 @@
         const unpublished = platform.status !== 'available';
         const empty = node('div', undefined, 'unreleased');
         empty.append(node('span', unpublished ? '尚未公开发布' : '当前渠道暂无版本', 'chip'), node('h2', unpublished ? `${platform.name}，留一个位置。` : '换一个发行渠道看看。'), node('p', unpublished ? platform.message : '所选渠道暂无可下载版本，请切换稳定版或全部已发布版本。'));
-        if (platform.progressUrl) empty.append(anchor('查看平台开发记录 ↗', platform.progressUrl, 'text-link'));
+        if (platform.progressUrl) empty.append(anchor('查看平台开发记录', platform.progressUrl, 'text-link'));
         content.append(empty); message.textContent = unpublished ? '当前没有可下载的公开版本。' : '所选渠道暂无版本，其他渠道仍可选择。';
       }
       renderHistory(all);
@@ -241,13 +290,20 @@
     };
     const load = async () => {
       retry.hidden = true;
+      const controller = new AbortController();
+      const deadline = setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch(new URL('releases.json', root), { cache: 'no-cache' });
+        const response = await fetch(new URL('releases.json', root), { cache: 'no-cache', signal: controller.signal });
         if (!response.ok) throw new Error('版本目录暂不可用');
         data = validateCatalogue(await response.json()); restore();
+        if (fallback) fallback.hidden = true;
       } catch {
-        message.textContent = '版本目录暂未加载。下方保留当前正式版入口，请稍后重试。'; retry.hidden = false;
+        data = null;
+        message.textContent = '版本目录暂未加载。可以使用下方两平台的发行入口，或重试。'; retry.hidden = false;
+        if (fallback) fallback.hidden = false;
         platformTabs.forEach(tab => { tab.disabled = true; }); channel.disabled = true; version.disabled = true;
+      } finally {
+        clearTimeout(deadline);
       }
       if (data) platformTabs.forEach(tab => { tab.disabled = false; });
     };
@@ -274,5 +330,6 @@
     setTimeout(() => { button.textContent = label; }, 2400);
   });
 
-  navigation(); document.querySelectorAll('[data-carousel]').forEach(carousel); providerSearch(); downloads();
+  navigation(); guideNavigation(); document.querySelectorAll('[data-story]').forEach(dayStory);
+  document.querySelectorAll('[data-carousel]').forEach(carousel); providerSearch(); downloads();
 })();

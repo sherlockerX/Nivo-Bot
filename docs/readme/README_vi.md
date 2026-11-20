@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
+  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
@@ -86,15 +86,17 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 | Tài nguyên | Liên kết |
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
 | iOS 16 trở lên, cần tự ký | [IPA chưa ký](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
-| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
-| Mã kiểm tra tải xuống | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.5.md) · [Kiểm tra bản dựng](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
+| Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Bản này gồm Android, iOS và trang sản phẩm. iOS được cung cấp dưới dạng IPA chưa ký từ GitHub Actions và cần được ký trước khi cài đặt. Fork này chưa có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
+2.0.7(58) Anchor chỉ cập nhật Android. Bản tải xuống cho iOS vẫn là 2.0.5(56); đợt phát hành này không có IPA 2.0.7. Việc đổi phiên bản mã nguồn chung không đồng nghĩa với phát hành tệp nhị phân iOS mới. iOS được cung cấp dưới dạng IPA chưa ký từ GitHub Actions và cần được ký trước khi cài đặt. Fork này chưa có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
 
-ID ứng dụng vẫn là `io.github.nanomuse.app`. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
+ID ứng dụng vẫn là `io.github.nanomuse.app`, với cùng danh tính chữ ký như các bản phát hành chính thức trước của Nivo Bot. Bản này chưa được kiểm thử cập nhật đè lên bản đã cài trên điện thoại Android thật. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
+
+Gói mã nguồn Android được xuất từ commit cố định dùng để biên dịch. Danh mục tải xuống ghi lại commit đó và mã kiểm tra của gói; hãy dùng mã nguồn đúng phiên bản đã cài khi kiểm tra hoặc biên dịch lại.
 
 ## Biên dịch từ mã nguồn
 

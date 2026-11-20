@@ -52,8 +52,8 @@ IOS = ROOT / "android" / "src" / "ios"
 
 APP_ID = "io.github.nanomuse.app"
 NAME = "Nicholasx"  # Mosaic: the personal build's product name
-VERSION_NAME = "2.0.5"
-VERSION_CODE = 56
+VERSION_NAME = "2.0.7"
+VERSION_CODE = 58
 # 手机版本使用同一发布来源，完整品牌生成也不能恢复旧的Android版本。
 ANDROID_VERSION_NAME = VERSION_NAME
 ANDROID_VERSION_CODE = VERSION_CODE
@@ -510,29 +510,14 @@ def xcstrings_dumps(data: object, like: str) -> str:
 
 
 def ios_links() -> None:
-    edit(
-        IOS / "Views" / "Settings" / "AboutView.swift",
-        [
-            (r'"https://github\.com/OpenMinis"\)', f'"{REPO_URL}")'),
-            (r'"https://github\.com/OpenMinis/OpenMinis/issues"\)', f'"{REPO_URL}/issues")'),
-            (
-                r'"(?:(?:Minis|nanoMuse) is Your Fully Local, Fully Private On-Device Agent'
-                r'|A fully open-source, Muse-style personal agent for every device you own)\."',
-                '"An open-source personal agent for every device you own."',
-            ),
-        ],
+    """iOS只维护产品隐私链接；不生成仓库推广、旧反馈或检查更新入口。"""
+    privacy_pattern = (
+        r'URL\(string: "https://(?:openminis\.github\.io/privacy-policy\.html'
+        r"|github\.com/(?:nano-muse/nanoMuse|OpenMinis/OpenMinis|sherlockerX/Nicholasx)"
+        r'/blob/main/docs/privacy\.md)"\)!'
     )
-    edit(
-        IOS / "Views" / "ContentView.swift",
-        [
-            (r'"https://openminis\.github\.io/privacy-policy\.html"', f'"{PRIVACY_URL}"'),
-            (r'"https://github\.com/OpenMinis/OpenMinis/issues/new"', f'"{REPO_URL}/issues/new"'),
-        ],
-    )
-    edit(
-        IOS / "Views" / "Providers" / "AddProviderView.swift",
-        [(r'"https://openminis\.github\.io/privacy-policy\.html"', f'"{PRIVACY_URL}"')],
-    )
+    for relative in ("Views/ContentView.swift", "Views/Providers/AddProviderView.swift"):
+        edit(IOS / relative, [(privacy_pattern, "NivoProduct.privacy")])
 
 
 def ios_soul_defaults() -> None:
@@ -753,14 +738,6 @@ def ios_brand_only() -> None:
             (r'AppLocalized\("About nanoMuse"\)', 'AppLocalized("About Nivo Bot")'),
             (r'URL\(string: "https://nanomuse\.cn/privacy/"\)!', "NivoProduct.privacy"),
             (r'"https://nanomuse\.cn/own-key"', "NivoProduct.modelGuide.absoluteString"),
-            (
-                r'"https://github\.com/nano-muse/nanoMuse/issues/new"',
-                'NivoProduct.repository.appendingPathComponent("issues/new").absoluteString',
-            ),
-            (
-                r'URL\(string: "https://github\.com/nano-muse/nanoMuse/issues"\)!',
-                'NivoProduct.repository.appendingPathComponent("issues")',
-            ),
         ],
     )
     for path in (
@@ -775,6 +752,17 @@ def ios_brand_only() -> None:
     soul = IOS / "Agent/Session/SoulStore.swift"
     if soul.is_file():
         edit(soul, [(r'"nanoMuse"', '"Nivo Bot"')])
+    connector = IOS / "NanoMuse/NanoMuseConnectors.swift"
+    if connector.is_file():
+        edit(
+            connector,
+            [
+                (
+                    r"The authorization server refused to register nanoMuse",
+                    r"The authorization server refused to register \\(NivoProduct.name)",
+                ),
+            ],
+        )
     # 只更新已知产品文案的译文，保留翻译键、上游署名和nanoMuse Cloud服务名。
     catalogue = IOS / "Localizable.xcstrings"
     if catalogue.is_file():
@@ -784,6 +772,7 @@ def ios_brand_only() -> None:
             "Welcome to nanoMuse",
             "Hi, I'm nanoMuse, the assistant that lives on your phone. Let me take a few things off your plate.",
             "Everything else works without it. It lives under iOS Settings → nanoMuse whenever you want it.",
+            "Signs in with your %@ account in the browser; nanoMuse registers itself with the service, so there is nothing to type. The token stays on this phone.",
         ):
             entry = data.get("strings", {}).get(key, {})
             for localization in entry.get("localizations", {}).values():

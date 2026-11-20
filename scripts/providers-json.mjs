@@ -15,6 +15,7 @@
 // than the key does, `regions[]` (cn | global), `capabilities[]` (chat | vision | image |
 // video), `defaults{chat, hands, image, video}`, `note`/`note_zh`, `verified` (the month the
 // facts were checked against the vendor's docs) and, for `custom`, `user_capabilities: true`.
+// 可选is_relay标记历史中转商条目；移动端保留配置兼容，但不在新建服务目录中推荐。
 // An optional `reasoning` hint says how the vendor takes a thinking level, as its docs state
 // it: `doc` (the page checked), `wire` (reasoning_effort | thinking+reasoning_effort |
 // reasoning.effort | output_config.effort), `rules[]` of `{models, levels[], default?}` where
@@ -92,6 +93,8 @@ for (const p of catalogue.providers) {
   if (!/^\d{4}-\d{2}$/.test(p.verified ?? '')) problems.push(`${where}: verified must be YYYY-MM`)
   if (!PROTOCOLS.has(p.protocol)) problems.push(`${where}: unknown protocol ${p.protocol}`)
   if (typeof p.base_url !== 'string') problems.push(`${where}: base_url must be a string`)
+  // 旧中转商数据仅用于兼容已有配置，手机与产品网站不再显示推荐入口。
+  if (p.is_relay !== undefined && typeof p.is_relay !== 'boolean') problems.push(`${where}: is_relay must be a boolean`)
   if (p.base_url && !/^https?:\/\//.test(p.base_url)) problems.push(`${where}: base_url must be a URL`)
   if (typeof p.key_url !== 'string') problems.push(`${where}: key_url must be a string`)
   if (!Array.isArray(p.auth) || !p.auth.length) problems.push(`${where}: auth must be a non-empty list`)

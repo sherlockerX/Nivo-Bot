@@ -47,8 +47,8 @@ import io.github.nanomuse.ui.home.MuseTones
 /** The in-app link that starts a new chat (the 413's way on). */
 private const val NEW_CHAT_DEEP_LINK = "minis://action/new_chat"
 
-/** The in-app link that opens Settings → nanoMuse Cloud (sign in again, pick another model). */
-private const val CLOUD_DEEP_LINK = "minis://settings/cloud"
+/** 旧错误消息引导用户配置自己的服务商，不再打开已移除的账号页。 */
+private const val PROVIDERS_DEEP_LINK = "minis://settings/providers"
 
 /**
  * A turn the relay refused (docs/parity.md, item 35): one plain sentence from
@@ -109,15 +109,15 @@ fun RelayRefusalCard(refusal: RelayRefusal.Refusal, onRetry: () -> Unit, modifie
                         Secondary(stringResource(R.string.nm_reach_try_again), onRetry)
                     }
                     RelayRefusal.Kind.SIGNED_OUT -> {
-                        Primary(stringResource(R.string.nm_refusal_sign_in)) { ChatLinkResolver.dispatchDeepLink(context, CLOUD_DEEP_LINK) }
+                        Primary(stringResource(R.string.nm_reach_open_provider)) { ChatLinkResolver.dispatchDeepLink(context, PROVIDERS_DEEP_LINK) }
                         Secondary(stringResource(R.string.nm_reach_try_again), onRetry)
                     }
                     RelayRefusal.Kind.DISABLED, RelayRefusal.Kind.MODEL -> {
-                        Primary(stringResource(R.string.nm_refusal_open_settings)) { ChatLinkResolver.dispatchDeepLink(context, CLOUD_DEEP_LINK) }
+                        Primary(stringResource(R.string.nm_refusal_open_settings)) { ChatLinkResolver.dispatchDeepLink(context, PROVIDERS_DEEP_LINK) }
                     }
                     RelayRefusal.Kind.OTHER -> {
                         Primary(stringResource(R.string.nm_reach_try_again), onRetry)
-                        Secondary(stringResource(R.string.nm_refusal_open_settings)) { ChatLinkResolver.dispatchDeepLink(context, CLOUD_DEEP_LINK) }
+                        Secondary(stringResource(R.string.nm_refusal_open_settings)) { ChatLinkResolver.dispatchDeepLink(context, PROVIDERS_DEEP_LINK) }
                     }
                     else -> Primary(stringResource(R.string.nm_reach_try_again), onRetry)
                 }

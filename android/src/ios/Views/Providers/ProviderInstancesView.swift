@@ -16,7 +16,8 @@ struct ProviderInstancesView: View {
     @State private var nmDeleteError: String?
     @State private var nmDeleteScope: NivoOAuthScope?
     @State private var forceSyncToast: String?
-    @AppStorage("cloudSync.v2.enabled") private var iCloudSyncEnabled: Bool = false
+    // nanoMuse: 内置云同步已移除，旧偏好不能恢复强制同步入口。
+    private let iCloudSyncEnabled = false
     /// [T-provider-group-swipe-actions] Swipe-to-edit target. Value-driven so
     /// the swipe opens the SAME detail screen the row's NavigationLink does,
     /// rather than a second editor that could drift from it.
@@ -31,21 +32,14 @@ struct ProviderInstancesView: View {
             // nanoMuse: 经典布局也保留迁移故障和重试入口。
             NivoProviderMigrationNotice()
             NivoProviderDeletionNotice()
-            // nanoMuse: the relay first — a phone number or an e-mail address, no key needed.
-            Section {
-                NavigationLink {
-                    NanoMuseCloudView()
-                } label: {
-                    NanoMuseCloudRow()
-                }
-            }
+            // nanoMuse: 只显示用户配置的提供商，移除原云账号入口。
             // [T-mimo-shadow-voice] EVERY instance appears under its providerType
             // section now (no voice-only exclusion) — a mixed vendor like MiMo
             // shows its text models here AND a shadow voice row below ("dual
             // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
             // too; they just have no usable text models, which is expected.
             ForEach(ProviderType.allCases, id: \.self) { type in
-                let instancesOfType = store.instances.filter { $0.providerType == type }
+                let instancesOfType = store.instances.filter { $0.providerType == type && !$0.nmIsRetiredCloudProvider }
                 if !instancesOfType.isEmpty {
                     Section(type.displayName) {
                         ForEach(instancesOfType) { instance in

@@ -201,6 +201,8 @@ object StarPrompt {
 
     /** Off to GitHub, and no more asking anywhere. */
     fun open(context: Context) {
+        // 本地版不提供项目推广跳转，旧页面回调也不能重新打开入口。
+        if (MOSAIC_OFFLINE) return
         markStarred(context)
         openExternalUrl(context, url(context))
     }
@@ -293,6 +295,8 @@ fun StarNudgeCard(
     modifier: Modifier = Modifier,
     onDone: () -> Unit,
 ) {
+    // 即使历史状态仍要求渲染卡片，本地版也不显示Star入口。
+    if (MOSAIC_OFFLINE) return
     val context = LocalContext.current
     Surface(
         shape = RoundedCornerShape(20.dp),

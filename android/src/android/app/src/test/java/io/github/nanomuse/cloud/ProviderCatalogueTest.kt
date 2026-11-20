@@ -73,12 +73,26 @@ class ProviderCatalogueTest {
         for (id in listOf("ollama", "lm-studio", "vllm", "custom")) assertFalse(id, id in cn)
 
         val global = ProviderCatalogue.ordered(shipped, mainland = false).map { it.id }
-        assertEquals(listOf("openrouter", "openai"), global.take(2))
+        assertEquals("openai", global.first())
         assertTrue(global.indexOf("anthropic") < global.indexOf("bailian")) // Bailian signs up on the mainland only: after the rest
         assertEquals(cn.toSet(), global.toSet())
 
         // the sign-ins: ChatGPT, Claude, Kimi, OpenRouter, in the card's order
-        assertEquals(setOf("openai", "anthropic", "moonshot", "openrouter"), ProviderCatalogue.signIns(shipped, false).map { it.id }.toSet())
+        assertEquals(setOf("openai", "anthropic", "moonshot"), ProviderCatalogue.signIns(shipped, false).map { it.id }.toSet())
+    }
+
+    @Test fun `内置列表过滤中转站但已有配置和主动OAuth继续可识别`() {
+        val relayIds = setOf("openrouter", "siliconflow", "opencode-zen", "opencode-go", "standardcompute", "cheaperinference")
+        assertEquals(relayIds, shipped.filter { it.isRelay }.map { it.id }.toSet())
+        for (mainland in listOf(true, false)) {
+            assertTrue(ProviderCatalogue.ordered(shipped, mainland).none { it.isRelay })
+            assertTrue(ProviderCatalogue.signIns(shipped, mainland).none { it.isRelay })
+        }
+        val existing = inst(ProviderType.openRouter, cred = ProviderCredential.oauth)
+        val vendor = ProviderCatalogue.match(shipped, existing)!!
+        assertEquals("openrouter", vendor.id)
+        assertEquals(ProviderCatalogue.AUTH_OPENROUTER, ProviderCatalogue.authOf(existing, vendor))
+        assertEquals(ProviderType.openRouter, OwnKeyPresets.template(vendor, false, false, true).providerType)
     }
 
     @Test fun `which vendor a configured provider is - by host first, then by type, and unknown hosts are nobody's`() {

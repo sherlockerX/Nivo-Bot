@@ -59,6 +59,11 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
     val lockRuns by remember(locks,reload) { locks.observeRuns().catch { if(it is CancellationException) throw it;failed=true } }.collectAsState(emptyList())
     val lockBySession=remember(lockRuns) { lockRuns.associateBy { it.sessionId } }
     val view by FocusUi.view.collectAsState()
+    // 锁定设置是计时准备的一部分，进入子页时仍保留当前任务和计时配置。
+    var chosenTask by rememberSaveable { mutableStateOf<String?>(null) }
+    var mode by rememberSaveable { mutableStateOf("pomodoro") }
+    var minutes by rememberSaveable { mutableStateOf("25") }
+    var isForced by rememberSaveable { mutableStateOf(false) }
     if(view in setOf("lock-permissions","lock-whitelist","lock-settings","lock-plans")) {
         Column(Modifier.fillMaxSize().background(ChatColors.background)) {
             header()
@@ -73,10 +78,6 @@ private fun FocusPage(store:FocusStore,todo:TodoStore,header:@Composable ()->Uni
     }
     val pendingTask by FocusUi.taskId.collectAsState()
     val pendingReflection by io.github.nanomuse.ui.home.HomeBus.focusReflection.collectAsState()
-    var chosenTask by rememberSaveable { mutableStateOf<String?>(null) }
-    var mode by rememberSaveable { mutableStateOf("pomodoro") }
-    var minutes by rememberSaveable { mutableStateOf("25") }
-    var isForced by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<FocusSession?>(null) }
     var busy by remember { mutableStateOf(false) }

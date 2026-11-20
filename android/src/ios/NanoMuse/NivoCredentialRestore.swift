@@ -59,11 +59,14 @@ enum NivoCredentialRestore {
     static func rollback(_ receipt: NivoCredentialRestoreReceipt) throws {
         try receipt.validate()
         for target in receipt.targets {
-            var query = match(target, synchronizable: isSynchronizable(target))
-            query[kSecAttrComment as String] = receipt.keychainComment
-            let status = SecItemDelete(query as CFDictionary)
-            guard status == errSecSuccess || status == errSecItemNotFound else {
-                throw NivoCredentialRestoreError.keychain(operation: "rollback", status: status)
+            // 旧回执可能指向同步条目，新回执只写本机；精确操作标记同时兼容两者。
+            for isSync in [false, true] {
+                var query = match(target, synchronizable: isSync)
+                query[kSecAttrComment as String] = receipt.keychainComment
+                let status = SecItemDelete(query as CFDictionary)
+                guard status == errSecSuccess || status == errSecItemNotFound else {
+                    throw NivoCredentialRestoreError.keychain(operation: "rollback", status: status)
+                }
             }
             invalidate(target)
         }
@@ -72,7 +75,8 @@ enum NivoCredentialRestore {
     /// 还带恢复标记的API密钥采用条目创建时间参与同步冲突判断，不另写难以回滚的时间戳。
     static func restoredAPIKeyDate(instanceID: String) -> Date? {
         let target = Target(kind: .providerAPIKey, owner: instanceID)
-        var query = match(target, synchronizable: true)
+        // 新恢复仅创建本机条目；旧回执恢复在启动迁移之前完成。
+        var query = match(target, synchronizable: false)
         query[kSecReturnAttributes as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
@@ -86,10 +90,10 @@ enum NivoCredentialRestore {
 
     private static func insert(_ item: Item, comment: String) throws -> Bool {
         if try existing(item.target) { return false }
-        let isSync = isSynchronizable(item.target)
+        let isSync = false
         var query = match(item.target, synchronizable: isSync)
         query[kSecValueData as String] = item.data
-        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         query[kSecAttrComment as String] = comment
         let status = SecItemAdd(query as CFDictionary, nil)
         if status == errSecDuplicateItem {
@@ -153,10 +157,6 @@ enum NivoCredentialRestore {
         case .providerBaseURL: return "oauth-base-url"
         default: return ""
         }
-    }
-
-    private static func isSynchronizable(_ target: Target) -> Bool {
-        target.kind != .mcpTokens && target.kind != .mcpClientSecret
     }
 
     private static func invalidate(_ target: Target) {

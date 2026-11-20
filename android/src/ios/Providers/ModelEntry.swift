@@ -146,8 +146,8 @@ struct ModelEntry: Identifiable, Codable, Hashable {
             effectiveBase.modalityOverride = modality
         }
         guard !overrides.isEmpty else { return effectiveBase }
-        // LLMModel.displayName is a `let`, so rebuild via memberwise init to apply any override.
-        return LLMModel(
+        // nanoMuse: 覆盖显示名需重建不可变字段，同时保留请求编码依赖的推理目录和权威声明。
+        var effective = LLMModel(
             id: baseModel.id,
             displayName: overrides.displayName ?? baseModel.displayName,
             provider: baseModel.provider,
@@ -155,8 +155,12 @@ struct ModelEntry: Identifiable, Codable, Hashable {
             contextWindow: overrides.contextWindow ?? baseModel.contextWindow,
             maxOutputTokens: overrides.maxOutputTokens ?? baseModel.maxOutputTokens,
             supportsReasoning: overrides.supportsReasoning ?? baseModel.supportsReasoning,
-            interleavedReasoningField: baseModel.interleavedReasoningField
+            interleavedReasoningField: baseModel.interleavedReasoningField,
+            reasoningEffortValues: baseModel.reasoningEffortValues,
+            declaresNoEffortTiers: baseModel.declaresNoEffortTiers
         )
+        effective.effortDeclarationIsAuthoritative = baseModel.effortDeclarationIsAuthoritative
+        return effective
     }
 
     init(

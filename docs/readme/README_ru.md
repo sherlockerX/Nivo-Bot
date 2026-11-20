@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
+  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
 </p>
@@ -86,15 +86,17 @@ Nivo Bot, пространство ИИ для повседневной жизн
 | Ресурс | Ссылка |
 |---|---|
 | Сайт продукта | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
 | iOS 16 и новее, требуется личная подпись | [Неподписанный IPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
-| Исходный код, соответствующий APK | [Архив исходников v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
-| Контрольные суммы | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Сведения о выпуске | [Примечания к выпуску](../releases/v2.0.5.md) · [Проверки сборки](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Исходный код, соответствующий APK | [Архив исходников v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| Контрольные суммы | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
+| Сведения о выпуске | [Примечания к выпуску](../releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Этот выпуск включает Android, iOS и сайт продукта. iOS поставляется как неподписанный IPA из GitHub Actions; перед установкой его нужно подписать. У этого форка нет учётной записи Apple Developer Program, поэтому распространение через TestFlight или App Store не предоставляется. Принудительный фокус, повторяющиеся планы блокировки и списки разрешённых приложений доступны только на Android. iOS предоставляет напоминания и инструкции по Гид-доступу, который пользователь запускает и завершает в iOS. Компиляция в CI не подтверждает работу на iPhone.
+2.0.7(58) Anchor обновляет только Android. Для iOS по-прежнему доступна версия 2.0.5(56); IPA 2.0.7 в этом выпуске нет. Изменение общей версии исходников не означает публикацию нового бинарного файла iOS. iOS поставляется как неподписанный IPA из GitHub Actions; перед установкой его нужно подписать. У этого форка нет учётной записи Apple Developer Program, поэтому распространение через TestFlight или App Store не предоставляется. Принудительный фокус, повторяющиеся планы блокировки и списки разрешённых приложений доступны только на Android. iOS предоставляет напоминания и инструкции по Гид-доступу, который пользователь запускает и завершает в iOS. Компиляция в CI не подтверждает работу на iPhone.
 
-ID приложения остаётся `io.github.nanomuse.app`. Обычно этот выпуск не может обновить установку со старой подписью Debug или исходного проекта. До удаления проверьте резервное копирование и восстановление; см. [руководство по версиям и подписи](../android-development.md#nivo-bot的android版本与签名).
+ID приложения остаётся `io.github.nanomuse.app`; используется та же подпись, что и в предыдущих официальных выпусках Nivo Bot. Обновление поверх существующей установки на физическом телефоне Android для этого выпуска не проверялось. Обычно этот выпуск не может обновить установку со старой подписью Debug или исходного проекта. До удаления проверьте резервное копирование и восстановление; см. [руководство по версиям и подписи](../android-development.md#nivo-bot的android版本与签名).
+
+Архив исходников Android экспортируется из фиксированного коммита, использованного для сборки. Каталог загрузок содержит этот коммит и контрольную сумму архива; для проверки или повторной сборки выбирайте исходники установленной версии.
 
 ## Сборка из исходников
 

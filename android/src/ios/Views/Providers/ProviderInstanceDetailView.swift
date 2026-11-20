@@ -969,6 +969,8 @@ struct ProviderInstanceDetailView: View {
     // MARK: - Actions
 
     private func refreshModels(_ instance: ProviderInstance) {
+        // nanoMuse: 刷新固定页面所属账户，避免旧页面跨账户保存模型目录。
+        guard !isFetchingModels, let sourceScope = nmFormScope else { return }
         // Save any pending edits (e.g. custom base URL) before refreshing
         saveCustomBaseURL(instance)
         // Re-read from store so we use the just-saved values
@@ -980,8 +982,8 @@ struct ProviderInstanceDetailView: View {
         Task {
             defer { isFetchingModels = false }
             do {
-                let result = try await ProviderConfigStore.fetchModelsWithFallback(freshInstance, forceRefresh: true)
-                store.replaceEntries(for: freshInstance.id, models: result.models)
+                // nanoMuse: 网络返回与落盘都验证恢复代次，错误保留在当前详情页。
+                let result = try await store.nmRefreshModels(for: freshInstance, sourceScope: sourceScope)
                 fetchWarnings = result.warnings
                 fetchSource = result.source
             } catch {
@@ -1253,6 +1255,9 @@ struct AddCustomModelSheet: View {
     @State private var contextWindowText = ""
     @State private var supportsThinking = false
     @State private var duplicateError: String?
+    // nanoMuse: 表单保留来源和写入状态，真正落盘后才关闭。
+    @State private var nmIsSaving = false
+    @State private var nmFormScope: NivoOAuthScope?
 
     private var instance: ProviderInstance? { store.instance(for: instanceId) }
 
@@ -1323,12 +1328,21 @@ struct AddCustomModelSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add") { addModel() }
-                        .font(.body.weight(.semibold))
-                        .disabled(modelId.trimmingCharacters(in: .whitespaces).isEmpty)
+                    // nanoMuse: 等待磁盘确认时给出明确反馈，防止重复新建。
+                    if nmIsSaving { ProgressView() }
+                    else {
+                        Button("Add") { addModel() }
+                            .font(.body.weight(.semibold))
+                            .disabled(modelId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
             }
-            .onAppear { initializeModalityFromProvider() }
+            // nanoMuse: 保存失败留在同一表单，不丢失模型ID、能力和名称输入。
+            .disabled(nmIsSaving)
+            .interactiveDismissDisabled(nmIsSaving)
+            .onAppear {
+                if nmFormScope == nil { nmFormScope = NivoOAuthAccess.captureScope(); initializeModalityFromProvider() }
+            }
         }
     }
 
@@ -1344,8 +1358,9 @@ struct AddCustomModelSheet: View {
     }
 
     private func addModel() {
-        guard let instance else { return }
-        let trimmedId = modelId.trimmingCharacters(in: .whitespaces)
+        // nanoMuse: 模型ID不包含边缘换行，异步保存期间只保留一次提交。
+        guard !nmIsSaving, let instance, let sourceScope = nmFormScope else { return }
+        let trimmedId = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedId.isEmpty else { return }
         // [T-custom-model-name-trailing-space] The DISPLAY NAME keeps the user's
         // spacing verbatim; only a whitespace-ONLY entry collapses to empty (which
@@ -1384,10 +1399,15 @@ struct AddCustomModelSheet: View {
             supportsReasoning: supportsThinking
         )
         let entry = ModelEntry(providerInstanceId: instance.id, model: model, isCustom: true)
-        if store.addEntry(entry) {
-            dismiss()
-        } else {
-            duplicateError = AppLocalized("Model ID \"\(trimmedId)\" already exists.")
+        // nanoMuse: 重复ID、旧账户和持久化错误统一回到表单，不能将排队视为保存成功。
+        nmIsSaving = true
+        duplicateError = nil
+        Task {
+            defer { nmIsSaving = false }
+            do {
+                try await store.nmAddEntry(entry, sourceScope: sourceScope)
+                dismiss()
+            } catch { duplicateError = error.localizedDescription }
         }
     }
 }
@@ -1442,10 +1462,17 @@ struct ModelEntryDetailSheet: View {
     @State private var showQuickTest: Bool = false
     @State private var showForceThinkingAlert: Bool = false
     @State private var showResetAlert: Bool = false
+    // nanoMuse: 记录上一次确认保存的模型，重置后继续编辑仍使用正确版本。
+    @State private var nmSavedEntry: ModelEntry?
+    @State private var nmFormScope: NivoOAuthScope?
+    @State private var nmIsSaving = false
+    @State private var nmSaveError: String?
 
     var body: some View {
         NavigationStack {
             List {
+                // nanoMuse: 保存失败保留输入，错误在编辑器内可见。
+                if let nmSaveError { Section { Text(nmSaveError).foregroundStyle(.red) } }
                 Section("Identity") {
                     HStack {
                         Text("Model ID")
@@ -1567,6 +1594,7 @@ struct ModelEntryDetailSheet: View {
                     Text("Hidden models won't appear in the model picker.")
                 }
 
+                // nanoMuse: 文本方向沿用模型能力，不再显示所有模型均启用文本输入的说明。
                 Section {
                     Toggle("Image input", isOn: $imageInput)
                     Toggle("PDF input", isOn: $pdfInput)
@@ -1574,17 +1602,14 @@ struct ModelEntryDetailSheet: View {
                     Toggle("Video input", isOn: $videoInput)
                 } header: {
                     Text("Input Modality")
-                } footer: {
-                    Text("Text input is always enabled. Configure which additional input modalities this model supports.")
                 }
 
+                // nanoMuse: 专用语音和视频模型不保证文本输出，保留对应能力而不作错误承诺。
                 Section {
                     Toggle("Image output", isOn: $imageOutput)
                     Toggle("Audio output", isOn: $audioOutput)
                 } header: {
                     Text("Output Modality")
-                } footer: {
-                    Text("Enable for models that generate images (e.g. gpt-image-1, dall-e-3, flux) or audio (e.g. TTS models). Text output is always enabled.")
                 }
 
                 if !entry.isCustom && !entry.overrides.isEmpty {
@@ -1625,11 +1650,21 @@ struct ModelEntryDetailSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { save() }
-                        .font(.body.weight(.semibold))
+                    // nanoMuse: 数据库和镜像都完成才结束编辑器。
+                    if nmIsSaving { ProgressView() }
+                    else { Button("Save") { save() }.font(.body.weight(.semibold)) }
                 }
             }
-            .onAppear { loadFromEntry() }
+            // nanoMuse: 子表单返回不覆盖尚未保存的输入；保存期间阻止滑动关闭。
+            .disabled(nmIsSaving)
+            .interactiveDismissDisabled(nmIsSaving)
+            .onAppear {
+                if nmFormScope == nil {
+                    nmFormScope = NivoOAuthAccess.captureScope()
+                    nmSavedEntry = entry
+                    loadFromEntry()
+                }
+            }
             .sheet(isPresented: $showQuickTest) {
                 // [T-quicktest-stale-session] Fresh identity per model — this
                 // detail view's entry is fixed, but keep the same pattern as
@@ -1724,143 +1759,63 @@ struct ModelEntryDetailSheet: View {
     }
 
     private func loadFromEntry() {
-        // Show the effective (user-visible) name — this is `baseModel.displayName` overlaid
-        // with any existing displayName override.
-        displayName = entry.model.displayName
-        modelId = entry.baseModel.id
-        isHidden = entry.isHidden
-        // Use `entry.model` (overrides overlaid on baseModel) so the sheet shows the user's
-        // last-saved values for every editable field — modality, contextWindow, supportsReasoning.
-        // Reading straight from baseModel hid prior overrides and made the sheet appear to
-        // "revert" right after save.
-        let effective = entry.model
-        let base = entry.baseModel
-        let modality = effective.modalityOverride
-            ?? base.capabilities.supportedModalities
-        imageInput = modality.contains(.imageInput)
-        pdfInput = modality.contains(.pdfInput)
-        audioInput = modality.contains(.audioInput)
-        videoInput = modality.contains(.videoInput)
-        imageOutput = modality.contains(.imageOutput)
-        audioOutput = modality.contains(.audioOutput)
-        if let ctx = effective.contextWindow {
-            contextWindowText = "\(ctx)"
-        }
-        supportsThinking = effective.supportsReasoning ?? false
-        // Max tokens text is populated only from the user override — leaving empty
-        // means "follow the API/provider default" (shown as placeholder).
-        if let mt = entry.overrides.maxOutputTokens {
-            maxTokensText = "\(mt)"
-        } else {
-            maxTokensText = ""
-        }
+        // nanoMuse: 重置已确认落盘时读取新快照，不复用打开页面时的旧覆盖值。
+        let form = NivoProviderModelForm(entry: nmSavedEntry ?? entry)
+        displayName = form.displayName
+        modelId = form.modelID
+        isHidden = form.isHidden
+        imageInput = form.selectedModalities.contains(.imageInput)
+        pdfInput = form.selectedModalities.contains(.pdfInput)
+        audioInput = form.selectedModalities.contains(.audioInput)
+        videoInput = form.selectedModalities.contains(.videoInput)
+        imageOutput = form.selectedModalities.contains(.imageOutput)
+        audioOutput = form.selectedModalities.contains(.audioOutput)
+        contextWindowText = form.contextWindowText
+        supportsThinking = form.isThinkingSupported
+        maxTokensText = form.maxOutputTokensText
     }
 
     private func resetToDefault() {
-        var cleared = entry
+        // nanoMuse: 重置也必须等待持久化，失败保持用户当前编辑内容。
+        var cleared = nmSavedEntry ?? entry
         cleared.overrides = ModelOverrides()
-        store.updateEntry(cleared)
-
-        let base = entry.baseModel
-        displayName = base.displayName
-        supportsThinking = base.supportsReasoning ?? false
-        maxTokensText = ""
-        if let ctx = base.contextWindow {
-            contextWindowText = "\(ctx)"
-        } else {
-            contextWindowText = ""
-        }
-        let modality = base.modalityOverride
-            ?? base.capabilities.supportedModalities
-        imageInput = modality.contains(.imageInput)
-        pdfInput = modality.contains(.pdfInput)
-        audioInput = modality.contains(.audioInput)
-        videoInput = modality.contains(.videoInput)
-        imageOutput = modality.contains(.imageOutput)
-        audioOutput = modality.contains(.audioOutput)
+        nmPersist(cleared, closesEditor: false)
     }
 
     private func save() {
-        // [T-custom-model-name-trailing-space] Keep the user's spacing verbatim in
-        // the display NAME (see addModel for the full reasoning). Only a
-        // whitespace-only entry counts as empty, which still falls back to the base
-        // model's name at `effectiveTypedName` below. The model ID stays trimmed —
-        // it is wire data, not presentation.
-        let trimmedName = displayName.trimmingCharacters(in: .whitespaces).isEmpty
-            ? "" : displayName
-        let trimmedId = modelId.trimmingCharacters(in: .whitespaces)
-        let trimmedMaxTokens = maxTokensText.trimmingCharacters(in: .whitespaces)
-        let parsedMaxTokens: Int? = trimmedMaxTokens.isEmpty ? nil : Int(trimmedMaxTokens)
+        // nanoMuse: 只写表单可编辑字段，保留未展示的推理声明、文本方向和视频输出。
+        let entry = nmSavedEntry ?? self.entry
+        var form = NivoProviderModelForm(entry: entry)
+        form.modelID = modelId
+        form.displayName = displayName
+        form.contextWindowText = contextWindowText
+        form.maxOutputTokensText = maxTokensText
+        form.isThinkingSupported = supportsThinking
+        form.isHidden = isHidden
+        form.selectedModalities = []
+        if imageInput { form.selectedModalities.insert(.imageInput) }
+        if pdfInput { form.selectedModalities.insert(.pdfInput) }
+        if audioInput { form.selectedModalities.insert(.audioInput) }
+        if videoInput { form.selectedModalities.insert(.videoInput) }
+        if imageOutput { form.selectedModalities.insert(.imageOutput) }
+        if audioOutput { form.selectedModalities.insert(.audioOutput) }
+        nmPersist(form.applying(to: entry), closesEditor: true)
+    }
 
-        var modality: ModelModality = [.textInput, .textOutput]
-        if imageInput { modality.insert(.imageInput) }
-        if pdfInput { modality.insert(.pdfInput) }
-        if audioInput { modality.insert(.audioInput) }
-        if videoInput { modality.insert(.videoInput) }
-        if imageOutput { modality.insert(.imageOutput) }
-        if audioOutput { modality.insert(.audioOutput) }
-
-        // Every user-edited field flows through `overrides`. baseModel is left as API truth
-        // (or, for custom entries, as the user-authored skeleton) and is never updated here.
-        // Reason: replaceEntries() runs `withInferredModality()` → models.dev `applyDevData`
-        // on EVERY refresh, including the custom-entry path, and that pass overwrites
-        // baseModel's contextWindow / maxOutputTokens / supportsReasoning / modality from
-        // models.dev whenever the model ID is recognized. Anything written into baseModel
-        // by save() therefore survived only until the next refresh hit a known ID. Routing
-        // through `overrides` (which replaceEntries preserves verbatim) is the only durable
-        // place to put user intent.
-        let finalId = entry.isCustom && !trimmedId.isEmpty ? trimmedId : entry.baseModel.id
-        let trimmedContextWindow = contextWindowText.trimmingCharacters(in: .whitespaces)
-        let typedContextWindow: Int? = trimmedContextWindow.isEmpty ? nil : Int(trimmedContextWindow)
-
-        let updatedBaseModel = LLMModel(
-            id: finalId,
-            displayName: entry.baseModel.displayName,
-            provider: entry.baseModel.provider,
-            modalityOverride: entry.baseModel.modalityOverride,
-            contextWindow: entry.baseModel.contextWindow,
-            maxOutputTokens: entry.baseModel.maxOutputTokens,
-            supportsReasoning: entry.baseModel.supportsReasoning,
-            interleavedReasoningField: entry.baseModel.interleavedReasoningField
-        )
-
-        // Build overrides: only record a field when the user's choice diverges from the
-        // baseModel/API value, so future provider-side capability bumps can still flow
-        // through for fields the user hasn't touched.
-        var newOverrides = ModelOverrides()
-
-        let effectiveTypedName = trimmedName.isEmpty ? updatedBaseModel.displayName : trimmedName
-        if effectiveTypedName != updatedBaseModel.displayName {
-            newOverrides.displayName = effectiveTypedName
+    /// 保留提交时的模型与账户快照，成功后才关闭或刷新重置后的表单。
+    private func nmPersist(_ updated: ModelEntry, closesEditor: Bool) {
+        guard !nmIsSaving, let sourceScope = nmFormScope else { return }
+        let expected = nmSavedEntry ?? entry
+        nmIsSaving = true
+        nmSaveError = nil
+        Task {
+            defer { nmIsSaving = false }
+            do {
+                nmSavedEntry = try await store.nmUpdateEntry(updated, expected: expected, sourceScope: sourceScope)
+                if closesEditor { dismiss() }
+                else { loadFromEntry() }
+            } catch { nmSaveError = error.localizedDescription }
         }
-
-        newOverrides.maxOutputTokens = parsedMaxTokens
-
-        let baselineModality = entry.baseModel.modalityOverride
-            ?? entry.baseModel.capabilities.supportedModalities
-        if modality != baselineModality {
-            newOverrides.modalityOverride = modality
-        }
-
-        if typedContextWindow != entry.baseModel.contextWindow {
-            newOverrides.contextWindow = typedContextWindow
-        }
-
-        if supportsThinking != (entry.baseModel.supportsReasoning ?? false) {
-            newOverrides.supportsReasoning = supportsThinking
-        }
-
-        let updatedEntry = ModelEntry(
-            uuid: entry.uuid,
-            providerInstanceId: entry.providerInstanceId,
-            model: updatedBaseModel,
-            overrides: newOverrides,
-            isCustom: entry.isCustom,
-            isHidden: isHidden,
-            userModifiedAt: newOverrides.isEmpty && !isHidden ? nil : Date()
-        )
-        store.updateEntry(updatedEntry)
-        dismiss()
     }
 }
 

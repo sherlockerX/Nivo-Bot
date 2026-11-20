@@ -273,11 +273,7 @@ enum NanoMuseOwnKeyPreset: String, CaseIterable, Identifiable {
 
 // MARK: - "Use your own key" sheet
 
-/// The catalogue, for the region (contract C11; docs/parity.md item 32): the vendors with a key
-/// — the region's first, each saying what it covers — the plans one already pays for (ChatGPT,
-/// Claude, Kimi, OpenRouter), the servers on a computer of one's own. A row opens
-/// `NanoMuseVendorSheet` on that vendor. The relay's `spend.guidance` is the list when it sent
-/// one; the bundled `providers.json` otherwise.
+/// 新建目录只展示官方服务、其授权方式和本地服务器，兼容地址可通过自定义入口配置。
 struct NanoMuseOwnKeySheet: View {
     var onDone: (ProviderInstance?) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -285,7 +281,8 @@ struct NanoMuseOwnKeySheet: View {
 
     private var chinese: Bool { NanoMuseCatalogue.chinese }
     private var ways: NanoMuseWays {
-        NanoMuseWays.resolve(guidance: NanoMuseAllowance.storedGuidance(), catalogue: NanoMuseCatalogue.bundled, mainland: NanoMuseRegion.isMainland, chinese: chinese)
+        // 新建入口只使用本地官方目录，不加载已退役中继缓存的推荐列表。
+        NanoMuseWays.resolve(guidance: nil, catalogue: NanoMuseCatalogue.bundled, mainland: NanoMuseRegion.isMainland, chinese: chinese)
     }
 
     var body: some View {
@@ -299,9 +296,12 @@ struct NanoMuseOwnKeySheet: View {
                 } header: {
                     Text(AppLocalized("A key of your own"))
                 } footer: {
-                    Text(NanoMuseRegion.isMainland
-                         ? AppLocalized("Alibaba Cloud Bailian first: one key covers chat, the screen, pictures and clips, and it signs up accounts from mainland China. Each provider below says what it covers.")
-                         : AppLocalized("OpenRouter or OpenAI first: one key, most models, pay as you go. Each provider below says what it covers."))
+                    Text(AppLocalized("Each provider has its own privacy policy and terms of service that govern how they handle your data."))
+                }
+                Section {
+                    NavigationLink(AppLocalized("Custom Endpoints")) { AddProviderView() }
+                } footer: {
+                    Text(AppLocalized("Self-hosted or third-party compatible APIs you configure"))
                 }
                 if !ways.signIns.isEmpty {
                     Section {

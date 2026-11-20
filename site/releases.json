@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "product": "Nivo Bot",
-  "updatedAt": "2026-11-19",
+  "updatedAt": "2026-11-20",
   "platforms": [
     {
       "id": "android",
@@ -17,6 +17,38 @@
     }
   ],
   "releases": [
+    {
+      "id": "android-2.0.7-58-arm64",
+      "platform": "android",
+      "version": "2.0.7",
+      "versionCode": 58,
+      "channel": "stable",
+      "distribution": "apk",
+      "releasedAt": "2026-11-20",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 40969779,
+      "sha256": "c71df8cf358ecbebfc8fa8ea7fda8062cce84a9be3b5b5edd86c4622cf9a8494",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip",
+      "sourceSha256": "409c41d047fcc4833eb1a97b9ce2aa2fea3426a2de757540825ce8491b7c548d",
+      "sourceSizeBytes": 62428057,
+      "sourceCommit": "449324dae61f183c4a08f748252662e759ecb34e",
+      "notesUrl": "releases/android-2.0.7.html",
+      "summary": "修复供应商保存、待办编辑冲突与专注心得日期，沿用原正式签名。",
+      "notes": [
+        "供应商和模型等待实际保存完成，失败保留输入；旧镜像不再覆盖新配置",
+        "模型编辑保留媒体和思考能力，拒绝重复ID、过期编辑与旧端点的迟到响应",
+        "待办草稿保留原始版本，AI写入在事务中重新核验授权",
+        "专注准备内容可恢复，暂停结束保留实际日期，碎片保存期间保护照片",
+        "教练证据删除后重算历史单元，清理对话时同步清理派生教案",
+        "正式包约40.97MB；1933项JVM回归中1931通过、2跳过、0失败",
+        "包名与原正式证书不变，未改数据库结构；手机覆盖安装仍待实测",
+        "保留rclone原生库的16KB页设备兼容限制；Lint尚未全量通过",
+        "本次仅发布Android；iOS保留实际已发布文件，源码清单标注平台和重建边界"
+      ]
+    },
     {
       "version": "2.0.5",
       "versionCode": 56,

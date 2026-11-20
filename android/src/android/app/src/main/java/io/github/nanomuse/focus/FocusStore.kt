@@ -114,8 +114,7 @@ class FocusStore internal constructor(private val context: Context, internal val
             "resume" -> { check(old.status == "paused") { "not_paused" }; settled.copy(status="running",runningWall=now,runningElapsed=clock.elapsed(),bootCount=clock.boot()) }
             "finish" -> { check(old.status in setOf("running","paused","finished")) { "not_active" }
                 // 暂停中的记录在暂停那一刻就停止计时；之后才点结束，起止时间和心得日期仍按暂停时刻。
-                val end=if(old.status == "paused") old.updatedAt.coerceIn(old.startedAt,now) else now
-                settled.copy(status="finished",endedAt=settled.endedAt ?: end) }
+                settled.copy(status="finished",endedAt=FocusTiming.endedAt(old,settled,now)) }
             else -> { check(old.status == "finished") { "finish_before_delete" }; settled.copy(deletedAt=now) }
         }.copy(revision=old.revision+1,updatedAt=now)
         dao.putSession(row)
@@ -155,7 +154,7 @@ class FocusStore internal constructor(private val context: Context, internal val
     internal suspend fun finishForLockInTransaction() {
         val row = dao.active(ownerKey) ?: return
         val saved = settle(row)
-        dao.putSession(saved.copy(status="finished",endedAt=saved.endedAt ?: clock.wall(),
+        dao.putSession(saved.copy(status="finished",endedAt=FocusTiming.endedAt(row,saved,clock.wall()),
             revision=row.revision+1,updatedAt=clock.wall()))
     }
 

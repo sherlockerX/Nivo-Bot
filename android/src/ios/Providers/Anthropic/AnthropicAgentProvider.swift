@@ -189,7 +189,7 @@ final class AnthropicAgentProvider: AgentProvider {
             model: .other(model.id),
             messages: cachedMessages,
             maxTokens: maxTokens,
-            system: provider.resolveSystemPrompt(systemPrompt),
+            system: try provider.resolveSystemPrompt(systemPrompt), // nanoMuse: OAuth配置缺失以可捕获错误返回。
             temperature: provider.effectiveTemperature(0.7),
             tools: anthropicTools,
             toolChoice: .init(type: .auto)
@@ -958,7 +958,7 @@ final class AnthropicAgentProvider: AgentProvider {
             model: .other(model.id),
             messages: allMessages,
             maxTokens: 1,
-            system: provider.resolveSystemPrompt(systemPrompt),
+            system: try provider.resolveSystemPrompt(systemPrompt), // nanoMuse: OAuth配置缺失以可捕获错误返回。
             temperature: provider.effectiveTemperature(0),
             tools: anthropicTools
         )

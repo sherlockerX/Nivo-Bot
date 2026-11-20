@@ -6,6 +6,7 @@ import io.github.nanomuse.account.AccountData
 import io.github.nanomuse.mosaic.MosaicDatabase
 import java.time.LocalDate
 import java.util.UUID
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import org.json.JSONObject
@@ -160,7 +161,16 @@ class TodoStore internal constructor(
         AccountData.withTodoOwnerMutation(ownerKey, ownerEpoch, block)
 
     /** 一次操作同时提交状态、完成快照、事件与幂等结果。 */
-    internal suspend fun <T> transaction(block: suspend () -> T): T = withOwner { database.withTransaction(block) }
+    internal suspend fun <T> transaction(block: suspend () -> T): T = withOwner {
+        database.withTransaction {
+            val authorization = currentCoroutineContext()[TodoMutationAuthorization]
+            authorization?.checkAccess?.invoke()
+            val result = block()
+            // 提交前的撤权异常必须留在Room事务中，使状态、事件和幂等结果一起回滚。
+            authorization?.checkAccess?.invoke()
+            result
+        }
+    }
 
     internal suspend fun requireTask(id: String, revision: Long? = null): TodoTask {
         val task = dao.task(ownerKey, id)?.takeIf { it.deletedAt == null }

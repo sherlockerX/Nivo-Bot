@@ -1337,4 +1337,8 @@
     <string name="nm_lock_stopwatch_running">结束专注之前，只能使用允许的应用和拨打电话。</string>
     <string name="nm_lock_stopwatch_end">结束专注</string>
     <string name="nm_lock_stopwatch_end_confirm">现在结束这次专注吗？已计的时间会保存，手机随即解锁。</string>
+    <string name="nm_provider_save_failed">未能保存，输入已保留，请重试。</string>
+    <string name="nm_model_id_conflict">此供应商已存在相同ID的模型。</string>
+    <string name="nm_model_form_invalid">请填写模型ID。令牌上限须为正整数，或留空。</string>
+    <string name="nm_model_edit_conflict">模型配置已发生变化。请重新打开编辑页，核对最新设置后再修改。</string>
 </resources>

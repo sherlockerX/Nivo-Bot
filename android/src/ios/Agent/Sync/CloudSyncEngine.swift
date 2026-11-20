@@ -229,7 +229,8 @@ final class CloudSyncEngine: ObservableObject {
     private let nmSendSettlementLock = NivoAccountTransitionLock()
     static let shared = CloudSyncEngine()
 
-    private lazy var container = CKContainer(identifier: "iCloud.io.github.nanomuse.app")
+    // nanoMuse: 兼容旧同步类型，但不创建需要签名授权的云容器。
+    private var container: CKContainer? { NivoICloudPolicy.container }
     private let devicesZoneName = "devices"
 
     private var syncEngine: CKSyncEngine?
@@ -429,7 +430,8 @@ final class CloudSyncEngine: ObservableObject {
         self.sessionCacheDir = library.appendingPathComponent("MinisChat/sync_etag_cache")
         self.globalEtagCacheURL = library.appendingPathComponent("MinisChat/sync_etag_global.plist")
         try? FileManager.default.createDirectory(at: sessionCacheDir, withIntermediateDirectories: true)
-        self.isEnabled = UserDefaults.standard.bool(forKey: "cloudSync.enabled")
+        // nanoMuse: 旧版本保存的开关不能让个人构建重新启动云同步。
+        self.isEnabled = false
 
         let ud = UserDefaults.standard
         // Default all categories to true if never set
@@ -466,7 +468,8 @@ final class CloudSyncEngine: ObservableObject {
     // MARK: - Start / Stop
 
     func start() async {
-        guard isEnabled else {
+        // nanoMuse: 底层容器固定不可用，设置或调试入口均无法绕过。
+        guard NivoICloudPolicy.isEnabled, isEnabled, let container else {
             syncStatus = .disabled
             return
         }
@@ -953,6 +956,8 @@ final class CloudSyncEngine: ObservableObject {
     ///
     /// Guarded by two UI confirmations — see CloudSyncSettingsView.
     func deleteAllCloudData() async throws {
+        // nanoMuse: 云功能移除后禁止任何远端删除操作。
+        guard let container else { throw NivoICloudPolicy.unavailable }
         logger.warning("[CloudSync] Delete iCloud Data: STARTING destructive wipe")
         syncStatus = .syncing
 
@@ -1698,6 +1703,8 @@ final class CloudSyncEngine: ObservableObject {
     /// Subscribe to remote device zones so CKSyncEngine fetches their changes.
     /// Called outside delegate callbacks (e.g. from start or on foreground).
     func discoverDeviceZones() async {
+        // nanoMuse: 不因旧数据或后台调用重新访问CloudKit。
+        guard let container else { return }
         do {
             // Run the network call off MainActor to avoid resume-hop CPU spike.
             let ownZoneName = DeviceIdentity.zoneName

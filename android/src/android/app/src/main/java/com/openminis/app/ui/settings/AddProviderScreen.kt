@@ -1,5 +1,11 @@
 package com.openminis.app.ui.settings
 
+// nanoMuse: 供应商表单共享确认保存、错误和忙碌状态。
+import androidx.compose.runtime.saveable.rememberSaveable
+import io.github.nanomuse.ui.models.ProviderSaveAction
+import io.github.nanomuse.ui.models.ProviderSaveError
+import io.github.nanomuse.ui.models.ProviderSaveProgress
+import io.github.nanomuse.ui.models.rememberProviderSaveAction
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -208,7 +214,7 @@ private val providerDisplayOrder = listOf(
     ProviderType.gemini,
     ProviderType.xAI,
     ProviderType.kimiCode,
-    ProviderType.openRouter,
+    // nanoMuse: 不内置推荐聚合中转站；已有OpenRouter配置及OAuth认证继续保留。
 )
 
 /** Icon and color per provider type, matching iOS SF Symbols. */
@@ -430,6 +436,10 @@ private fun ConfigureProviderScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
 ) {
+    // nanoMuse: 保存期间阻止返回及改写待提交内容，失败保留输入。
+    val saveAction = rememberProviderSaveAction()
+    BackHandler(enabled = saveAction.isSaving) { }
+    ProviderSaveError(saveAction)
     // Compute default label with auto-increment (e.g. "OpenAI", "OpenAI 2", ...)
     // A voice template preseeds its vendor name instead of the protocol name.
     val config by providerRepository.config.collectAsState()
@@ -444,7 +454,7 @@ private fun ConfigureProviderScreen(
         }
     }
 
-    var label by remember { mutableStateOf(defaultLabel) }
+    var label by rememberSaveable { mutableStateOf(defaultLabel) } // nanoMuse: 非敏感输入随页面重建恢复。
     // [T-provider-name-chinese-34602, port iOS 7b283951] Flips true the
     // first time the user types into the label field. While `false`, the
     // LaunchedEffect below keeps `label` glued to the auto-incremented
@@ -457,16 +467,16 @@ private fun ConfigureProviderScreen(
     // ConfigureProviderScreen on step navigation, makes the field
     // appear to reject Chinese — the iOS root cause Telegram 34602
     // reported, with the same Android equivalent here.
-    var labelEdited by remember { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(defaultLabel, labelEdited) {
-        if (!labelEdited) label = defaultLabel
+    var labelEdited by rememberSaveable { mutableStateOf(false) } // nanoMuse
+    androidx.compose.runtime.LaunchedEffect(defaultLabel, labelEdited, saveAction.isSaving) {
+        if (!labelEdited && !saveAction.isSaving) label = defaultLabel // nanoMuse: 提交期间固定显示的名称。
     }
     var apiKey by remember { mutableStateOf("") }
-    var customBaseURL by remember { mutableStateOf(voiceTemplate?.baseURL ?: "") }
+    var customBaseURL by rememberSaveable { mutableStateOf(voiceTemplate?.baseURL ?: "") } // nanoMuse: 密钥仍只留在内存。
 
     SettingsScaffold(
         title = stringResource(R.string.add_provider_configure_provider, providerType.displayName),
-        onBack = onBack,
+        onBack = { if (!saveAction.isSaving) onBack() }, // nanoMuse: 顶部和系统返回遵守同一保存状态。
     ) {
         // Identity section — Label only. Each provider auto-suggests a
         // unique label so users don't have to type one for the common case.
@@ -479,8 +489,11 @@ private fun ConfigureProviderScreen(
                 SectionTextField(
                     value = label,
                     onValueChange = {
-                        label = it
-                        labelEdited = true
+                        // nanoMuse: 提交快照落盘前禁止修改名称。
+                        if (!saveAction.isSaving) {
+                            label = it
+                            labelEdited = true
+                        }
                     },
                     placeholder = providerType.displayName,
                     singleLine = true,
@@ -493,11 +506,12 @@ private fun ConfigureProviderScreen(
                 providerType = providerType,
                 label = label,
                 apiKey = apiKey,
-                onApiKeyChange = { apiKey = it },
+                onApiKeyChange = { if (!saveAction.isSaving) apiKey = it }, // nanoMuse
                 customBaseURL = customBaseURL,
-                onCustomBaseURLChange = { customBaseURL = it },
+                onCustomBaseURLChange = { if (!saveAction.isSaving) customBaseURL = it }, // nanoMuse
                 providerRepository = providerRepository,
                 initialAppendV1 = voiceTemplate?.appendV1,
+                saveAction = saveAction, // nanoMuse
                 onSaved = onSaved,
             )
             ProviderCredential.oauth -> OAuthConfigSection(
@@ -524,15 +538,24 @@ private fun ColumnScope.ApiKeyConfigSection(
     // [T-android-provider-voice] Voice templates carry their own v1-suffix
     // policy (e.g. MiMo appends /v1, ElevenLabs must not). null = type default.
     initialAppendV1: Boolean? = null,
+    saveAction: ProviderSaveAction, // nanoMuse: 状态由整页持有，顶部返回也能检测忙碌状态。
     onSaved: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
+    // nanoMuse: 重试使用固定ID，避免失败后新增重复供应商。
+    val pendingInstanceId = rememberSaveable { UUID.randomUUID().toString() }
+    val isLoaded by providerRepository.configLoaded.collectAsState()
+    val config by providerRepository.config.collectAsState() // nanoMuse
+    val isCommitted = config.instances.any { it.id == pendingInstanceId }
+    // nanoMuse: 旧页面在同步写盘期间被销毁时，恢复后按ID确认已保存结果，不重写配置。
+    androidx.compose.runtime.LaunchedEffect(isLoaded, isCommitted, saveAction.isSaving) {
+        if (isLoaded && isCommitted) saveAction.finishRestoredSave(onSaved)
+    }
     var showApiKeyPlaintext by remember { mutableStateOf(false) }
-    var appendV1Suffix by remember {
+    var appendV1Suffix by rememberSaveable { // nanoMuse: 恢复协议选项，不保存明文密钥。
         mutableStateOf(initialAppendV1 ?: (providerType != ProviderType.gemini))
     }
     // OpenAI API Format: false = Chat Completions, true = Responses API
-    var useResponsesAPI by remember { mutableStateOf(false) }
+    var useResponsesAPI by rememberSaveable { mutableStateOf(false) } // nanoMuse
 
     // ── Credential ──────────────────────────────────────────────────────
     val keyPlaceholder = when (providerType) {
@@ -616,7 +639,7 @@ private fun ColumnScope.ApiKeyConfigSection(
                 SettingsSwitchRow(
                     title = stringResource(R.string.add_provider_auto_append_v1_quoted),
                     checked = appendV1Suffix,
-                    onCheckedChange = { appendV1Suffix = it },
+                    onCheckedChange = { if (!saveAction.isSaving) appendV1Suffix = it }, // nanoMuse
                     showDivider = false,
                 )
             }
@@ -638,14 +661,14 @@ private fun ColumnScope.ApiKeyConfigSection(
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                     SegmentedButton(
                         selected = !useResponsesAPI,
-                        onClick = { useResponsesAPI = false },
+                        onClick = { if (!saveAction.isSaving) useResponsesAPI = false }, // nanoMuse
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         modifier = Modifier.fillMaxHeight(),
                         icon = {},
                     ) { Text(stringResource(R.string.provider_detail_chat_completions), textAlign = TextAlign.Center) }
                     SegmentedButton(
                         selected = useResponsesAPI,
-                        onClick = { useResponsesAPI = true },
+                        onClick = { if (!saveAction.isSaving) useResponsesAPI = true }, // nanoMuse
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                         modifier = Modifier.fillMaxHeight(),
                         icon = {},
@@ -661,7 +684,7 @@ private fun ColumnScope.ApiKeyConfigSection(
         onClick = {
             val trimmedBase = customBaseURL.trim()
             val instance = ProviderInstance(
-                id = UUID.randomUUID().toString(),
+                id = pendingInstanceId, // nanoMuse: 同一草稿重试沿用同一身份。
                 label = label.ifBlank { providerType.displayName },
                 providerType = providerType,
                 credentialType = ProviderCredential.apiKey,
@@ -670,15 +693,12 @@ private fun ColumnScope.ApiKeyConfigSection(
                 // Only OpenAI-family providers expose the Responses API toggle.
                 useResponsesAPI = providerType == ProviderType.openAI && useResponsesAPI,
             )
-            providerRepository.addInstance(instance)
-            // [T-empty-key-compat-endpoints] Never persist an empty string as
-            // the key — usableApiKey() treats absent as the keyless-valid case.
-            if (apiKey.isNotBlank()) {
-                providerRepository.saveApiKey(instance.id, apiKey.trim())
-            }
-            // Auto-refresh models in background (fetches from API or falls back to models.dev)
-            scope.launch { providerRepository.refreshModels(instance) }
-            onSaved()
+            // nanoMuse: 凭证及数据库都确认写入后返回，错误只显示安全的本地化提示。
+            val pendingKey = apiKey
+            saveAction.submit(
+                save = { providerRepository.createInstanceWithKey(instance, pendingKey) },
+                onSaved = onSaved,
+            )
         },
         modifier = Modifier
             .fillMaxWidth()
@@ -689,13 +709,15 @@ private fun ColumnScope.ApiKeyConfigSection(
         // private relays need no key. Official endpoints and OAuth flows
         // keep requiring a credential. Mirrors iOS AddProviderView.
         // nanoMuse: no saving while the endpoint is a plain http:// address off the local network
-        enabled = io.github.nanomuse.net.LanOnly.refusedHost(customBaseURL) == null && (
+        enabled = isLoaded && !saveAction.isSaving && // nanoMuse: 尚未加载或正在提交时禁止保存。
+            io.github.nanomuse.net.LanOnly.refusedHost(customBaseURL) == null && (
             apiKey.isNotBlank() || (
                 customBaseURL.isNotBlank() &&
                     (providerType == ProviderType.openAI || providerType == ProviderType.anthropic)
             )
         ),
     ) {
+        ProviderSaveProgress(saveAction) // nanoMuse: 沿用全页统一保存反馈。
         Text(stringResource(R.string.provider_list_add_provider))
     }
 }

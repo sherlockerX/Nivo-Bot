@@ -7,7 +7,7 @@ import json
 import re
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 CORE_FILES = {
     "index.html",
@@ -24,8 +24,9 @@ CORE_FILES = {
     "sitemap.xml",
     "robots.txt",
 }
-SUFFIXES = {".html", ".css", ".js", ".json", ".svg", ".xml", ".txt"}
+SUFFIXES = {".html", ".css", ".js", ".json", ".svg", ".png", ".webp", ".xml", ".txt"}
 VERIFICATION_FILES = {"google29070eb2e5de147a.html"}
+SITE_ORIGIN = "https://nivo.8666886.xyz/"
 
 
 def site_files(root: Path) -> list[str]:
@@ -47,6 +48,16 @@ def site_files(root: Path) -> list[str]:
     return files
 
 
+def srcset_urls(value: str) -> list[str]:
+    """提取本站逗号分隔候选的URL，不解析描述符或含未转义逗号的URL完整语法。"""
+    urls = []
+    for candidate in value.split(","):
+        fields = candidate.split()
+        if fields:
+            urls.append(fields[0])
+    return urls
+
+
 class Page(HTMLParser):
     """收集独立页面的标识和资源，检查基本语义。"""
 
@@ -55,6 +66,7 @@ class Page(HTMLParser):
         super().__init__()
         self.ids: set[str] = set()
         self.links: list[str] = []
+        self.preview_images: list[str] = []
         self.errors: list[str] = []
         self.headings = 0
 
@@ -66,12 +78,48 @@ class Page(HTMLParser):
                 self.errors.append(f"Duplicate ID: {attrs['id']}")
             self.ids.add(attrs["id"])
         self.links.extend(attrs[key] for key in ("src", "href") if attrs.get(key))
+        if tag in {"img", "source"} and attrs.get("srcset"):
+            self.links.extend(srcset_urls(attrs["srcset"]))
+        if tag == "meta" and (attrs.get("property") or "").lower() in {
+            "og:image",
+            "og:image:url",
+            "og:image:secure_url",
+        }:
+            if (attrs.get("content") or "").strip():
+                self.preview_images.append(attrs["content"].strip())
+            else:
+                self.errors.append("Open Graph image missing URL")
         if tag == "h1":
             self.headings += 1
         if tag == "img" and "alt" not in attrs:
             self.errors.append("Image missing alt")
         if attrs.get("target") == "_blank" and "noopener" not in attrs.get("rel", ""):
             self.errors.append("External window missing noopener")
+
+
+def preview_image_errors(root: Path, name: str, images: list[str], files: list[str]) -> list[str]:
+    """把同源绝对OG地址映射回发布根目录，查询参数不影响文件和白名单检查。"""
+    errors = []
+    for value in images:
+        try:
+            parsed = urlparse(urljoin(urljoin(SITE_ORIGIN, name), value))
+            is_local = (
+                parsed.scheme == "https"
+                and parsed.hostname == "nivo.8666886.xyz"
+                and parsed.port in {None, 443}
+            )
+        except ValueError:
+            errors.append(f"{name}: Invalid Open Graph image URL: {value}")
+            continue
+        if not is_local:
+            continue
+        # 先解码再检查边界，拒绝编码后的父目录或Windows路径逃逸。
+        target = (root / unquote(parsed.path).lstrip("/")).resolve()
+        if not target.is_relative_to(root.resolve()) or not target.is_file():
+            errors.append(f"{name}: Missing local Open Graph image: {value}")
+        elif target.relative_to(root.resolve()).as_posix() not in files:
+            errors.append(f"{name}: Open Graph image excluded from deployment: {value}")
+    return errors
 
 
 def validate_releases(data: dict) -> list[str]:
@@ -140,6 +188,7 @@ def check(root: Path, allow_local: bool = False) -> dict:
         if parser.headings != 1:
             errors.append(f"{name}: Expected exactly one h1")
     for name, page in pages.items():
+        errors.extend(preview_image_errors(root, name, page.preview_images, files))
         for value in page.links:
             parsed = urlparse(value)
             if parsed.scheme:

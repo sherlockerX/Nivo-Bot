@@ -266,10 +266,12 @@ fun MosaicEditorScreen(
         }
     }
 
-    fun update(change: (MosaicDraft) -> MosaicDraft) {
-        if (saving || isRedating || !editorOperation.isCurrent()) return
-        draft = draft?.let(change)
+    fun update(change: (MosaicDraft) -> MosaicDraft): Boolean {
+        if (saving || isRedating || !editorOperation.isCurrent()) return false
+        val current = draft ?: return false
+        draft = change(current)
         dirty = true
+        return true
     }
 
     fun importPhoto(uri: Uri, cleanup: File? = null) {
@@ -491,10 +493,12 @@ fun MosaicEditorScreen(
                     TextButton(onClick = { pickPhoto() }, enabled = !importing && !saving && !isRedating) { Text(stringResource(R.string.nm_mosaic_photo_replace)) }
                     TextButton(onClick = { takePhoto() }, enabled = !importing && !saving && !isRedating) { Text(stringResource(R.string.nm_mosaic_action_camera)) }
                     TextButton(onClick = {
-                        val previous = current.stagedPath
-                        update { it.copy(stagedPath = null, mediaId = null) }
-                        previous?.let { File(it).delete() }
-                    }) { Text(stringResource(R.string.nm_mosaic_photo_remove)) }
+                        val previous = draft?.stagedPath
+                        // 只有草稿接受移除后才清理文件，避免保存期间删掉正在归档的照片。
+                        if (!importing && update { it.copy(stagedPath = null, mediaId = null) }) {
+                            previous?.let { File(it).delete() }
+                        }
+                    }, enabled = !importing && !saving && !isRedating) { Text(stringResource(R.string.nm_mosaic_photo_remove)) }
                 }
                 if (photoError) {
                     Text(

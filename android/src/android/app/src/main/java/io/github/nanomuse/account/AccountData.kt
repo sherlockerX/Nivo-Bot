@@ -6,7 +6,6 @@ import com.openminis.app.MinisApp
 import com.openminis.app.logging.AppLogger
 import com.openminis.app.scheduled.ScheduledTask
 import com.openminis.app.scheduled.ScheduledTaskManager
-import io.github.nanomuse.cloud.NanoMuseCloud
 import io.github.nanomuse.sync.SessionOwner
 import io.github.nanomuse.sync.SyncDatabase
 import org.json.JSONArray
@@ -58,9 +57,9 @@ object AccountData {
         app = context.applicationContext
     }
 
-    /** The key the signed-in account's data is filed under; [AccountScope.LOCAL] while signed out. */
+    /** 本地数据归属沿用升级前owner，不再取决于远程账号或令牌有效性。 */
     fun key(context: Context): String =
-        AccountScope.key(NanoMuseCloud.account(context)?.accountId, NanoMuseCloud.apiKey(context))
+        io.github.nanomuse.local.LocalOnlyMode.owner(context)
 
     /** nanoMuse: 任务执行入口必须拒绝迁移中或迁移失败后尚未恢复的账号空间。 */
     fun requireAvailable() {

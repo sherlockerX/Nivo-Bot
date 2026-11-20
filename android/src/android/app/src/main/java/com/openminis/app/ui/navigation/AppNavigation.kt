@@ -58,7 +58,6 @@ import com.openminis.app.ui.settings.SkillDetailScreen
 import com.openminis.app.ui.settings.StorageManagementScreen
 import com.openminis.app.ui.settings.SkillFileViewerScreen
 import com.openminis.app.ui.settings.UsageStatsScreen
-import com.openminis.app.ui.settings.MinisSkillsBrowserScreen
 import com.openminis.app.ui.settings.MountDetailScreen
 import com.openminis.app.ui.settings.MountedFoldersScreen
 import com.openminis.app.ui.settings.SharedFolderDetailScreen
@@ -716,32 +715,7 @@ fun AppNavigation(
                 onOpenProviders = { navController.safeNavigate(Routes.PROVIDER_LIST) },
             )
         }
-        // nanoMuse: nanoMuse Cloud — sign in with a phone/e-mail code for a starter allowance,
-        // and the account page (balance, sign out) behind Settings.
-        composable(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_SIGN_IN) {
-            io.github.nanomuse.ui.cloud.CloudSignInScreen(
-                onBack = { navController.safePopBackStack() },
-                onSignedIn = { navController.safePopBackStack() },
-            )
-        }
-        composable(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) {
-            io.github.nanomuse.ui.cloud.CloudAccountScreen(
-                onBack = { navController.safePopBackStack() },
-                onSignIn = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_SIGN_IN) },
-                onOpenProvider = { id -> navController.safeNavigate(Routes.providerDetail(id)) },
-                onOpenModelGroups = { navController.safeNavigate(Routes.MODEL_GROUPS) },
-                onOpenDataControls = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_DATA_CONTROLS) },
-                // nanoMuse: "Ask this device" — back to the chat with "@<name> " in the composer
-                onAskDevice = { name -> io.github.nanomuse.ui.home.HomeShell.prefill(navController, "@$name ") },
-            )
-        }
-        // nanoMuse: Settings → Data controls — the switch over what nanoMuse Cloud keeps of the chats.
-        composable(io.github.nanomuse.ui.cloud.ROUTE_DATA_CONTROLS) {
-            io.github.nanomuse.ui.cloud.DataControlsScreen(
-                onBack = { navController.safePopBackStack() },
-                onSignIn = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_SIGN_IN) },
-            )
-        }
+        // nanoMuse: 本地版不注册原云账号、登录和远程数据控制页面。
         // nanoMuse: Settings → Network — the HTTP proxy for own providers and the ChatGPT plan.
         composable(io.github.nanomuse.ui.net.ROUTE_NETWORK) {
             io.github.nanomuse.ui.net.NetworkScreen(onBack = { navController.safePopBackStack() })
@@ -754,13 +728,7 @@ fun AppNavigation(
                 onOpenHandsModel = { navController.safeNavigate(io.github.nanomuse.ui.models.modelPickRoute(io.github.nanomuse.models.ModelSlots.Slot.HANDS)) },
             )
         }
-        // nanoMuse: the account's computers, and how one joins.
-        composable(io.github.nanomuse.ui.reach.ROUTE_COMPUTERS) {
-            io.github.nanomuse.ui.reach.ComputersScreen(
-                onBack = { navController.safePopBackStack() },
-                onOpenAccount = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) },
-            )
-        }
+        // nanoMuse: 本地版不注册依赖内置中继的电脑页面。
         // nanoMuse: the services the agent can be let into — the connectors catalogue, each a remote MCP server.
         composable(io.github.nanomuse.ui.connectors.ROUTE_CONNECTORS) {
             io.github.nanomuse.ui.connectors.ConnectorsScreen(
@@ -768,13 +736,7 @@ fun AppNavigation(
                 onOpenMcp = { navController.safeNavigate(Routes.MCP) },
             )
         }
-        // nanoMuse: the coding agents (Cursor, Codex, Claude Code) on the account's computers.
-        composable(io.github.nanomuse.ui.coding.ROUTE_CODING) {
-            io.github.nanomuse.ui.coding.CodingScreen(
-                onBack = { navController.safePopBackStack() },
-                onOpenDevices = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) },
-            )
-        }
+        // nanoMuse: 第三方MCP保留，原云设备的编程会话页面移除。
         // nanoMuse: the agent's page behind the face — today's activity, approvals, daily,
         // soul & memory; the pen offers "Change avatar" (back to the chat, pre-typed) and
         // "Edit name".
@@ -905,12 +867,12 @@ fun AppNavigation(
                 onSystemFilesClick = { navController.safeNavigate(io.github.nanomuse.ui.sysfiles.ROUTE_SYSTEM_FILES) }, // nanoMuse
                 onAvatarClick = { navController.safeNavigate(io.github.nanomuse.ui.avatar.ROUTE_AVATAR_STUDIO) }, // nanoMuse
                 onModelsClick = { navController.safeNavigate(io.github.nanomuse.ui.models.ROUTE_MODELS) }, // nanoMuse
-                onCloudClick = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) }, // nanoMuse
+                onCloudClick = {}, // nanoMuse: 原云页面已移除。
                 onHandsClick = { navController.safeNavigate(io.github.nanomuse.ui.hands.ROUTE_HANDS) }, // nanoMuse
-                onDataControlsClick = { navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_DATA_CONTROLS) }, // nanoMuse
+                onDataControlsClick = {}, // nanoMuse: 原云同步页面已移除。
                 onNetworkClick = { navController.safeNavigate(io.github.nanomuse.ui.net.ROUTE_NETWORK) }, // nanoMuse
-                onComputersClick = { navController.safeNavigate(io.github.nanomuse.ui.reach.ROUTE_COMPUTERS) }, // nanoMuse
-                onCodingClick = { navController.safeNavigate(io.github.nanomuse.ui.coding.ROUTE_CODING) }, // nanoMuse
+                onComputersClick = {}, // nanoMuse: 内置设备中继已停用。
+                onCodingClick = {}, // nanoMuse: 原云设备的编程会话页面已移除。
                 onConnectorsClick = { navController.safeNavigate(io.github.nanomuse.ui.connectors.ROUTE_CONNECTORS) }, // nanoMuse
                 onPermissionsClick = { navController.safeNavigate(Routes.PERMISSIONS) },
                 onUsageClick = { navController.safeNavigate(Routes.USAGE_STATS) },
@@ -1506,7 +1468,7 @@ fun AppNavigation(
                     skillRepository = skillRepository,
                     onBack = { navController.safePopBackStack() },
                     onSkillClick = { skillId -> navController.safeNavigate(Routes.skillDetail(skillId)) },
-                    onMinisSkillsClick = { navController.safeNavigate(Routes.MINIS_SKILLS_BROWSER) },
+                    onMinisSkillsClick = {}, // nanoMuse: 本地版不提供固定GitHub技能目录入口。
                 )
             }
         }
@@ -1548,14 +1510,7 @@ fun AppNavigation(
             }
         }
 
-        composable(Routes.MINIS_SKILLS_BROWSER) {
-            if (skillRepository != null) {
-                MinisSkillsBrowserScreen(
-                    skillRepository = skillRepository,
-                    onBack = { navController.safePopBackStack() },
-                )
-            }
-        }
+        // nanoMuse: 移除固定GitHub技能浏览路由，手动文件与URL导入仍在技能管理页。
 
         composable(
             Routes.TERMINAL,

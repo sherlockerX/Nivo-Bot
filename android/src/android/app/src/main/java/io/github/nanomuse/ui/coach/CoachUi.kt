@@ -19,6 +19,8 @@ object CoachUi {
     const val DEFAULT_MINUTES = 15
     val view = MutableStateFlow("city")
     val selectedCourseId = MutableStateFlow("expression")
+    /** 技能档案页的标题，由页面在显示时写入，标题栏读取。 */
+    val skillTitle = MutableStateFlow("")
     /** 正在备课的技能ID；为空表示没有备课任务。 */
     val preparing = MutableStateFlow<String?>(null)
     @Volatile var prepJob: Job? = null
@@ -29,14 +31,21 @@ object CoachUi {
     /** 切换视图时停止当前朗读，不改变课程或训练进度。 */
     fun open(view: String) {
         VoiceOutputState.activePlayer?.stop()
+        // 四个页面：技能列表（city）、单项技能档案（skill）、课程库（courses）和教练设置（settings）。
+        // 旧入口的训练记录和成果都并入技能档案。
         this.view.value = when (view) {
             "map" -> "city"
             "library" -> "courses"
-            "train" -> "training"
-            "result" -> "results"
-            "city", "courses", "training", "results" -> view
+            "train", "training", "result", "results", "skill" -> "skill"
+            "city", "courses", "settings" -> view
             else -> "city"
         }
+    }
+
+    /** 从技能列表打开一项技能的档案。 */
+    fun openSkill(context: Context, courseId: String) {
+        select(context, courseId)
+        open("skill")
     }
 
     /** 切换技能只浏览档案，并按账户记住最近一次的选择。 */

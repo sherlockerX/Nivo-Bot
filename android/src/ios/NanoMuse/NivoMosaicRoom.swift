@@ -9,7 +9,7 @@ struct NivoMosaicRoom: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var scope: NivoMosaicScope = .day
     @State private var anchor = Date()
-    @State private var editor: NivoMosaicDraft?
+    @State private var editor: EditorRequest?
     @State private var editorScope: NivoLifeScope?
     @State private var pendingDraft: NivoMosaicDraft?
     @State private var panel: Panel?
@@ -17,6 +17,14 @@ struct NivoMosaicRoom: View {
     @State private var reflectionDrain = NivoLifeRequestDrain()
 
     private enum Panel: String, Identifiable { case calendar, habits, drafts, bin, form; var id: String { rawValue } }
+
+    /// 编辑请求同时携带草稿和所属账户：sheet内容只读这一个值，不会因另一个状态尚未刷新而显示空白页。
+    private struct EditorRequest: Identifiable {
+        let draft: NivoMosaicDraft
+        let access: NivoLifeScope
+        var start: NivoMosaicStartAction?
+        var id: String { draft.id }
+    }
     private var range: NivoMosaicRange { NivoMosaicCalendar.range(scope: scope, anchor: anchor) }
     private var entries: [NivoMosaicEntry] {
         model.entries.filter { $0.day >= range.startDay && $0.day <= range.endDay }.sorted { ($0.day, $0.createdAt) > ($1.day, $1.createdAt) }
@@ -28,6 +36,8 @@ struct NivoMosaicRoom: View {
                 HStack(spacing: 8) {
                     NanoMuseRoundButton(symbol: "calendar", label: AppLocalized("Choose a date")) { panel = .calendar }
                     Menu {
+                        Button { openNew() } label: { Label(AppLocalized("New fragment"), systemImage: "plus") }
+                            .disabled(!life.isReady || !life.isMosaicReady)
                         Button { panel = .habits } label: { Label(AppLocalized("Habits"), systemImage: "repeat") }
                         Button { panel = .drafts } label: { Label(AppLocalized("Drafts"), systemImage: "square.and.pencil") }
                         Button { panel = .bin } label: { Label(AppLocalized("Recently deleted"), systemImage: "trash") }
@@ -36,9 +46,9 @@ struct NivoMosaicRoom: View {
                         }
                     } label: { NanoMuseRoundDisc(symbol: "ellipsis") }
                         .accessibilityLabel(AppLocalized("Mosaic views"))
-                    NanoMuseRoundButton(symbol: "plus", label: AppLocalized("New fragment")) { openNew() }
-                        .disabled(!life.isReady || !life.isMosaicReady)
                 }
+                // 账户未就绪或备份冻结时没有可用的记录范围，入口先禁用，避免打开空白面板。
+                .disabled(life.accessScope == nil)
             }
             Picker(AppLocalized("Time scale"), selection: $scope) {
                 ForEach(NivoMosaicScope.allCases, id: \.self) { Text(NivoMosaicDisplay.scope($0)).tag($0) }
@@ -87,8 +97,8 @@ struct NivoMosaicRoom: View {
         .nmOnChange(of: life.accessScope) { access in
             if access != editorScope { editor = nil; editorScope = nil; pendingDraft = nil; panel = nil; deleting = nil }
         }
-        .sheet(item: $editor, onDismiss: { Task { await reload() } }) { draft in
-            if let editorScope { NivoMosaicEditor(draft: draft, access: editorScope, model: model) }
+        .sheet(item: $editor, onDismiss: { Task { await reload() } }) { request in
+            NivoMosaicEditor(draft: request.draft, access: request.access, model: model, startAction: request.start)
         }
         .sheet(item: $panel, onDismiss: openAfterPanel) { selected in panelView(selected) }
         .confirmationDialog(AppLocalized("Move this fragment to recently deleted?"), isPresented: Binding(
@@ -125,10 +135,13 @@ struct NivoMosaicRoom: View {
         if let access = life.accessScope {
             let day = range.startDay
             let dayInfo = model.snapshot?.days.first { $0.day == day }
+            dayGreeting(day: day)
             NivoMosaicDayCanvas(day: day, entries: entries.sorted { $0.createdAt < $1.createdAt },
                 habits: model.habits.filter { NivoMosaicRules.isPlanned($0, day: day) },
                 marks: model.snapshot?.habitDays ?? [], form: dayInfo?.form, access: access,
                 onEntry: open, onHabit: { openNew(habit: $0) }, onEmpty: { openNew() })
+            shapeRow(day: day, form: dayInfo?.form)
+            if day <= NivoLifeDay.value() { dayActions }
             let pending = model.drafts.filter { $0.day == day }
             if !pending.isEmpty {
                 Button { panel = .drafts } label: {
@@ -138,14 +151,70 @@ struct NivoMosaicRoom: View {
             }
             let planned = model.habits.filter { NivoMosaicRules.isPlanned($0, day: day) }
             ForEach(planned) { habit in habitRow(habit, day: day, access: access) }
-            if entries.isEmpty {
-                Text(AppLocalized("Write one thing that happened, what you noticed, or what you want to remember."))
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            Button { openNew() } label: {
-                Label(AppLocalized("Add a fragment"), systemImage: "plus.circle").frame(maxWidth: .infinity).padding(.vertical, 10)
-            }.buttonStyle(.borderedProminent).tint(NanoMuseTones.action).disabled(day > NivoLifeDay.value())
         }
+    }
+
+    /// 与Android一致的问候标题：今天、过去和未来、有无记录分别给出一句话和说明。
+    private func dayGreeting(day: Int64) -> some View {
+        let today = NivoLifeDay.value()
+        let isEmpty = entries.isEmpty
+        let title: String
+        let detail: String?
+        if day > today {
+            title = AppLocalized("Not here yet")
+            detail = AppLocalized("The habits planned for this day show below. Records can be added once the day comes.")
+        } else if day == today {
+            title = isEmpty ? AppLocalized("What do you want to keep from today?") : AppLocalized("Today, in pieces")
+            detail = isEmpty ? AppLocalized("A photo, a reflection or a habit marked done each fills a place. The rest can stay empty.") : nil
+        } else {
+            title = isEmpty ? AppLocalized("Nothing recorded this day") : AppLocalized("This day, in pieces")
+            detail = isEmpty ? AppLocalized("You can still add something for this day.") : nil
+        }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.title2.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+            if let detail {
+                Text(detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 当天的拼图形状写在图案下方，「换一个」直接打开形状选择。
+    private func shapeRow(day: Int64, form: String?) -> some View {
+        let shown = form.flatMap(NivoMosaicForm.init(rawValue:)) ?? NivoMosaicForm.auto(day: day)
+        let name = form == nil
+            ? String(format: AppLocalized("Automatic (%@)"), NivoMosaicDisplay.form(shown))
+            : NivoMosaicDisplay.form(shown)
+        let format = day == NivoLifeDay.value() ? AppLocalized("Today's shape: %@") : AppLocalized("This day's shape: %@")
+        return HStack {
+            Text(String(format: format, name)).font(.subheadline).foregroundStyle(.secondary)
+            Spacer()
+            Button(AppLocalized("Change")) { panel = .form }.font(.subheadline)
+        }
+    }
+
+    /// 三个入口与Android相同：拍照、相册、心得。
+    private var dayActions: some View {
+        HStack(spacing: 10) {
+            actionButton(AppLocalized("Camera"), symbol: "camera") { openNew(start: .camera) }
+            actionButton(AppLocalized("Album"), symbol: "photo.on.rectangle") { openNew(start: .album) }
+            actionButton(AppLocalized("Reflection"), symbol: "square.and.pencil") { openNew() }
+        }
+        .disabled(!life.isMosaicReady)
+    }
+
+    private func actionButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol).font(.title3)
+                Text(title).font(.subheadline.weight(.medium)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(NanoMuseTones.surface, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(NanoMuseTones.action)
     }
 
     private func habitRow(_ habit: NivoMosaicHabit, day: Int64, access: NivoLifeScope) -> some View {
@@ -246,20 +315,24 @@ struct NivoMosaicRoom: View {
         }
     }
 
-    private func openNew(habit: NivoMosaicHabit? = nil) {
+    /// 新碎片可以直接从拍照或相册开始；编辑器打开后立即呈现对应的选择器。
+    private func openNew(habit: NivoMosaicHabit? = nil, start: NivoMosaicStartAction? = nil) {
         guard life.isMosaicReady, let access = life.accessScope else { return }
         let day = scope == .day ? range.startDay : NivoLifeDay.value()
         guard day <= NivoLifeDay.value() else { return }
         editorScope = access
-        editor = NivoMosaicDraft(ownerKey: access.ownerKey, id: UUID().uuidString, day: day,
-                                 text: "", mood: nil, updatedAt: NivoMosaicViewModel.now,
-                                 habitID: habit?.id, shouldMarkHabitDone: habit != nil, shape: habit?.shape ?? "rounded")
+        let draft = NivoMosaicDraft(ownerKey: access.ownerKey, id: UUID().uuidString, day: day,
+                                    text: "", mood: nil, updatedAt: NivoMosaicViewModel.now,
+                                    habitID: habit?.id, shouldMarkHabitDone: habit != nil, shape: habit?.shape ?? "rounded")
+        editor = EditorRequest(draft: draft, access: access, start: start)
     }
 
     private func open(_ entry: NivoMosaicEntry) {
-        editorScope = life.accessScope
-        editor = model.drafts.first { $0.entryID == entry.id } ?? NivoMosaicRules.draft(
+        guard let access = life.accessScope else { return }
+        editorScope = access
+        let draft = model.drafts.first { $0.entryID == entry.id } ?? NivoMosaicRules.draft(
             from: entry, now: NivoMosaicViewModel.now, habitDays: model.snapshot?.habitDays ?? [])
+        editor = EditorRequest(draft: draft, access: access)
     }
 
     /// 等仓库加载成功后再消费详情跳转，失败重试仍保留目标。
@@ -290,7 +363,7 @@ struct NivoMosaicRoom: View {
             editorScope = access
             anchor = NivoLifeDay.date(draft.day)
             scope = .day
-            editor = draft
+            editor = EditorRequest(draft: draft, access: access)
             navigation.handledReflection(target)
         } catch {
             if life.accessScope == access, navigation.mosaicReflectionTarget == target {
@@ -314,8 +387,8 @@ struct NivoMosaicRoom: View {
 
     /// 草稿列表退出后再呈现编辑器，避免同时切换两个sheet导致编辑器被丢弃。
     private func openAfterPanel() {
-        if let pendingDraft, editorScope == life.accessScope {
-            editor = pendingDraft
+        if let pendingDraft, let access = editorScope, access == life.accessScope {
+            editor = EditorRequest(draft: pendingDraft, access: access)
         }
         pendingDraft = nil
         openRequestedFragment()

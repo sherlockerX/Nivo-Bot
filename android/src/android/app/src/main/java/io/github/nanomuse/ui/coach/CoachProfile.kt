@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
@@ -69,16 +76,19 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** 方案B：顶部切换技能，下方整页显示该技能的档案；切换只浏览，点训练按钮才进入旁聊。 */
+/**
+ * 一项技能的档案页（技能列表点进来）：概况、今日训练、单元清单、当前表现和历次训练。
+ * 单元清单逐项列出要学的内容，达成的打勾；细节点开单元才显示。
+ */
 internal fun LazyListScope.coachProfileItems(
     state: CoachState,
     selected: CoachTrack?,
     isOpening: Boolean,
     onOpenPractice: (String) -> Unit,
     onOpenConversation: (String, String?) -> Unit,
-    onResume: (String) -> Unit,
+    onCourseAction: (action: String, courseId: String) -> Unit,
+    onReviewCourse: (String) -> Unit,
 ) {
-    item(key = "profile_switcher") { SkillSwitcher(state, selected) }
     if (selected == null) {
         item(key = "profile_empty") {
             Panel {
@@ -92,58 +102,132 @@ internal fun LazyListScope.coachProfileItems(
         return
     }
     val courseId = selected.course.id
-    item(key = "profile_goal:$courseId") { GoalPanel(selected, onResume) }
+    item(key = "profile_summary:$courseId") { SkillSummary(selected, onCourseAction, onReviewCourse) }
     item(key = "profile_today:$courseId") { TodayPanel(state, selected, isOpening, onOpenPractice, onOpenConversation) }
+    item(key = "profile_units:$courseId") { UnitChecklist(state, selected, onOpenConversation, onCourseAction) }
     item(key = "profile_performance:$courseId") { PerformancePanel(state, selected, onOpenConversation) }
-    item(key = "profile_plan:$courseId") { PlanPanel(state, selected, onOpenConversation) }
-    item(key = "profile_materials:$courseId") { MaterialsPanel(state, selected) }
     item(key = "profile_history:$courseId") { HistoryPanel(state, selected, onOpenPractice, onOpenConversation) }
 }
 
-/** 技能切换栏：选中项同时用勾号、粗体和读屏选中态表达，不只靠颜色。 */
+/** 概况：场所、达成进度，以及暂停、恢复、审阅标准这几个低频操作。 */
 @Composable
-private fun SkillSwitcher(state: CoachState, selected: CoachTrack?) {
-    val context = LocalContext.current
-    val rowState = rememberLazyListState()
-    val selectedIndex = state.tracks.indexOfFirst { it.course.id == selected?.course?.id }
-    // 选中项总在可见范围内，重开页面时也能看到当前技能。
-    LaunchedEffect(selectedIndex) { if (selectedIndex > 0) rowState.animateScrollToItem(selectedIndex) }
-    LazyRow(state = rowState, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        items(state.tracks, key = { it.course.id }) { track ->
-            val isSelected = track.course.id == selected?.course?.id
-            FilterChip(selected = isSelected, onClick = { CoachUi.select(context, track.course.id) },
-                label = { Text(track.course.title, fontWeight = if (isSelected) FontWeight.SemiBold else null) },
-                leadingIcon = if (isSelected) ({ Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)) }) else null,
-                modifier = Modifier.heightIn(min = 48.dp).semantics { this.selected = isSelected })
+private fun SkillSummary(track: CoachTrack, onCourseAction: (String, String) -> Unit, onReviewCourse: (String) -> Unit) {
+    val total = track.course.units.size
+    val demonstrated = track.course.units.count { it.id in track.demonstrated }
+    val needsReview = track.course.needsCriteriaReview || track.course.units.any { it.needsCriteriaReview }
+    Panel {
+        Text(coachPlaceName(track.course), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.nm_coach_home_progress, demonstrated, total), style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold)
+        LinearProgressIndicator(progress = { if (total == 0) 0f else demonstrated.toFloat() / total },
+            modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary, trackColor = MuseTones.fill)
+        if (track.paused) Text(stringResource(R.string.nm_coach_paused))
+        if (needsReview) Text(stringResource(R.string.nm_coach_criteria_unreviewed), color = MaterialTheme.colorScheme.error)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (needsReview) TextButton(onClick = { onReviewCourse(track.course.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(R.string.nm_coach_review_with_ai))
+            }
+            TextButton(onClick = { onCourseAction(if (track.paused) "resume_course" else "pause_course", track.course.id) },
+                modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(if (track.paused) R.string.nm_coach_resume else R.string.nm_coach_pause))
+            }
         }
-        item(key = "all_skills") { AssistChip(onClick = { CoachUi.open("courses") }, label = { Text(stringResource(R.string.nm_coach_profile_all_skills)) },
-            leadingIcon = { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)) }, modifier = Modifier.heightIn(min = 48.dp)) }
     }
 }
 
+/**
+ * 单元清单：达成的单元打勾，当前单元有标记，点开单元再看细节。
+ * 当前单元的展开内容里放下次安排的依据、本次教案用到的概念和材料。
+ */
 @Composable
-private fun GoalPanel(track: CoachTrack, onResume: (String) -> Unit) {
-    val unit = track.course.units.firstOrNull { it.id == track.currentUnitId }
-    val index = track.course.units.indexOfFirst { it.id == track.currentUnitId }
+private fun UnitChecklist(state: CoachState, track: CoachTrack, onOpenConversation: (String, String?) -> Unit,
+    onCourseAction: (String, String) -> Unit) {
+    val now by rememberCoachNow(state.revision)
+    val next = remember(state, track.course.id, now) { CoachSkillProfile.nextStep(state, track.course.id, now) }
+    val plan = state.plans.lastOrNull { it.courseId == track.course.id && it.status == "adopted" && it.unitId == track.currentUnitId }
+    // 默认全部收起，先看清整张清单；点开单元再看细节。
+    var openUnitId by rememberSaveable(track.course.id) { mutableStateOf<String?>(null) }
+    var showPlans by rememberSaveable(track.course.id) { mutableStateOf(false) }
     Panel {
-        Text(track.course.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-            modifier = Modifier.semantics { heading() })
-        if (unit != null) {
-            Text(stringResource(R.string.nm_coach_profile_unit, index + 1, track.course.units.size, unit.title),
-                style = MaterialTheme.typography.titleSmall)
-            // 目标只占两行，保证默认字号下首屏能看到训练按钮；点开计划可看单元全文。
-            Text(unit.focus, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        }
-        if (track.paused) {
-            Text(stringResource(R.string.nm_coach_paused))
-            OutlinedButton(onClick = { onResume(track.course.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.nm_coach_resume))
+        SectionTitle(stringResource(R.string.nm_coach_skill_units))
+        track.course.units.forEachIndexed { index, unit ->
+            val isDone = unit.id in track.demonstrated
+            val isCurrent = unit.id == track.currentUnitId
+            val isOpen = openUnitId == unit.id
+            if (index > 0) HorizontalDivider(color = MuseTones.hairline)
+            val statusText = stringResource(when {
+                isDone -> R.string.nm_coach_skill_unit_done
+                isCurrent -> R.string.nm_coach_skill_unit_current
+                else -> R.string.nm_coach_skill_unit_upcoming
+            })
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .clickable { openUnitId = if (isOpen) null else unit.id }
+                .semantics(mergeDescendants = true) { stateDescription = statusText },
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(when {
+                    isDone -> Icons.Filled.CheckCircle
+                    isCurrent -> Icons.Outlined.PlayCircle
+                    else -> Icons.Outlined.RadioButtonUnchecked
+                }, contentDescription = null, modifier = Modifier.size(24.dp),
+                    tint = if (isDone || isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text("${index + 1}. ${unit.title}", style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isCurrent) FontWeight.SemiBold else null)
+                    Text(statusText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(if (isOpen) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (isOpen) Column(Modifier.padding(start = 36.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(unit.focus, style = MaterialTheme.typography.bodyMedium)
+                if (unit.method.isNotBlank()) {
+                    Text(stringResource(R.string.nm_coach_profile_method), style = MaterialTheme.typography.labelLarge)
+                    Text(unit.method, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (unit.criteria.isNotEmpty()) {
+                    Text(stringResource(R.string.nm_coach_skill_criteria), style = MaterialTheme.typography.labelLarge)
+                    unit.criteria.forEach { Text("· " + it.description, style = MaterialTheme.typography.bodySmall) }
+                }
+                if (isCurrent) {
+                    Text(stringResource(R.string.nm_coach_profile_next_time), style = MaterialTheme.typography.labelLarge)
+                    Text(nextReason(next.kind), style = MaterialTheme.typography.bodySmall)
+                    next.basis?.let { basis ->
+                        Text(stringResource(R.string.nm_coach_profile_based_on, basis.quote.take(160)), style = MaterialTheme.typography.bodySmall)
+                        SourceMessageLink(basis.chatSessionId, basis.messageId, onOpenConversation)
+                    }
+                    plan?.concepts?.takeIf { it.isNotEmpty() }?.let { concepts ->
+                        Text(stringResource(R.string.nm_coach_profile_concepts), style = MaterialTheme.typography.labelLarge)
+                        concepts.forEach { Text("· $it", style = MaterialTheme.typography.bodySmall) }
+                    }
+                    plan?.materials?.takeIf { it.isNotEmpty() }?.let { materials ->
+                        Text(stringResource(R.string.nm_coach_profile_materials), style = MaterialTheme.typography.labelLarge)
+                        materials.forEach {
+                            Text("· ${it.title}  (${stringResource(originLabel(it.origin))})", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    val source = unit.source.ifBlank { track.course.source }
+                    if (source.isNotBlank()) Text(stringResource(R.string.nm_coach_profile_course_source, source),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // 当前单元已达成且后面还有单元时，由用户决定是否进入下一单元。
+                    if (isDone && index + 1 < track.course.units.size && !track.paused) {
+                        OutlinedButton(onClick = { onCourseAction("advance", track.course.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text(stringResource(R.string.nm_coach_advance))
+                        }
+                    }
+                }
             }
         }
-        if (track.course.needsCriteriaReview || track.course.units.any { it.needsCriteriaReview }) {
-            Text(stringResource(R.string.nm_coach_criteria_unreviewed), color = MaterialTheme.colorScheme.error)
+        val plans = state.plans.filter { it.courseId == track.course.id }.asReversed()
+        if (plans.isNotEmpty()) {
+            TextButton(onClick = { showPlans = !showPlans }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(stringResource(if (showPlans) R.string.nm_coach_profile_hide_plans else R.string.nm_coach_profile_show_plans, plans.size))
+            }
+        }
+        if (showPlans) plans.take(20).forEach { item ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("${dateLabel(item.localDate)} · ${stringResource(planStatus(item.status))}", style = MaterialTheme.typography.labelMedium)
+                Text(item.task, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
@@ -160,7 +244,11 @@ private fun TodayPanel(state: CoachState, track: CoachTrack, isOpening: Boolean,
     val facts = remember(state, courseId, today) { CoachSkillProfile.today(state, courseId, today, zone) }
     val next = remember(state, courseId, now) { CoachSkillProfile.nextStep(state, courseId, now) }
     val preparing by CoachUi.preparing.collectAsState()
-    var minutes by rememberSaveable(courseId) { mutableIntStateOf(facts.plan?.minutes ?: CoachUi.DEFAULT_MINUTES) }
+    val context = LocalContext.current
+    // 没有今天的教案时，时长取教练设置里的默认值。
+    var minutes by rememberSaveable(courseId) {
+        mutableIntStateOf(facts.plan?.minutes ?: io.github.nanomuse.coach.CoachPrepSettings.read(context).defaultMinutes)
+    }
     var need by rememberSaveable(courseId) { mutableStateOf(facts.plan?.need.orEmpty()) }
     var isAdjusting by rememberSaveable(courseId) { mutableStateOf(false) }
     var showResult by rememberSaveable(courseId) { mutableStateOf(false) }
@@ -299,69 +387,6 @@ private fun EvidenceDetail(ref: CoachEvidenceRef, onOpenConversation: (String, S
     SourceMessageLink(ref.chatSessionId, ref.messageId, onOpenConversation)
 }
 
-/** 训练计划：长期目标、单元进度、下次暂定安排及其依据，以及历次采用的教案。 */
-@Composable
-private fun PlanPanel(state: CoachState, track: CoachTrack, onOpenConversation: (String, String?) -> Unit) {
-    val now by rememberCoachNow(state.revision)
-    val next = remember(state, track.course.id, now) { CoachSkillProfile.nextStep(state, track.course.id, now) }
-    var showHistory by rememberSaveable(track.course.id) { mutableStateOf(false) }
-    Panel {
-        SectionTitle(stringResource(R.string.nm_coach_profile_plan))
-        track.course.units.forEachIndexed { index, unit ->
-            val marker = when {
-                unit.id in track.demonstrated -> stringResource(R.string.nm_coach_profile_unit_done)
-                unit.id == track.currentUnitId -> stringResource(R.string.nm_coach_profile_unit_current)
-                else -> ""
-            }
-            Text("${index + 1}. ${unit.title}" + if (marker.isNotBlank()) "  ($marker)" else "",
-                fontWeight = if (unit.id == track.currentUnitId) FontWeight.SemiBold else null)
-        }
-        Text(stringResource(R.string.nm_coach_profile_next_time), style = MaterialTheme.typography.labelLarge)
-        Text(stringResource(R.string.nm_coach_profile_tentative_mark) + " " + nextReason(next.kind))
-        next.basis?.let { basis ->
-            Text(stringResource(R.string.nm_coach_profile_based_on, basis.quote.take(160)), style = MaterialTheme.typography.bodySmall)
-            SourceMessageLink(basis.chatSessionId, basis.messageId, onOpenConversation)
-        }
-        val plans = state.plans.filter { it.courseId == track.course.id }.asReversed()
-        if (plans.isNotEmpty()) {
-            TextButton(onClick = { showHistory = !showHistory }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(if (showHistory) R.string.nm_coach_profile_hide_plans else R.string.nm_coach_profile_show_plans, plans.size))
-            }
-        }
-        if (showHistory) plans.take(20).forEach { plan ->
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("${dateLabel(plan.localDate)} · ${stringResource(planStatus(plan.status))}", style = MaterialTheme.typography.labelMedium)
-                Text(plan.task, style = MaterialTheme.typography.bodySmall)
-                Text(plan.reason.ifBlank { nextReason(plan.nextKind) }, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-/** 知识与材料：本次用到的概念和材料，分别标明来自课程、用户或教学自拟。 */
-@Composable
-private fun MaterialsPanel(state: CoachState, track: CoachTrack) {
-    val plan = state.plans.lastOrNull { it.courseId == track.course.id && it.status == "adopted" }
-    val unit = track.course.units.firstOrNull { it.id == track.currentUnitId }
-    Panel {
-        SectionTitle(stringResource(R.string.nm_coach_profile_materials))
-        plan?.concepts?.takeIf { it.isNotEmpty() }?.let { concepts ->
-            Text(stringResource(R.string.nm_coach_profile_concepts), style = MaterialTheme.typography.labelLarge)
-            concepts.forEach { Text("· $it") }
-        }
-        plan?.materials?.forEach { material ->
-            Text("· ${material.title}  (${stringResource(originLabel(material.origin))})")
-        }
-        unit?.method?.takeIf { it.isNotBlank() }?.let {
-            Text(stringResource(R.string.nm_coach_profile_method), style = MaterialTheme.typography.labelLarge); Text(it)
-        }
-        val source = unit?.source?.ifBlank { track.course.source } ?: track.course.source
-        if (source.isNotBlank()) Text(stringResource(R.string.nm_coach_profile_course_source, source), style = MaterialTheme.typography.bodySmall)
-        if (plan == null && unit?.method.isNullOrBlank() && source.isBlank()) Text(stringResource(R.string.nm_coach_profile_no_materials))
-    }
-}
-
 /** 历次训练按日期分节，展开查看当天的任务、反馈、证据和未决问题。 */
 @Composable
 private fun HistoryPanel(state: CoachState, track: CoachTrack, onOpenPractice: (String) -> Unit,
@@ -427,7 +452,8 @@ private fun nextReason(kind: String): String = stringResource(when (kind) {
     else -> R.string.nm_coach_profile_next_continue
 })
 
-private fun degradeText(reason: String): Int = when {
+internal fun degradeText(reason: String): Int = when {
+    reason == "prep_off" -> R.string.nm_coach_profile_degrade_off
     reason == "no_model" -> R.string.nm_coach_profile_degrade_no_model
     reason == "timeout" || reason.startsWith("model_error") -> R.string.nm_coach_profile_degrade_model
     else -> R.string.nm_coach_profile_degrade_invalid

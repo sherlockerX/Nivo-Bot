@@ -8,11 +8,10 @@ struct NivoFocusRoom: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var backgroundID = ""
     @State private var section = "timer"
-    @State private var isStarting = false
-    @State private var startingTaskID = ""
-    @State private var startingScope: NivoLifeScope?
+    // 开始和提醒都用携带账户的请求呈现sheet：内容只读这一个值，不会因另一个状态还没刷新而显示空白页。
+    @State private var startRequest: NivoFocusSheetRequest?
     @State private var isShowingBackgrounds = false
-    @State private var reminderScope: NivoLifeScope?
+    @State private var reminderRequest: NivoFocusSheetRequest?
     @State private var immersive: NivoFocusPresentation?
     @State private var pendingStart: NivoFocusSession?
     @State private var deleting: NivoFocusSession?
@@ -24,21 +23,25 @@ struct NivoFocusRoom: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                NanoMuseRoomHeader(chrome: chrome) {
+                // 与Android的FocusHeader一致：紧凑标题栏，入口较多时不压住头像。
+                NivoCompactRoomHeader(title: AppLocalized("Focus"), onMenu: chrome.onMenu,
+                                      onTitle: { section = "timer" }, horizontalPadding: 0) {
                     Menu {
                         Button(AppLocalized("Focus")) { section = "timer" }
                         Button(AppLocalized("Focus records")) { section = "records" }
                         Button(AppLocalized("Statistics")) { section = "statistics" }
                         Divider()
                         Button(AppLocalized("Focus backgrounds")) { isShowingBackgrounds = true }
-                        Button(AppLocalized("Focus reminder")) { reminderScope = model.accessScope }
+                            .disabled(model.accessScope == nil)
+                        Button(AppLocalized("Focus reminder")) {
+                            reminderRequest = model.accessScope.map { NivoFocusSheetRequest(scope: $0) }
+                        }
                             .disabled(model.accessScope == nil)
                         Button(AppLocalized("Export focus records")) { isExporting = true }
-                            .disabled(!model.isReady || model.isBusy)
+                            .disabled(!model.isReady || model.isBusy || model.accessScope == nil)
                     } label: { NanoMuseRoundDisc(symbol: "slider.horizontal.3") }
                     .accessibilityLabel(AppLocalized("Focus views"))
                 }
-                Text(AppLocalized("Focus")).font(.largeTitle.bold())
                 if !model.isReady {
                     if let error = model.errorMessage {
                         Text(error).foregroundStyle(.secondary)
@@ -79,24 +82,18 @@ struct NivoFocusRoom: View {
             clearPresentations()
             backgroundID = NivoFocusPreferences.background(owner: model.ownerKey)
         }
-        .sheet(isPresented: $isStarting, onDismiss: {
-            startingTaskID = ""
-            startingScope = nil
+        .sheet(item: $startRequest, onDismiss: {
             if let session = pendingStart { pendingStart = nil; present(session) }
             resolveEntry()
-        }) {
-            if let startingScope {
-                NivoFocusStartView(model: model, access: startingScope, initialTaskID: startingTaskID,
-                    backgroundID: $backgroundID) { session in pendingStart = session }
-            }
+        }) { request in
+            NivoFocusStartView(model: model, access: request.scope, initialTaskID: request.taskID,
+                backgroundID: $backgroundID) { session in pendingStart = session }
         }
         .sheet(isPresented: $isShowingBackgrounds, onDismiss: resolveEntry) {
             if let scope = model.accessScope { NivoFocusBackgroundPicker(scope: scope, selectedID: $backgroundID) }
         }
-        .sheet(isPresented: Binding(get: { reminderScope != nil }, set: {
-            if !$0 { reminderScope = nil }
-        }), onDismiss: resolveEntry) {
-            if let reminderScope { NivoFocusReminderView(model: model, access: reminderScope) }
+        .sheet(item: $reminderRequest, onDismiss: resolveEntry) { request in
+            NivoFocusReminderView(model: model, access: request.scope)
         }
         .sheet(isPresented: $isExporting, onDismiss: resolveEntry) {
             if let scope = model.accessScope { NivoLifeFileTransferView(kind: .focus, scope: scope) }
@@ -141,6 +138,8 @@ struct NivoFocusRoom: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(model.activeFocus?.title ?? AppLocalized("Make room for one thing"))
                             .font(.title2.bold()).multilineTextAlignment(.leading)
+                            // 卡片高度固定，长标题或大字号时限制行数，避免顶部被裁掉。
+                            .lineLimit(3).minimumScaleFactor(0.7)
                         Label(AppLocalized(model.activeFocus == nil ? "Start focus" : "Return to focus"), systemImage: "arrow.up.right")
                             .font(.subheadline.weight(.semibold))
                     }.foregroundStyle(.white).padding(24)
@@ -223,6 +222,8 @@ struct NivoFocusRoom: View {
             .background(NanoMuseTones.surface, in: RoundedRectangle(cornerRadius: 20))
     }
 
+    private var isStarting: Bool { startRequest != nil }
+
     private func present(_ session: NivoFocusSession) {
         guard let scope = model.accessScope, session.ownerKey == scope.ownerKey,
               model.focusSessions.contains(where: { $0.id == session.id }) else { return }
@@ -232,7 +233,7 @@ struct NivoFocusRoom: View {
     }
 
     private func resolveEntry() {
-        guard let scope = model.accessScope, !isStarting, !isShowingBackgrounds, !isExporting, reminderScope == nil,
+        guard let scope = model.accessScope, !isStarting, !isShowingBackgrounds, !isExporting, reminderRequest == nil,
               pendingReflection == nil else { return }
         _ = NivoFocusPreferences.restorableSession(owner: scope.ownerKey, sessions: model.focusSessions)
         let destination = NivoLifeEntryRules.focusDestination(
@@ -254,9 +255,7 @@ struct NivoFocusRoom: View {
 
     private func prepareStart(taskID: String) {
         guard let scope = model.accessScope else { return }
-        startingScope = scope
-        startingTaskID = taskID
-        isStarting = true
+        startRequest = NivoFocusSheetRequest(scope: scope, taskID: taskID)
     }
 
     private func clearPresentations() {
@@ -265,11 +264,9 @@ struct NivoFocusRoom: View {
         pendingStart = nil
         deleting = nil
         deletionScope = nil
-        isStarting = false
-        startingScope = nil
-        startingTaskID = ""
+        startRequest = nil
         isShowingBackgrounds = false
-        reminderScope = nil
+        reminderRequest = nil
         isExporting = false
         didRestore = false
     }
@@ -292,6 +289,13 @@ struct NivoFocusRoom: View {
         guard model.accessScope == target.scope else { return }
         navigation.openReflection(sessionID: target.id, scope: target.scope)
     }
+}
+
+/// 开始专注或提醒设置的一次请求，账户在打开时确定。
+private struct NivoFocusSheetRequest: Identifiable {
+    let scope: NivoLifeScope
+    var taskID = ""
+    let id = UUID().uuidString
 }
 
 /// 全屏展示保存会话标识，后续状态始终从当前账户仓库读取。
@@ -365,7 +369,8 @@ private struct NivoFocusStartView: View {
                 }
             }
             .sheet(isPresented: $isChoosingBackground) {
-                if let scope = model.accessScope { NivoFocusBackgroundPicker(scope: scope, selectedID: $backgroundID) }
+                // 使用开始页打开时确定的账户，不读随时可能变化的全局范围。
+                NivoFocusBackgroundPicker(scope: access, selectedID: $backgroundID)
             }
             .sheet(isPresented: $isChoosingTask) {
                 NivoFocusTaskPicker(model: model, access: access, selectedID: $taskID)

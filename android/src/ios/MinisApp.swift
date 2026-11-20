@@ -100,6 +100,8 @@ struct MinisApp: App {
     /// immersive WebView (back-edge swipe / programmatic dismiss).
     @State private var pendingWebAppPresentation: WebAppPresentation?
     @State private var pendingURLWhileLocked: URL?
+    // nanoMuse: 恢复失败后重试也能启动文件服务，同次运行只注册一次。
+    @State private var hasActivatedStorage = false
 
     #if DEBUG
     let debugServer = DebugServer()
@@ -129,12 +131,12 @@ struct MinisApp: App {
         // `install` is idempotent, so the later onAppLaunch() call is a no-op.
         CrashSignalHandler.install()
         // nanoMuse: join the devices hub once the account is signed in (a no-op otherwise).
-        Task { @MainActor in NanoMuseHub.shared.autoStart() }
+        // nanoMuse: 原账号设备中继已移除，启动不再连接远程服务器。
         // nanoMuse: routines and goal check-ins — the BGAppRefreshTask must be registered before launch finishes.
         NanoMuseScheduler.registerBackgroundTask()
         Task { @MainActor in NanoMuseModelMenu.startFollowingPicks() } // nanoMuse: a pick in a chat's picker moves to the front of the Cloud group
         Task { @MainActor in NanoMuseProxy.refreshHosts() } // nanoMuse: the provider hosts Settings → Network's proxy routes
-        Task { @MainActor in NanoMusePreset.apply() } // nanoMuse: the personal build's skills, courses and memory files, once each
+        // nanoMuse: 预置资料由账户启动恢复统一写入，必须晚于旧共享目录迁移。
         // [T-auto-grouping-default-on] Auto-grouping ships ON. `bool(forKey:)`
         // returns false for an unregistered key, so the default has to be
         // registered here rather than expressed at the (multiple) read sites —
@@ -384,15 +386,9 @@ struct MinisApp: App {
                     //     beginBackgroundTask before iOS suspends it.
                     // Ownership is enforced where it belongs, by the run token
                     // in BackupRunController.finished(token:).
-                    // nanoMuse: 等待账户恢复、权威配置载入与迁移落盘后再刷新模型和创建默认组。
+                    // nanoMuse: 首次出现和恢复成功通知共用一次性初始化，账户任务不反向等待它。
                     Task { @MainActor in
-                        // nanoMuse: start返回前已释放启动账户锁，草稿清理复用普通提供商租约。
-                        await NanoMuseAccountData.shared.start()
-                        NivoOAuthDraftHost.shared.refreshStatus()
-                        guard NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
-                              !NivoPersonalBackupAccess.hasAccountTransition else { return }
-                        try? await NivoOAuthDraftHost.shared.retry()
-                        await ProviderMigration.prepareModels(store: ProviderConfigStore.shared)
+                        await NivoPostRecoveryStartup.activateAfterAccountRecovery()
                     }
                     shareLog.info("[Share] onAppear — checking for pending share")
                     shareCoordinator.checkForPendingShare()
@@ -400,35 +396,23 @@ struct MinisApp: App {
                     BackgroundKeepAliveManager.shared.setup()
                     // Monitor network changes to keep iSH DNS up to date
                     NetworkMonitor.shared.start()
-                    // Register FileProvider domain for shared files
-                    Self.registerFileProviderDomain()
-                    // Migrate legacy shared dir to App Group container
-                    Self.migrateSharedDirToAppGroup()
-                    // Trace the resolved AppGroup paths so we can confirm the
-                    // main app, FileProvider extension, and iSH bind mount all
-                    // agree on which directory holds the user's shared files.
-                    Self.logFPSyncTracePaths()
-                    // Start watching shared/skills/memory subtrees so iSH writes
-                    // and FileBrowserView mutations propagate to the Files app.
-                    AppGroupChangeWatcher.shared.start()
-                    // Activate security scopes for user-mounted external folders
-                    // (e.g. Obsidian vault in iCloud Drive). Held for app lifetime.
-                    MountedFoldersManager.shared.activateAll()
-                    // Create /var/minis/mounts/<name> symlinks in the fakefs now
-                    // that the rootfs exists and mounts are active.
-                    AIChatViewModel.refreshMountedFolderSymlinks()
-                    // Start iCloud sync engine. v2 takes precedence when its
-                    // feature flag is on (see SyncV2Bootstrap); v1 stays
-                    // paused while v2 is active. When v2 is off, v1 boots
-                    // exactly as before.
-                    if #available(iOS 17.0, *) {
-                        Task { @MainActor in
-                            await SyncV2Bootstrap.startIfEnabled()
-                            if !SyncV2Bootstrap.shouldPauseV1() {
-                                await CloudSyncEngine.shared.start()
-                            }
-                        }
+                    // nanoMuse: 文件服务随上方启动任务恢复，失败时不初始化默认目录。
+                    // nanoMuse: 个人构建移除内置iCloud同步，冷启动仅恢复本地数据。
+                }
+                // nanoMuse: 冷启动及恢复按钮共享同一完成信号，避免首次失败后漏启文件服务。
+                .onReceive(NanoMuseAccountData.shared.$isChangingAccount) { changing in
+                    guard !changing, NanoMuseAccountData.shared.isReady else { return }
+                    // nanoMuse: 发布就绪时恢复锁可能尚未释放，独立任务等待真正退出后再处理模型。
+                    Task { @MainActor in
+                        await NivoPostRecoveryStartup.activateAfterAccountRecovery()
                     }
+                    guard !hasActivatedStorage else { return }
+                    hasActivatedStorage = true
+                    Self.registerFileProviderDomain()
+                    Self.logFPSyncTracePaths()
+                    AppGroupChangeWatcher.shared.start()
+                    MountedFoldersManager.shared.activateAll()
+                    AIChatViewModel.refreshMountedFolderSymlinks()
                 }
         }
         .commands {
@@ -449,7 +433,7 @@ struct MinisApp: App {
     private func handleScenePhaseChange(_ phase: ScenePhase) {
         switch phase {
         case .active:
-            NanoMuseScheduler.shared.appBecameActive() // nanoMuse: run what came due while the phone slept
+            // nanoMuse: 定时任务随下方恢复门禁启动，不能在旧文件迁移前运行技能。
             let remaining = UIApplication.shared.backgroundTimeRemaining
             if let entry = backgroundEntryDate {
                 let elapsed = Date().timeIntervalSince(entry)
@@ -487,6 +471,11 @@ struct MinisApp: App {
             // runs on a later tick, outside the fragile window.
             Task { @MainActor in
                 await Task.yield()
+
+                // nanoMuse: 首次前台通知可能早于onAppear，必须共享同一恢复任务。
+                await NanoMuseAccountData.shared.start()
+                guard NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount else { return }
+                NanoMuseScheduler.shared.appBecameActive()
 
                 // nanoMuse: 解锁返回前台后重试环境变量中断恢复，失败继续保留页面重试入口。
                 if NanoMuseAccountData.shared.isReady, !NanoMuseAccountData.shared.isChangingAccount,
@@ -584,24 +573,7 @@ struct MinisApp: App {
                     }
                 }
             }
-            // Trigger iCloud sync on foreground resume: fetch remote changes + send local dirty records.
-            // Route to whichever engine is active. v1 must stay quiet whenever
-            // v2 has taken over (SyncV2Bootstrap.shouldPauseV1 == true) —
-            // otherwise v1's triggerFetch round-trips v1 records every scene-
-            // active tick, observed as endless `[iCloud] mergeRemoteMessage
-            // SKIP (local newer)` log spam plus continuous v1-side dirty
-            // drain that competes with v2's send pipeline.
-            if #available(iOS 17.0, *) {
-                Task { @MainActor in
-                    if SyncV2Bootstrap.shouldPauseV1() {
-                        await SyncCore.shared.fetchNow(trigger: .foregroundTimer)
-                        await SyncCore.shared.sendNow(trigger: .foregroundTimer)
-                    } else {
-                        await CloudSyncEngine.shared.triggerFetch()
-                        await CloudSyncEngine.shared.triggerSend()
-                    }
-                }
-            }
+            // nanoMuse: 返回前台不启动任何内置云同步任务。
 
         case .inactive:
             let remaining = UIApplication.shared.backgroundTimeRemaining
@@ -736,23 +708,13 @@ struct MinisApp: App {
         logAppUpdateMarkerForFPTrace()
         let root = AIChatViewModel.minisAppGroupRoot
         let fm = FileManager.default
-        // Ensure all three subdirectories exist.
-        for sub in ["memory", "skills", "shared"] {
-            try? fm.createDirectory(at: root.appendingPathComponent(sub, isDirectory: true),
-                                    withIntermediateDirectories: true)
+        // nanoMuse: 目录与身份文件已由启动恢复准备，此处只注册系统文件服务。
+
+        // nanoMuse: 本地侧载仍初始化文件与身份目录，但不注册无法共享数据的系统扩展。
+        guard NivoStoragePaths.hasSharedContainer else {
+            lifecycleLog.info("[FileProvider] App Group unavailable, using app-local storage")
+            return
         }
-        // [T-soul-md] Seed SOUL.md with default content on first launch so
-        // the Soul settings page and chat bubble identity have something
-        // to render before the user customizes anything. Never overwrites
-        // an existing file. Cache the parsed metadata so synchronous call
-        // sites (chat bubble header) see the user's name/emoji immediately.
-        SoulStore.ensureExists()
-        // [T-ios-soul-name-sidebar-stale] Refresh synchronously. This runs from
-        // the app's .onAppear (main thread) and refreshCache() is @MainActor, so
-        // the async hop only delayed cachedMetadata for no reason and let the
-        // sidebar title render stale first. App.init() already pre-loads it; this
-        // keeps the cache fresh after ensureExists() seeds a first-launch SOUL.md.
-        SoulStore.refreshCache()
 
         // Clean up stale directory created by a bug where workingSet identifier
         // was passed through as a subdirectory name.
@@ -902,6 +864,8 @@ struct MinisApp: App {
     }
 
     private static func signalFileProvider() {
+        // nanoMuse: 本地回退模式不存在可读取主App目录的FileProvider域。
+        guard NivoStoragePaths.hasSharedContainer else { return }
         NSFileProviderManager(for: fileProviderDomain)?.signalEnumerator(for: .rootContainer) { error in
             if let error {
                 lifecycleLog.warning("[FileProvider] signal failed: \(error.localizedDescription)")
@@ -1050,49 +1014,7 @@ struct MinisApp: App {
         return n
     }
 
-    /// One-time migration: move files from old locations to App Group container.
-    /// Handles three sources:
-    /// 1. Library/MinisChat/shared/ → App Group MinisFileProvider/shared/
-    /// 2. Library/MinisChat/memory/ → App Group MinisFileProvider/memory/
-    /// 3. Library/MinisChat/skills/ → App Group MinisFileProvider/skills/
-    /// 4. Old App Group MinisShared/ → App Group MinisFileProvider/shared/
-    private static func migrateSharedDirToAppGroup() {
-        let fm = FileManager.default
-        let library = fm.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        let container = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.io.github.nanomuse.app")!
-
-        let migrations: [(source: URL, dest: URL, label: String)] = [
-            // Legacy Library/MinisChat/shared → new shared
-            (library.appendingPathComponent("MinisChat/shared", isDirectory: true),
-             AIChatViewModel.minisSharedPersistentDir, "shared"),
-            // Legacy Library/MinisChat/memory → new memory
-            (library.appendingPathComponent("MinisChat/memory", isDirectory: true),
-             AIChatViewModel.minisMemoryPersistentDir, "memory"),
-            // Legacy Library/MinisChat/skills → new skills
-            (library.appendingPathComponent("MinisChat/skills", isDirectory: true),
-             AIChatViewModel.minisSkillsPersistentDir, "skills"),
-            // Old App Group MinisShared → new shared
-            (container.appendingPathComponent("MinisShared", isDirectory: true),
-             AIChatViewModel.minisSharedPersistentDir, "MinisShared→shared"),
-        ]
-
-        for migration in migrations {
-            guard fm.fileExists(atPath: migration.source.path) else { continue }
-            try? fm.createDirectory(at: migration.dest, withIntermediateDirectories: true)
-            guard let contents = try? fm.contentsOfDirectory(at: migration.source, includingPropertiesForKeys: nil) else { continue }
-            for item in contents {
-                let dest = migration.dest.appendingPathComponent(item.lastPathComponent)
-                if !fm.fileExists(atPath: dest.path) {
-                    try? fm.moveItem(at: item, to: dest)
-                }
-            }
-            // Remove old directory if empty
-            if (try? fm.contentsOfDirectory(at: migration.source, includingPropertiesForKeys: nil))?.isEmpty ?? true {
-                try? fm.removeItem(at: migration.source)
-            }
-            lifecycleLog.info("[FileProvider] migrated \(migration.label) to App Group")
-        }
-    }
+    // nanoMuse: 旧目录迁移已移至NivoLegacyStorageMigration，先于默认资料写入。
 
     /// Print the canonical AppGroup paths for the three FileProvider-exposed
     /// roots, plus a child count for each. Lets us correlate against the

@@ -40,30 +40,8 @@ final class AnthropicProvider: LLMProvider {
     /// where signature-less thinking blocks are rejected.
     let isOfficialAnthropicEndpoint: Bool
 
-    /// Required system prompt prefix for Claude Code OAuth credentials.
-    ///
-    /// The value is not hardcoded here: at build time the "Generate Provider
-    /// Customization" script phase reads the `ANTHROPIC_OAUTH_IDENTIFIER_PROMPT`
-    /// build setting (sourced from `Configs/ProviderCustomization.xcconfig`) and
-    /// emits `ProviderCustomizationGenerated.anthropicOAuthIdentifierPrompt`,
-    /// which is compiled into the binary. The value is deliberately NOT stored
-    /// in Info.plist. That xcconfig is tracked in the private repo (filled in)
-    /// but excluded from the public mirror, which ships only
-    /// `ProviderCustomization.xcconfig.example` with an empty value — so a build
-    /// there generates an empty string and fails here the first time an OAuth
-    /// (Claude Code) request needs the prompt, by design.
-    static let claudeCodeSystemPrompt: String = {
-        let value = ProviderCustomizationGenerated.anthropicOAuthIdentifierPrompt
-        guard !value.isEmpty else {
-            fatalError(
-                "ANTHROPIC_OAUTH_IDENTIFIER_PROMPT is not configured. Copy "
-                + "Configs/ProviderCustomization.xcconfig.example to "
-                + "Configs/ProviderCustomization.xcconfig and set "
-                + "ANTHROPIC_OAUTH_IDENTIFIER_PROMPT before building with Claude Code OAuth."
-            )
-        }
-        return value
-    }()
+    /// nanoMuse: 配置缺少时由请求路径抛错，不能让静态属性初始化终止整个应用。
+    static let claudeCodeSystemPrompt = ProviderCustomizationGenerated.anthropicOAuthIdentifierPrompt
 
     /// Parse the `-<major>-<minor>` (or `-<major>.<minor>`) version out of a Claude model id.
     /// The minor segment is optional: a single-segment version (`claude-fable-5`,
@@ -213,8 +191,12 @@ final class AnthropicProvider: LLMProvider {
     /// Build the effective system prompt.
     /// For Claude Code OAuth, uses array format with the required prefix as a separate text block.
     /// This ensures Anthropic's server-side check sees the exact Claude Code prompt as the first block.
-    func resolveSystemPrompt(_ userPrompt: String?) -> MessageParameter.System? {
+    func resolveSystemPrompt(_ userPrompt: String?) throws -> MessageParameter.System? {
         if isClaudeCode {
+            // nanoMuse: 缺少OAuth构建配置时拒绝本次请求，普通API key请求不依赖此配置。
+            guard !Self.claudeCodeSystemPrompt.isEmpty else {
+                throw LLMError.providerError(message: "ANTHROPIC_OAUTH_IDENTIFIER_PROMPT is not configured.")
+            }
             // OAuth (Claude Code): two blocks — base system prompt + user system prompt with cache
             let base = MessageParameter.Cache(text: Self.claudeCodeSystemPrompt, cacheControl: nil)
             guard let extra = userPrompt, !extra.isEmpty else {
@@ -242,7 +224,7 @@ final class AnthropicProvider: LLMProvider {
             model: .other(model.id),
             messages: messages.map { $0.toAnthropicMessage() },
             maxTokens: maxTokens,
-            system: resolveSystemPrompt(systemPrompt),
+            system: try resolveSystemPrompt(systemPrompt),
             temperature: effectiveTemperature(temperature)
         )
 
@@ -289,7 +271,7 @@ final class AnthropicProvider: LLMProvider {
             model: .other(model.id),
             messages: messages.map { $0.toAnthropicMessage() },
             maxTokens: maxTokens,
-            system: resolveSystemPrompt(systemPrompt),
+            system: try resolveSystemPrompt(systemPrompt),
             temperature: effectiveTemperature(temperature)
         )
 

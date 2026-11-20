@@ -192,7 +192,6 @@ final class NanoMuseGoalStore: ObservableObject {
     func applyUpdate(_ update: NanoMuseGoal.Update, fallbackGoalId: String?) {
         guard let id = update.goalId ?? fallbackGoalId, var g = goal(id: id) else { return }
         if let p = update.progress { g.progress = p }
-        let wasDone = g.status == .done
         if let s = update.status {
             g.status = s
             if s == .done { g.progress = 100 }
@@ -201,7 +200,6 @@ final class NanoMuseGoalStore: ObservableObject {
         g.lastCheckedAt = Date()
         upsert(g)
         if g.status == .done, let rid = g.routineId { NanoMuseScheduler.shared.setEnabled(rid, false) }
-        if g.status == .done, !wasDone { NanoMuseStar.shared.goalDone() } // C1
     }
 }
 
@@ -341,7 +339,6 @@ enum NanoMuseGoalFlow {
         if done { g.progress = 100 }
         NanoMuseGoalStore.shared.upsert(g)
         if let rid = g.routineId { NanoMuseScheduler.shared.setEnabled(rid, !done) }
-        if done, goal.status != .done { NanoMuseStar.shared.goalDone() } // C1: a goal reached is a moment to ask for a star
     }
 
     /// The goal and its check go; its conversation stays (it is the person's history).

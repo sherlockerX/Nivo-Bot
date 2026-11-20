@@ -23,18 +23,21 @@ enum SharedFolderVisibility {
     /// Must match FileProviderExtension.topLevelSubdirs.
     static let allFolderNames: [String] = ["shared", "skills", "memory"]
 
-    private static let appGroupID = "group.io.github.nanomuse.app"
     private static let userDefaultsKeyPrefix = "fileProviderVisible."
 
-    private static var store: UserDefaults {
-        // Prefer the App Group suite so the FileProvider extension sees the
-        // same values; fall back to standard if unavailable.
-        UserDefaults(suiteName: appGroupID) ?? .standard
+    private static var store: UserDefaults? {
+        // nanoMuse: suite非空不代表有共享权限；扩展不能写入自身沙盒制造伪共享配置。
+        if NivoStoragePaths.hasSharedContainer {
+            return UserDefaults(suiteName: NivoStoragePaths.appGroupID)
+        }
+        return NivoStoragePaths.isExtension ? nil : .standard
     }
 
     /// Whether the given folder name (e.g. "shared") is currently visible in Files.
     /// Defaults to `true` if no explicit value has been set.
     static func isVisible(_ name: String) -> Bool {
+        // nanoMuse: 无共享权限的扩展没有可暴露的文件夹。
+        guard let store else { return false }
         let key = userDefaultsKeyPrefix + name
         // If the key doesn't exist, default to visible.
         if store.object(forKey: key) == nil {
@@ -46,7 +49,8 @@ enum SharedFolderVisibility {
     /// Update the visibility for a folder name. Caller is responsible for
     /// asking the FileProvider to re-enumerate afterwards.
     static func setVisible(_ name: String, to visible: Bool) {
-        store.set(visible, forKey: userDefaultsKeyPrefix + name)
+        // nanoMuse: 只修改可访问的主App或共享偏好，缺权限时不创建另一份设置。
+        store?.set(visible, forKey: userDefaultsKeyPrefix + name)
     }
 
     /// Names of all currently-visible folders.

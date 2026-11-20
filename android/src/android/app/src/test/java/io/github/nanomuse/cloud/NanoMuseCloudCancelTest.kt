@@ -3,27 +3,16 @@ package io.github.nanomuse.cloud
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
-import io.github.nanomuse.net.HoldingServer
-import io.github.nanomuse.net.BodyHoldingServer
-import java.util.concurrent.TimeUnit
-import java.io.IOException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
-import org.junit.Assert.fail
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
-/**
- * The relay client's requests follow their coroutine: leaving the sign-in page while the code
- * is being asked for hangs up instead of parking an IO thread until the read timeout (#336).
- */
+/** 验证旧云入口不再联网，且本地化保留原有数据归属。 */
 class NanoMuseCloudCancelTest {
 
     /** A context whose preferences live in a map: enough for [NanoMuseCloud.baseUrl]. */
@@ -69,71 +58,69 @@ class NanoMuseCloudCancelTest {
         }
     }
 
-    @Test fun `cancelling the code request hangs up on the relay at once`() = runBlocking {
-        HoldingServer().use { server ->
+    @Test fun `原云登录接口在发送请求前本地拒绝`() = runBlocking {
+        MockWebServer().use { server ->
             val context = PrefsContext()
-            NanoMuseCloud.setBaseUrl(context, "http://127.0.0.1:${server.port}")
-            // on another thread: the latch waits below block this one
-            val job = launch(Dispatchers.Default) { NanoMuseCloud.requestCode(context, "someone") }
-            assertTrue("the request never reached the relay", server.accepted.await(5, TimeUnit.SECONDS))
-            job.cancel()
-            // Before #336 the socket stayed open until the client's 30 s read timeout.
-            assertTrue("the relay connection stayed open after the cancel", server.closedByClient.await(1, TimeUnit.SECONDS))
-            job.join()
-        }
-    }
-
-    @Test fun `cancelling while reading a successful relay body closes the call`() = runBlocking {
-        cancelDuringBodyRead(200)
-    }
-
-    @Test fun `cancelling while reading a relay error body closes the call`() = runBlocking {
-        cancelDuringBodyRead(403)
-    }
-
-    private suspend fun cancelDuringBodyRead(status: Int) = kotlinx.coroutines.coroutineScope {
-        BodyHoldingServer(status).use { server ->
-            val context = PrefsContext()
-            NanoMuseCloud.setBaseUrl(context, "http://127.0.0.1:${server.port}")
-            val job = launch(Dispatchers.Default) {
+            NanoMuseCloud.setBaseUrl(context, server.url("/").toString())
+            val requests: List<suspend () -> Unit> = listOf(
+                { NanoMuseCloud.requestCode(context, "someone") },
+                { NanoMuseCloud.verify(context, "someone", "123456") },
+                { NanoMuseCloud.login(context, "someone", "test-password") },
+                { NanoMuseCloud.checkRelay(server.url("/").toString()) },
+            )
+            for (request in requests) {
                 try {
-                    NanoMuseCloud.requestCode(context, "someone")
-                } catch (error: IOException) {
-                    // A failing regression closes the fixture in finally. Do not let its EOF
-                    // replace the assertion while the canceled baseline is still reading.
-                    currentCoroutineContext().ensureActive()
-                    throw error
+                    request()
+                    fail("The retired service must be rejected locally")
+                } catch (expected: IllegalStateException) {
+                    assertTrue(expected.message.orEmpty().contains("unavailable"))
                 }
             }
-            try {
-                assertTrue("the relay body reader was not entered", server.awaitBodyReader("NanoMuseCloud.kt", "string"))
-                job.cancel()
-                assertTrue("the relay body stayed open after cancel", server.closedByClient.await(1, TimeUnit.SECONDS))
-                withTimeout(1_000) { job.join() }
-            } finally {
-                job.cancel()
-                server.close()
-                withTimeout(5_000) { job.join() }
-            }
+            assertEquals(0, server.requestCount)
+            assertFalse(NanoMuseCloud.isSignedIn(context))
+            assertNull(NanoMuseCloud.apiKey(context))
         }
     }
 
-    @Test fun `relay HTTP errors preserve their code and metadata`() = runBlocking {
-        MockWebServer().use { server ->
-            server.enqueue(MockResponse().setResponseCode(429).setBody(
-                """{"error":{"code":"limited","message":"fixture limit","retry_after":3,"paused":true}}""",
-            ))
-            val context = PrefsContext()
-            NanoMuseCloud.setBaseUrl(context, server.url("/").toString().trimEnd('/'))
-            try {
-                NanoMuseCloud.requestCode(context, "someone")
-                fail("the relay error must be delivered")
-            } catch (error: NanoMuseCloud.CloudException) {
-                assertEquals("limited", error.code)
-                assertEquals(429, error.status)
-                assertEquals(3, error.retryAfterS)
-                assertTrue(error.paused)
-            }
+    @Test fun `旧账号升级固定owner且退出接口不删除资料偏好`() = runBlocking {
+        val context = PrefsContext()
+        val prefs = context.getSharedPreferences("nanomuse", Context.MODE_PRIVATE)
+        prefs.edit().putString("cloud.account_id", "previous-owner")
+            .putString("main_chat.session", "saved-chat").commit()
+        assertEquals("previous-owner", io.github.nanomuse.local.LocalOnlyMode.owner(context))
+        prefs.edit().remove("cloud.account_id").commit()
+        assertEquals("previous-owner", io.github.nanomuse.local.LocalOnlyMode.owner(context))
+        try {
+            NanoMuseCloud.signOut(context, keep = false)
+            fail("A local build must not execute the old account deletion flow")
+        } catch (expected: IllegalStateException) {
+            assertTrue(expected.message.orEmpty().contains("unavailable"))
         }
+        assertEquals("saved-chat", prefs.getString("main_chat.session", null))
+        assertEquals("previous-owner", io.github.nanomuse.local.LocalOnlyMode.owner(context))
+    }
+
+    @Test fun `恢复配置只冻结旧云实例而保留模型归属和个人供应商`() {
+        val context = PrefsContext()
+        context.getSharedPreferences("nanomuse", Context.MODE_PRIVATE).edit()
+            .putString("cloud.instance_id", "legacy").commit()
+        val legacy = com.openminis.app.data.model.ProviderInstance(
+            id = "legacy", label = "Old account",
+            providerType = com.openminis.app.data.model.ProviderType.openAI,
+            credentialType = com.openminis.app.data.model.ProviderCredential.apiKey,
+            customBaseURL = "https://private-relay.example/v1",
+        )
+        val own = legacy.copy(id = "own", label = "My API", customBaseURL = "https://api.example/v1")
+        val config = com.openminis.app.data.model.ProviderConfig(
+            instances = mutableListOf(legacy, own), defaultPrimaryGroupId = "saved-group",
+        )
+        val frozen = io.github.nanomuse.local.LocalOnlyMode.freezeCloudProviders(context, config)
+        assertEquals(listOf("legacy", "own"), frozen.instances.map { it.id })
+        assertFalse(frozen.instances[0].isEnabled)
+        assertTrue(frozen.instances[1].isEnabled)
+        assertTrue(legacy.isEnabled)
+        assertEquals("saved-group", frozen.defaultPrimaryGroupId)
+        assertEquals(config.modelEntries, frozen.modelEntries)
+        assertEquals(config.modelGroups, frozen.modelGroups)
     }
 }

@@ -1,10 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// 关于页沿用设置的卡片、字号和返回方式，公开入口指向本分支并保留上游致谢。
+/// 关于页保留本地版本、产品说明、隐私与许可证，不放仓库推广或在线更新入口。
 struct NivoAboutView: View {
-    @ObservedObject private var updates = NanoMuseUpdateCheck.shared
-    @Environment(\.openURL) private var openURL
+    private var installedLine: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
     private let buildDate: String? = {
         guard let file = Bundle.main.executableURL,
               let values = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
@@ -20,7 +24,7 @@ struct NivoAboutView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 18)).accessibilityHidden(true)
                 }
                 Text(NivoProduct.name).font(.title2.bold())
-                Text(updates.installedLine).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled)
+                Text(installedLine).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled)
                 if let buildDate {
                     Text(String(format: AppLocalized("Built %@"), buildDate))
                         .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
@@ -34,33 +38,9 @@ struct NivoAboutView: View {
                 externalLink(AppLocalized("Project website"), NivoProduct.website)
                 NanoMuseRowDivider()
                 externalLink(AppLocalized("Model setup guide"), NivoProduct.modelGuide)
-                NanoMuseRowDivider()
-                externalLink(AppLocalized("Downloads"), NivoProduct.downloads)
-                NanoMuseRowDivider()
-                Button {
-                    if updates.latestIsNewer && !updates.lastCheckFailed { openURL(updates.releasePage) }
-                    else { Task { await updates.checkNow() } }
-                } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(AppLocalized("Check for updates")).font(.body)
-                            Text(updates.latestLine).font(.footnote).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 8)
-                        if updates.checking { ProgressView() }
-                        else { Image(systemName: "arrow.clockwise").foregroundStyle(NanoMuseTones.action) }
-                    }
-                    .padding(16).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).disabled(updates.checking)
             }
 
             NanoMuseCard {
-                externalLink(AppLocalized("GitHub Repository"), NivoProduct.repository)
-                NanoMuseRowDivider()
-                externalLink(AppLocalized("Report an Issue"), NanoMuseLinks.newIssue())
-                NanoMuseRowDivider()
                 externalLink(AppLocalized("Privacy policy"), NivoProduct.privacy)
                 NanoMuseRowDivider()
                 NanoMuseRowLabel(title: AppLocalized("License"), value: "GPL-3.0-or-later", chevron: false)
@@ -68,12 +48,11 @@ struct NivoAboutView: View {
 
             NanoMuseCaption(text: AppLocalized("Credits"))
             NanoMuseCard {
-                externalLink("nanoMuse", URL(string: "https://github.com/nano-muse/nanoMuse")!)
+                NanoMuseRowLabel(title: "nanoMuse", chevron: false)
                 NanoMuseRowDivider()
-                externalLink(AppLocalized("Based on OpenMinis 1.13"), URL(string: "https://github.com/OpenMinis/OpenMinis")!)
+                NanoMuseRowLabel(title: AppLocalized("Based on OpenMinis 1.13"), chevron: false)
             }
             NanoMuseCaption(text: AppLocalized("Nivo Bot builds on nanoMuse and OpenMinis. Their licenses and attribution are preserved."))
-            NanoMuseCaption(text: AppLocalized("Muse is a trademark of Meta Platforms, Inc. nanoMuse is an independent free-software project."))
         }
     }
 

@@ -9,6 +9,11 @@ class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        // nanoMuse: 重签缺少App Group时明确取消分享，禁止在扩展私有沙盒制造假记录。
+        guard NivoStoragePaths.hasSharedContainer else {
+            extensionContext?.cancelRequest(withError: CocoaError(.fileWriteNoPermission))
+            return
+        }
         NSLog("[ShareExt] viewDidLoad — starting processing")
 
         Task { @MainActor in
@@ -18,6 +23,11 @@ class ShareViewController: UIViewController {
             await vm.processExtensionItems(items)
             let saved = vm.save()
             NSLog("[ShareExt] save() returned: %@", saved ? "true" : "false")
+            // nanoMuse: 保存失败时不跳转到主App宣称交付成功。
+            guard saved else {
+                extensionContext?.cancelRequest(withError: CocoaError(.fileWriteUnknown))
+                return
+            }
 
             // Verify what was saved
             if let pending = SharedContainerStore.loadPendingShare() {

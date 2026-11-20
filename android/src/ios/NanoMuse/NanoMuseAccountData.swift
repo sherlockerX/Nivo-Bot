@@ -72,7 +72,7 @@ final class NanoMuseAccountData: ObservableObject {
     /// The key the signed-in account's data is filed under — the same the sync tables use
     /// (`NanoMuseSync.accountKey`): the relay's opaque `account.id`; "" while signed out.
     var current: String {
-        NanoMuseSync.accountKey(id: NanoMuseCloud.account?.id, hint: NanoMuseCloud.account?.hint, apiKey: NanoMuseCloud.apiKey)
+        NivoLocalModeHost.owner
     }
 
     /// The folder an account's put-aside files live under: a hash, so neither the id nor a
@@ -118,9 +118,30 @@ final class NanoMuseAccountData: ObservableObject {
             try await NivoProviderDeletionHost.shared.recoverDuringAccountChange()
             // nanoMuse: 已持有账户锁时先结束提供商删除屏障，再重放环境变量，避免两份日志互相阻塞。
             try await EnvVarStore.shared.nmRecoverPending()
+            // 默认资料只能在旧目录已合并之后写入；任何文件操作失败都由启动门禁提供重试。
+            let storageLayout = NivoStoragePaths.layout
+            try await Task.detached(priority: .userInitiated) {
+                try NivoLegacyStorageMigration.migrate(layout: storageLayout)
+            }.value
+            // 仅重放上一轮本地模式迁移持有的快照，随后仍严格验证所有配置写入与载入。
+            try await ProviderConfigStore.shared.nmReplayPendingLocalModeRetirement()
+            // 首次安装清理不能依据启动时的JSON镜像，必须等待权威SQLite配置载入。
+            try await ProviderConfigStore.shared.nmWaitForMigrationBaseline(retryingFailedWrites: false)
             await sweepIfFreshInstall()
-            try Self.keepRelayKeyOnThisDevice()
+            // 先完成旧事务，再验证本机凭证副本；失败保留来源并允许下次启动重试。
+            try await NivoLocalKeychainMigration.migrateDuringStartup()
+            try await NivoLocalModeHost.prepareDuringStartup()
             try await reconcileForSwitch(as: current)
+            // 账户资料恢复后再播种，既保护旧SOUL，也避免SkillStore初始化抢先安装技能。
+            for name in ["memory", "skills", "shared"] {
+                try FileManager.default.createDirectory(
+                    at: NivoStoragePaths.layout.applicationFiles.appendingPathComponent(name, isDirectory: true),
+                    withIntermediateDirectories: true
+                )
+            }
+            SoulStore.ensureExists()
+            SoulStore.refreshCache()
+            NanoMusePreset.apply()
             isReady = true
             isChangingAccount = false
             await reloadAfterSwitch()
@@ -332,7 +353,6 @@ final class NanoMuseAccountData: ObservableObject {
         NotificationCenter.default.post(name: .nanoMuseAccountSwitched, object: current)
         NotificationCenter.default.post(name: .sessionDidUpdate, object: nil)
         NanoMuseSync.shared.accountChanged()
-        NanoMuseHub.shared.restart()
         NanoMuseFeedFlow.retireLegacyRoutine()
     }
 

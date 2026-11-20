@@ -4,7 +4,41 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.7] - 2026-11-20 · Anchor
+
+- Released Android 2.0.7 (58) with the existing Nivo application ID and signing certificate. The APK is 40,969,779 bytes; phone upgrade retention remains untested. The website preserves actual historical iOS downloads, and the release publisher now supports one platform at a time. Shared iOS source version fields do not imply a new iOS binary. See [release notes](docs/releases/v2.0.7.md) for validation and the retained 16KB-page native-library limitation.
+
+- Referenced the existing Android rclone AAR as a local file dependency, avoiding a Windows Lint crash while parsing the previous named-argument declaration without disabling dependency checks.
+
+- Fixed Android provider saves reverting to an older JSON mirror after a failed mirror write. API-key provider and model forms now wait for confirmed storage, show saving feedback, keep failed inputs, reject duplicate model IDs and stale model edits, and preserve unedited text, media and reasoning capabilities. Model renames return only once. Todo editors retain their original revision and retry snapshot after recreation, and AI writes recheck authorization inside the database transaction. Focus setup survives lock-settings navigation; finishing a paused session handles clock rollback and keeps the reflection date of the pause. Mosaic photo removal cannot race a save. Removing Coach evidence now recalculates affected historical units, and purging a conversation removes its derived lesson plans.
+
+- In the retained iOS source, fixed provider recovery rejecting SQLite WAL companion files left by an older snapshot check; new snapshots are sealed as single files and remove their own residual shared-memory files after the destination connection closes. Added save-stage diagnostic codes, preserved model UUIDs and references when editing custom model IDs, rejected ID conflicts, waited for model and new-group saves before closing their forms, and blocked stale model-list refreshes after provider changes or restore. Model edits now retain unedited reasoning metadata and media capabilities; resetting an unknown context window clears the old value from the form. These source changes are not a new iOS package in this Android release.
+
+- Redesigned the Nivo Bot product website with a daily-use story, a manual feature gallery, readable model guides and a clearer download page. Replaced application illustrations with original screenshots from a fresh Android emulator build using example records. Kept separate URLs and persistent navigation, restored both platform downloads after catalogue failures or timeouts, and improved keyboard navigation and search recovery.
+
+- Rebuilt the Android Coach page around a list of skills: a continue card, one card per skill with its current unit, progress and today's status, and a profile per skill with its units as a checklist. Course records and results moved into each profile, and the header keeps only the calendar and Coach settings.
+- Added Android Coach settings for the lesson-preparation agent: what it does and cannot do, an on/off switch, its model, the default lesson length, the skills it reads and its last five runs.
 - Split Android CI debug/test and release builds into sequential Gradle processes with one worker each to avoid sharing the Kotlin compiler heap across both variants.
+
+## [2.0.6] - 2026-11-19 · Harbor
+
+- Built iOS 2.0.6 (57) as an unsigned device IPA at commit `dcc6e4e`: GitHub run 44680017084 passed 747 portable Swift tests, device compilation, application-test compilation and the NanoMuse source-warning check. The shared source versions move together; Android package availability remains as recorded in the download catalogue. See [2.0.6 build notes](docs/releases/v2.0.6.md) for the delivery scope, checksum and iPhone acceptance steps.
+- Protected iOS fragment drafts throughout photo loading, offered import cancellation, rejected stale media callbacks and saved the draft before opening Camera so canceling capture preserves existing text.
+- Fixed iOS pages that opened blank: a new daily fragment, starting focus, the focus reminder, task details, groups and tags, and the Coach training calendar.
+- Gave the iOS daily fragments page the Android layout: a greeting and the date, the day's shape with its empty places outlined, and Camera, Album and Reflection buttons.
+- Made iOS All settings, Manage routines, the Settings Avatar row and the agent page's Avatar studio open again; each had tried to open a second page while the first was closing.
+- Kept the iOS name pill below the corner buttons when the face is small or hidden, and showed a loading indicator instead of a blank screen at launch.
+- Moved iOS Coach, Focus and Tasks to a compact title bar so their buttons no longer cover the agent's face, and removed the daily ideas strip from the main chat.
+- Removed the unused iOS online update requester, GitHub fallback parser and repository/update constants, retained local release-catalog validation, and corrected connector registration text to use Nivo Bot.
+- Resumed iOS OAuth draft cleanup and provider/model initialization after a successful startup-recovery retry, waited for the recovery lock to release, and prevented duplicate initialization within one app run.
+- Migrated legacy iOS files before installing default identity, memory and skills, preserved conflicting originals, and kept failed migrations retryable. Preserved existing bundled skill files and unreadable preset memory.
+- Made iOS model setup permanently skippable, kept local features available without a model, and added in-chat setup actions that retain unsent drafts. Removed legacy account, star, allowance, feedback and update controls while keeping provider OAuth, custom endpoints, MCP and license attribution.
+- Removed relay-provider recommendations from the mobile catalogue and product guides while preserving existing custom endpoints. Updated the website's onboarding and privacy guidance for local records, optional model setup, and user-selected APIs.
+
+- Moved iOS provider credentials and environment variables to device-only Keychain storage with verified, retryable migration of older synchronized items, preserved local-value priority and interrupted key-rotation recovery, and replaced the missing Anthropic OAuth configuration trap with a request error.
+- Removed obsolete computer-relay links, coding-relay sheets and remote approval prompts from iOS local settings and navigation, while preserving local routines and user-configured API and MCP access.
+- Removed the personal iOS build's built-in CloudKit sync and iCloud backup entry points, including background startup, debug access and cloud entitlements, while retaining local backups and existing data.
+- Prevented iOS startup from crashing when personal signing removes App Group access, kept main-app storage in one persistent local fallback, and made unavailable extensions fail without creating inaccessible copies.
 
 ## [2.0.5] - 2026-11-19 · Cadence
 

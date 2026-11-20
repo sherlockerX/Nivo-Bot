@@ -13,38 +13,20 @@ import com.openminis.app.data.model.ProviderInstance
 import com.openminis.app.data.model.ProviderType
 import com.openminis.app.data.repository.ProviderRepository
 import io.github.nanomuse.avatar.ImageGen
-import io.github.nanomuse.net.await
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * nanoMuse Cloud: the "start now" path. An e-mail address, a code, and the
- * app has a provider with a starter allowance — no key of one's own needed. The server is the
- * relay in `cloud/` of the repository; anyone can run one, and "Use a different server" on the
- * sign-in screen points the phone at it ([RelayAddress]).
- *
- * To the rest of the app the relay is an ordinary OpenAI-compatible provider: an API-key
- * [ProviderInstance] on the relay's base URL, whose key is the `nm_…` token the relay issued.
- * Chat, model listing, and the avatar's pictures all go through the paths that already exist
- * for any custom base URL. What this object adds is the sign-in itself, the provisioning of
- * that instance (models fetched, a default group, the image model), and the account meta the
- * settings page shows (how much is left).
- *
- * What the relay keeps about a person is the hashed identifier and token counts; message
- * content is forwarded to the model, not stored. See `docs/cloud.md`.
+ * 原云配置兼容层，仅保留升级识别与旧数据结构。
+ * 登录、探测、资料同步等远程请求已在本地入口关闭；原凭据不再用于认证。
+ * 本地数据归属由LocalOnlyMode固定，不能调用旧退出流程来完成本地化。
  */
 object NanoMuseCloud {
     const val DEFAULT_BASE = "https://cloud.nanomuse.cn"
@@ -241,14 +223,6 @@ object NanoMuseCloud {
         fun toUsd(cny: Double): Double = if (usdCny > 0) cny / usdCny else 0.0
     }
 
-    private val http: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
-    private val json = "application/json; charset=utf-8".toMediaType()
-
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /**
@@ -267,10 +241,10 @@ object NanoMuseCloud {
     }
 
     /** Every build may point at another relay now (0.1.38); kept for the callers that asked. */
-    fun canOverrideBase(): Boolean = true
+    fun canOverrideBase(): Boolean = false
 
     /** Asks the relay at [url] for its `/healthz`; the version it reports. Throws [IOException]. */
-    suspend fun checkRelay(url: String): RelayAddress.Health = withContext(Dispatchers.IO) { RelayAddress.check(url) }
+    suspend fun checkRelay(url: String): RelayAddress.Health = io.github.nanomuse.local.LocalOnlyMode.unavailable()
 
     /** The provider instance the relay is signed in as, if it still exists. */
     fun instance(context: Context): ProviderInstance? {
@@ -279,8 +253,7 @@ object NanoMuseCloud {
     }
 
     fun isSignedIn(context: Context): Boolean {
-        val inst = instance(context) ?: return false
-        return !repo(context)?.loadApiKey(inst.id).isNullOrBlank()
+        return false
     }
 
     /**
@@ -305,12 +278,7 @@ object NanoMuseCloud {
      * sentence (`nm_models_cloud_off_refused`); true when the state is as asked.
      */
     fun setModelsOn(context: Context, on: Boolean): Boolean {
-        val inst = instance(context) ?: return false
-        if (inst.isEnabled == on) return true
-        if (!on && !io.github.nanomuse.models.ModelSlots.canLeave(context, inst.id)) return false
-        repo(context)?.updateInstance(inst.copy(isEnabled = on))
-        if (!on) io.github.nanomuse.models.ModelSlots.chatLeaves(context, inst.id)
-        return true
+        return false
     }
 
     private val _signedIn = MutableStateFlow<Boolean?>(null)
@@ -323,8 +291,7 @@ object NanoMuseCloud {
 
     /** The account key this phone signed in with — the hub authenticates with it too. */
     fun apiKey(context: Context): String? {
-        val inst = instance(context) ?: return null
-        return repo(context)?.loadApiKey(inst.id)?.takeIf { it.isNotBlank() }
+        return null
     }
 
     /**
@@ -665,55 +632,17 @@ object NanoMuseCloud {
         }
     }
 
-    /** Re-read the balance. Returns null (and forgets the account) when the key is gone. */
-    suspend fun refresh(context: Context): Account? = withContext(Dispatchers.IO) {
-        val inst = instance(context) ?: return@withContext null
-        val key = repo(context)?.loadApiKey(inst.id) ?: return@withContext null
-        try {
-            val me = call(context, "GET", "/v1/me", null, token = key)
-            io.github.nanomuse.sync.ConversationSync.exclusive {
-                if (apiKey(context) != key) return@exclusive account(context)
-                // 余额请求不得把旧账号身份写回新空间；归属标识变化需重新走登录迁移。
-                val refreshedOwner = io.github.nanomuse.account.AccountScope.key(me.optJSONObject("account")?.optString("id"), key)
-                if (refreshedOwner != io.github.nanomuse.account.AccountData.key(context)) return@exclusive account(context)
-                io.github.nanomuse.account.AccountData.withSessionCreation(context) { saveAccount(context, me) }
-                if (System.currentTimeMillis() - prefs(context).getLong(KEY_MODELS_AT, 0) > MODELS_FRESH_MS) {
-                    runCatching { syncModels(context, key) }
-                }
-                account(context)
-            }
-        } catch (e: CloudException) {
-            if (e.status == 401) {
-                // Revoked elsewhere, or the relay was reset: the provider cannot answer any
-                // more. Nobody on this phone asked, so the account's data is put aside as
-                // *Keep* would and comes back with the next sign-in as the same account
-                // (contract C12). Only `account_deleted` — the account itself is gone at the
-                // relay — leaves nothing to come back to, and the data goes.
-                val keep = io.github.nanomuse.account.AccountScope.keepOnRefusedKey(e.code)
-                if (forgetLocally(context, keep, key)) {
-                    if (keep) prefs(context).edit().putBoolean(KEY_ENDED, true).apply()
-                    null
-                } else account(context)
-            } else {
-                account(context)
-            }
-        }
-    }
+    /** 本地版没有远程余额或账号验证，旧调用直接返回空值。 */
+    suspend fun refresh(context: Context): Account? = null
 
     /**
      * Revoke this phone's key at the relay and take the provider out of the app. The account's
      * chats, memory, feed, goals and face stay on the phone — put aside for its return — only
      * with [keep] (the sign-out sheet's switch, off by default; contract C12).
      */
-    suspend fun signOut(context: Context, keep: Boolean = false) = withContext(Dispatchers.IO) {
-        val repo = repo(context)
-        val inst = instance(context)
-        val key = inst?.let { repo?.loadApiKey(it.id) }
-        if (inst != null && key != null) {
-            runCatching { call(context, "POST", "/v1/auth/sign-out", null, token = key) }
-        }
-        forgetLocally(context, keep, key)
-        Unit
+    suspend fun signOut(context: Context, keep: Boolean = false): Unit = withContext(Dispatchers.IO) {
+        // 本地化不执行旧账号退出，因为旧流程会移动或删除当前资料。
+        io.github.nanomuse.local.LocalOnlyMode.unavailable()
     }
 
     /**
@@ -1113,58 +1042,14 @@ object NanoMuseCloud {
         io.github.nanomuse.sync.ConversationSync.forget(context) // the next account starts with its own ids and cursor
     }
 
-    /**
-     * One request to the relay, suspending until it answers. Cancelling the coroutine cancels
-     * the call ([await]): a sign-in page left while the code is on its way frees the socket
-     * at once (#336). Every suspending caller is on IO already.
-     */
+    /** 所有旧异步请求在构造HTTP请求之前被本地拒绝。 */
     private suspend fun call(context: Context, method: String, path: String, body: JSONObject?, token: String?): JSONObject {
-        return try {
-            http.newCall(request(context, method, path, body, token)).await { read(it) }
-        } catch (e: CloudException) {
-            throw e // A relay error is not a transport failure.
-        } catch (e: IOException) {
-            throw CloudException("unreachable", e.message ?: "unreachable")
-        }
+        io.github.nanomuse.local.LocalOnlyMode.unavailable()
     }
 
-    /** The same request, blocking: for [ProfileSync]'s worker thread, which runs no coroutine. */
+    /** 旧同步资料线程也不保留HTTP调用能力。 */
     private fun callBlocking(context: Context, method: String, path: String, body: JSONObject?, token: String?): JSONObject {
-        val response = try {
-            http.newCall(request(context, method, path, body, token)).execute()
-        } catch (e: IOException) {
-            throw CloudException("unreachable", e.message ?: "unreachable")
-        }
-        return read(response)
+        io.github.nanomuse.local.LocalOnlyMode.unavailable()
     }
 
-    private fun request(context: Context, method: String, path: String, body: JSONObject?, token: String?): Request {
-        val builder = Request.Builder().url(baseUrl(context) + path)
-        if (token != null) builder.header("Authorization", "Bearer $token")
-        builder.header("User-Agent", "nanoMuse-Android/${BuildConfig.VERSION_NAME}")
-        when (method) {
-            "GET" -> builder.get()
-            else -> builder.method(method, (body?.toString() ?: "{}").toRequestBody(json))
-        }
-        return builder.build()
-    }
-
-    /** The relay's reply as JSON, or the [CloudException] its error body describes. */
-    private fun read(response: Response): JSONObject {
-        response.use { r ->
-            val text = r.body?.string().orEmpty()
-            if (r.isSuccessful) {
-                return if (text.isBlank()) JSONObject() else runCatching { JSONObject(text) }.getOrElse { JSONObject() }
-            }
-            val err = runCatching { JSONObject(text).optJSONObject("error") }.getOrNull()
-            throw CloudException(
-                code = err?.optString("code")?.takeIf { it.isNotBlank() } ?: "http_${r.code}",
-                message = err?.optString("message")?.takeIf { it.isNotBlank() } ?: "HTTP ${r.code}",
-                status = r.code,
-                // relay 0.22: when to come back, and whether an operator's switch is the reason
-                retryAfterS = err?.optDouble("retry_after", 0.0)?.takeIf { it > 0 }?.let { kotlin.math.ceil(it).toInt() },
-                paused = err?.optBoolean("paused", false) == true,
-            )
-        }
-    }
 }

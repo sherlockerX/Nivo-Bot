@@ -70,9 +70,10 @@ fun ProviderListScreen(
     onVoiceServiceClick: (String) -> Unit = {},
 ) {
     val config by providerRepository.config.collectAsState()
-    val instances = config.instances
-    val groupedInstances = instances.groupBy { it.providerType }
     val context = LocalContext.current
+    // nanoMuse: 旧云配置保留供恢复，但不再作为可配置供应商展示。
+    val instances = config.instances.filterNot { io.github.nanomuse.local.LocalOnlyMode.isRetiredProvider(context, it) }
+    val groupedInstances = instances.groupBy { it.providerType }
 
     var showMenu by remember { mutableStateOf(false) }
     // [T-android-swipe-row-actions] Pending swipe-delete target. Held here

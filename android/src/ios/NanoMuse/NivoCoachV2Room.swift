@@ -17,24 +17,24 @@ struct NivoCoachV2Room: View {
     @State private var selectedCourse: NivoCoachSheetTarget<NivoCoachCourse>?
     @State private var selectedProfile: NivoCoachSheetTarget<NivoCoachTrack>?
     @State private var selectedDraft: NivoCoachSheetTarget<NivoCoachDraft>?
-    @State private var showsCalendar = false
-    @State private var calendarScope: NivoLifeScope?
+    // 日历sheet携带打开时的账户，内容只读这一个值，避免空白页。
+    @State private var calendarTarget: NivoCoachCalendarTarget?
     @State private var pendingCalendarLesson: NivoCoachSheetTarget<NivoCoachSession>?
     @State private var pendingNavigation: NivoCoachPageNavigation?
     @State private var pendingScope: NivoLifeScope?
 
     var body: some View {
         VStack(spacing: 0) {
-            NanoMuseRoomHeader(chrome: chrome) {
+            // 与Android的CoachHeader一致：紧凑标题栏，点标题回到课程首页，不显示大头像。
+            NivoCompactRoomHeader(title: AppLocalized("Coach"), onMenu: chrome.onMenu, onTitle: { page = "map" }) {
                 ViewThatFits(in: .horizontal) {
-                  HStack(spacing: 8) {
-                    NanoMuseRoundButton(symbol: "map", label: AppLocalized("Coach")) { page = "map" }
-                    NanoMuseRoundButton(symbol: "clock", label: AppLocalized("Lesson archive")) { page = "archive" }
-                    NanoMuseRoundButton(symbol: "checklist", label: AppLocalized("Real-world actions")) { page = "actions" }
-                    NanoMuseRoundButton(symbol: "plus", label: AppLocalized("Build the course with AI"), action: onCreateCourse)
+                  HStack(spacing: 6) {
+                    NanoMuseRoundButton(symbol: "clock", label: AppLocalized("Lesson archive"), size: 40) { page = "archive" }
+                    NanoMuseRoundButton(symbol: "checklist", label: AppLocalized("Real-world actions"), size: 40) { page = "actions" }
+                    NanoMuseRoundButton(symbol: "plus", label: AppLocalized("Build the course with AI"), size: 40, action: onCreateCourse)
                     Menu {
                         additionalPages
-                    } label: { NanoMuseRoundDisc(symbol: "ellipsis") }
+                    } label: { NanoMuseRoundDisc(symbol: "ellipsis", size: 40) }
                         .accessibilityLabel(AppLocalized("More"))
                   }
                   Menu {
@@ -93,20 +93,17 @@ struct NivoCoachV2Room: View {
         }
         .nmOnChange(of: life.accessScope) { _ in
             selectedLesson = nil; selectedCourse = nil; selectedDraft = nil; selectedProfile = nil
-            showsCalendar = false; calendarScope = nil
+            calendarTarget = nil
             pendingCalendarLesson = nil; pendingNavigation = nil; pendingScope = nil
         }
-        .sheet(isPresented: $showsCalendar, onDismiss: {
+        .sheet(item: $calendarTarget, onDismiss: {
             if let target = pendingCalendarLesson, life.accessScope == target.scope { selectedLesson = target }
             pendingCalendarLesson = nil
-            calendarScope = nil
-        }) {
-            if let scope = calendarScope {
-                NivoCoachCalendarView(sessions: coach.state.sessions) { lesson in
-                    guard life.accessScope == scope else { return }
-                    pendingCalendarLesson = NivoCoachSheetTarget(item: lesson, scope: scope)
-                    showsCalendar = false
-                }
+        }) { target in
+            NivoCoachCalendarView(sessions: coach.state.sessions) { lesson in
+                guard life.accessScope == target.scope else { return }
+                pendingCalendarLesson = NivoCoachSheetTarget(item: lesson, scope: target.scope)
+                calendarTarget = nil
             }
         }
         .sheet(item: $selectedDraft, onDismiss: finishNavigation) { target in
@@ -132,7 +129,9 @@ struct NivoCoachV2Room: View {
             })
         }
         .sheet(item: $selectedProfile, onDismiss: finishNavigation) { target in
-            if life.accessScope == target.scope, let track = coach.state.tracks.first(where: { $0.id == target.item.id }) {
+            // 重新加载可能替换这条技能；找不到时沿用打开时的快照，不显示空白页。
+            if life.accessScope == target.scope {
+                let track = coach.state.tracks.first(where: { $0.id == target.item.id }) ?? target.item
                 NivoCoachSkillProfileView(track: track, state: coach.state, onStart: { startToday, minutes, need in
                     queue(.unit(course: track.id, unit: track.currentUnitID, startToday: startToday, minutes: minutes, need: need),
                         scope: target.scope)
@@ -153,7 +152,6 @@ struct NivoCoachV2Room: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(AppLocalized("Coach")).font(.largeTitle.weight(.bold))
             Text(AppLocalized("One ability at a time. Learn the mechanism, practise it, then verify it in a new situation."))
                 .font(.subheadline).foregroundStyle(.secondary)
         }
@@ -161,8 +159,7 @@ struct NivoCoachV2Room: View {
 
     @ViewBuilder private var additionalPages: some View {
         Button(AppLocalized("Training calendar")) {
-            calendarScope = life.accessScope
-            showsCalendar = calendarScope != nil
+            calendarTarget = life.accessScope.map { NivoCoachCalendarTarget(scope: $0) }
         }
         Button(AppLocalized("Courses")) { page = "courses" }
         Button(AppLocalized("Legacy training"), action: onOpenLegacy)
@@ -380,4 +377,10 @@ struct NivoCoachV2Room: View {
 private enum NivoCoachPageNavigation {
     case chat(String, String?), draft(String), review(String), lesson(NivoCoachSession)
     case unit(course: String, unit: String, startToday: Bool, minutes: Int, need: String)
+}
+
+/// 训练日历的一次打开，账户在打开时确定。
+private struct NivoCoachCalendarTarget: Identifiable {
+    let scope: NivoLifeScope
+    let id = UUID()
 }

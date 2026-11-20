@@ -5,6 +5,7 @@ import io.github.nanomuse.coach.CoachTurnAuthorization
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** 宿主从当前循环与界面取得的快照，任何字段都不能由模型参数覆盖。 */
@@ -126,7 +127,7 @@ class TodoToolHost(
             checked { storage.deleteTask(id, expectedRevision, operationId) }
         private suspend fun <T> checked(block: suspend () -> T): T {
             checkAccess()
-            return block().also { checkAccess() }
+            return withContext(TodoMutationAuthorization(checkAccess)) { block() }.also { checkAccess() }
         }
     }
 }

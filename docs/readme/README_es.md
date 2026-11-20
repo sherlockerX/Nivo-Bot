@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.5.md"><img src="https://img.shields.io/badge/release-v2.0.5-blue" alt="Android and iOS v2.0.5"></a>
+  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Sitio web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Problemas</a> · <a href="../../OPEN_SOURCE.md">Contribuir</a>
 </p>
@@ -86,15 +86,17 @@ El aprendizaje, las tareas, la concentración y las notas usan almacenamiento lo
 | Recurso | Enlace |
 |---|---|
 | Sitio del producto | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 o posterior, arm64 | [APK de Nivo Bot v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-arm64.apk) |
+| Android 8.0 o posterior, arm64 | [APK de Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
 | iOS 16 o posterior, requiere firma personal | [IPA sin firmar](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
-| Código fuente correspondiente al APK | [Paquete de código v2.0.5](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-source.zip) |
-| Sumas de verificación | [SHA256SUMS.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS.txt) |
-| Detalles de la versión | [Notas de versión](../releases/v2.0.5.md) · [Comprobaciones de compilación](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Código fuente correspondiente al APK | [Paquete de código v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| Sumas de verificación | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
+| Detalles de la versión | [Notas de versión](../releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Esta versión incluye Android, iOS y el sitio del producto. iOS se entrega como IPA sin firmar mediante GitHub Actions y requiere una firma antes de instalarlo. Este fork no tiene cuenta del Apple Developer Program y no ofrece distribución por TestFlight ni App Store. La concentración forzada, los planes de bloqueo recurrentes y las listas de aplicaciones permitidas son exclusivos de Android; iOS ofrece recordatorios e instrucciones de Acceso guiado, que el usuario inicia y termina en iOS. La compilación en CI no verifica el funcionamiento en un iPhone.
+2.0.7(58) Anchor actualiza solo Android. La descarga de iOS sigue en 2.0.5(56); esta versión no ofrece un IPA 2.0.7. Cambiar la versión compartida del código fuente no publica un nuevo binario de iOS. iOS se entrega como IPA sin firmar mediante GitHub Actions y requiere una firma antes de instalarlo. Este fork no tiene cuenta del Apple Developer Program y no ofrece distribución por TestFlight ni App Store. La concentración forzada, los planes de bloqueo recurrentes y las listas de aplicaciones permitidas son exclusivos de Android; iOS ofrece recordatorios e instrucciones de Acceso guiado, que el usuario inicia y termina en iOS. La compilación en CI no verifica el funcionamiento en un iPhone.
 
-El ID de aplicación sigue siendo `io.github.nanomuse.app`. Normalmente esta versión no puede actualizar instalaciones firmadas con una clave Debug antigua o del proyecto original. Comprueba las copias de seguridad y la restauración antes de desinstalar; consulta la [guía de versiones y firma](../android-development.md#nivo-bot的android版本与签名).
+El ID de aplicación sigue siendo `io.github.nanomuse.app`, con la misma identidad de firma de las versiones oficiales anteriores de Nivo Bot. No se ha probado la actualización sobre una instalación existente en un teléfono Android físico para esta versión. Normalmente esta versión no puede actualizar instalaciones firmadas con una clave Debug antigua o del proyecto original. Comprueba las copias de seguridad y la restauración antes de desinstalar; consulta la [guía de versiones y firma](../android-development.md#nivo-bot的android版本与签名).
+
+El archivo de código de Android se exporta desde el commit fijo utilizado para compilarlo. El catálogo de descargas registra ese commit y la suma de verificación del archivo; usa el código correspondiente a la versión instalada para revisarla o recompilarla.
 
 ## Compilar desde el código fuente
 
