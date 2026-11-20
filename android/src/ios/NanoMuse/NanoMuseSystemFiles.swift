@@ -213,7 +213,7 @@ struct NanoMuseSystemFilesView: View {
                     }
                 }
             } footer: {
-                Text(AppLocalized("These files are the agent's: who it is, what it knows about you, what it remembers, what it writes for you and when it wakes up. They live in your phone's storage; the agent reads and edits them from its shell under /var/minis/memory, and you can edit anything here."))
+                Text(AppLocalized("The agent’s profile, memory and training preferences are editable. HEARTBEAT.md is a read-only summary of scheduled tasks."))
             }
             Section {
                 NavigationLink(AppLocalized("Import memory")) { NanoMuseMemoryImportView() }

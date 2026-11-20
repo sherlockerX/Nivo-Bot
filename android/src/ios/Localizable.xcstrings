@@ -26129,61 +26129,61 @@
         }
       }
     },
-    "These files are the agent's: who it is, what it knows about you, what it remembers, what it writes for you and when it wakes up. They live in your phone's storage; the agent reads and edits them from its shell under /var/minis/memory, and you can edit anything here." : {
+    "The agent’s profile, memory and training preferences are editable. HEARTBEAT.md is a read-only summary of scheduled tasks." : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Dateien gehören dem Agenten: wer er ist, was er über dich weiß, woran er sich erinnert, was er für dich schreibt und wann er aufwacht. Sie liegen im Speicher deines Telefons; der Agent liest und bearbeitet sie aus seiner Shell unter /var/minis/memory, und du kannst hier alles bearbeiten."
+            "value" : "Profil, Erinnerungen und Trainingspräferenzen des Assistenten lassen sich bearbeiten. HEARTBEAT.md ist eine schreibgeschützte Übersicht der geplanten Aufgaben."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "These files are the agent's: who it is, what it knows about you, what it remembers, what it writes for you and when it wakes up. They live in your phone's storage; the agent reads and edits them from its shell under /var/minis/memory, and you can edit anything here."
+            "value" : "The agent’s profile, memory and training preferences are editable. HEARTBEAT.md is a read-only summary of scheduled tasks."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Estos archivos son del agente: quién es, qué sabe de ti, qué recuerda, qué escribe para ti y cuándo se despierta. Viven en el almacenamiento de tu teléfono; el agente los lee y edita desde su shell en /var/minis/memory, y tú puedes editar cualquier cosa aquí."
+            "value" : "Puedes editar el perfil, los recuerdos y las preferencias de entrenamiento del asistente. HEARTBEAT.md muestra un resumen de solo lectura de las tareas programadas."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ces fichiers sont ceux de l’agent : qui il est, ce qu’il sait de vous, ce dont il se souvient, ce qu’il écrit pour vous et quand il se réveille. Ils sont dans le stockage de votre téléphone ; l’agent les lit et les modifie depuis son shell sous /var/minis/memory, et vous pouvez tout modifier ici."
+            "value" : "Vous pouvez modifier le profil, la mémoire et les préférences d’entraînement de l’assistant. HEARTBEAT.md présente un résumé en lecture seule des tâches planifiées."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "これらはエージェントのファイルです: 自分が何者か、あなたについて知っていること、覚えていること、あなたのために書くもの、そしていつ目を覚ますか。端末のストレージにあり、エージェントは自分のシェルから /var/minis/memory 以下を読み書きします。ここで何でも編集できます。"
+            "value" : "アシスタントのプロフィール、記憶、トレーニング設定を編集できます。HEARTBEAT.mdは予定されたタスクをまとめた読み取り専用のファイルです。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 파일들은 에이전트의 것입니다. 에이전트가 누구인지, 나에 대해 무엇을 아는지, 무엇을 기억하는지, 나를 위해 무엇을 쓰는지, 언제 깨어나는지. 휴대전화 저장소에 있으며, 에이전트는 자기 셸의 /var/minis/memory에서 읽고 수정하고, 여기서는 무엇이든 직접 편집할 수 있습니다."
+            "value" : "도우미의 프로필, 기억, 훈련 설정을 편집할 수 있습니다. HEARTBEAT.md는 예약된 작업을 정리한 읽기 전용 파일입니다."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Это файлы агента: кто он, что знает о вас, что помнит, что пишет для вас и когда просыпается. Они лежат в памяти телефона; агент читает и правит их из своей оболочки в /var/minis/memory, а вы можете править всё здесь."
+            "value" : "Профиль, память и настройки тренировок помощника можно редактировать. HEARTBEAT.md содержит сводку запланированных задач и доступен только для чтения."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这些文件属于智能体：它是谁、它对你的了解、它记住的事、它为你写的东西、它什么时候自己醒来。都存在你手机里；智能体在它的 shell 里通过 /var/minis/memory 读写，你也可以在这里直接改。"
+            "value" : "你可以编辑助手的资料、记忆和训练偏好。HEARTBEAT.md是计划任务的只读摘要。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這些文件屬於智慧體：它是誰、它對你的了解、它記住的事、它為你寫的東西、它什麼時候自己醒來。都存在你手機裡；智慧體在它的 shell 裡通過 /var/minis/memory 讀寫，你也可以在這裡直接改。"
+            "value" : "你可以編輯助理的資料、記憶和訓練偏好。HEARTBEAT.md是排程工作的唯讀摘要。"
           }
         }
       }
