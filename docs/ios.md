@@ -34,6 +34,10 @@ iOS version, the executable's architectures, confirmed unsigned status, and the 
 and size in bytes. The app is copied before test embedding and the package excludes `.xctest`
 bundles. Artifact upload precedes application-test compilation, so confirm that the complete
 workflow passed before publishing it. Personal signing is still required for installation.
+Only the subsequent test compilation enables `ENABLE_TESTABILITY`; the preserved distribution
+app retains ordinary Release settings. Three badge-injection tests require Debug-only helpers
+and compile only in Debug. The other badge tests still compile in Release. Application tests
+are compiled, not executed, by this workflow.
 
 ## Sideloaded storage
 

@@ -63,6 +63,8 @@ final class SessionBadgeFreshnessTests: XCTestCase {
 
     // MARK: - Repair of already-polluted installs
 
+    // nanoMuse: 这两项依赖仅Debug编译的状态注入，Release保留生产路径测试。
+    #if DEBUG
     /// Existing installs carry stamps that earlier builds wrote as "now" for
     /// long-stale pauses. Fixing the writers alone leaves those on disk, which
     /// is why the user still saw the badge after the first fix — the repair has
@@ -98,6 +100,7 @@ final class SessionBadgeFreshnessTests: XCTestCase {
             store.freshCornerBadgeSessionIds(within: day).contains(id),
             "Repair wrongly aged out a badge whose stamp already matched its tail")
     }
+    #endif
 
     /// Idempotence: reconcile runs on every foreground, so a second pass over
     /// already-correct data must not drift the stamp forward. A regression here
@@ -120,6 +123,8 @@ final class SessionBadgeFreshnessTests: XCTestCase {
 
     // MARK: - pushFront restamp semantics (the first fix, kept honest)
 
+    // nanoMuse: 测试注入入口不能为了Release测试编译而进入正式应用。
+    #if DEBUG
     /// A real new interruption restarts the window even when the badge is
     /// already present; a mere re-detection must not.
     func testPushFrontRestampSemantics() {
@@ -144,4 +149,5 @@ final class SessionBadgeFreshnessTests: XCTestCase {
             store.freshCornerBadgeSessionIds(within: day).contains(reinterrupted),
             "A real new interruption failed to restart the freshness window")
     }
+    #endif
 }

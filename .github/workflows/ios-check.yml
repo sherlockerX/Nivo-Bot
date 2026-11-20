@@ -277,6 +277,7 @@ jobs:
             -project Minis.xcodeproj -scheme Minis -configuration "$IOS_CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
+            ENABLE_TESTABILITY=YES \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
             -skipPackagePluginValidation -skipMacroValidation \
             2>&1 | tee build/xcodebuild-tests.log | grep -E "error:|/NanoMuse/.*warning:|BUILD|Compiling|Linking" || true
