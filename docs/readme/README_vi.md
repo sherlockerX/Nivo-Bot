@@ -87,12 +87,14 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
 | Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16 trở lên, cần tự ký | [IPA chưa ký](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.5-unsigned.ipa) |
+| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
 | Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
+| Mã nguồn tương ứng với IPA iOS | [Gói mã nguồn iOS v2.0.8](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
 | Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| Thông tin bản phát hành | [Ghi chú phát hành](../releases/v2.0.7.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Mã kiểm tra tải xuống iOS | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
+| Thông tin bản phát hành | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-2.0.7(58) Anchor chỉ cập nhật Android. Bản tải xuống cho iOS vẫn là 2.0.5(56); đợt phát hành này không có IPA 2.0.7. Việc đổi phiên bản mã nguồn chung không đồng nghĩa với phát hành tệp nhị phân iOS mới. iOS được cung cấp dưới dạng IPA chưa ký từ GitHub Actions và cần được ký trước khi cài đặt. Fork này chưa có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
+iOS2.0.8(59) Clarity đang được chuẩn bị dưới dạng IPA chưa ký với cấu hình Release; CI phát hành và kiểm tra tệp vẫn chưa được thực hiện. Android giữ bản 2.0.7(58), cùng APK, gói mã nguồn, mã kiểm tra và danh tính chữ ký. Người dùng xác nhận không gặp vấn đề khi kiểm tra nhánh kiểm tra trên iPhone; phản hồi này không xác nhận tệp nhị phân Release 2.0.8 mới. Các liên kết iOS ở trên là địa chỉ đã chuẩn bị để công bố. Cần tự ký trước khi cài đặt. Fork này không có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
 
 ID ứng dụng vẫn là `io.github.nanomuse.app`, với cùng danh tính chữ ký như các bản phát hành chính thức trước của Nivo Bot. Bản này chưa được kiểm thử cập nhật đè lên bản đã cài trên điện thoại Android thật. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
 

@@ -2,7 +2,16 @@
 
 Nivo Bot是基于nanoMuse与OpenMinis持续开发的Android与iOS应用。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。根README与九份翻译介绍本分支，文末致谢nanoMuse并保留上游贡献者名单。上游的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
 
-2.0.5(56)包含Android安装包、iOS源码及通过GitHub Actions构建的未签名IPA。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发；iOS安装前需要自行签名。CI测试与编译结果仅适用于对应提交，不能替代iPhone真机验收。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在系统中手动开启和结束。
+本轮准备发布iOS2.0.8(59)Clarity，采用Release配置构建未签名IPA。发行CI、确切产物校验及新Release安装包的手机验收尚待完成；用户已确认检查分支在iPhone上使用没有问题，该反馈对应之前的检查包。Android继续提供2.0.7(58)，原APK、源码包、校验和、包名及签名身份保持不变，不能把共享源码版本当作Android新包版本。
+
+本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发；Release配置不带来Apple签名，iOS安装前仍需自行签名。CI测试与编译结果仅适用于对应提交和构建配置，不能替代iPhone真机验收。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在系统中手动开启和结束。
+
+|平台|安装包|对应源码|校验文件|
+|---|---|---|---|
+|Android2.0.7(58)，保留原文件|[APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip)|[SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt)|
+|iOS2.0.8(59)，预备发布地址|[未签名ReleaseIPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip)|[SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt)|
+
+构建来源、验证状态和限制见[2.0.8发行说明](docs/releases/v2.0.8.md)；Android历史身份与证据见[2.0.7发行说明](docs/releases/v2.0.7.md)。iOS源码清单须记录实际构建提交与依赖覆盖范围，不能用新源码覆盖旧Android包的来源记录。
 
 - 产品网站源码：[site/](site/README.md)。纯静态、无需Node依赖，可部署到GitHub Pages或其他静态主机。
 - Android构建：[docs/android-development.md](docs/android-development.md)。
