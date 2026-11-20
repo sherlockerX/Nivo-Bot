@@ -53,15 +53,9 @@ enum NanoMuseSystemFile: String, CaseIterable, Identifiable {
     func read() throws -> String {
         switch self {
         case .heartbeat: return NanoMuseSystemFiles.renderHeartbeat()
-        case .feed: return NanoMuseFeedStore.shared.preferences
-        default: return try Self.readIfPresent(url)
+        case .feed: return try NanoMuseFeedStore.shared.readPreferences()
+        default: return try NivoEditableText.readIfPresent(url)
         }
-    }
-
-    /// 未创建的文件可从空白开始；读取失败时不能拿空白覆盖原内容。
-    fileprivate static func readIfPresent(_ url: URL) throws -> String {
-        do { return try String(contentsOf: url, encoding: .utf8) }
-        catch let error as CocoaError where error.code == .fileReadNoSuchFile { return "" }
     }
 
     @MainActor
@@ -167,7 +161,7 @@ enum NanoMuseSystemFiles {
         let file = NanoMuseSystemFile.memory.url
         let date = Date().formatted(date: .abbreviated, time: .omitted)
         do {
-            let existing = try NanoMuseSystemFile.readIfPresent(file)
+            let existing = try NivoEditableText.readIfPresent(file)
             guard let updated = appendImported(to: existing, pasted: pasted, from: from, heading: "## " + AppLocalized("Imported"), date: date) else { return false }
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             try updated.write(to: file, atomically: true, encoding: .utf8)

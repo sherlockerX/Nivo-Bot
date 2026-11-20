@@ -7,7 +7,7 @@ import PackageDescription
 let coreSources = [
     "NivoConfigPath.swift", "NivoConfigCLIArguments.swift", "NivoCLIEntryArguments.swift", "NivoModelUseDiagnostics.swift",
     "NivoSessionResponse.swift", "NivoConfigCLIResponse.swift",
-    "NivoMosaicEditorLifecycle.swift",
+    "NivoMosaicEditorLifecycle.swift", "NivoEditableText.swift",
     "NivoPostRecoveryStartup.swift",
     "NivoLegacyStorageMigration.swift",
     "NivoFirstRunPolicy.swift",
@@ -77,7 +77,7 @@ let coreSources = [
 let coreTests = [
     "NivoConfigPathTests.swift", "NivoConfigCLIArgumentsTests.swift", "NivoCLIEntryArgumentsTests.swift", "NivoModelUseDiagnosticsTests.swift",
     "NivoSessionResponseTests.swift", "NivoConfigCLIResponseTests.swift", "NivoJigsawProtocolTests.swift", "NivoPersonalRecordsRecoveryTests.swift",
-    "NivoMosaicEditorLifecycleTests.swift",
+    "NivoMosaicEditorLifecycleTests.swift", "NivoEditableTextTests.swift",
     "NivoPostRecoveryStartupTests.swift",
     "NivoLegacyStorageMigrationTests.swift",
     "NivoFirstRunPolicyTests.swift",

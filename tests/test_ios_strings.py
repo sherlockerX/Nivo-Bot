@@ -144,3 +144,22 @@ def test_marked_spots_take_the_block_under_the_comment_and_nothing_else() -> Non
         _keys_in('AppLocalized("a\\"b")') == {'a"b'}
         and _keys_in('AppLocalized("x \\(y)")') == set()
     )
+
+
+def test_production_app_localized_literals_have_simplified_chinese() -> None:
+    """正式界面中的固定键和备份菜单必须能在简体中文环境中显示译文。"""
+    excluded = {"Vendor", "MinisTests", "MinisUITests", "Debug", "Preview Content", ".build", "build"}
+    keys = {"Share…", "Save to Files…", "Reset Progress", "Keep Current Progress"}
+    for path in IOS.rglob("*.swift"):
+        if excluded.isdisjoint(path.relative_to(IOS).parts):
+            keys.update(_keys_in(path.read_text(encoding="utf-8")))
+    catalogue = json.loads((IOS / "Localizable.xcstrings").read_text(encoding="utf-8"))["strings"]
+    missing = []
+    for key in sorted(keys):
+        entry = catalogue.get(key, {})
+        if entry.get("shouldTranslate") is False or not key.strip():
+            continue
+        translation = entry.get("localizations", {}).get("zh-Hans", {})
+        if not (translation.get("stringUnit", {}).get("value") or translation.get("variations")):
+            missing.append(key)
+    assert not missing, f"Missing Simplified Chinese for {len(missing)} UI strings: {missing}"

@@ -1,18 +1,121 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Model unknown — the session record was deleted" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modell unbekannt: Der Chatverlauf wurde gelöscht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model unknown — the session record was deleted"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelo desconocido: se eliminó el registro del chat."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modèle inconnu : l’historique de la conversation a été supprimé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデル不明：会話の記録が削除されています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델을 알 수 없음: 대화 기록이 삭제되었습니다"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Модель неизвестна: запись чата удалена."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型未知：这条对话记录已删除"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型未知：這筆對話記錄已刪除"
+          }
+        }
+      }
+    },
     "nivo.providers.save.failed" : {
       "extractionState" : "manual",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "Die Anbietereinstellungen konnten nicht gespeichert werden. Behalte deine Eingaben und versuche es erneut. Diagnosecode: %@." } },
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Provider settings could not be saved. Keep your input and try again. Diagnostic code: %@." } },
-        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se pudieron guardar los ajustes del proveedor. Conserva los datos introducidos e inténtalo de nuevo. Código de diagnóstico: %@." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Les paramètres du fournisseur n’ont pas pu être enregistrés. Conservez votre saisie et réessayez. Code de diagnostic : %@." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロバイダー設定を保存できませんでした。入力内容を保持して、もう一度お試しください。診断コード：%@。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "공급자 설정을 저장하지 못했습니다. 입력 내용을 유지하고 다시 시도하세요. 진단 코드: %@." } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось сохранить настройки провайдера. Сохраните введённые данные и повторите попытку. Код диагностики: %@." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "供应商设置未能保存。请保留当前输入后重试。诊断代码：%@。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "供應商設定未能儲存。請保留目前輸入後重試。診斷代碼：%@。" } }
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Anbietereinstellungen konnten nicht gespeichert werden. Behalte deine Eingaben und versuche es erneut. Diagnosecode: %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Provider settings could not be saved. Keep your input and try again. Diagnostic code: %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron guardar los ajustes del proveedor. Conserva los datos introducidos e inténtalo de nuevo. Código de diagnóstico: %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les paramètres du fournisseur n’ont pas pu être enregistrés. Conservez votre saisie et réessayez. Code de diagnostic : %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロバイダー設定を保存できませんでした。入力内容を保持して、もう一度お試しください。診断コード：%@。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공급자 설정을 저장하지 못했습니다. 입력 내용을 유지하고 다시 시도하세요. 진단 코드: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить настройки провайдера. Сохраните введённые данные и повторите попытку. Код диагностики: %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供应商设置未能保存。请保留当前输入后重试。诊断代码：%@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供應商設定未能儲存。請保留目前輸入後重試。診斷代碼：%@。"
+          }
+        }
       }
     },
     "I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose." : {
@@ -192,710 +295,826 @@
         }
       }
     },
-    "nivo.local.cloud_removed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Built-in cloud accounts and sync have been removed. Your records stay on this device. Add your own model provider in Settings."
+    "nivo.local.cloud_removed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in cloud accounts and sync have been removed. Your records stay on this device. Add your own model provider in Settings."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "内置云账号和同步功能已移除。记录保存在本机，请在设置中添加自己的模型提供商。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置云账号和同步功能已移除。记录保存在本机，请在设置中添加自己的模型提供商。"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "內建雲端帳號和同步功能已移除。記錄儲存在本機，請在設定中加入自己的模型供應商。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內建雲端帳號和同步功能已移除。記錄儲存在本機，請在設定中加入自己的模型供應商。"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Integrierte Cloud-Konten und die Synchronisierung wurden entfernt. Ihre Daten bleiben auf diesem Gerät. Fügen Sie in den Einstellungen Ihren eigenen Modellanbieter hinzu."
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Integrierte Cloud-Konten und die Synchronisierung wurden entfernt. Ihre Daten bleiben auf diesem Gerät. Fügen Sie in den Einstellungen Ihren eigenen Modellanbieter hinzu."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se han eliminado las cuentas en la nube y la sincronización integradas. Tus registros permanecen en este dispositivo. Añade tu proveedor de modelos en Ajustes."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se han eliminado las cuentas en la nube y la sincronización integradas. Tus registros permanecen en este dispositivo. Añade tu proveedor de modelos en Ajustes."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les comptes cloud et la synchronisation intégrés ont été supprimés. Vos données restent sur cet appareil. Ajoutez votre fournisseur de modèles dans les réglages."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les comptes cloud et la synchronisation intégrés ont été supprimés. Vos données restent sur cet appareil. Ajoutez votre fournisseur de modèles dans les réglages."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "内蔵のクラウドアカウントと同期機能は削除されました。記録はこのデバイスに保存されます。設定でモデルプロバイダーを追加してください。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内蔵のクラウドアカウントと同期機能は削除されました。記録はこのデバイスに保存されます。設定でモデルプロバイダーを追加してください。"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "내장 클라우드 계정과 동기화 기능이 제거되었습니다. 기록은 이 기기에 보관됩니다. 설정에서 사용할 모델 제공업체를 추가하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내장 클라우드 계정과 동기화 기능이 제거되었습니다. 기록은 이 기기에 보관됩니다. 설정에서 사용할 모델 제공업체를 추가하세요."
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Встроенные облачные аккаунты и синхронизация удалены. Записи остаются на этом устройстве. Добавьте своего поставщика моделей в настройках."
-          }
-        }
-      }
-    },
-    "Recent focus records": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recent focus records"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Letzte Fokuszeiten"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sesiones de concentración recientes"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Séances de concentration récentes"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近の集中記録"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "최근 집중 기록"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Недавние сеансы концентрации"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近专注记录"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最近專注記錄"
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Встроенные облачные аккаунты и синхронизация удалены. Записи остаются на этом устройстве. Добавьте своего поставщика моделей в настройках."
           }
         }
       }
     },
-    "Reflect on this session. Its focus time and linked task are included automatically.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reflect on this session. Its focus time and linked task are included automatically."
+    "No longer in your configured providers" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht mehr bei den eingerichteten Anbietern"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Halte deine Gedanken zu dieser Sitzung fest. Fokuszeit und verknüpfte Aufgabe werden automatisch übernommen."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No longer in your configured providers"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reflexiona sobre esta sesión. El tiempo de concentración y la tarea vinculada se incluyen automáticamente."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya no figura entre tus proveedores configurados"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Notez vos réflexions sur cette séance. Le temps de concentration et la tâche liée sont ajoutés automatiquement."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne figure plus parmi vos fournisseurs configurés"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今回の集中を振り返りましょう。集中時間と関連付けたタスクは自動で引き継がれます。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定済みのプロバイダーにはありません"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이번 집중 시간을 돌아보세요. 집중 시간과 연결된 할 일이 자동으로 포함됩니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정한 공급자에 더 이상 없습니다"
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Запишите мысли об этом сеансе. Время концентрации и связанная задача добавятся автоматически."
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Больше не входит в список настроенных поставщиков"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记录本次专注的心得，专注时段和关联任务会自动带入。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已不在你配置的供应商中"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記錄本次專注的心得，專注時段和關聯任務會自動帶入。"
-          }
-        }
-      }
-    },
-    "Record reflection": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Record reflection"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reflexion festhalten"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Registrar reflexión"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Noter une réflexion"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "振り返りを記録"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "회고 기록"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Записать размышления"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "记录心得"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記錄心得"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已不在你設定的供應商中"
           }
         }
       }
     },
-    "Reflection": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reflection"
+    "Recent focus records" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent focus records"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reflexion"
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte Fokuszeiten"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reflexión"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesiones de concentración recientes"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réflexion"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Séances de concentration récentes"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "振り返り"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近の集中記録"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "회고"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 집중 기록"
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Размышления"
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недавние сеансы концентрации"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "心得"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近专注记录"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "心得"
-          }
-        }
-      }
-    },
-    "What did you notice or learn?": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What did you notice or learn?"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Was ist dir aufgefallen oder was hast du gelernt?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Qué observaste o aprendiste?"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Qu’avez-vous remarqué ou appris ?"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "どんな気づきや学びがありましたか？"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "무엇을 느끼거나 배웠나요?"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Что вы заметили или узнали?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有什么发现或收获？"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "有什麼發現或收穫？"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近專注記錄"
           }
         }
       }
     },
-    "Linked tasks keep their current status when you save this reflection.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Linked tasks keep their current status when you save this reflection."
+    "Reflect on this session. Its focus time and linked task are included automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflect on this session. Its focus time and linked task are included automatically."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beim Speichern dieser Reflexion behalten verknüpfte Aufgaben ihren aktuellen Status."
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte deine Gedanken zu dieser Sitzung fest. Fokuszeit und verknüpfte Aufgabe werden automatisch übernommen."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las tareas vinculadas conservan su estado actual al guardar esta reflexión."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflexiona sobre esta sesión. El tiempo de concentración y la tarea vinculada se incluyen automáticamente."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les tâches liées conservent leur état actuel lorsque vous enregistrez cette réflexion."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notez vos réflexions sur cette séance. Le temps de concentration et la tâche liée sont ajoutés automatiquement."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この振り返りを保存しても、関連付けたタスクの現在の状態は変わりません。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回の集中を振り返りましょう。集中時間と関連付けたタスクは自動で引き継がれます。"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 회고를 저장해도 연결된 할 일의 현재 상태는 바뀌지 않습니다."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이번 집중 시간을 돌아보세요. 집중 시간과 연결된 할 일이 자동으로 포함됩니다."
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "При сохранении этих размышлений связанные задачи сохранят текущий статус."
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запишите мысли об этом сеансе. Время концентрации и связанная задача добавятся автоматически."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存心得时，关联待办保持当前状态。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录本次专注的心得，专注时段和关联任务会自动带入。"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存心得時，關聯待辦保持目前狀態。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記錄本次專注的心得，專注時段和關聯任務會自動帶入。"
           }
         }
       }
     },
-    "nivo.providers.credentials.preserved": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Credentials changed during cleanup and were kept. The earlier cleanup request has finished."
+    "Record reflection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record reflection"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清理期间凭证已变更，已保留当前凭证。原清理请求已结束。"
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflexion festhalten"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清理期間憑證已變更，已保留目前憑證。原清理要求已結束。"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registrar reflexión"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Zugangsdaten wurden während der Bereinigung geändert und beibehalten. Der frühere Bereinigungsauftrag ist abgeschlossen."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noter une réflexion"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las credenciales cambiaron durante la limpieza y se conservaron. La solicitud de limpieza anterior ha finalizado."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "振り返りを記録"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les identifiants ont changé pendant le nettoyage et ont été conservés. La demande de nettoyage précédente est terminée."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "회고 기록"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クリーンアップ中に認証情報が変更されたため、現在の情報を保持しました。以前のクリーンアップ要求は終了しました。"
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать размышления"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "정리 중 인증 정보가 변경되어 현재 정보를 유지했습니다. 이전 정리 요청은 종료되었습니다."
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录心得"
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Учётные данные изменились во время очистки и были сохранены. Предыдущий запрос на очистку завершён."
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記錄心得"
           }
         }
       }
     },
-    "nivo.providers.migration.running": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bisherige Anbietereinstellungen werden wiederhergestellt…"
+    "Reflection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflection"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoring previous provider settings…"
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflexion"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restaurando la configuración anterior de proveedores…"
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reflexión"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restauration des anciens réglages des fournisseurs…"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réflexion"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以前のプロバイダー設定を復元しています…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "振り返り"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이전 제공업체 설정 복원 중…"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "회고"
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление прежних настроек провайдеров…"
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размышления"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在恢复旧提供商设置…"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心得"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在恢復舊供應商設定…"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心得"
           }
         }
       }
     },
-    "nivo.providers.migration.retry": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die bisherigen Anbietereinstellungen konnten nicht wiederhergestellt werden. Gespeicherte Einstellungen bleiben erhalten. Entsperre das Gerät und versuche es erneut."
+    "Use a Kimi Coding API key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verwende einen API-Schlüssel von Kimi Coding."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Previous provider settings could not be restored. Your saved settings are retained. Unlock the device, then retry."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use a Kimi Coding API key."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudo restaurar la configuración anterior. Se conserva la configuración guardada. Desbloquea el dispositivo y vuelve a intentarlo."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa una clave API de Kimi Coding."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les anciens réglages n’ont pas pu être restaurés. Les réglages enregistrés sont conservés. Déverrouillez l’appareil puis réessayez."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez une clé API de Kimi Coding."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以前の設定を復元できませんでした。保存済みの設定は保持されています。端末のロックを解除して再試行してください。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi CodingのAPIキーを使用してください。"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이전 설정을 복원하지 못했습니다. 저장된 설정은 유지됩니다. 기기의 잠금을 해제한 후 다시 시도하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Coding API 키를 사용하세요."
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось восстановить прежние настройки. Сохранённые настройки не удалены. Разблокируйте устройство и повторите попытку."
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Используйте ключ API Kimi Coding."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旧提供商设置尚未恢复完成，已保存的设置会保留。请解锁设备后重试。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用Kimi Coding的API密钥。"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "舊供應商設定尚未恢復完成，已儲存的設定會保留。請解鎖裝置後重試。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請使用Kimi Coding的API金鑰。"
           }
         }
       }
     },
-    "nivo.providers.migration.conflict": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bisherige und aktuelle Anmeldedaten unterscheiden sich. Beide bleiben erhalten. Prüfe den betroffenen Anbieter, bevor du es erneut versuchst."
+    "What did you notice or learn?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What did you notice or learn?"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Previous and current sign-in details differ. Both are retained. Review the affected provider before retrying."
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was ist dir aufgefallen oder was hast du gelernt?"
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los datos de acceso anteriores y actuales son distintos. Se conservan ambos. Revisa el proveedor afectado antes de reintentarlo."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Qué observaste o aprendiste?"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les anciens identifiants diffèrent des identifiants actuels. Les deux sont conservés. Vérifiez le fournisseur concerné avant de réessayer."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qu’avez-vous remarqué ou appris ?"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "以前のログイン情報と現在の認証情報が異なります。両方を保持しています。該当プロバイダーを確認してから再試行してください。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どんな気づきや学びがありましたか？"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이전 로그인 정보와 현재 인증 정보가 다릅니다. 두 정보 모두 유지됩니다. 해당 제공업체를 확인한 후 다시 시도하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무엇을 느끼거나 배웠나요?"
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прежние и текущие данные входа различаются. Обе версии сохранены. Проверьте соответствующего провайдера перед повторной попыткой."
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что вы заметили или узнали?"
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "旧登录信息与当前凭证不一致，两份信息均已保留。请检查对应提供商后重试。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有什么发现或收获？"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "舊登入資訊與目前憑證不一致，兩份資訊均已保留。請檢查對應供應商後重試。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有什麼發現或收穫？"
           }
         }
       }
     },
-    "nivo.providers.credential.save_failed": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Anmeldedaten konnten nicht gespeichert werden. Entsperre das Gerät und versuche es erneut."
+    "Linked tasks keep their current status when you save this reflection." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked tasks keep their current status when you save this reflection."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in details could not be saved. Unlock the device and retry."
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Speichern dieser Reflexion behalten verknüpfte Aufgaben ihren aktuellen Status."
           }
         },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudieron guardar los datos de acceso. Desbloquea el dispositivo y vuelve a intentarlo."
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las tareas vinculadas conservan su estado actual al guardar esta reflexión."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les identifiants n’ont pas pu être enregistrés. Déverrouillez l’appareil puis réessayez."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les tâches liées conservent leur état actuel lorsque vous enregistrez cette réflexion."
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ログイン情報を保存できませんでした。端末のロックを解除して再試行してください。"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この振り返りを保存しても、関連付けたタスクの現在の状態は変わりません。"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "로그인 정보를 저장하지 못했습니다. 기기의 잠금을 해제한 후 다시 시도하세요."
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 회고를 저장해도 연결된 할 일의 현재 상태는 바뀌지 않습니다."
           }
         },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось сохранить данные входа. Разблокируйте устройство и повторите попытку."
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При сохранении этих размышлений связанные задачи сохранят текущий статус."
           }
         },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登录信息未能保存，请解锁设备后重试。"
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存心得时，关联待办保持当前状态。"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登入資訊未能儲存，請解鎖裝置後重試。"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存心得時，關聯待辦保持目前狀態。"
+          }
+        }
+      }
+    },
+    "nivo.providers.credentials.preserved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Credentials changed during cleanup and were kept. The earlier cleanup request has finished."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理期间凭证已变更，已保留当前凭证。原清理请求已结束。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理期間憑證已變更，已保留目前憑證。原清理要求已結束。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Zugangsdaten wurden während der Bereinigung geändert und beibehalten. Der frühere Bereinigungsauftrag ist abgeschlossen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las credenciales cambiaron durante la limpieza y se conservaron. La solicitud de limpieza anterior ha finalizado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les identifiants ont changé pendant le nettoyage et ont été conservés. La demande de nettoyage précédente est terminée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリーンアップ中に認証情報が変更されたため、現在の情報を保持しました。以前のクリーンアップ要求は終了しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "정리 중 인증 정보가 변경되어 현재 정보를 유지했습니다. 이전 정리 요청은 종료되었습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Учётные данные изменились во время очистки и были сохранены. Предыдущий запрос на очистку завершён."
+          }
+        }
+      }
+    },
+    "nivo.providers.migration.running" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bisherige Anbietereinstellungen werden wiederhergestellt…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restoring previous provider settings…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurando la configuración anterior de proveedores…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restauration des anciens réglages des fournisseurs…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のプロバイダー設定を復元しています…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 제공업체 설정 복원 중…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Восстановление прежних настроек провайдеров…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在恢复旧提供商设置…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在恢復舊供應商設定…"
+          }
+        }
+      }
+    },
+    "nivo.providers.migration.retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die bisherigen Anbietereinstellungen konnten nicht wiederhergestellt werden. Gespeicherte Einstellungen bleiben erhalten. Entsperre das Gerät und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous provider settings could not be restored. Your saved settings are retained. Unlock the device, then retry."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo restaurar la configuración anterior. Se conserva la configuración guardada. Desbloquea el dispositivo y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les anciens réglages n’ont pas pu être restaurés. Les réglages enregistrés sont conservés. Déverrouillez l’appareil puis réessayez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前の設定を復元できませんでした。保存済みの設定は保持されています。端末のロックを解除して再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 설정을 복원하지 못했습니다. 저장된 설정은 유지됩니다. 기기의 잠금을 해제한 후 다시 시도하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось восстановить прежние настройки. Сохранённые настройки не удалены. Разблокируйте устройство и повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旧提供商设置尚未恢复完成，已保存的设置会保留。请解锁设备后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "舊供應商設定尚未恢復完成，已儲存的設定會保留。請解鎖裝置後重試。"
+          }
+        }
+      }
+    },
+    "nivo.providers.migration.conflict" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bisherige und aktuelle Anmeldedaten unterscheiden sich. Beide bleiben erhalten. Prüfe den betroffenen Anbieter, bevor du es erneut versuchst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous and current sign-in details differ. Both are retained. Review the affected provider before retrying."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los datos de acceso anteriores y actuales son distintos. Se conservan ambos. Revisa el proveedor afectado antes de reintentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les anciens identifiants diffèrent des identifiants actuels. Les deux sont conservés. Vérifiez le fournisseur concerné avant de réessayer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のログイン情報と現在の認証情報が異なります。両方を保持しています。該当プロバイダーを確認してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 로그인 정보와 현재 인증 정보가 다릅니다. 두 정보 모두 유지됩니다. 해당 제공업체를 확인한 후 다시 시도하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прежние и текущие данные входа различаются. Обе версии сохранены. Проверьте соответствующего провайдера перед повторной попыткой."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旧登录信息与当前凭证不一致，两份信息均已保留。请检查对应提供商后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "舊登入資訊與目前憑證不一致，兩份資訊均已保留。請檢查對應供應商後重試。"
+          }
+        }
+      }
+    },
+    "nivo.providers.credential.save_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Anmeldedaten konnten nicht gespeichert werden. Entsperre das Gerät und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in details could not be saved. Unlock the device and retry."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron guardar los datos de acceso. Desbloquea el dispositivo y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les identifiants n’ont pas pu être enregistrés. Déverrouillez l’appareil puis réessayez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログイン情報を保存できませんでした。端末のロックを解除して再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인 정보를 저장하지 못했습니다. 기기의 잠금을 해제한 후 다시 시도하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить данные входа. Разблокируйте устройство и повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录信息未能保存，请解锁设备后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入資訊未能儲存，請解鎖裝置後重試。"
           }
         }
       }
@@ -31145,12 +31364,42 @@
     "%lld min" : {
       "extractionState" : "manual",
       "localizations" : {
-        "de" : { "stringUnit" : { "state" : "translated", "value" : "%lld Min." } },
-        "fr" : { "stringUnit" : { "state" : "translated", "value" : "%lld min" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld分" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld분" } },
-        "ru" : { "stringUnit" : { "state" : "translated", "value" : "%lld мин" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld分鐘" } },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Min."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld分"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld분"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld мин"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld分鐘"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -33007,10 +33256,58 @@
     },
     "1. Open the verification page\n2. Enter this code to authorize nanoMuse" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Prüfseite öffnen\n2. Diesen Code eingeben, um Nivo Bot zu autorisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Open the verification page\n2. Enter this code to authorize Nivo Bot"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Abre la página de verificación\n2. Introduce este código para autorizar nanoMuse"
+            "value" : "1. Abre la página de verificación\n2. Introduce este código para autorizar a Nivo Bot"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Ouvrez la page de vérification\n2. Saisissez ce code pour autoriser Nivo Bot"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 確認ページを開く\n2. このコードを入力してNivo Botを許可する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 인증 페이지 열기\n2. 이 코드를 입력해 Nivo Bot 승인하기"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. Откройте страницу проверки\n2. Введите этот код, чтобы предоставить доступ Nivo Bot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 打开验证页面\n2. 输入此代码以授权Nivo Bot"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1. 開啟驗證頁面\n2. 輸入此代碼以授權Nivo Bot"
           }
         }
       }
@@ -36504,10 +36801,58 @@
     "Alibaba Bailian" : {
       "comment" : "Voice provider name",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alibaba Bailian"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alibaba Bailian"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Alibaba Bailian"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alibaba Bailian"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alibaba Bailian"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alibaba Bailian"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alibaba Bailian"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阿里云百炼"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阿里雲百煉"
           }
         }
       }
@@ -38875,10 +39220,58 @@
     },
     "Arguments truncated in transit — result may be incomplete" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parameter bei der Übertragung gekürzt. Das Ergebnis ist möglicherweise unvollständig."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arguments truncated in transit — result may be incomplete"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Los argumentos se truncaron en tránsito; el resultado puede estar incompleto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les paramètres ont été tronqués en transit. Le résultat peut être incomplet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "転送中に引数が切り詰められたため、結果が不完全な可能性があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전송 중 인수가 잘려 결과가 불완전할 수 있습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Аргументы были обрезаны при передаче. Результат может быть неполным."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "参数在传输时被截断，结果可能不完整"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "參數在傳輸時遭截斷，結果可能不完整"
           }
         }
       }
@@ -39755,30 +40148,174 @@
     },
     "Authorization" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisierung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorization"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Autorización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Авторизация"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授权"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授權"
           }
         }
       }
     },
     "Authorization Endpoint (https://…/authorize)" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisierungsendpunkt (https://…/authorize)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorization Endpoint (https://…/authorize)"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endpoint de autorización (https://…/authorize)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Point de terminaison d’autorisation (https://…/authorize)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可エンドポイント（https://…/authorize）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인 엔드포인트(https://…/authorize)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Адрес авторизации (https://…/authorize)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授权端点（https://…/authorize）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授權端點（https://…/authorize）"
           }
         }
       }
     },
     "Authorization Endpoint must be a valid https URL." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Autorisierungsendpunkt muss eine gültige HTTPS-URL sein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorization Endpoint must be a valid https URL."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El endpoint de autorización debe ser una URL https válida."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’adresse d’autorisation doit être une URL HTTPS valide."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可エンドポイントには有効なHTTPSのURLを指定してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인 엔드포인트에는 유효한 HTTPS URL이 필요합니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Адрес авторизации должен быть действительным HTTPS URL."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授权端点必须是有效的HTTPS网址。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授權端點必須是有效的HTTPS網址。"
           }
         }
       }
@@ -39795,20 +40332,116 @@
     },
     "Authorization was cancelled." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Autorisierung wurde abgebrochen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorization was cancelled."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Se canceló la autorización."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’autorisation a été annulée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可をキャンセルしました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인이 취소되었습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Авторизация отменена."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消授权。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消授權。"
           }
         }
       }
     },
     "Authorize…" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisieren…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authorize…"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Autorizar…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Авторизовать…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授权…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授權…"
           }
         }
       }
@@ -41710,10 +42343,58 @@
     },
     "Blocked: arguments were truncated in transit" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blockiert: Parameter bei der Übertragung gekürzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blocked: arguments were truncated in transit"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bloqueado: los argumentos se truncaron durante el envío"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opération bloquée : paramètres tronqués en transit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "転送中に引数が切り詰められたため、実行しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전송 중 인수가 잘려 실행이 차단되었습니다"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполнение заблокировано: аргументы обрезаны при передаче"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已阻止执行：参数在传输时被截断"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已阻止執行：參數在傳輸時遭截斷"
           }
         }
       }
@@ -44235,10 +44916,58 @@
     },
     "Chats" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chats"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chats"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chats"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversations"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チャット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대화"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чаты"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對話"
           }
         }
       }
@@ -46375,30 +47104,174 @@
     },
     "Client ID" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client-ID"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client ID"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Client ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identifiant du client"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クライアントID"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클라이언트 ID"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Идентификатор клиента"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户端ID"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用戶端ID"
           }
         }
       }
     },
     "Client ID is required." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Client-ID ist erforderlich."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client ID is required."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El Client ID es obligatorio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez l’identifiant du client."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クライアントIDを入力してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클라이언트 ID를 입력하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите идентификатор клиента."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入客户端ID。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入用戶端ID。"
           }
         }
       }
     },
     "Client Secret (optional)" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client-Geheimnis (optional)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Client Secret (optional)"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Client Secret (opcional)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secret du client (facultatif)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クライアントシークレット（任意）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클라이언트 시크릿(선택 사항)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Секрет клиента (необязательно)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户端密钥（可选）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用戶端密鑰（選填）"
           }
         }
       }
@@ -48219,10 +49092,58 @@
     },
     "Contacting Kimi…" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbindung zu Kimi wird hergestellt…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contacting Kimi…"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Contactando con Kimi…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connexion à Kimi…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimiに接続中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi에 연결하는 중…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключение к Kimi…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在连接Kimi…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在連線至Kimi…"
           }
         }
       }
@@ -50855,10 +51776,58 @@
     },
     "Could not build the authorization URL." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Autorisierungs-URL konnte nicht erstellt werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not build the authorization URL."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No se pudo construir la URL de autorización."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de créer l’URL d’autorisation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可URLを作成できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인 URL을 만들 수 없습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать URL авторизации."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法生成授权网址。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法產生授權網址。"
           }
         }
       }
@@ -50981,10 +51950,58 @@
     },
     "Could not present the authorization page." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Autorisierungsseite konnte nicht geöffnet werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not present the authorization page."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "No se pudo mostrar la página de autorización."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’ouvrir la page d’autorisation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可ページを開けませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인 페이지를 열 수 없습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось открыть страницу авторизации."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开授权页面。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟授權頁面。"
           }
         }
       }
@@ -56280,10 +57297,58 @@
     "Doubao (Volcano)" : {
       "comment" : "Voice provider name",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doubao (Volcano)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doubao (Volcano)"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Doubao (Volcano)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doubao (Volcano)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doubao（Volcano）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doubao(Volcano)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doubao (Volcano)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "豆包（火山引擎）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "豆包（火山引擎）"
           }
         }
       }
@@ -67393,10 +68458,58 @@
     "iFlytek (Xunfei)" : {
       "comment" : "Voice provider name",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iFlytek (Xunfei)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iFlytek (Xunfei)"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "iFlytek (Xunfei)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iFlytek (Xunfei)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iFlytek（科大訊飛）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iFlytek(커다쉰페이)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iFlytek (Xunfei)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "科大讯飞"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "科大訊飛"
           }
         }
       }
@@ -70493,10 +71606,58 @@
     },
     "Keep Current Progress" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuellen Fortschritt behalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Current Progress"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Conservar el progreso actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conserver la progression actuelle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の進捗を保持"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 진행 상태 유지"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить текущий прогресс"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留当前进度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留目前進度"
           }
         }
       }
@@ -70853,10 +72014,58 @@
     },
     "Kimi Code Login" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei Kimi Code anmelden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Code Login"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inicio de sesión de Kimi Code"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connexion à Kimi Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Codeにログイン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Code 로그인"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вход в Kimi Code"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录Kimi Code"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入Kimi Code"
           }
         }
       }
@@ -75423,10 +76632,58 @@
     },
     "MCP Servers" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP-Server"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP Servers"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Servidores MCP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serveurs MCP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCPサーバー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP 서버"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Серверы MCP"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP服务器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP伺服器"
           }
         }
       }
@@ -75841,10 +77098,58 @@
     },
     "Memory & Soul" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gedächtnis und Persönlichkeit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory & Soul"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Memoria y Soul"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mémoire et personnalité"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリと人格設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기억 및 성격 설정"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Память и характер"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记忆与人格设定"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶與人格設定"
           }
         }
       }
@@ -84786,10 +86091,58 @@
     },
     "Not authorized" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht autorisiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not authorized"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sin autorización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non autorisé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未認可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인되지 않음"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Доступ не предоставлен"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未授权"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未授權"
           }
         }
       }
@@ -84797,10 +86150,58 @@
     "not installed" : {
       "comment" : "voice pack not downloaded",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nicht installiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "not installed"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "no instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "non installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未インストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치되지 않음"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "не установлено"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安装"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安裝"
           }
         }
       }
@@ -86598,10 +87999,58 @@
     },
     "Open verification page" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfseite öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open verification page"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abrir la página de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir la page de vérification"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認ページを開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증 페이지 열기"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть страницу проверки"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开验证页面"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟驗證頁面"
           }
         }
       }
@@ -92439,10 +93888,58 @@
     },
     "Re-authorize" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut autorisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-authorize"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Volver a autorizar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser à nouveau"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再認可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 승인"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Авторизовать повторно"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新授权"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新授權"
           }
         }
       }
@@ -94068,10 +95565,58 @@
     },
     "Redirect URI is invalid." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Weiterleitungs-URI ist ungültig."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redirect URI is invalid."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El URI de redirección no es válido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’URI de redirection est invalide."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リダイレクトURIが無効です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리디렉션 URI가 유효하지 않습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недопустимый URI перенаправления."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重定向URI无效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新導向URI無效。"
           }
         }
       }
@@ -94194,10 +95739,58 @@
     },
     "Refresh Tools" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeuge aktualisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh Tools"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Actualizar herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser les outils"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツール一覧を更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록 새로 고침"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить список инструментов"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新工具列表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新整理工具列表"
           }
         }
       }
@@ -96729,10 +98322,58 @@
     },
     "Reset Progress" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fortschritt zurücksetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Progress"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Restablecer progreso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réinitialiser la progression"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進捗をリセット"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "진행 상태 초기화"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить прогресс"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置进度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重設進度"
           }
         }
       }
@@ -100458,10 +102099,58 @@
     },
     "Save to Files…" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In „Dateien“ sichern…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save to Files…"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Guardar en Archivos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer dans Fichiers…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「ファイル」に保存…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일에 저장…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохранить в «Файлы»…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储到“文件”…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存到「檔案」…"
           }
         }
       }
@@ -100814,10 +102503,58 @@
     },
     "Scopes (space-separated)" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Berechtigungen (mit Leerzeichen trennen)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scopes (space-separated)"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ámbitos (separados por espacios)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisations (séparées par des espaces)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スコープ（スペース区切り）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "범위(공백으로 구분)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Области доступа (через пробел)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "权限范围（以空格分隔）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權限範圍（以空格分隔）"
           }
         }
       }
@@ -103680,10 +105417,58 @@
     },
     "Share…" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilen…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share…"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compartir…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partager…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поделиться…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享…"
           }
         }
       }
@@ -103806,10 +105591,58 @@
     },
     "Shared Files" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geteilte Dateien"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared Files"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Archivos compartidos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichiers partagés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有ファイル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공유 파일"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Общие файлы"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享檔案"
           }
         }
       }
@@ -104752,10 +106585,58 @@
     "Show in Files" : {
       "comment" : "Completed download row hint",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In „Dateien“ anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Files"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mostrar en Archivos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher dans Fichiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「ファイル」で表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일에서 보기"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать в «Файлах»"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“文件”中显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「檔案」中顯示"
           }
         }
       }
@@ -105115,10 +106996,58 @@
     "Showing models that can read images." : {
       "comment" : "Vision group picker filter note",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur Modelle mit Bildeingabe werden angezeigt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing models that can read images."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mostrando los modelos que pueden leer imágenes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seuls les modèles acceptant des images sont affichés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像を入力できるモデルを表示しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미지를 입력할 수 있는 모델만 표시합니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показаны модели, принимающие изображения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅显示支持图片输入的模型。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅顯示支援圖片輸入的模型。"
           }
         }
       }
@@ -105366,10 +107295,58 @@
     },
     "Sign in with Kimi Code" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Kimi Code anmelden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in with Kimi Code"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Iniciar sesión con Kimi Code"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter avec Kimi Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Codeでログイン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Code로 로그인"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войти через Kimi Code"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用Kimi Code登录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用Kimi Code登入"
           }
         }
       }
@@ -105558,20 +107535,116 @@
     },
     "Sign in with your Kimi Code / Coding Plan subscription" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit deinem Kimi Code- oder Coding Plan-Abo anmelden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in with your Kimi Code / Coding Plan subscription"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inicia sesión con tu suscripción a Kimi Code / Coding Plan"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous avec votre abonnement Kimi Code ou Coding Plan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi CodeまたはCoding Planのサブスクリプションでログイン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Code 또는 Coding Plan 구독으로 로그인"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войдите с подпиской Kimi Code или Coding Plan"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的Kimi Code或Coding Plan订阅登录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的Kimi Code或Coding Plan訂閱登入"
           }
         }
       }
     },
     "Sign in with your Kimi Code / Coding Plan subscription." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melde dich mit deinem Kimi Code- oder Coding Plan-Abo an."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in with your Kimi Code / Coding Plan subscription."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Inicia sesión con tu suscripción a Kimi Code / Coding Plan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous avec votre abonnement Kimi Code ou Coding Plan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi CodeまたはCoding Planのサブスクリプションでログインしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Code 또는 Coding Plan 구독으로 로그인하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Войдите с подпиской Kimi Code или Coding Plan."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的Kimi Code或Coding Plan订阅登录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用你的Kimi Code或Coding Plan訂閱登入。"
           }
         }
       }
@@ -105680,10 +107753,58 @@
     },
     "Signed in to Kimi Code" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei Kimi Code angemeldet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signed in to Kimi Code"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sesión iniciada en Kimi Code"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecté à Kimi Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Codeにログイン済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kimi Code에 로그인됨"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполнен вход в Kimi Code"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已登录Kimi Code"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已登入Kimi Code"
           }
         }
       }
@@ -108046,10 +110167,58 @@
     },
     "State mismatch in the OAuth callback." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Status im OAuth-Rückruf stimmt nicht überein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "State mismatch in the OAuth callback."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El parámetro state no coincide en la respuesta de OAuth."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’état renvoyé par OAuth ne correspond pas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OAuthコールバックの状態が一致しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OAuth 콜백의 상태 값이 일치하지 않습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Параметр состояния в ответе OAuth не совпадает."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OAuth回调的状态值不匹配。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OAuth回呼的狀態值不符。"
           }
         }
       }
@@ -110648,10 +112817,58 @@
     "Tap to view" : {
       "comment" : "Completed download card",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Anzeigen tippen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to view"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Toca para ver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez pour afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップして表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "탭하여 보기"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Коснитесь, чтобы посмотреть"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点查看"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下檢視"
           }
         }
       }
@@ -113044,10 +115261,58 @@
     },
     "The terminal engine isn't running yet. Open a chat or the terminal once, then retry." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Terminal läuft noch nicht. Öffne einen Chat oder das Terminal und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The terminal engine isn't running yet. Open a chat or the terminal once, then retry."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El motor del terminal aún no está en ejecución. Abre un chat o el terminal una vez y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le terminal n’est pas encore lancé. Ouvrez une conversation ou le terminal, puis réessayez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルはまだ起動していません。一度チャットかターミナルを開いてから、もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널이 아직 실행되지 않았습니다. 대화나 터미널을 한 번 연 뒤 다시 시도하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Терминал ещё не запущен. Откройте чат или терминал и повторите попытку."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终端尚未启动。请先打开一次对话或终端，再重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端機尚未啟動。請先開啟一次對話或終端機，再重試。"
           }
         }
       }
@@ -114153,10 +116418,58 @@
     "This group describes images for models that cannot see them — only models that accept image input are listed." : {
       "comment" : "Add-models filter note for the bound vision group",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Gruppe beschreibt Bilder für Modelle ohne Bildeingabe. Hier stehen nur Modelle mit Bildeingabe."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This group describes images for models that cannot see them — only models that accept image input are listed."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Este grupo describe imágenes para los modelos que no pueden verlas: solo se muestran los modelos que aceptan entrada de imagen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce groupe décrit les images pour les modèles sans vision. Seuls les modèles qui acceptent des images sont affichés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像を読み取れないモデル向けに画像を説明するグループです。画像入力に対応したモデルだけを表示します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미지를 볼 수 없는 모델을 위해 이미지를 설명하는 그룹입니다. 이미지 입력을 지원하는 모델만 표시됩니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эта группа описывает изображения для моделей без зрения. В списке только модели с поддержкой изображений."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这组模型为不支持图片输入的模型描述图片，因此这里只列出能读取图片的模型。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這組模型會為不支援圖片輸入的模型描述圖片，因此只列出能讀取圖片的模型。"
           }
         }
       }
@@ -116942,30 +119255,174 @@
     },
     "Token Endpoint (https://…/token)" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token-Endpunkt (https://…/token)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token Endpoint (https://…/token)"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endpoint de token (https://…/token)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Point de terminaison des jetons (https://…/token)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンエンドポイント（https://…/token）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "토큰 엔드포인트(https://…/token)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Адрес получения токена (https://…/token)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "令牌端点（https://…/token）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權杖端點（https://…/token）"
           }
         }
       }
     },
     "Token Endpoint must be a valid https URL." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Token-Endpunkt muss eine gültige HTTPS-URL sein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token Endpoint must be a valid https URL."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El endpoint de token debe ser una URL https válida."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’adresse du service de jetons doit être une URL HTTPS valide."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンエンドポイントには有効なHTTPSのURLを指定してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "토큰 엔드포인트에는 유효한 HTTPS URL이 필요합니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Адрес получения токена должен быть действительным HTTPS URL."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "令牌端点必须是有效的HTTPS网址。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權杖端點必須是有效的HTTPS網址。"
           }
         }
       }
     },
     "Token endpoint returned no access_token." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Token-Endpunkt hat kein access_token zurückgegeben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token endpoint returned no access_token."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "El endpoint de token no devolvió ningún access_token."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le service de jetons n’a pas renvoyé d’access_token."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トークンエンドポイントからaccess_tokenが返されませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "토큰 엔드포인트가 access_token을 반환하지 않았습니다."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервис токенов не вернул access_token."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "令牌端点没有返回access_token。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權杖端點未傳回access_token。"
           }
         }
       }
@@ -117313,10 +119770,58 @@
     },
     "Tools" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeuge"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tools"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outils"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Инструменты"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具"
           }
         }
       }
@@ -118389,10 +120894,58 @@
     },
     "Unexpected CLI output (no JSON result). Check the server's connectivity." : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Befehlszeile hat kein JSON-Ergebnis geliefert. Prüfe die Serververbindung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unexpected CLI output (no JSON result). Check the server's connectivity."
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Salida inesperada de la CLI (sin resultado JSON). Comprueba la conectividad del servidor."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La commande n’a pas renvoyé de résultat JSON. Vérifiez la connexion au serveur."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドがJSON形式の結果を返しませんでした。サーバーへの接続を確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령줄이 JSON 결과를 반환하지 않았습니다. 서버 연결을 확인하세요."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Команда не вернула результат JSON. Проверьте соединение с сервером."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令行没有返回JSON结果。请检查服务器连接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令列未傳回JSON結果。請檢查伺服器連線。"
           }
         }
       }
@@ -122112,10 +124665,58 @@
     },
     "Voice Corrections" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprachkorrekturen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voice Corrections"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correcciones de voz"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corrections vocales"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声の修正"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성 교정"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исправления речи"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语音纠错"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語音校正"
           }
         }
       }
@@ -122706,10 +125307,58 @@
     },
     "Waiting for authorization…" : {
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warten auf Autorisierung…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for authorization…"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Esperando la autorización…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En attente de l’autorisation…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認可を待っています…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "승인 대기 중…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ожидание авторизации…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待授权…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待授權…"
           }
         }
       }
@@ -124675,10 +127324,58 @@
     "Xiaomi MiMo" : {
       "comment" : "Voice provider name",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xiaomi MiMo"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xiaomi MiMo"
+          }
+        },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xiaomi MiMo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xiaomi MiMo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xiaomi MiMo"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xiaomi MiMo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xiaomi MiMo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小米MiMo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小米MiMo"
           }
         }
       }
