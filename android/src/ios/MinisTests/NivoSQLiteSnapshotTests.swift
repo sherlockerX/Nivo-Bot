@@ -8,6 +8,42 @@ import CNivoSQLite
 
 /// 使用系统SQLite和真实WAL文件验证在线快照，不以JSON或内存镜像替代数据库。
 final class NivoSQLiteSnapshotTests: XCTestCase {
+    /// 新快照不能接管同名旧辅助文件，否则封存清理可能误删不属于本次捕获的材料。
+    func testCaptureRejectsPreexistingCompanionsWithoutTouchingThem() throws {
+        let root = try directory()
+        try withDatabase(root.appendingPathComponent("source.db")) { database in
+            try execute(database, "PRAGMA journal_mode=WAL; CREATE TABLE items(value TEXT); INSERT INTO items VALUES('original');")
+            for suffix in ["-wal", "-shm"] {
+                let saved = root.appendingPathComponent("saved" + suffix + ".db")
+                let companion = URL(fileURLWithPath: saved.path + suffix)
+                let original = Data("preexisting-material".utf8)
+                try original.write(to: companion)
+                XCTAssertThrowsError(try NivoSQLiteSnapshot.capture(from: database, to: saved))
+                XCTAssertEqual(try Data(contentsOf: companion), original)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: saved.path))
+            }
+            let saved = root.appendingPathComponent("directory.db")
+            let companion = URL(fileURLWithPath: saved.path + "-shm")
+            try FileManager.default.createDirectory(at: companion, withIntermediateDirectories: false)
+            XCTAssertThrowsError(try NivoSQLiteSnapshot.capture(from: database, to: saved))
+            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: companion.path)[.type] as? FileAttributeType,
+                           .typeDirectory)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: saved.path))
+            #if !os(Windows)
+            // 悬空链接的fileExists为false，仍不能被当成本次可创建的路径。
+            let linkedSnapshot = root.appendingPathComponent("linked.db")
+            let linkedCompanion = URL(fileURLWithPath: linkedSnapshot.path + "-wal")
+            try FileManager.default.createSymbolicLink(at: linkedCompanion,
+                withDestinationURL: root.appendingPathComponent("absent-target"))
+            XCTAssertThrowsError(try NivoSQLiteSnapshot.capture(from: database, to: linkedSnapshot))
+            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: linkedCompanion.path)[.type] as? FileAttributeType,
+                           .typeSymbolicLink)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: linkedSnapshot.path))
+            #endif
+            XCTAssertEqual(try scalar(database, "SELECT value FROM items"), "original")
+        }
+    }
+
     /// 旧版只读校验产生的辅助文件不在日志清单中，升级恢复仍须完整读取这份快照。
     func testLegacyWALValidationCompanionsRemainRecoverable() throws {
         let root = try directory()
@@ -81,7 +117,14 @@ final class NivoSQLiteSnapshotTests: XCTestCase {
         let rollback = root.appendingPathComponent("rollback-legacy", isDirectory: true)
         try FileManager.default.createDirectory(at: rollback, withIntermediateDirectories: true)
         let saved = rollback.appendingPathComponent("providers.db")
-        try withDatabase(saved) { try execute($0, "PRAGMA journal_mode=WAL; CREATE TABLE items(value TEXT);") }
+        try withDatabase(saved) {
+            try execute($0, "PRAGMA journal_mode=WAL; CREATE TABLE items(value TEXT); PRAGMA wal_checkpoint(TRUNCATE);")
+        }
+        // Apple的SQLite可能在关闭后保留空辅助文件；只清理本测试已checkpoint且关闭的夹具。
+        for suffix in ["-wal", "-shm"] {
+            let fixture = URL(fileURLWithPath: saved.path + suffix)
+            if FileManager.default.fileExists(atPath: fixture.path) { try FileManager.default.removeItem(at: fixture) }
+        }
         let sidecar = saved.appendingPathExtension("sqlite-path-of")
         try Data(root.appendingPathComponent("live.db").path.utf8).write(to: sidecar)
         let names = [saved.lastPathComponent, sidecar.lastPathComponent]

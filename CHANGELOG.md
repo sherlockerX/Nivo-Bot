@@ -4,7 +4,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
-- Fixed iOS provider recovery rejecting SQLite WAL companion files left by an older snapshot check; new snapshots are sealed as single files. Added save-stage diagnostic codes, preserved model UUIDs and references when editing custom model IDs, rejected ID conflicts, waited for model and new-group saves before closing their forms, and blocked stale model-list refreshes after provider changes or restore. Model edits now retain unedited reasoning metadata and media capabilities; resetting an unknown context window clears the old value from the form.
+- Fixed iOS provider recovery rejecting SQLite WAL companion files left by an older snapshot check; new snapshots are sealed as single files and remove their own residual shared-memory files after the destination connection closes. Added save-stage diagnostic codes, preserved model UUIDs and references when editing custom model IDs, rejected ID conflicts, waited for model and new-group saves before closing their forms, and blocked stale model-list refreshes after provider changes or restore. Model edits now retain unedited reasoning metadata and media capabilities; resetting an unknown context window clears the old value from the form.
 
 - Redesigned the Nivo Bot product website with a daily-use story, a manual feature gallery, readable model guides and a clearer download page. Replaced application illustrations with original screenshots from a fresh Android emulator build using example records. Kept separate URLs and persistent navigation, restored both platform downloads after catalogue failures or timeouts, and improved keyboard navigation and search recovery.
 

@@ -65,7 +65,8 @@ the iOS build; local release-catalog parsing and version validation remain cover
 ## Provider saves and local recovery
 
 Provider creation, JSON import and key changes share a local rollback transaction. New SQLite
-snapshots are sealed as single files. Recovery also accepts the exact WAL/SHM companions of an
+snapshots are sealed as single files; after closing their destination connection, capture removes
+only auxiliary files belonging to that newly created snapshot. Recovery also accepts the exact WAL/SHM companions of an
 older registered WAL snapshot, checks their file types, and reads committed WAL data through
 SQLite. Missing registered files and unrelated files still block recovery; the app never fixes
 a recovery error by deleting the user's database or discarding its WAL.
@@ -84,7 +85,9 @@ Editing a model preserves reasoning tiers, thinking limits and capabilities not 
 form. Renaming a dedicated speech or video model keeps its input and output directions. Resetting
 a model with an unknown base context window clears the previous value instead of saving it again.
 
-The reported initial custom-provider failure has not yet been reproduced end to end on an iPhone.
+The macOS regression reproduced the same file-format error during a first-save transaction because
+Apple SQLite retained a snapshot's shared-memory file after changing journal mode. The complete
+reported custom-provider flow still requires verification on an iPhone.
 The confirmed recovery and model-editing defects are covered by regression tests; compilation
 and portable tests do not replace the [iPhone acceptance steps](ios-provider-save-verification.md).
 

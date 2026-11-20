@@ -2,13 +2,18 @@
 
 This repair targets the 2.0.6 maintenance branch. Adding a custom provider was reported to fail
 with a file-format error. Tests reproduced the same Cocoa error 259 when checking and recovering
-an older SQLite snapshot. An isolated first-save transaction passed, so the recovery defect has
-not been established as the sole cause of the original iPhone failure.
+an older SQLite snapshot. The first-save transaction passed on Windows, then failed on macOS
+with the same error: Apple SQLite retained a snapshot's shared-memory file after switching to
+DELETE journal mode. This provides an Apple-platform reproduction of the persistence failure;
+the full custom-provider UI flow still requires an iPhone retest.
 
 ## Confirmed defects and repairs
 
 - A read-only check of a WAL snapshot can create companion files that the old recovery manifest
-  rejects. New snapshots are sealed as single files. Older snapshots accept only the exact WAL/SHM
+  rejects. New snapshots are sealed as single files. Their destination connection must close
+  successfully and the file header must confirm DELETE mode before capture removes its own
+  residual auxiliary files. Capture refuses a preexisting destination or companion file, including
+  directories and dangling symlinks. Older snapshots accept only the exact WAL/SHM
   companions of registered SQLite payloads and retain committed WAL records during recovery.
 - A custom-model ID edit looked up the original record by its new ID. It now finds the record by
   UUID, rejects ID conflicts within the provider, and updates group, conversation and agent references.
