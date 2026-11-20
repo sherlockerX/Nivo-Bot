@@ -13,6 +13,46 @@ private let logger = AppLogger(category: "ConfigOffload")
 
 @objc public class ConfigOffloadBridge: NSObject {
 
+    // nanoMuse: 配置CLI独立处理JSON片段，readField返回结构与其他工具的输出不受影响。
+    /// 供Objective-C出口生成完整JSON文本，支持quiet读取标量、null及错误对象。
+    @objc(formatCLIResponse:compact:quiet:) public static func formatCLIResponse(
+        _ envelope: NSDictionary, compact: Bool, quiet: Bool
+    ) -> String {
+        NivoConfigCLIResponse.format(envelope as? [String: Any] ?? [:], compact: compact, quiet: quiet)
+    }
+
+    // nanoMuse: Objective-C入口调用可独立测试的参数契约，拒绝静默吞掉错误选项。
+    /// 校验get参数后转交既有权限检查、过滤和分页实现。
+    @objc public static func readArguments(_ arguments: [String]) -> NSDictionary {
+        guard isEnabled() else { return disabledErrorEnvelope() }
+        do {
+            let request = try NivoConfigCLIArguments.parseGet(arguments)
+            return readField(path: request.path, filter: request.filter,
+                             page: request.page, pageSize: request.pageSize)
+        } catch {
+            return ["ok": false, "error": "invalid_args", "reason": error.localizedDescription]
+        }
+    }
+
+    // nanoMuse: 未知topic必须失败，不能以空字段列表冒充成功。
+    /// 返回经过主题存在性校验的帮助响应。
+    @objc public static func topicHelpArguments(_ arguments: [String]) -> NSDictionary {
+        guard isEnabled() else { return disabledErrorEnvelope() }
+        do {
+            let topic = try NivoConfigCLIArguments.parseTopic(arguments, availableTopics: allTopics())
+            return ["ok": true, "data": ["topic": topic, "fields": fieldsForTopic(topic)]]
+        } catch {
+            return ["ok": false, "error": "invalid_args", "reason": error.localizedDescription]
+        }
+    }
+
+    // nanoMuse: 所有配置命令共用已测试的退出码，保持帮助文档中的1/124/125/126契约。
+    /// 将桥接错误信封转换为终端进程退出码。
+    @objc(exitCodeForEnvelope:) public static func exitCode(forEnvelope envelope: NSDictionary) -> Int {
+        NivoConfigCLIArguments.exitCode(isOK: (envelope["ok"] as? Bool) == true,
+                                        error: envelope["error"] as? String)
+    }
+
     // MARK: - Top-level enable check
 
     /// First-line check before doing anything else. Returns true when
@@ -266,10 +306,14 @@ private let logger = AppLogger(category: "ConfigOffload")
             return Self.disabledErrorEnvelope()
         }
         guard let field = ConfigRegistry.shared.resolveField(path: path) else {
+            // nanoMuse: 主题不一定是可读字段，给出实际字段发现入口。
+            let guidance = ConfigRegistry.shared.topics().contains(path)
+                ? " '\(path)' is a topic. Use 'minis-config topic-help \(path)' to find readable field paths."
+                : " Use 'minis-config list-topics' and 'minis-config topic-help <topic>' to find registered paths."
             return [
                 "ok": false,
                 "error": "unknown_path",
-                "reason": "No registered field at '\(path)'.",
+                "reason": "No registered field at '\(path)'." + guidance,
             ]
         }
         if field.access == .hidden {
@@ -293,7 +337,8 @@ private let logger = AppLogger(category: "ConfigOffload")
         } catch {
             return [
                 "ok": false,
-                "error": "read_failed",
+                // nanoMuse: 只写密钥的权限错误必须保留permission_denied及退出126。
+                "error": Self.errorCodeKey(error) ?? "read_failed",
                 "reason": String(describing: error),
             ]
         }

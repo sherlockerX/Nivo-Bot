@@ -21,7 +21,7 @@ final class NivoScheduledOffloadBridge: NSObject {
                 try requireCurrent(sessionID: sessionID, generation: generation, deadline: deadline)
                 let permission = await OffloadPermissionManager.shared.checkPermission(for: "minis-scheduled",
                     sessionId: sessionID, fullCommand: "minis-scheduled " + arguments.joined(separator: " "))
-                guard case .allowed = permission else { throw NivoLifeError.invalidField("permission_denied") }
+                guard case .allowed = permission else { throw NivoScheduledExecutionError.permissionDenied }
                 try requireCurrent(sessionID: sessionID, generation: generation, deadline: deadline)
                 let result = try await handle(command, generation: generation) {
                     try requireCurrent(sessionID: sessionID, generation: generation, deadline: deadline)
@@ -34,8 +34,10 @@ final class NivoScheduledOffloadBridge: NSObject {
                 let data = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
                 completion(String(decoding: data, as: UTF8.self) + "\n", 0)
             } catch {
-                let data = (try? JSONSerialization.data(withJSONObject: ["success": false, "error": String(describing: error)])) ?? Data()
-                completion(String(decoding: data, as: UTF8.self) + "\n", 1)
+                let isArgumentError: Bool
+                if let lifeError = error as? NivoLifeError, case .invalidField = lifeError { isArgumentError = true }
+                else { isArgumentError = false }
+                completion(NivoLifeToolFailure.output(error) + "\n", isArgumentError ? 2 : 1)
             }
         }
     }

@@ -27,8 +27,9 @@ static NSString *const HELP_TEXT =
      "  run [options]                  Send messages to a model\n"
      "\n"
      "LIST / SEARCH OPTIONS:\n"
-     "  --all                          Show all configured models (default: agent loop only)\n"
-     "  --provider <name>              Filter by provider (e.g. Anthropic, OpenAI)\n"
+     // nanoMuse: 帮助文案准确描述显式授权边界和实际供应商筛选规则。
+     "  --all                          Compatibility flag; still limited to authorized runtime models\n"
+     "  --provider <label_or_id>       Filter by provider instance label or UUID\n"
      "  --modality <type>              Filter by modality (image, audio, video, pdf, text)\n"
      "\n"
      "RUN OPTIONS:\n"
@@ -223,12 +224,15 @@ static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL 
     }
 
     NSString *query = [positional componentsJoinedByString:@" "];
+    // nanoMuse: search与list/run支持相同供应商条件，不能忽略已提供的过滤器。
+    NSString *providerFilter = noff_find_arg(argc, argv, "--provider");
     NSString *modalityFilter = noff_find_arg(argc, argv, "--modality");
     BOOL showAll = noff_has_flag(argc, argv, "--all");
     __block NSDictionary *result = nil;
 
     noff_dispatch_main_sync(^id{
         result = [ModelUseOffloadBridge searchModelsWithQuery:query
+                                              providerFilter:providerFilter
                                               modalityFilter:modalityFilter
                                                      showAll:showAll];
         return nil;

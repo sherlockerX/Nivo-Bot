@@ -46,6 +46,21 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
+      # 原生入口回归只需要iSH接口头文件，不构建内核或访问真实地图服务。
+      - name: Map command protocol regression tests
+        run: |
+          set -euo pipefail
+          git submodule update --init android/deps/ish
+          mkdir -p android/src/ios/build
+          xcrun --sdk macosx clang \
+            -fobjc-arc -fblocks -std=gnu11 -mmacosx-version-min=13.0 \
+            -Wall -Wextra -Werror -Wno-nullability-completeness -Wno-deprecated-declarations \
+            -Iandroid/src/ios/NanoMuse -Iandroid/deps/ish \
+            android/src/ios/NanoMuse/NivoMapsRequest.m \
+            android/src/ios/MinisTests/NivoMapsProtocolHarness.m \
+            -framework Foundation -framework MapKit -framework CoreLocation \
+            -o android/src/ios/build/nivo-maps-check
+          android/src/ios/build/nivo-maps-check 2>&1 | tee android/src/ios/build/maps-tests.log
       # 核心回归与应用构建独立执行，任何一项失败仍使整个工作流失败。
       - name: Portable Swift regression tests
         working-directory: android/src/ios
@@ -59,7 +74,9 @@ jobs:
         continue-on-error: true
         with:
           name: ios-core-log-${{ github.run_number }}
-          path: android/src/ios/build/swift-tests.log
+          path: |
+            android/src/ios/build/swift-tests.log
+            android/src/ios/build/maps-tests.log
           retention-days: 7
           if-no-files-found: warn
 

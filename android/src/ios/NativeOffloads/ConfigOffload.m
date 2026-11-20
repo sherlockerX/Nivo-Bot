@@ -14,6 +14,10 @@
 #import <Foundation/Foundation.h>
 #import "NativeOffloadUtils.h"
 #include "kernel/native_offload.h"
+// nanoMuse: 重排命令前的公共参数时使用临时argv数组。
+#include <stdlib.h>
+// nanoMuse: 专用出口直接写入已编码JSON文本。
+#include <stdio.h>
 
 #if __has_include("Minis-Swift.h")
 #import "Minis-Swift.h"
@@ -21,6 +25,13 @@
 @interface ConfigOffloadBridge : NSObject
 + (BOOL)isEnabled;
 + (NSDictionary * _Nonnull)disabledErrorEnvelope;
+// nanoMuse: 无生成头文件时保留只读参数与退出码桥接声明。
++ (NSDictionary * _Nonnull)readArguments:(NSArray<NSString *> * _Nonnull)arguments;
++ (NSDictionary * _Nonnull)topicHelpArguments:(NSArray<NSString *> * _Nonnull)arguments;
++ (NSInteger)exitCodeForEnvelope:(NSDictionary * _Nonnull)envelope;
+// nanoMuse: 无生成头文件时声明配置CLI专用序列化桥接。
++ (NSString * _Nonnull)formatCLIResponse:(NSDictionary * _Nonnull)envelope
+                                 compact:(BOOL)compact quiet:(BOOL)quiet;
 + (NSArray<NSString *> * _Nonnull)allTopics;
 + (NSArray<NSDictionary *> * _Nonnull)fieldsForTopic:(NSString * _Nonnull)topic;
 + (NSDictionary * _Nonnull)readFieldWithPath:(NSString * _Nonnull)path;
@@ -55,6 +66,8 @@ static NSString *const TOOL_NAME = @"minis-config";
 #define EXIT_TIMEOUT 124
 #define EXIT_USER_REJECTED 125
 #define EXIT_PERMISSION_DENIED 126
+// nanoMuse: 配置工具的参数错误退出1，通用offload常量为2，不可混用。
+#define CONFIG_EXIT_INVALID_ARGS 1
 
 static NSString *const HELP_TEXT =
     @"minis-config - read or change Minis app settings (logged + revertable)\n"
@@ -132,13 +145,38 @@ static NSString *get_arg(int argc, char **argv, const char *name) {
 }
 
 static int exit_code_from_envelope(NSDictionary *envelope) {
-    if ([envelope[@"ok"] boolValue]) return NOFF_EXIT_SUCCESS;
-    NSString *err = envelope[@"error"];
-    if ([err isEqualToString:@"permission_denied"]) return EXIT_PERMISSION_DENIED;
-    if ([err isEqualToString:@"timeout"]) return EXIT_TIMEOUT;
-    if ([err isEqualToString:@"user_rejected"]) return EXIT_USER_REJECTED;
-    if ([err isEqualToString:@"all_rejected"]) return EXIT_USER_REJECTED;
-    return NOFF_EXIT_INVALID_ARGS;
+    // nanoMuse: 退出码映射与便携测试使用同一实现。
+    return (int)[ConfigOffloadBridge exitCodeForEnvelope:envelope];
+}
+
+// nanoMuse: 只替换配置工具出口，JSON片段和字符串错误不进入全局noff_emit_json。
+static void config_emit_json(int fd, NSDictionary *envelope, BOOL compact, BOOL quiet) {
+    NSString *json = [ConfigOffloadBridge formatCLIResponse:envelope compact:compact quiet:quiet];
+    dprintf(fd, "%s\n", json.UTF8String);
+}
+
+// nanoMuse: 公共输出开关不带值，不能把后面的get误当成它的参数。
+static int config_subcommand_index(int argc, char **argv) {
+    for (int index = 1; index < argc; index++) {
+        NSString *argument = [NSString stringWithUTF8String:argv[index]];
+        if ([@[@"--compact", @"--quiet", @"-q"] containsObject:argument]) continue;
+        if ([@[@"--session", @"--actor", @"--caption"] containsObject:argument]) {
+            index++;
+            continue;
+        }
+        return index;
+    }
+    return -1;
+}
+
+// nanoMuse: 仅把实际子命令后的参数交给Swift校验，允许公共输出开关位于命令前。
+static NSArray<NSString *> *config_command_arguments(int argc, char **argv) {
+    int commandIndex = config_subcommand_index(argc, argv);
+    NSMutableArray<NSString *> *arguments = [NSMutableArray array];
+    for (int index = commandIndex + 1; commandIndex >= 0 && index < argc; index++) {
+        [arguments addObject:[NSString stringWithUTF8String:argv[index]]];
+    }
+    return arguments;
 }
 
 // ── Subcommands ──
@@ -147,66 +185,33 @@ static int cmd_list_topics(int argc, char **argv, int stdout_fd,
                            BOOL compact, BOOL quiet) {
     if (![ConfigOffloadBridge isEnabled]) {
         NSDictionary *env = [ConfigOffloadBridge disabledErrorEnvelope];
-        noff_emit_json(stdout_fd, env, compact, quiet);
+        config_emit_json(stdout_fd, env, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
         return EXIT_PERMISSION_DENIED;
     }
     NSArray *topics = [ConfigOffloadBridge allTopics];
     NSDictionary *result = noff_json_envelope(TOOL_NAME, @"list-topics",
                                               @{@"topics": topics});
-    noff_emit_json(stdout_fd, result, compact, quiet);
+    config_emit_json(stdout_fd, result, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return NOFF_EXIT_SUCCESS;
 }
 
 static int cmd_topic_help(int argc, char **argv, int stdout_fd, int stderr_fd,
                           BOOL compact, BOOL quiet) {
-    NSString *topic = noff_get_subcommand(argc, argv);
-    // The actual topic is argv[2] when subcommand is "topic-help".
-    if (argc >= 3) topic = [NSString stringWithUTF8String:argv[2]];
-    if (!topic || topic.length == 0
-        || [topic isEqualToString:@"topic-help"]) {
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"topic-help",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"topic-help <topic> requires a topic name. "
-                                              "Use list-topics to see available topics.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+    // nanoMuse: 主题和参数由生产Swift契约校验，未知主题返回非零退出码。
+    NSDictionary *result = [ConfigOffloadBridge topicHelpArguments:config_command_arguments(argc, argv)];
+    // nanoMuse: 成功响应继续使用原有action/timestamp信封，避免改变调用方结构。
+    if ([result[@"ok"] boolValue]) {
+        result = noff_json_envelope(TOOL_NAME, @"topic-help", result[@"data"]);
     }
-    if (![ConfigOffloadBridge isEnabled]) {
-        NSDictionary *env = [ConfigOffloadBridge disabledErrorEnvelope];
-        noff_emit_json(stdout_fd, env, compact, quiet);
-        return EXIT_PERMISSION_DENIED;
-    }
-    NSArray *fields = [ConfigOffloadBridge fieldsForTopic:topic];
-    NSDictionary *result = noff_json_envelope(TOOL_NAME, @"topic-help",
-                                              @{@"topic": topic, @"fields": fields});
-    noff_emit_json(stdout_fd, result, compact, quiet);
-    return NOFF_EXIT_SUCCESS;
+    config_emit_json(stdout_fd, result, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+    return exit_code_from_envelope(result);
 }
 
 static int cmd_get(int argc, char **argv, int stdout_fd, int stderr_fd,
                    BOOL compact, BOOL quiet) {
-    if (argc < 3) {
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"get",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"get <path> requires a field path.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-    NSString *path = [NSString stringWithUTF8String:argv[2]];
-    NSString *filter = noff_find_arg(argc, argv, "--filter");
-    if (!filter) filter = noff_find_arg(argc, argv, "-f");
-    NSString *pageRaw = noff_find_arg(argc, argv, "--page");
-    if (!pageRaw) pageRaw = noff_find_arg(argc, argv, "-p");
-    NSString *pageSizeRaw = noff_find_arg(argc, argv, "--page-size");
-    if (!pageSizeRaw) pageSizeRaw = noff_find_arg(argc, argv, "-s");
-    // 0 sentinels mean "unset" — the bridge fills in defaults.
-    NSInteger page = pageRaw ? MAX(0, [pageRaw integerValue]) : 0;
-    NSInteger pageSize = pageSizeRaw ? MAX(0, [pageSizeRaw integerValue]) : 0;
-    NSDictionary *envelope = [ConfigOffloadBridge readFieldWithPath:path
-                                                              filter:filter
-                                                                page:page
-                                                            pageSize:pageSize];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    // nanoMuse: 非数字页码、缺失值或额外参数不能被integerValue静默转换为默认值。
+    NSDictionary *envelope = [ConfigOffloadBridge readArguments:config_command_arguments(argc, argv)];
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -224,8 +229,8 @@ static int cmd_set(int argc, char **argv, int stdout_fd, int stderr_fd,
                                              NOFF_ERR_INVALID_ARGS,
                                              @"set <path> <value-json> requires both arguments "
                                               "(or use: set <path> --file <path-to-value-json>).");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     NSString *path = [NSString stringWithUTF8String:argv[2]];
     NSString *valueJSON;
@@ -240,8 +245,8 @@ static int cmd_set(int argc, char **argv, int stdout_fd, int stderr_fd,
                                                  [NSString stringWithFormat:
                                                     @"--file: could not read value from '%@': %@",
                                                     fileArg, readErr.localizedDescription ?: @"unknown error"]);
-            noff_emit_json(stdout_fd, err, compact, quiet);
-            return NOFF_EXIT_INVALID_ARGS;
+            config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+            return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
         }
     } else {
         valueJSON = [NSString stringWithUTF8String:argv[3]];
@@ -254,7 +259,7 @@ static int cmd_set(int argc, char **argv, int stdout_fd, int stderr_fd,
                                                                 caption:caption
                                                                actorRaw:actor
                                                               sessionId:sessionId];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -273,8 +278,8 @@ static int cmd_add(int argc, char **argv, int stdout_fd, int stderr_fd,
                                              @"add <topic> <value-json> requires both arguments "
                                               "(or use: add <topic> --file <path-to-value-json>). "
                                               "Example: add groups '{\"name\":\"Light\",\"entries\":[...]}'.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     NSString *topic = [NSString stringWithUTF8String:argv[2]];
     NSString *valueJSON;
@@ -289,8 +294,8 @@ static int cmd_add(int argc, char **argv, int stdout_fd, int stderr_fd,
                                                  [NSString stringWithFormat:
                                                     @"--file: could not read value from '%@': %@",
                                                     fileArg, readErr.localizedDescription ?: @"unknown error"]);
-            noff_emit_json(stdout_fd, err, compact, quiet);
-            return NOFF_EXIT_INVALID_ARGS;
+            config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+            return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
         }
     } else {
         valueJSON = [NSString stringWithUTF8String:argv[3]];
@@ -305,7 +310,7 @@ static int cmd_add(int argc, char **argv, int stdout_fd, int stderr_fd,
                                                                 caption:caption
                                                                actorRaw:actor
                                                               sessionId:sessionId];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -329,23 +334,23 @@ static int cmd_set_batch(int argc, char **argv, int stdin_fd, int stdout_fd, int
                                              NOFF_ERR_INVALID_ARGS,
                                              @"set-batch expects a JSON array on stdin "
                                               "with elements {\"path\":..., \"value_json\":...}.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     NSArray *items = (NSArray *)parsed;
     if (items.count == 0) {
         NSDictionary *err = noff_json_error(TOOL_NAME, @"set-batch",
                                              NOFF_ERR_INVALID_ARGS,
                                              @"Empty batch.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     if (items.count > 50) {
         NSDictionary *err = noff_json_error(TOOL_NAME, @"set-batch",
                                              NOFF_ERR_INVALID_ARGS,
                                              @"Batch capped at 50 items.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     NSString *caption = get_arg(argc, argv, "--caption");
     NSString *actor = get_arg(argc, argv, "--actor") ?: @"agent";
@@ -354,7 +359,7 @@ static int cmd_set_batch(int argc, char **argv, int stdin_fd, int stdout_fd, int
                                                                 caption:caption
                                                                actorRaw:actor
                                                               sessionId:sessionId];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -364,7 +369,7 @@ static int cmd_audit_list(int argc, char **argv, int stdout_fd,
     NSInteger limit = limitRaw ? MAX(1, MIN(1000, [limitRaw intValue])) : 100;
     NSString *scope = get_arg(argc, argv, "--scope");
     NSDictionary *envelope = [ConfigOffloadBridge auditListWithLimit:limit scope:scope];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -374,12 +379,12 @@ static int cmd_audit_get(int argc, char **argv, int stdout_fd,
         NSDictionary *err = noff_json_error(TOOL_NAME, @"audit-get",
                                              NOFF_ERR_INVALID_ARGS,
                                              @"audit-get <audit-id> requires an id.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     NSString *idStr = [NSString stringWithUTF8String:argv[2]];
     NSDictionary *envelope = [ConfigOffloadBridge auditGetWithId:idStr];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -389,8 +394,8 @@ static int cmd_audit_revert(int argc, char **argv, int stdout_fd,
         NSDictionary *err = noff_json_error(TOOL_NAME, @"audit-revert",
                                              NOFF_ERR_INVALID_ARGS,
                                              @"audit-revert <audit-id> requires an id.");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
+        config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+        return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
     }
     NSString *idStr = [NSString stringWithUTF8String:argv[2]];
     NSString *actor = get_arg(argc, argv, "--actor") ?: @"agent-revert";
@@ -399,7 +404,7 @@ static int cmd_audit_revert(int argc, char **argv, int stdout_fd,
                                                             actorRaw:actor
                                                            sessionId:sessionId
                                                     skipConfirmation:NO];
-    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    config_emit_json(stdout_fd, envelope, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
     return exit_code_from_envelope(envelope);
 }
 
@@ -415,7 +420,21 @@ static int config_handler(int argc, char **argv,
     BOOL compact = noff_has_flag(argc, argv, "--compact");
     BOOL quiet = noff_has_flag(argc, argv, "-q") || noff_has_flag(argc, argv, "--quiet");
 
-    NSString *subcmd = noff_get_subcommand(argc, argv);
+    // nanoMuse: 正确识别放在子命令前的--compact/--quiet公共开关。
+    int commandIndex = config_subcommand_index(argc, argv);
+    NSString *subcmd = commandIndex >= 0 ? [NSString stringWithUTF8String:argv[commandIndex]] : nil;
+    // nanoMuse: 既有写命令仍按argv[2]取路径，统一把命令前的公共参数移到末尾。
+    if (commandIndex > 1) {
+        char **normalized = calloc((size_t)argc + 1, sizeof(char *));
+        if (!normalized) return CONFIG_EXIT_INVALID_ARGS;
+        normalized[0] = argv[0];
+        int outputIndex = 1;
+        for (int index = commandIndex; index < argc; index++) normalized[outputIndex++] = argv[index];
+        for (int index = 1; index < commandIndex; index++) normalized[outputIndex++] = argv[index];
+        int result = config_handler(argc, normalized, stdin_fd, stdout_fd, stderr_fd);
+        free(normalized);
+        return result;
+    }
     if (!subcmd) {
         // Default to list-topics so the agent can discover quickly.
         return cmd_list_topics(argc, argv, stdout_fd, compact, quiet);
@@ -445,8 +464,8 @@ static int config_handler(int argc, char **argv,
                                          NOFF_ERR_INVALID_ARGS,
                                          [NSString stringWithFormat:
                                           @"Unknown subcommand '%@'. Use --help.", subcmd]);
-    noff_emit_json(stdout_fd, err, compact, quiet);
-    return NOFF_EXIT_INVALID_ARGS;
+    config_emit_json(stdout_fd, err, compact, quiet); // nanoMuse: 使用配置CLI专用JSON出口。
+    return CONFIG_EXIT_INVALID_ARGS; // nanoMuse: 配置命令使用退出码1。
 }
 
 void config_offload_register(void) {

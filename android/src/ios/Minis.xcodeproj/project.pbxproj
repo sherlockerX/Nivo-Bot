@@ -1217,6 +1217,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			// nanoMuse: 独立命令行测试含顶层执行语句，不属于应用测试模块。
 			membershipExceptions = (
+				NivoMapsProtocolHarness.m,
 				Standalone/BackupPackageNameTests.swift,
 				Standalone/BackupZipContainmentTests.swift,
 				Standalone/BrowserUseDOMRectCloneTests.swift,

@@ -14,6 +14,11 @@ Later implementation notes retain upstream development history, including earlie
 TestFlight work. Those historical services and distribution claims do not apply to this fork.
 Build success verifies compilation; iPhone startup and interaction require device testing.
 
+The [iOS tool audit and phone checks](zh/ios-tool-self-audit.md) document configuration paths,
+runtime model authorization, personal-record recovery, map commands and CLI response fixes.
+The audit distinguishes confirmed code defects from observations that still need the original
+device and service. It does not change the published iOS download or grant additional access.
+
 ## Sideloaded storage
 
 Personal re-signing can remove the App Group entitlement. The main app then keeps its files,

@@ -94,7 +94,7 @@ final class NivoPersonalRecordsQueryTests: XCTestCase {
         let local = try request.mosaicQuery(now: now, timeZone: chicago)
         XCTAssertEqual(NivoJigsawQuery.date(local.endDay), "2026-11-15")
         XCTAssertEqual(local.today, NivoLifeDay.value(now, timeZone: chicago))
-        let legacy = try NivoJigsawQuery.parse(["list"], now: now)
+        let legacy = try NivoJigsawQuery.parse(["list"], now: now, timeZone: XCTUnwrap(TimeZone(identifier: "Asia/Shanghai")))
         XCTAssertEqual(NivoJigsawQuery.date(legacy.endDay), "2026-11-16")
         let output = try NivoJigsawOutput.render(query: local, state: NivoMosaicState(ownerKey: "one"))
         // 不依赖JSON对斜杠的转义格式，验证调用方实际解码得到的时区。

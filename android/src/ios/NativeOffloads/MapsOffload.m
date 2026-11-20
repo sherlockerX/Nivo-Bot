@@ -9,10 +9,14 @@
 #import <Foundation/Foundation.h>
 #import <MapKit/MapKit.h>
 #import <CoreLocation/CoreLocation.h>
-#import <UIKit/UIKit.h>
+// nanoMuse:此桥接只依赖地图框架，允许macOS执行不联网的真实命令入口回归。
 #import "NativeOffloadUtils.h"
 #import "CoordinateUtils.h"
+// nanoMuse:共享严格参数规则与一次性交付，离线回归用例验证同一实现。
+#import "../NanoMuse/NivoMapsRequest.h"
+#import "../NanoMuse/NivoMapsTransport.h"
 #include "kernel/native_offload.h"
+#include <math.h>
 #include <unistd.h>
 
 static NSString *const TOOL_NAME = @"apple-maps";
@@ -37,122 +41,95 @@ static NSString *const HELP_TEXT =
      "  --query <text>       Search query (required)\n"
      "  --lat <degrees>      Center latitude (required)\n"
      "  --lon <degrees>      Center longitude (required)\n"
-     "  --radius <m>         Search radius in meters (default 1000)\n"
-     "  --limit <N>          Maximum results (default 10)\n"
+     "  --radius <m>         Search radius (0,20000000] meters (default 1000)\n"
+     "  --limit <N>          Maximum results 1..100 (default 10)\n"
      "\n"
      "ROUTE / ETA OPTIONS:\n"
      "  --from <addr|lat,lon>  Origin (required)\n"
      "  --to <addr|lat,lon>    Destination (required)\n"
-     "  --mode <mode>          Transport: driving, walking, transit (default driving)\n"
+     // nanoMuse:骑行使用真实MapKit骑行模式，错误或不支持不会改用驾车。
+     "  --mode <mode>          Transport: driving, walking, transit, cycling (default driving)\n"
+     "  Ambiguous addresses return candidates. Retry with the chosen lat,lon.\n"
      "\n"
      "EXAMPLES:\n"
      "  apple-maps search --query \"coffee shops\" --lat 37.7749 --lon -122.4194\n"
-     "  apple-maps search --query \"gas station\" --radius 500 --limit 5\n"
+     "  apple-maps search --query \"gas station\" --lat 37.7749 --lon -122.4194 --radius 500 --limit 5\n"
      "  apple-maps route --from \"San Francisco\" --to \"Los Angeles\" --mode driving\n"
      "  apple-maps route --from 37.7749,-122.4194 --to 34.0522,-118.2437\n"
      "  apple-maps eta --from \"New York\" --to \"Boston\" --mode transit\n";
 
 // ── Helpers ──
 
-/// Try to parse a "lat,lon" string. Returns YES if successful.
-static BOOL parse_lat_lon(NSString *str, CLLocationCoordinate2D *outCoord) {
-    NSArray *parts = [str componentsSeparatedByString:@","];
-    if (parts.count != 2) return NO;
-
-    NSString *latStr = [parts[0] stringByTrimmingCharactersInSet:
-                        [NSCharacterSet whitespaceCharacterSet]];
-    NSString *lonStr = [parts[1] stringByTrimmingCharactersInSet:
-                        [NSCharacterSet whitespaceCharacterSet]];
-
-    NSScanner *latScanner = [NSScanner scannerWithString:latStr];
-    NSScanner *lonScanner = [NSScanner scannerWithString:lonStr];
-    double lat, lon;
-
-    if (![latScanner scanDouble:&lat] || !latScanner.isAtEnd) return NO;
-    if (![lonScanner scanDouble:&lon] || !lonScanner.isAtEnd) return NO;
-
-    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return NO;
-
-    outCoord->latitude = lat;
-    outCoord->longitude = lon;
-    return YES;
+// nanoMuse:错误结构保留上游域、代码和执行阶段，帮助区分输入、地名解析与路径服务失败。
+static int emit_maps_error(NSString *command, NSError *error, int stdout_fd, BOOL compact, BOOL quiet) {
+    NSDictionary *details = NivoMapsErrorDetails(error);
+    NSMutableDictionary *envelope = [noff_json_error(TOOL_NAME, command,
+        details[@"code"], details[@"message"]) mutableCopy];
+    envelope[@"error"] = details;
+    noff_emit_json(stdout_fd, envelope, compact, quiet);
+    return [error.domain isEqualToString:NivoMapsErrorDomain] && error.code == NivoMapsErrorInvalidArguments
+        ? NOFF_EXIT_INVALID_ARGS : NOFF_EXIT_ERROR;
 }
 
-/// Geocode an address string synchronously. Returns kCLLocationCoordinate2DInvalid on failure.
-static CLLocationCoordinate2D geocode_address(NSString *address) {
-    __block CLLocationCoordinate2D result = kCLLocationCoordinate2DInvalid;
-    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
-
-    CLGeocoder *geocoder = [[CLGeocoder alloc] init];
-    [geocoder geocodeAddressString:address completionHandler:^(NSArray<CLPlacemark *> *placemarks, NSError *error) {
-        if (placemarks.count > 0) {
-            CLPlacemark *place = placemarks.firstObject;
-            result = place.location.coordinate;
-        }
-        dispatch_semaphore_signal(sem);
-    }];
-    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC));
-
-    return result;
-}
-
-/// Resolve a location string (either "lat,lon" or address) to a coordinate.
-static CLLocationCoordinate2D resolve_location(NSString *str) {
-    CLLocationCoordinate2D coord;
-    if (parse_lat_lon(str, &coord)) {
-        return coord;
+/// 在原生对象所在的主线程提取地址，返回的字典可跨线程读取。
+static NSString *maps_address(CLPlacemark *place) {
+    NSMutableArray *parts = [NSMutableArray array];
+    for (NSString *part in @[place.subThoroughfare ?: @"", place.thoroughfare ?: @"", place.locality ?: @"",
+                            place.administrativeArea ?: @"", place.postalCode ?: @"", place.country ?: @""]) {
+        if (part.length > 0) [parts addObject:part];
     }
-    return geocode_address(str);
+    return [parts componentsJoinedByString:@", "];
 }
 
-/// Map mode string to MKDirectionsTransportType.
-static MKDirectionsTransportType transport_type_for_mode(NSString *mode) {
-    if ([mode isEqualToString:@"walking"])  return MKDirectionsTransportTypeWalking;
-    if ([mode isEqualToString:@"transit"])  return MKDirectionsTransportTypeTransit;
-    return MKDirectionsTransportTypeAutomobile; // default: driving
+/// 原始精度不存在时输出null，不把输入小数位或地名解析当作精确位置证据。
+static NSDictionary *maps_candidate(CLPlacemark *place, NSString *input) {
+    CLLocation *location = place.location;
+    if (location == nil || !CLLocationCoordinate2DIsValid(location.coordinate)) return nil;
+    double accuracy = location.horizontalAccuracy;
+    return @{@"input": input, @"name": place.name ?: input, @"address": maps_address(place),
+             @"lat": @(location.coordinate.latitude), @"lon": @(location.coordinate.longitude),
+             @"source": @"geocoded", @"accuracy_m": isfinite(accuracy) && accuracy >= 0 ? @(accuracy) : NSNull.null};
+}
+
+// nanoMuse:地理编码的创建、启动和取消均在主线程；不再无声选取第一个候选。
+static NSDictionary *resolve_endpoint(NSDictionary *endpoint, NSString *name, NSError **outError) {
+    if (endpoint[@"lat"]) return endpoint;
+    NivoMapsAsyncResult *result = [[NivoMapsAsyncResult alloc] init];
+    NSString *stage = [@"geocode_" stringByAppendingString:name];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (result.isFinished) return;
+        CLGeocoder *geocoder = [[CLGeocoder alloc] init];
+        [result setCancellation:^{ [geocoder cancelGeocode]; }];
+        [geocoder geocodeAddressString:endpoint[@"input"] completionHandler:^(NSArray<CLPlacemark *> *places, NSError *error) {
+            if (result.isFinished) return;
+            if (error) { [result finish:nil error:NivoMapsErrorAtStage(error, stage)]; return; }
+            NSMutableArray *candidates = [NSMutableArray array];
+            for (CLPlacemark *place in places) {
+                NSDictionary *candidate = maps_candidate(place, endpoint[@"input"]);
+                if (candidate) [candidates addObject:candidate];
+            }
+            NSError *resolutionError = nil;
+            NSDictionary *selected = NivoMapsSelectEndpoint(candidates, name, &resolutionError);
+            [result finish:selected error:resolutionError ? NivoMapsErrorAtStage(resolutionError, stage) : nil];
+        }];
+    });
+    [result wait:15 stage:stage];
+    if (outError) *outError = result.error;
+    return result.data;
 }
 
 // ── Subcommands ──
 
-static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL compact, BOOL quiet) {
-    NSString *query = noff_find_arg(argc, argv, "--query");
-    if (!query) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"search",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Required: --query");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    NSString *latStr = noff_find_arg(argc, argv, "--lat") ?: noff_find_arg(argc, argv, "--latitude");
-    NSString *lonStr = noff_find_arg(argc, argv, "--lon") ?: noff_find_arg(argc, argv, "--longitude");
-    NSString *radiusStr = noff_find_arg(argc, argv, "--radius");
-    NSString *limitStr = noff_find_arg(argc, argv, "--limit");
-
-    double radiusM = radiusStr ? [radiusStr doubleValue] : 1000.0;
-    NSInteger limit = limitStr ? [limitStr integerValue] : 10;
-    if (limit <= 0) limit = 10;
-
-    if (!latStr || !lonStr) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"search",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Required: --lat and --lon");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    CLLocationCoordinate2D center = CLLocationCoordinate2DMake([latStr doubleValue], [lonStr doubleValue]);
-
-    // MapKit objects (MKMapItem, MKLocalSearch, etc.) must be created and
-    // released on the main thread to avoid crashes in NSNotificationCenter
-    // during dealloc. Dispatch the entire MapKit operation to main.
-    __block NSDictionary *resultData = nil;
-    __block NSString *errorMsg = nil;
-    dispatch_semaphore_t mainSem = dispatch_semaphore_create(0);
+// nanoMuse:只接收完整验证后的请求，超时后取消实际服务且封闭结果写入。
+static int cmd_search(NivoMapsRequest *input, int stdout_fd, BOOL compact, BOOL quiet) {
+    NSString *query = input.query;
+    double radiusM = input.radiusMeters;
+    NSInteger limit = input.limit;
+    CLLocationCoordinate2D center = CLLocationCoordinate2DMake(input.latitude, input.longitude);
+    NivoMapsAsyncResult *result = [[NivoMapsAsyncResult alloc] init];
 
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (result.isFinished) return;
         MKLocalSearchRequest *request = [[MKLocalSearchRequest alloc] init];
         request.naturalLanguageQuery = query;
 
@@ -162,10 +139,12 @@ static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL 
         request.region = region;
 
         MKLocalSearch *search = [[MKLocalSearch alloc] initWithRequest:request];
+        [result setCancellation:^{ [search cancel]; }];
         [search startWithCompletionHandler:^(MKLocalSearchResponse *response, NSError *error) {
+            if (result.isFinished) return;
             if (error || !response) {
-                errorMsg = error.localizedDescription ?: @"Search returned no results";
-                dispatch_semaphore_signal(mainSem);
+                [result finish:nil error:NivoMapsErrorAtStage(error ?: NivoMapsMakeError(
+                    NivoMapsErrorNoData, @"Search returned no results.", @{}), @"search")];
                 return;
             }
 
@@ -182,16 +161,8 @@ static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL 
                 NSMutableDictionary *d = [NSMutableDictionary dictionary];
                 d[@"name"] = item.name ?: @"";
 
-                // Build address string from placemark
-                MKPlacemark *pm = item.placemark;
-                NSMutableArray *addrParts = [NSMutableArray array];
-                if (pm.subThoroughfare) [addrParts addObject:pm.subThoroughfare];
-                if (pm.thoroughfare) [addrParts addObject:pm.thoroughfare];
-                if (pm.locality) [addrParts addObject:pm.locality];
-                if (pm.administrativeArea) [addrParts addObject:pm.administrativeArea];
-                if (pm.postalCode) [addrParts addObject:pm.postalCode];
-                if (pm.country) [addrParts addObject:pm.country];
-                d[@"address"] = addrParts.count > 0 ? [addrParts componentsJoinedByString:@", "] : @"";
+                // nanoMuse:共用地址字段提取，不对既有坐标体系作猜测性改写。
+                d[@"address"] = maps_address(item.placemark);
 
                 d[@"lat"] = @(item.placemark.coordinate.latitude);
                 d[@"lon"] = @(item.placemark.coordinate.longitude);
@@ -216,197 +187,101 @@ static int cmd_search(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL 
                 [results addObject:d];
             }
 
-            resultData = @{
+            [result finish:@{
                 @"results": results,
                 @"count": @(results.count),
                 @"query": query,
-            };
-            dispatch_semaphore_signal(mainSem);
+            } error:nil];
         }];
     });
-    dispatch_semaphore_wait(mainSem, dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC));
+    [result wait:20 stage:@"search"];
 
-    if (errorMsg || !resultData) {
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"search",
-                                             NOFF_ERR_INTERNAL_ERROR,
-                                             errorMsg ?: @"Search timed out");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_ERROR;
-    }
-
-    noff_emit_json(stdout_fd, noff_json_envelope(TOOL_NAME, @"search", resultData), compact, quiet);
+    if (result.error) return emit_maps_error(@"search", result.error, stdout_fd, compact, quiet);
+    noff_emit_json(stdout_fd, noff_json_envelope(TOOL_NAME, @"search", result.data), compact, quiet);
     return NOFF_EXIT_SUCCESS;
 }
 
-static int cmd_route(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL compact, BOOL quiet) {
-    NSString *fromStr = noff_find_arg(argc, argv, "--from");
-    NSString *toStr = noff_find_arg(argc, argv, "--to");
-
-    if (!fromStr || !toStr) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"route",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Required: --from, --to");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    NSString *mode = noff_find_arg(argc, argv, "--mode") ?: @"driving";
-
-    CLLocationCoordinate2D fromCoord = resolve_location(fromStr);
-    if (!CLLocationCoordinate2DIsValid(fromCoord)) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"route",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Could not resolve --from location");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    CLLocationCoordinate2D toCoord = resolve_location(toStr);
-    if (!CLLocationCoordinate2DIsValid(toCoord)) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"route",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Could not resolve --to location");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    // MapKit objects must be created/released on the main thread to avoid
-    // crashes in -[MKMapItem dealloc] → NSNotificationCenter removeObserver:.
-    __block NSDictionary *resultData = nil;
-    __block NSString *errorMsg = nil;
-    MKDirectionsTransportType transportType = transport_type_for_mode(mode);
-    dispatch_semaphore_t mainSem = dispatch_semaphore_create(0);
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        MKDirectionsRequest *request = [[MKDirectionsRequest alloc] init];
-        MKPlacemark *srcPlacemark = [[MKPlacemark alloc] initWithCoordinate:fromCoord];
-        MKPlacemark *dstPlacemark = [[MKPlacemark alloc] initWithCoordinate:toCoord];
-        request.source = [[MKMapItem alloc] initWithPlacemark:srcPlacemark];
-        request.destination = [[MKMapItem alloc] initWithPlacemark:dstPlacemark];
-        request.transportType = transportType;
-        request.requestsAlternateRoutes = NO;
-
-        MKDirections *directions = [[MKDirections alloc] initWithRequest:request];
-        [directions calculateDirectionsWithCompletionHandler:^(MKDirectionsResponse *response, NSError *error) {
-            if (error || !response || response.routes.count == 0) {
-                errorMsg = error.localizedDescription ?: @"No route found";
-                dispatch_semaphore_signal(mainSem);
-                return;
-            }
-
-            MKRoute *route = response.routes.firstObject;
-
-            NSMutableArray *steps = [NSMutableArray array];
-            for (MKRouteStep *step in route.steps) {
-                if (step.instructions.length == 0) continue;
-                [steps addObject:@{
-                    @"instruction": step.instructions,
-                    @"distance_m": @((int)round(step.distance)),
-                }];
-            }
-
-            resultData = @{
-                @"distance_km": @(round(route.distance / 10.0) / 100.0),
-                @"duration_minutes": @(round(route.expectedTravelTime / 6.0) / 10.0),
-                @"steps": steps,
-                @"polyline_point_count": @(route.polyline.pointCount),
-            };
-            dispatch_semaphore_signal(mainSem);
-        }];
-    });
-    dispatch_semaphore_wait(mainSem, dispatch_time(DISPATCH_TIME_NOW, 35 * NSEC_PER_SEC));
-
-    if (errorMsg || !resultData) {
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"route",
-                                             NOFF_ERR_INTERNAL_ERROR,
-                                             errorMsg ?: @"Route calculation timed out");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_ERROR;
-    }
-
-    noff_emit_json(stdout_fd, noff_json_envelope(TOOL_NAME, @"route", resultData), compact, quiet);
-    return NOFF_EXIT_SUCCESS;
+// nanoMuse:路线和ETA共用两端解析、真实交通方式、主线程启动与超时状态。
+static MKDirections *maps_directions(NivoMapsRequest *input, NSDictionary *from, NSDictionary *to) {
+    MKDirectionsRequest *request = [[MKDirectionsRequest alloc] init];
+    CLLocationCoordinate2D origin = CLLocationCoordinate2DMake([from[@"lat"] doubleValue], [from[@"lon"] doubleValue]);
+    CLLocationCoordinate2D destination = CLLocationCoordinate2DMake([to[@"lat"] doubleValue], [to[@"lon"] doubleValue]);
+    request.source = [[MKMapItem alloc] initWithPlacemark:[[MKPlacemark alloc] initWithCoordinate:origin]];
+    request.destination = [[MKMapItem alloc] initWithPlacemark:[[MKPlacemark alloc] initWithCoordinate:destination]];
+    request.transportType = NivoMapsTransportType(input.mode);
+    request.requestsAlternateRoutes = NO;
+    return [[MKDirections alloc] initWithRequest:request];
 }
 
-static int cmd_eta(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL compact, BOOL quiet) {
-    NSString *fromStr = noff_find_arg(argc, argv, "--from");
-    NSString *toStr = noff_find_arg(argc, argv, "--to");
+/// 供应商没有有效距离和时间时返回失败，不补直线距离或固定默认距离。
+static NSDictionary *maps_measurements(double distance, double duration) {
+    if (!isfinite(distance) || distance < 0 || !isfinite(duration) || duration < 0) return nil;
+    return @{@"distance_km": @(round(distance / 10.0) / 100.0),
+             @"duration_minutes": @(round(duration / 6.0) / 10.0)};
+}
 
-    if (!fromStr || !toStr) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"eta",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Required: --from, --to");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
+/// 只提取供应商提供的路线信息，所有原生对象留在主线程回调内。
+static void maps_route_result(MKDirections *directions, NivoMapsAsyncResult *result) {
+    [directions calculateDirectionsWithCompletionHandler:^(MKDirectionsResponse *response, NSError *error) {
+        if (result.isFinished) return;
+        MKRoute *route = response.routes.firstObject;
+        NSDictionary *measurements = route ? maps_measurements(route.distance, route.expectedTravelTime) : nil;
+        if (error || measurements == nil) {
+            [result finish:nil error:NivoMapsErrorAtStage(error ?: NivoMapsMakeError(
+                NivoMapsErrorNoData, @"No valid route found.", @{}), @"route")];
+            return;
+        }
+        NSMutableArray *steps = [NSMutableArray array];
+        for (MKRouteStep *step in route.steps) {
+            if (step.instructions.length == 0) continue;
+            [steps addObject:@{@"instruction": step.instructions, @"distance_m": @(round(step.distance))}];
+        }
+        NSMutableDictionary *data = [measurements mutableCopy];
+        data[@"steps"] = steps;
+        data[@"polyline_point_count"] = @(route.polyline.pointCount);
+        [result finish:data error:nil];
+    }];
+}
 
-    NSString *mode = noff_find_arg(argc, argv, "--mode") ?: @"driving";
+/// ETA采用MapKit原生估计，无法提供骑行或其他方式时保留服务错误。
+static void maps_eta_result(MKDirections *directions, NivoMapsAsyncResult *result) {
+    [directions calculateETAWithCompletionHandler:^(MKETAResponse *response, NSError *error) {
+        if (result.isFinished) return;
+        NSDictionary *measurements = response ? maps_measurements(response.distance, response.expectedTravelTime) : nil;
+        if (error || measurements == nil || response.expectedArrivalDate == nil) {
+            [result finish:nil error:NivoMapsErrorAtStage(error ?: NivoMapsMakeError(
+                NivoMapsErrorNoData, @"No valid ETA found.", @{}), @"eta")];
+            return;
+        }
+        NSMutableDictionary *data = [measurements mutableCopy];
+        data[@"expected_arrival"] = noff_format_date(response.expectedArrivalDate);
+        [result finish:data error:nil];
+    }];
+}
 
-    CLLocationCoordinate2D fromCoord = resolve_location(fromStr);
-    if (!CLLocationCoordinate2DIsValid(fromCoord)) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"eta",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Could not resolve --from location");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    CLLocationCoordinate2D toCoord = resolve_location(toStr);
-    if (!CLLocationCoordinate2DIsValid(toCoord)) {
-        noff_emit_help(stderr_fd, HELP_TEXT);
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"eta",
-                                             NOFF_ERR_INVALID_ARGS,
-                                             @"Could not resolve --to location");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_INVALID_ARGS;
-    }
-
-    // MapKit objects must be created/released on the main thread.
-    __block NSDictionary *resultData = nil;
-    __block NSString *errorMsg = nil;
-    MKDirectionsTransportType transportType = transport_type_for_mode(mode);
-    dispatch_semaphore_t mainSem = dispatch_semaphore_create(0);
-
+/// 返回解析后的两端和请求模式，允许调用方核对是否选中了预期地点。
+static int cmd_directions(NivoMapsRequest *input, int stdout_fd, BOOL compact, BOOL quiet) {
+    NSError *error = nil;
+    NSDictionary *from = resolve_endpoint(input.fromEndpoint, @"from", &error);
+    if (error) return emit_maps_error(input.command, error, stdout_fd, compact, quiet);
+    NSDictionary *to = resolve_endpoint(input.toEndpoint, @"to", &error);
+    if (error) return emit_maps_error(input.command, error, stdout_fd, compact, quiet);
+    NivoMapsAsyncResult *result = [[NivoMapsAsyncResult alloc] init];
+    BOOL isRoute = [input.command isEqualToString:@"route"];
     dispatch_async(dispatch_get_main_queue(), ^{
-        MKDirectionsRequest *request = [[MKDirectionsRequest alloc] init];
-        MKPlacemark *srcPlacemark = [[MKPlacemark alloc] initWithCoordinate:fromCoord];
-        MKPlacemark *dstPlacemark = [[MKPlacemark alloc] initWithCoordinate:toCoord];
-        request.source = [[MKMapItem alloc] initWithPlacemark:srcPlacemark];
-        request.destination = [[MKMapItem alloc] initWithPlacemark:dstPlacemark];
-        request.transportType = transportType;
-
-        MKDirections *directions = [[MKDirections alloc] initWithRequest:request];
-        [directions calculateETAWithCompletionHandler:^(MKETAResponse *response, NSError *error) {
-            if (error || !response) {
-                errorMsg = error.localizedDescription ?: @"Could not calculate ETA";
-                dispatch_semaphore_signal(mainSem);
-                return;
-            }
-
-            resultData = @{
-                @"distance_km": @(round(response.distance / 10.0) / 100.0),
-                @"duration_minutes": @(round(response.expectedTravelTime / 6.0) / 10.0),
-                @"expected_arrival": noff_format_date(response.expectedArrivalDate),
-            };
-            dispatch_semaphore_signal(mainSem);
-        }];
+        if (result.isFinished) return;
+        MKDirections *directions = maps_directions(input, from, to);
+        [result setCancellation:^{ [directions cancel]; }];
+        if (isRoute) maps_route_result(directions, result);
+        else maps_eta_result(directions, result);
     });
-    dispatch_semaphore_wait(mainSem, dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC));
-
-    if (errorMsg || !resultData) {
-        NSDictionary *err = noff_json_error(TOOL_NAME, @"eta",
-                                             NOFF_ERR_INTERNAL_ERROR,
-                                             errorMsg ?: @"ETA calculation timed out");
-        noff_emit_json(stdout_fd, err, compact, quiet);
-        return NOFF_EXIT_ERROR;
-    }
-
-    noff_emit_json(stdout_fd, noff_json_envelope(TOOL_NAME, @"eta", resultData), compact, quiet);
+    [result wait:isRoute ? 35 : 20 stage:input.command];
+    if (result.error) return emit_maps_error(input.command, result.error, stdout_fd, compact, quiet);
+    NSMutableDictionary *data = [result.data mutableCopy];
+    data[@"mode"] = input.modeName;
+    data[@"from"] = from;
+    data[@"to"] = to;
+    noff_emit_json(stdout_fd, noff_json_envelope(TOOL_NAME, input.command, data), compact, quiet);
     return NOFF_EXIT_SUCCESS;
 }
 
@@ -414,6 +289,7 @@ static int cmd_eta(int argc, char **argv, int stdout_fd, int stderr_fd, BOOL com
 
 static int maps_handler(int argc, char **argv,
                          int stdin_fd, int stdout_fd, int stderr_fd) {
+    (void)stdin_fd;
     if (noff_has_flag(argc, argv, "--help") || noff_has_flag(argc, argv, "-h")) {
         noff_emit_help(stderr_fd, HELP_TEXT);
         return NOFF_EXIT_SUCCESS;
@@ -422,7 +298,19 @@ static int maps_handler(int argc, char **argv,
     BOOL compact = noff_has_flag(argc, argv, "--compact");
     BOOL quiet = noff_has_flag(argc, argv, "-q") || noff_has_flag(argc, argv, "--quiet");
 
-    NSString *subcmd = noff_get_subcommand(argc, argv);
+    // nanoMuse:先收集全部选项再校验，避免未验证的终点或模式先触发起点网络解析。
+    NSString *subcmd = nil;
+    NSMutableArray *arguments = [NSMutableArray array];
+    for (int index = 1; index < argc; index++) {
+        NSString *argument = [NSString stringWithUTF8String:argv[index]];
+        if (argument == nil) {
+            return emit_maps_error(subcmd ?: @"unknown", NivoMapsMakeError(NivoMapsErrorInvalidArguments,
+                @"Arguments must be UTF-8 text.", @{}), stdout_fd, compact, quiet);
+        }
+        BOOL isOutputFlag = [@[@"--compact", @"--quiet", @"-q"] containsObject:argument];
+        if (subcmd == nil && !isOutputFlag) subcmd = argument;
+        else [arguments addObject:argument];
+    }
     if (!subcmd) {
         noff_emit_help(stderr_fd, HELP_TEXT);
         NSDictionary *err = noff_json_error(TOOL_NAME, @"unknown",
@@ -432,16 +320,16 @@ static int maps_handler(int argc, char **argv,
         return NOFF_EXIT_INVALID_ARGS;
     }
 
-    if ([subcmd isEqualToString:@"search"])  return cmd_search(argc, argv, stdout_fd, stderr_fd, compact, quiet);
-    if ([subcmd isEqualToString:@"route"])   return cmd_route(argc, argv, stdout_fd, stderr_fd, compact, quiet);
-    if ([subcmd isEqualToString:@"eta"])     return cmd_eta(argc, argv, stdout_fd, stderr_fd, compact, quiet);
-
-    noff_emit_help(stderr_fd, HELP_TEXT);
-    NSDictionary *err = noff_json_error(TOOL_NAME, subcmd,
-                                         NOFF_ERR_INVALID_ARGS,
-                                         [NSString stringWithFormat:@"Unknown command '%@'. Valid commands: search, route, eta. Use --help for details.", subcmd]);
-    noff_emit_json(stdout_fd, err, compact, quiet);
-    return NOFF_EXIT_INVALID_ARGS;
+    NSError *error = nil;
+    NivoMapsRequest *input = [NivoMapsRequest parse:subcmd arguments:arguments error:&error];
+    if (input == nil) return emit_maps_error(subcmd, error, stdout_fd, compact, quiet);
+    // nanoMuse:同步CLI入口不能占用主线程等待主队列，否则造成自锁。
+    if (NSThread.isMainThread) {
+        return emit_maps_error(subcmd, NivoMapsMakeError(NivoMapsErrorWrongThread,
+            @"Run maps commands from the conversation shell.", @{}), stdout_fd, compact, quiet);
+    }
+    if ([subcmd isEqualToString:@"search"]) return cmd_search(input, stdout_fd, compact, quiet);
+    return cmd_directions(input, stdout_fd, compact, quiet);
 }
 
 // ── Registration ──

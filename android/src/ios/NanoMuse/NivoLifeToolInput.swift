@@ -89,3 +89,68 @@ enum NivoLifeToolInput {
         #endif
     }
 }
+
+/// 模型工具与CLI共用可恢复错误协议，不输出Swift枚举序号或私有存储路径。
+enum NivoLifeToolFailure {
+    /// 失败始终显式标记，调用方不能把授权拒绝或磁盘故障当作空记录。
+    static func output(_ error: Error) -> String {
+        var value = details(error)
+        // Coach和Life旧调用方读取code，保留同值别名以兼容已有冲突恢复逻辑。
+        value["code"] = value["error"]
+        value["success"] = false
+        value["dataAvailable"] = false
+        let fallback = "{\"success\":false,\"error\":\"records_unavailable\",\"code\":\"records_unavailable\",\"dataAvailable\":false}"
+        guard let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) else { return fallback }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func details(_ error: Error) -> [String: Any] {
+        if let access = error as? NivoPersonalRecordsAccessError {
+            return ["error": access.rawValue, "message": access.localizedDescription, "requiresNewUserTurn": true]
+        }
+        if let execution = error as? NivoJigsawExecutionError {
+            return ["error": execution.rawValue, "message": execution.localizedDescription]
+        }
+        if let execution = error as? NivoScheduledExecutionError {
+            return ["error": execution.rawValue, "message": execution.localizedDescription]
+        }
+        if let life = error as? NivoLifeError { return lifeDetails(life) }
+        if let query = error as? NivoJigsawQuery.QueryError {
+            return ["error": "invalid_query", "message": query.message, "requiresNewUserTurn": false]
+        }
+        if error is CancellationError {
+            return ["error": "cancelled", "message": "The request was cancelled.", "requiresNewUserTurn": true]
+        }
+        return ["error": "records_unavailable", "message": "Saved records could not be read. Open the records page to check its status before retrying.", "requiresNewUserTurn": false]
+    }
+
+    private static func lifeDetails(_ error: NivoLifeError) -> [String: Any] {
+        switch error {
+        case .invalidField(let field):
+            if ["id_required", "expected_revision_required"].contains(field) {
+                let option = field == "id_required" ? "--id" : "--expected-revision"
+                return ["error": "invalid_args", "argument": option,
+                    "message": "Missing or invalid \(option). Run minis-scheduled --help for the required arguments."]
+            }
+            var result: [String: Any] = ["error": "invalid_field", "message": "Check the tool's documented fields and JSON value types."]
+            if field.range(of: "^[A-Za-z][A-Za-z0-9_]{0,63}$", options: .regularExpression) != nil { result["field"] = field }
+            return result
+        case .accountChanged:
+            return ["error": "account_changed", "message": "The account or saved-data scope changed. Return to the conversation and send a new request.", "requiresNewUserTurn": true]
+        case .staleRevision(let expected, let actual):
+            return ["error": "stale_revision", "message": "Query the latest item before a new operation.", "expectedRevision": expected, "actualRevision": actual]
+        case .notFound:
+            return ["error": "not_found", "message": "The saved item no longer exists. Query the list again."]
+        case .operationConflict:
+            return ["error": "operation_conflict", "message": "This operation ID was already used for different content."]
+        case .activeSessionExists:
+            return ["error": "active_session_exists", "message": "Finish the current focus session first."]
+        case .invalidTransition:
+            return ["error": "invalid_transition", "message": "This action does not apply to the saved state. Query the current item before retrying."]
+        case .unsupportedVersion:
+            return ["error": "unsupported_version", "message": "The saved records use an unsupported version. The original file was preserved."]
+        case .corruptStore:
+            return ["error": "corrupt_store", "message": "Saved records could not be decoded. The original file was preserved."]
+        }
+    }
+}

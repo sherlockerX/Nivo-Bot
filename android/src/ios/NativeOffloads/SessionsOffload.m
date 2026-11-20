@@ -44,6 +44,11 @@
 + (NSDictionary * _Nonnull)getSessionStatusWithSessionId:(NSString * _Nonnull)sessionId;
 + (NSDictionary * _Nonnull)openSessionWithSessionId:(NSString * _Nonnull)sessionId;
 @end
+// nanoMuse: 无生成头文件的原生编译入口也声明统一会话协议适配器。
+@interface NivoSessionOffloadResponse : NSObject
++ (NSDictionary * _Nonnull)envelopeForAction:(NSString * _Nonnull)action payload:(NSDictionary * _Nonnull)payload;
++ (int32_t)exitCodeForPayload:(NSDictionary * _Nonnull)payload;
+@end
 #endif
 
 static NSString *const TOOL_NAME = @"minis-sessions-cli";
@@ -198,9 +203,10 @@ static int cmd_send(int argc, char **argv, int stdout_fd, int stderr_fd,
                                                             modelEntryId:modelEntryId
                                                                   source:sourceTag];
 
-    NSDictionary *result = noff_json_envelope(TOOL_NAME, @"send", data);
+    // nanoMuse: 桥接失败保留最外层错误状态，不再包装成成功。
+    NSDictionary *result = [NivoSessionOffloadResponse envelopeForAction:@"send" payload:data];
     noff_emit_json(stdout_fd, result, compact, quiet);
-    return NOFF_EXIT_SUCCESS;
+    return [NivoSessionOffloadResponse exitCodeForPayload:data];
 }
 
 // ── Subcommand: retry ──
@@ -225,9 +231,10 @@ static int cmd_retry(int argc, char **argv, int stdout_fd, int stderr_fd,
                                                                 messageId:messageId
                                                           attachmentPaths:attachments];
 
-    NSDictionary *result = noff_json_envelope(TOOL_NAME, @"retry", data);
+    // nanoMuse: 重试失败同时反映在JSON和进程退出码。
+    NSDictionary *result = [NivoSessionOffloadResponse envelopeForAction:@"retry" payload:data];
     noff_emit_json(stdout_fd, result, compact, quiet);
-    return NOFF_EXIT_SUCCESS;
+    return [NivoSessionOffloadResponse exitCodeForPayload:data];
 }
 
 // ── Subcommand: status ──
@@ -245,9 +252,10 @@ static int cmd_status(int argc, char **argv, int stdout_fd, int stderr_fd,
     }
 
     NSDictionary *data = [SessionsOffloadBridge getSessionStatusWithSessionId:sessionId];
-    NSDictionary *result = noff_json_envelope(TOOL_NAME, @"status", data);
+    // nanoMuse: status桥接已经包含data，只保留一层标准包装。
+    NSDictionary *result = [NivoSessionOffloadResponse envelopeForAction:@"status" payload:data];
     noff_emit_json(stdout_fd, result, compact, quiet);
-    return NOFF_EXIT_SUCCESS;
+    return [NivoSessionOffloadResponse exitCodeForPayload:data];
 }
 
 // ── Subcommand: open ──
@@ -272,14 +280,10 @@ static int cmd_open(int argc, char **argv, int stdout_fd, int stderr_fd,
     }
 
     NSDictionary *data = [SessionsOffloadBridge openSessionWithSessionId:sessionId];
-    NSDictionary *result = noff_json_envelope(TOOL_NAME, @"open", data);
+    // nanoMuse: 打开失败不再出现外层ok=true与内层ok=false冲突。
+    NSDictionary *result = [NivoSessionOffloadResponse envelopeForAction:@"open" payload:data];
     noff_emit_json(stdout_fd, result, compact, quiet);
-
-    // Surface session_not_found as a non-zero exit so shell pipelines can
-    // detect the failure without parsing JSON.
-    NSNumber *ok = data[@"ok"];
-    if (ok && ![ok boolValue]) return NOFF_EXIT_INVALID_ARGS;
-    return NOFF_EXIT_SUCCESS;
+    return [NivoSessionOffloadResponse exitCodeForPayload:data];
 }
 
 // ── Subcommand: list ──

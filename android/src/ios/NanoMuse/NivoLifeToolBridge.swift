@@ -71,10 +71,8 @@ enum NivoLifeToolBridge {
             guard result.output.utf8.count <= 2 * 1_024 * 1_024 else { return failure("Result is too large; reduce the limit. No text was truncated.") }
             return result
         } catch is CancellationError { throw CancellationError()
-        } catch let error as NivoLifeError {
-            if case .staleRevision = error { return failure("stale_revision: query the latest item before a new operation.") }
-            return failure(NivoLifeModel.message(error))
-        } catch { return failure(error.localizedDescription) }
+        } catch let error as ToolError { return failure(error.localizedDescription)
+        } catch { return .init(output: NivoLifeToolFailure.output(error), success: false) }
     }
 
     private static func queryTodo(_ args: [String: Any], tasks: [NivoTodoTask], categories: [NivoTodoCategory]) throws -> Result {

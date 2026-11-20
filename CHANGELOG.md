@@ -4,6 +4,11 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Completed missing translations for 13 existing iOS interface strings across seven supported locales, preserving the original English, Simplified Chinese and format placeholders.
+- Fixed iOS config paths containing dotted model IDs, clarified separate authorization for runtime model calls, and preserved JSON scalar values and errors in quiet config output. Removed duplicate session-status envelopes and made failed session actions return failed outer responses and exit codes.
+- Made iOS record-query failures explain foreground, conversation, saved-request and storage conditions; accepted framework tool titles without treating them as query fields. Life-log CLI dates now follow the device time zone, compact output is supported, and Markdown pagination names its next offset. Missing scheduled-task IDs and revisions are rejected before account or permission access.
+- Validated iOS map command arguments before network requests, passed cycling through as cycling, exposed resolved endpoints and ambiguous candidates, preserved MapKit error details, and cancelled timed-out requests without accepting late results. These changes do not certify real-world route distances. See the [iOS tool audit](docs/zh/ios-tool-self-audit.md) for verification limits and phone checks.
+
 ## [2.0.7] - 2026-11-20 · Anchor
 
 - Released Android 2.0.7 (58) with the existing Nivo application ID and signing certificate. The APK is 40,969,779 bytes; phone upgrade retention remains untested. The website preserves actual historical iOS downloads, and the release publisher now supports one platform at a time. Shared iOS source version fields do not imply a new iOS binary. See [release notes](docs/releases/v2.0.7.md) for validation and the retained 16KB-page native-library limitation.

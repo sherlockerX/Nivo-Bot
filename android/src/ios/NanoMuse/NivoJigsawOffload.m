@@ -28,22 +28,23 @@ static int nivo_jigsaw_handler(int argc, char **argv, int stdin_fd, int stdout_f
     if (argc < 2 || noff_has_flag(argc, argv, "--help") || noff_has_flag(argc, argv, "-h") ||
         (argc == 2 && strcmp(argv[1], "help") == 0)) {
         nivo_jigsaw_write(stdout_fd, @"minis-jigsaw-cli: read-only life fragments\n"
-            "  list|export [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--days 7] [--limit 31] [--offset 0] [--format json|md]\n"
-            "  get --date YYYY-MM-DD [--format json|md]\n"
-            "  stats [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--days 7] [--format json|md]\n"
-            "Ranges are inclusive, at most 366 days. Default timezone: Asia/Shanghai.\n"
+            "  list|export [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--days 7] [--limit 31] [--offset 0] [--format json|md] [--compact]\n"
+            "  get --date YYYY-MM-DD [--format json|md] [--compact]\n"
+            "  stats [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--days 7] [--format json|md] [--compact]\n"
+            "Ranges are inclusive, at most 366 days. Default timezone: the device's current timezone.\n"
+            "--compact is a JSON-only flag with no value; it changes whitespace, not records or pagination.\n"
             "Follow next_offset until null. No photo contents, file paths, writes or network access.\n");
         return 0;
     }
     if ([NSThread isMainThread]) {
-        nivo_jigsaw_write(stdout_fd, @"{\"error\":\"Run this command from a conversation shell.\"}\n");
+        nivo_jigsaw_write(stdout_fd, @"{\"success\":false,\"error\":\"host_conversation_required\",\"message\":\"Run this command from a conversation shell.\",\"dataAvailable\":false}\n");
         return 1;
     }
     NSMutableArray<NSString *> *arguments = [NSMutableArray array];
     for (int index = 1; index < argc; index++) {
         NSString *argument = [NSString stringWithUTF8String:argv[index]];
         if (argument == nil || arguments.count >= 32 || argument.length > 1024) {
-            nivo_jigsaw_write(stdout_fd, @"{\"error\":\"Invalid or oversized arguments.\"}\n");
+            nivo_jigsaw_write(stdout_fd, @"{\"success\":false,\"error\":\"invalid_query\",\"message\":\"Invalid or oversized arguments.\",\"dataAvailable\":false}\n");
             return 2;
         }
         [arguments addObject:argument];
@@ -58,7 +59,7 @@ static int nivo_jigsaw_handler(int argc, char **argv, int stdin_fd, int stdout_f
         dispatch_semaphore_signal(completed);
     }];
     if (dispatch_semaphore_wait(completed, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC)) != 0) {
-        nivo_jigsaw_write(stdout_fd, @"{\"error\":\"The life log query timed out. Use a smaller range and retry.\"}\n");
+        nivo_jigsaw_write(stdout_fd, @"{\"success\":false,\"error\":\"query_timeout\",\"message\":\"The life log query timed out. Use a smaller range and retry.\",\"dataAvailable\":false}\n");
         return 1;
     }
     nivo_jigsaw_write(stdout_fd, output);

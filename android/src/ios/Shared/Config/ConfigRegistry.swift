@@ -43,18 +43,17 @@ final class ConfigRegistry {
     /// children (`<base>.<id>.<sub>`). Returns nil for unknown paths.
     func resolveField(path: String) -> ConfigField? {
         if let f = fields[path] { return f }
-        // Collection child lookup: split into [base, id, leaf] (leaf
-        // may itself contain dots, e.g. `models.<uuid>.modality.video`).
-        let segments = path.split(separator: ".", maxSplits: 2,
-                                  omittingEmptySubsequences: true).map(String.init)
-        guard segments.count == 3 else { return nil }
-        let base = segments[0]
-        let id = segments[1]
-        guard let coll = collections[base] else { return nil }
-        // The leaf path the collection produces matches its full child
-        // path; we filter by suffix so callers don't need to know the
-        // collection's leaf naming scheme.
-        return coll.fields(for: id).first { $0.path == path }
+        // nanoMuse: 复合模型ID可含点号；按现有子项匹配后核对完整字段，不能按点截断身份。
+        guard let base = path.split(separator: ".", maxSplits: 1,
+                                    omittingEmptySubsequences: false).first,
+              let collection = collections[String(base)] else { return nil }
+        for identifier in NivoConfigPath.childIDs(
+            matching: path, basePath: collection.basePath, existingIDs: collection.childIds()) {
+            if let field = collection.fields(for: identifier).first(where: { $0.path == path }) {
+                return field
+            }
+        }
+        return nil
     }
 
     func collection(basePath: String) -> ConfigCollection? {

@@ -12,14 +12,14 @@ final class NivoJigsawOffloadBridge: NSObject {
             do {
                 let query = try NivoJigsawQuery.parse(arguments)
                 guard let sessionID = MinisFsRouter.shared.sid(for: context) else {
-                    throw NivoJigsawQuery.QueryError("A host-bound conversation is required.")
+                    throw NivoJigsawExecutionError.hostConversationRequired
                 }
                 let life = NivoLifeModel.shared
-                guard let scope = life.accessScope else { throw NivoLifeError.accountChanged }
+                guard let scope = life.accessScope else { throw NivoPersonalRecordsAccessError.dataNotReady }
                 try await NivoMosaicReadAccess.authorize(sessionID: sessionID, scope: scope,
                     command: "minis-jigsaw-cli " + arguments.joined(separator: " "))
                 guard ProcessInfo.processInfo.systemUptime < deadline else {
-                    throw NivoJigsawQuery.QueryError("The life log query timed out. Try again.")
+                    throw NivoJigsawExecutionError.timedOut
                 }
                 let state = try await life.repository.mosaicSnapshot(scope: scope)
                 let output = try await Task.detached(priority: .userInitiated) {
@@ -27,13 +27,11 @@ final class NivoJigsawOffloadBridge: NSObject {
                 }.value
                 try NivoMosaicReadAccess.requireCurrent(sessionID: sessionID, scope: scope)
                 guard ProcessInfo.processInfo.systemUptime < deadline else {
-                    throw NivoJigsawQuery.QueryError("The life log query timed out. Use a smaller range and retry.")
+                    throw NivoJigsawExecutionError.timedOut
                 }
                 completion(output + "\n", 0)
             } catch {
-                let value = ["error": error.localizedDescription]
-                let data = (try? JSONSerialization.data(withJSONObject: value)) ?? Data("{\"error\":\"Life log unavailable\"}".utf8)
-                completion(String(decoding: data, as: UTF8.self) + "\n", error is NivoJigsawQuery.QueryError ? 2 : 1)
+                completion(NivoLifeToolFailure.output(error) + "\n", error is NivoJigsawQuery.QueryError ? 2 : 1)
             }
         }
     }
@@ -50,7 +48,7 @@ enum NivoMosaicReadAccess {
         let permission = await OffloadPermissionManager.shared.checkPermission(
             for: commandName, sessionId: sessionID, fullCommand: command)
         guard case .allowed = permission else {
-            throw NivoJigsawQuery.QueryError("Life log access was denied. Review Settings > Permissions.")
+            throw NivoJigsawExecutionError.permissionDenied
         }
         try requireCurrent(sessionID: sessionID, scope: scope)
     }
@@ -58,10 +56,11 @@ enum NivoMosaicReadAccess {
     /// 主对话和已绑定专题可以读取，其他会话、后台和账户切换期间均拒绝。
     static func requireCurrent(sessionID: String, scope: NivoLifeScope) throws {
         let life = NivoLifeModel.shared
-        guard UIApplication.shared.applicationState == .active, life.isMosaicReady,
-              life.accessScope == scope, scope.ownerKey == NanoMuseAccountData.shared.current,
-              NanoMuseSync.shared.shows(sessionID),
-              sessionID == UserDefaults.standard.string(forKey: NanoMuseMainChat.key) ||
-                NivoCoachChatContext.shared.isPractice(sessionID) else { throw NivoLifeError.accountChanged }
+        guard UIApplication.shared.applicationState == .active else { throw NivoPersonalRecordsAccessError.foregroundRequired }
+        guard life.isMosaicReady else { throw NivoPersonalRecordsAccessError.dataNotReady }
+        guard life.accessScope == scope, scope.ownerKey == NanoMuseAccountData.shared.current,
+              NanoMuseSync.shared.shows(sessionID) else { throw NivoPersonalRecordsAccessError.accountChanged }
+        guard sessionID == UserDefaults.standard.string(forKey: NanoMuseMainChat.key) ||
+                NivoCoachChatContext.shared.isPractice(sessionID) else { throw NivoPersonalRecordsAccessError.conversationRestricted }
     }
 }

@@ -15,7 +15,8 @@ private let logger = AppLogger(category: "ModelUseOffload")
 
 @objc public class ModelUseOffloadBridge: NSObject {
 
-    private static let noModelsHint = "No models available. Go to Settings > Model Groups to add models that the agent can use."
+    // nanoMuse: 空列表说明独立授权入口，不把聊天模型绑定当成终端授权。
+    private static let noModelsHint = NivoModelUseDiagnostics.noModelsHint
 
     // MARK: - List Models
 
@@ -25,7 +26,8 @@ private let logger = AppLogger(category: "ModelUseOffload")
                                          showAll: Bool) -> NSDictionary {
         let store = ProviderConfigStore.shared
         // Always restrict to agent loop models — showAll is accepted but ignored
-        var entries = store.resolvedAgentLoopEntries
+        // nanoMuse: list与run使用相同可用集合，并实际应用供应商过滤条件。
+        var entries = availableAgentEntries(store: store, providerFilter: providerFilter)
 
         if let modalityFilter, !modalityFilter.isEmpty {
             entries = Self.filterByModality(entries, filter: modalityFilter)
@@ -45,14 +47,16 @@ private let logger = AppLogger(category: "ModelUseOffload")
 
     @MainActor
     @objc public static func searchModels(query: String,
+                                           // nanoMuse: 搜索也应用帮助文案中声明的供应商筛选。
+                                           providerFilter: String?,
                                            modalityFilter: String?,
                                            showAll: Bool) -> NSDictionary {
         let store = ProviderConfigStore.shared
         let q = query.lowercased()
 
         // Always restrict to agent loop models — showAll is accepted but ignored
-        let pool = store.resolvedAgentLoopEntries
-            .filter { store.instance(for: $0.providerInstanceId)?.isEnabled == true }
+        // nanoMuse: 搜索与执行共用授权、启用和隐藏条件。
+        let pool = availableAgentEntries(store: store, providerFilter: providerFilter)
 
         var matches = pool.filter { entry in
             entry.model.id.lowercased().contains(q)
@@ -903,14 +907,28 @@ private let logger = AppLogger(category: "ModelUseOffload")
 
     // MARK: - Model Resolution
 
+    // nanoMuse: 仅在显式授权集合内过滤，--all不会扩张用户的授权范围。
+    /// 返回允许终端调用的启用模型，供列表、搜索和执行共用。
+    @MainActor
+    static func availableAgentEntries(store: ProviderConfigStore,
+                                     providerFilter: String? = nil) -> [ModelEntry] {
+        store.resolvedAgentLoopEntries.filter { entry in
+            guard !entry.isHidden,
+                  let instance = store.instance(for: entry.providerInstanceId), instance.isEnabled else { return false }
+            guard let providerFilter, !providerFilter.isEmpty else { return true }
+            return instance.label.lowercased() == providerFilter.lowercased()
+                || instance.id.lowercased() == providerFilter.lowercased()
+        }
+    }
+
     @MainActor
     private static func resolveModelEntry(_ idOrName: String, providerFilter: String? = nil) throws -> ModelEntry {
         let store = ProviderConfigStore.shared
         let q = idOrName.lowercased()
 
         // Only resolve from agent loop models
-        var agentEntries = store.resolvedAgentLoopEntries
-            .filter { store.instance(for: $0.providerInstanceId)?.isEnabled == true }
+        // nanoMuse: 与list/search保持一致，隐藏或停用的模型不可调用。
+        var agentEntries = availableAgentEntries(store: store)
 
         // Optional --provider filter: match against instance label (case-insensitive)
         // OR instance UUID. Applied before the lookup chain so the same model_id
@@ -922,7 +940,8 @@ private let logger = AppLogger(category: "ModelUseOffload")
                 return inst.label.lowercased() == pf || inst.id.lowercased() == pf
             }
             if filtered.isEmpty {
-                throw ModelUseError.modelNotFound("No provider matches --provider '\(providerFilter)'. Use 'minis-model-use list' to see provider labels.")
+                // nanoMuse: 供应商诊断不再塞入模型ID，避免嵌套的not found提示。
+                throw ModelUseError.providerNotFound(providerFilter)
             }
             agentEntries = filtered
         }
@@ -974,7 +993,8 @@ private let logger = AppLogger(category: "ModelUseOffload")
         }
 
         if agentEntries.isEmpty {
-            throw ModelUseError.modelNotFound("\(idOrName) — \(Self.noModelsHint)")
+            // nanoMuse: 模型ID与空授权提示分开传递，保留用户输入的原始身份。
+            throw ModelUseError.modelNotFound(idOrName, hint: Self.noModelsHint)
         }
         throw ModelUseError.modelNotFound(idOrName)
     }
@@ -2152,21 +2172,4 @@ private let logger = AppLogger(category: "ModelUseOffload")
     }
 }
 
-// MARK: - Errors
-
-enum ModelUseError: LocalizedError {
-    case modelNotFound(String)
-    case invalidInput(String)
-    case modalityNotSupported(model: String, required: String, supported: [String])
-
-    var errorDescription: String? {
-        switch self {
-        case .modelNotFound(let id):
-            return "Model '\(id)' not found. Use 'minis-model-use list' to see available models."
-        case .invalidInput(let msg):
-            return msg
-        case .modalityNotSupported(let model, let required, let supported):
-            return "Model '\(model)' does not support \(required). Supported modalities: \(supported.joined(separator: ", ")). Use 'minis-model-use list' to find a model with the required capability."
-        }
-    }
-}
+// nanoMuse: 错误类型位于NanoMuse/NivoModelUseDiagnostics.swift，由便携回归测试直接覆盖。

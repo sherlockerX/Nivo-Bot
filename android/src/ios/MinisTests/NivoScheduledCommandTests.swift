@@ -21,6 +21,13 @@ final class NivoScheduledCommandTests: XCTestCase {
         XCTAssertThrowsError(try NivoScheduledCommand.parse(["probe", "--id", "--expected-revision=1"]))
     }
 
+    func testScriptArgumentsAndPromptPreserveLeadingDashes() throws {
+        let script = try NivoScheduledCommand.parse(["create", "--time", "09:00", "--script", "daily.py", "--script-arg", "--verbose"])
+        XCTAssertEqual(script.options["script-arg"], ["--verbose"])
+        let prompt = try NivoScheduledCommand.parse(["create", "--time", "09:00", "--prompt", "-- a literal note"])
+        XCTAssertEqual(prompt.value("prompt"), "-- a literal note")
+    }
+
     func testMutationsRequireValidRevisionBeforeHostAccess() {
         for action in ["update", "delete", "enable", "disable", "run"] {
             for revision in [nil, "", "-1", "broken", "9223372036854775808"] as [String?] {
@@ -35,6 +42,22 @@ final class NivoScheduledCommandTests: XCTestCase {
         let command = try NivoScheduledCommand.parse(["probe", "--id", "existing-task"])
         XCTAssertTrue(command.isReadOnly)
         XCTAssertEqual(command.value("id"), "existing-task")
+    }
+
+    func testMissingArgumentDiagnosticNamesTheActualCLIOption() throws {
+        let output = NivoLifeToolFailure.output(NivoLifeError.invalidField("id_required"))
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(result["error"] as? String, "invalid_args")
+        XCTAssertEqual(result["argument"] as? String, "--id")
+        XCTAssertEqual(result["success"] as? Bool, false)
+    }
+
+    func testPermissionDenialIsNotReportedAsAnInvalidArgument() throws {
+        let output = NivoLifeToolFailure.output(NivoScheduledExecutionError.permissionDenied)
+        let result = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        XCTAssertEqual(result["error"] as? String, "permission_denied")
+        XCTAssertNil(result["argument"])
+        XCTAssertTrue((result["message"] as? String)?.contains("Settings > Permissions") == true)
     }
 
     func testValidMutationAndGlobalReadRemainAvailable() throws {

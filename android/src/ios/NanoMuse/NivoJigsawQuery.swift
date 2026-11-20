@@ -10,22 +10,23 @@ struct NivoJigsawQuery: Sendable {
     var format: String
     var today: Int64
     var zoneID: String
-    static let zone = TimeZone(identifier: "Asia/Shanghai")!
+    var isCompact: Bool = false
     var pageStart: Int64 { startDay + Int64(offset) }
     var pageEnd: Int64 { min(endDay, pageStart + Int64(limit) - 1) }
     var nextOffset: Int? { pageEnd < endDay ? Int(pageEnd - startDay + 1) : nil }
 
     /// 严格拒绝写命令、重复参数、错误日期和过大范围，读取正文不静默截断。
-    static func parse(_ arguments: [String], now: Date = Date(), timeZone: TimeZone = zone) throws -> NivoJigsawQuery {
+    static func parse(_ arguments: [String], now: Date = Date(), timeZone: TimeZone = .current) throws -> NivoJigsawQuery {
         guard let command = arguments.first, ["list", "get", "stats", "export"].contains(command) else {
             throw QueryError("Only list, get, stats and export are supported.")
         }
         let values = try options(Array(arguments.dropFirst()))
-        let allowed: Set<String> = command == "get" ? ["date", "format"]
-            : command == "stats" ? ["start", "end", "days", "format"] : ["start", "end", "days", "limit", "offset", "format"]
+        let allowed: Set<String> = command == "get" ? ["date", "format", "compact"]
+            : command == "stats" ? ["start", "end", "days", "format", "compact"] : ["start", "end", "days", "limit", "offset", "format", "compact"]
         guard Set(values.keys).isSubset(of: allowed) else { throw QueryError("Unsupported option. Output is stdout only.") }
         let format = values["format"] ?? "json"
         guard ["json", "md"].contains(format) else { throw QueryError("--format must be json or md.") }
+        guard values["compact"] == nil || format == "json" else { throw QueryError("--compact only applies to JSON output.") }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let parts = calendar.dateComponents([.year, .month, .day], from: now)
@@ -38,7 +39,22 @@ struct NivoJigsawQuery: Sendable {
         let offset = try number(values, key: "offset", fallback: 0, range: 0...365)
         guard Int64(offset) <= end - start else { throw QueryError("--offset must be smaller than the date range.") }
         return NivoJigsawQuery(command: command, startDay: start, endDay: end, limit: limit, offset: offset,
-            format: format, today: today, zoneID: timeZone.identifier)
+            format: format, today: today, zoneID: timeZone.identifier, isCompact: values["compact"] != nil)
+    }
+
+    /// 原生工具与CLI共用查询校验；展示标题不是查询条件，也不授予任何额外权限。
+    static func parseTool(_ args: [String: Any], now: Date = Date(), timeZone: TimeZone = .current) throws -> Self {
+        try NivoLifeToolInput.requireFields(args, allowed: ["kind", "date", "start", "end", "days", "limit", "offset", "format", "tool_title"])
+        if args["tool_title"] != nil { _ = try NivoLifeToolInput.text(args, "tool_title") }
+        var arguments = [try NivoLifeToolInput.text(args, "kind", default: "list")]
+        for key in ["date", "start", "end", "days", "limit", "offset", "format"] {
+            guard args[key] != nil else { continue }
+            if ["days", "limit", "offset"].contains(key) {
+                guard let number = try NivoLifeToolInput.integer(args, key) else { throw NivoLifeError.invalidField(key) }
+                arguments += ["--" + key, String(number)]
+            } else { arguments += ["--" + key, try NivoLifeToolInput.text(args, key)] }
+        }
+        return try parse(arguments, now: now, timeZone: timeZone)
     }
 
     /// 日期只接受严格的四位公历年，回读校验防止2月30日被系统纠正。
@@ -76,6 +92,11 @@ struct NivoJigsawQuery: Sendable {
             let pair = token.dropFirst(2).split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
             guard let rawKey = pair.first, !rawKey.isEmpty else { throw QueryError("Expected an option name after --.") }
             let key = ["from": "start", "to": "end", "until": "end"][rawKey] ?? rawKey
+            if key == "compact" {
+                guard pair.count == 1, result[key] == nil else { throw QueryError("--compact is a flag without a value and may appear only once.") }
+                result[key] = "true"
+                continue
+            }
             let value: String
             if pair.count == 2 { value = pair[1] }
             else {
@@ -105,6 +126,22 @@ struct NivoJigsawQuery: Sendable {
         let message: String
         init(_ message: String) { self.message = message }
         var errorDescription: String? { message }
+    }
+}
+
+/// CLI执行环境与用户拒绝不同于查询参数错误，调用方可据此选择恢复方式。
+enum NivoJigsawExecutionError: String, Error, LocalizedError, Sendable {
+    case hostConversationRequired = "host_conversation_required"
+    case permissionDenied = "permission_denied"
+    case timedOut = "query_timeout"
+
+    /// 返回固定说明，避免将客体路径或个人记录内容拼进错误结果。
+    var errorDescription: String? {
+        switch self {
+        case .hostConversationRequired: return "Run this command from the main conversation or a bound practice conversation."
+        case .permissionDenied: return "Life log access was denied. Review Settings > Permissions before retrying."
+        case .timedOut: return "The life log query timed out. Use a smaller range and retry."
+        }
     }
 }
 
@@ -152,7 +189,10 @@ enum NivoJigsawOutput {
         }
         let output: String
         if query.format == "md" { output = markdown(root, days: outputDays) }
-        else { output = String(decoding: try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]), as: UTF8.self) }
+        else {
+            let options: JSONSerialization.WritingOptions = query.isCompact ? [.sortedKeys] : [.prettyPrinted, .sortedKeys]
+            output = String(decoding: try JSONSerialization.data(withJSONObject: root, options: options), as: UTF8.self)
+        }
         guard output.utf8.count <= 2 * 1_024 * 1_024 else { throw NivoJigsawQuery.QueryError("Result is too large. Use a smaller range; no text was truncated.") }
         return output
     }
@@ -258,6 +298,9 @@ enum NivoJigsawOutput {
         if let stats = root["stats"] as? [String: Any] {
             lines += stats.keys.sorted().map { "- \($0): \(stats[$0] ?? "")" }
         } else {
+            let next = (root["next_offset"] as? Int).map(String.init) ?? "null"
+            lines += ["offset: \(root["offset"] ?? 0)", "limit: \(root["limit"] ?? 0)",
+                      "has_more: \(root["has_more"] as? Bool == true ? "true" : "false")", "next_offset: \(next)"]
             for day in days {
                 lines += ["", "## \(day["date"] ?? "")", "Mood: \(day["mood_label"] ?? ""); energy: \(day["energy"] ?? "")",
                           "Known linked focus this day: \(day["measured_focus_ms"] ?? 0) ms"]
