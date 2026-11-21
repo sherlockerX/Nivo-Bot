@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.draw.drawWithContent
@@ -17,21 +18,29 @@ import com.openminis.app.ui.chat.ToolCallPill
 /** 默认收起思考和执行；点按在独立面板里查看全部步骤，执行中在同一行显示当前步骤，标题高度不变。 */
 @Composable
 internal fun AgentStepsFold(
-    row: FlatChatItem.AssistantSteps, isExpanded: Boolean, onToggle: () -> Unit,
+    row: FlatChatItem.AssistantSteps, isExpanded: Boolean, isVisible: Boolean, onToggle: () -> Unit,
 ) {
     val current = if (row.isStreaming) currentStep(row) else null
-    Text(
-        text = "${if (isExpanded) "▾" else "▸"} " + stepsLabel(row) + (current?.let { " · $it" } ?: ""),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
             .then(foldTraceModifier(row.key)).clickable {
                 io.github.nanomuse.chat.DebugFoldTrace.toggled(row.key)
                 onToggle()
             }.padding(vertical = 10.dp),
-    )
+    ) {
+        if (row.isThinking) {
+            NivoThinkingStars(MaterialTheme.colorScheme.onSurfaceVariant, isVisible, Modifier.size(16.dp))
+            Spacer(Modifier.width(5.dp))
+        }
+        Text(
+            text = "${if (isExpanded) "▾" else "▸"} " + stepsLabel(row) + (current?.let { " · $it" } ?: ""),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable

@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 **Chat IA, tâches, concentration, notes quotidiennes et accompagnement sur Android et iOS.**
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">Site web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Signalements</a> · <a href="../../OPEN_SOURCE.md">Contribuer</a>
 </p>
 
-Nivo Bot est un espace IA pour le quotidien. Partez d'une conversation, transformez la prochaine étape en tâche, accordez-lui du temps et gardez l'expérience pour y revenir.
+Nivo est un espace IA pour le quotidien. Partez d'une conversation, transformez la prochaine étape en tâche, accordez-lui du temps et gardez l'expérience pour y revenir.
 
 Gratuit, open source et non lucratif. Choisissez votre fournisseur de modèles ; les requêtes peuvent être payantes. La synthèse vocale Android utilise le moteur de votre téléphone.
 
 ## Découvrez Nivo
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 Visite illustrée avec des exemples. Le GIF fait défiler six modules horizontalement ; cliquez sur une image fixe pour l'agrandir. Il s'agit d'illustrations explicatives, pas de captures d'un téléphone.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ Conservez les avis de copyright et de licence d'origine. Ne publiez pas de clés
 
 ## Maintenance
 
-Ce fork Nivo Bot est maintenu par <a href="https://github.com/sherlockerX">sherlockerX</a>. Signalez ici les problèmes propres à Nivo afin qu'ils parviennent au responsable de ce fork.
+Ce fork Nivo est maintenu par <a href="https://github.com/sherlockerX">sherlockerX</a>. Signalez ici les problèmes propres à Nivo afin qu'ils parviennent au responsable de ce fork.
 
 ## Licence
 
@@ -176,9 +176,9 @@ Ce fork Nivo Bot est maintenu par <a href="https://github.com/sherlockerX">sherl
 
 ## Remerciements
 
-Nivo Bot repose sur [nanoMuse](https://github.com/nano-muse/nanoMuse), dont les fondations, intégrations et architecture ont rendu ce travail possible. Merci à nanoMuse, à <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> et aux contributeurs. La base mobile vient d'[OpenMinis](https://github.com/OpenMinis/OpenMinis).
+Nivo repose sur [nanoMuse](https://github.com/nano-muse/nanoMuse), dont les fondations, intégrations et architecture ont rendu ce travail possible. Merci à nanoMuse, à <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> et aux contributeurs. La base mobile vient d'[OpenMinis](https://github.com/OpenMinis/OpenMinis).
 
-La liste remercie les contributions historiques de nanoMuse. Les crédits et étapes sont dans [l'archive de provenance](../archive/upstream-readme-fr.md) ; les conditions restent dans [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot est maintenu indépendamment.
+La liste remercie les contributions historiques de nanoMuse. Les crédits et étapes sont dans [l'archive de provenance](../archive/upstream-readme-fr.md) ; les conditions restent dans [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo est maintenu indépendamment.
 
 <details>
 <summary>Contributeurs et provenance</summary>

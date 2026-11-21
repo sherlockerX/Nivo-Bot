@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 <strong>AI 채팅, 할 일, 집중, 일상 기록과 성장 코칭을 Android와 iOS에서 사용하세요.</strong>
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">제품 사이트</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">문제 보고</a> · <a href="../../OPEN_SOURCE.md">기여하기</a>
 </p>
 
-Nivo Bot은 일상을 위한 AI 작업 공간입니다. 대화에서 시작해 다음 단계를 할 일로 만들고, 집중할 시간을 정한 뒤 돌아볼 수 있는 기록으로 경험을 남깁니다.
+Nivo은 일상을 위한 AI 작업 공간입니다. 대화에서 시작해 다음 단계를 할 일로 만들고, 집중할 시간을 정한 뒤 돌아볼 수 있는 기록으로 경험을 남깁니다.
 
 무료 오픈 소스 비영리 프로젝트입니다. 모델 제공업체를 직접 선택하며 요청 비용은 제공업체에 따릅니다. Android 시스템 TTS로 답변을 읽습니다.
 
 ## Nivo 둘러보기
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 예시 내용을 사용한 기능 설명 이미지입니다. GIF가 여섯 모듈을 가로로 전환하며 정지 이미지는 눌러 확대할 수 있습니다. 실제 기기 스크린샷은 아닙니다.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ Android 트리는 원본 구조, 패키지 ID와 출처 표시를 유지합니�
 
 ## 유지 관리자
 
-이 Nivo Bot 포크는 <a href="https://github.com/sherlockerX">sherlockerX</a>가 관리합니다. Nivo 관련 문제는 이 저장소에 보고하세요.
+이 Nivo 포크는 <a href="https://github.com/sherlockerX">sherlockerX</a>가 관리합니다. Nivo 관련 문제는 이 저장소에 보고하세요.
 
 ## 라이선스
 
@@ -176,9 +176,9 @@ Android 트리는 원본 구조, 패키지 ID와 출처 표시를 유지합니�
 
 ## 감사의 말
 
-Nivo Bot은[nanoMuse](https://github.com/nano-muse/nanoMuse)를 기반으로 합니다. 에이전트 기반, 통합과 아키텍처를 제공한 nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a>와 기여자께 감사합니다. 모바일 기반은[OpenMinis](https://github.com/OpenMinis/OpenMinis)입니다.
+Nivo은[nanoMuse](https://github.com/nano-muse/nanoMuse)를 기반으로 합니다. 에이전트 기반, 통합과 아키텍처를 제공한 nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a>와 기여자께 감사합니다. 모바일 기반은[OpenMinis](https://github.com/OpenMinis/OpenMinis)입니다.
 
-아래 목록은 nanoMuse의 과거 기여를 인정합니다. 전체 감사와 기록은[출처 기록](../archive/upstream-readme-ko.md)에, 의존성 조건은[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)에 있습니다. Nivo Bot은 독립적으로 관리됩니다.
+아래 목록은 nanoMuse의 과거 기여를 인정합니다. 전체 감사와 기록은[출처 기록](../archive/upstream-readme-ko.md)에, 의존성 조건은[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)에 있습니다. Nivo은 독립적으로 관리됩니다.
 
 <details>
 <summary>원본 기여자와 출처</summary>

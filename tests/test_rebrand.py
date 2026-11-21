@@ -78,6 +78,8 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
             "MARKETING_VERSION = 1.0.6;\nCURRENT_PROJECT_VERSION = 49;\n"
             "INFOPLIST_KEY_CFBundleDisplayName = nanoMuse;\n"
             'INFOPLIST_KEY_CFBundleDisplayName = "Share to nanoMuse";\n'
+            'INFOPLIST_KEY_CFBundleDisplayName = "Nelan Files";\n'
+            'INFOPLIST_KEY_CFBundleDisplayName = "Nelan Activity";\n'
             "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app;\n"
         ),
         "Views/Settings/AboutView.swift": 'Text("nanoMuse")\n',
@@ -120,7 +122,8 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
     )
     rebrand.ios_brand_only()
     project = (ios / "Minis.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
-    assert 'INFOPLIST_KEY_CFBundleDisplayName = "Nelan";' in project
+    for name in ("Nivo", "Share to Nivo", "Nivo Files", "Nivo Activity"):
+        assert f'INFOPLIST_KEY_CFBundleDisplayName = "{name}";' in project
     assert "MARKETING_VERSION = 1.0.6;" in project
     assert "CURRENT_PROJECT_VERSION = 49;" in project
     assert "PRODUCT_BUNDLE_IDENTIFIER = io.github.nanomuse.app;" in project
@@ -129,11 +132,9 @@ def test_ios_brand_preserves_versions_identifiers_and_is_idempotent(
     assert "register nanoMuse" not in connector
     assert r"\(NivoProduct.name)" in connector
     translated = json.loads(catalogue.read_text(encoding="utf-8"))["strings"][connector_key]
-    for locale, localization in translated["localizations"].items():
+    for localization in translated["localizations"].values():
         assert "nanoMuse" not in localization["stringUnit"]["value"]
-        assert ("念步" if locale.startswith("zh") else "Nelan") in localization["stringUnit"][
-            "value"
-        ]
+        assert "Nivo" in localization["stringUnit"]["value"]
     before = {path: path.read_bytes() for path in ios.rglob("*") if path.is_file()}
     rebrand.ios_brand_only()
     assert {path: path.read_bytes() for path in before} == before
@@ -245,7 +246,7 @@ def test_android_brand_only_localizes_names_without_changing_install_identity(
     rebrand.android_brand_only()
     for path in res.glob("values*/strings.xml"):
         text = path.read_text(encoding="utf-8")
-        expected = "念步" if "zh" in path.parent.name else "Nelan"
+        expected = "Nivo"
         assert f'<string name="app_name">{expected}</string>' in text
         assert f"Welcome to {expected}" in text
         assert "nanoMuse Cloud" in text
@@ -259,8 +260,9 @@ def test_android_brand_only_localizes_names_without_changing_install_identity(
     assert {p: p.read_bytes() for p in before} == before
 
 
+@pytest.mark.parametrize("old_package", ["io.github.nanomuse.app", "io.github.sherlockerx.nelan"])
 def test_android_identity_switch_is_scoped_and_idempotent(
-    rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, old_package: str
 ) -> None:
     """新安装身份同步快捷入口，同时保留源码命名空间、版本和iOS身份。"""
     app = tmp_path / "android/app"
@@ -272,12 +274,12 @@ def test_android_identity_switch_is_scoped_and_idempotent(
     (java / "accessibility").mkdir(parents=True)
     gradle = app / "build.gradle.kts"
     original = (
-        'namespace = "com.openminis.app"\napplicationId = "io.github.nanomuse.app"\n'
+        f'namespace = "com.openminis.app"\napplicationId = "{old_package}"\n'
         'versionName = "2.0.9"\nversionCode = 60\n'
     )
     gradle.write_text(original, encoding="utf-8")
     shortcuts = res / "xml/shortcuts.xml"
-    shortcuts.write_text('android:targetPackage="io.github.nanomuse.app"\n', encoding="utf-8")
+    shortcuts.write_text(f'android:targetPackage="{old_package}"\n', encoding="utf-8")
     service = java / "accessibility/MinisAccessibilityService.kt"
     service.write_text(
         "import com.openminis.app.BuildConfig\n"
@@ -290,10 +292,9 @@ def test_android_identity_switch_is_scoped_and_idempotent(
     protected = {path: path.read_bytes() for path in (service, ios)}
     assert rebrand.main(["--android-identity-only"]) == 0
     assert gradle.read_text("utf-8") == original.replace(
-        'applicationId = "io.github.nanomuse.app"',
-        'applicationId = "io.github.sherlockerx.nelan"',
+        f'applicationId = "{old_package}"', 'applicationId = "io.github.nivo"'
     )
-    assert 'android:targetPackage="io.github.sherlockerx.nelan"' in shortcuts.read_text("utf-8")
+    assert 'android:targetPackage="io.github.nivo"' in shortcuts.read_text("utf-8")
     assert {path: path.read_bytes() for path in protected} == protected
     before = {path: path.read_bytes() for path in (gradle, shortcuts)}
     assert rebrand.main(["--android-identity-only"]) == 0
@@ -308,23 +309,24 @@ def test_android_identity_does_not_change_ios_rebrand_rules(rebrand: ModuleType)
     for pattern, replacement in rebrand.IOS_ID_RULES:
         value = re.sub(pattern, replacement, value)
     assert value == "io.github.nanomuse.app.share"
-    assert rebrand.ANDROID_APP_ID == "io.github.sherlockerx.nelan"
+    assert rebrand.ANDROID_APP_ID == "io.github.nivo"
 
 
 @pytest.mark.parametrize(
     "source, expected",
     [
-        ("Open Nivo Bot.", "Open Nelan."),
-        ("nanoMuse is ready.", "Nelan is ready."),
+        ("Open Nivo Bot.", "Open Nivo."),
+        ("nanoMuse is ready.", "Nivo is ready."),
+        ("Open Nelan.", "Open Nivo."),
         ("io.github.nanomuse.app", "io.github.nanomuse.app"),
         ("https://github.com/sherlockerX/Nicholasx", "https://github.com/sherlockerX/Nicholasx"),
         ("/var/minis/files/nanoMuse.md", "/var/minis/files/nanoMuse.md"),
         ("X-Minis-Token", "X-Minis-Token"),
         ("https://example.org/?app=Minis", "https://example.org/?app=Minis"),
-        ("Nivo-Dateien", "Nelan-Dateien"),
-        ("No early exit in Nivo.", "No early exit in Nelan."),
+        ("Nelan-Dateien", "Nivo-Dateien"),
+        ("No early exit in Nivo.", "No early exit in Nivo."),
         ("https://nivo.8666886.xyz/", "https://nivo.8666886.xyz/"),
-        ("Nivo Bot builds on nanoMuse and OpenMinis.", "Nelan builds on nanoMuse and OpenMinis."),
+        ("Nivo Bot builds on nanoMuse and OpenMinis.", "Nivo builds on nanoMuse and OpenMinis."),
         ("Nivo Bot Cloud에", "nanoMuse Cloud에"),
     ],
 )
@@ -338,8 +340,9 @@ def test_display_brand_preserves_technical_tokens(
 @pytest.mark.parametrize(
     "source, locale, expected",
     [
-        ("Nivo-Dateien", "de", "Nelan-Dateien"),
-        ("No early exit in Nivo.", "en", "No early exit in Nelan."),
+        ("Nivo-Dateien", "de", "Nivo-Dateien"),
+        ("Nelans Dateien", "de", "Nivos Dateien"),
+        ("No early exit in Nivo.", "en", "No early exit in Nivo."),
         ("nanoMuse Cloud", "en", "nanoMuse Cloud"),
         ("nanoMuse Cloud", "zh-Hans", "nanoMuse Cloud"),
         ("Nivo-Cloud-Modelle", "de", "nanoMuse Cloud-Modelle"),
@@ -348,7 +351,10 @@ def test_display_brand_preserves_technical_tokens(
         ("https://example.org/?app=Minis#Nivo", "en", "https://example.org/?app=Minis#Nivo"),
         ("Run `Minis --help` or minis-config", "en", "Run `Minis --help` or minis-config"),
         ("OpenMinis and nanoMuse", "en", "OpenMinis and nanoMuse"),
-        ("Nelan 与 OpenMinis、nanoMuse", "zh-Hans", "念步与 OpenMinis、nanoMuse"),
+        ("Nelan 与 OpenMinis、nanoMuse", "zh-Hans", "Nivo与 OpenMinis、nanoMuse"),
+        ("打开念步。", "zh-Hans", "打开Nivo。"),
+        ("打开念步（Nelan）。", "zh-Hans", "打开Nivo。"),
+        ("Nelan은 Nelan을 엽니다.", "ko", "Nivo는 Nivo를 엽니다."),
     ],
 )
 def test_mobile_copy_keeps_real_commands_and_original_service_names(
@@ -592,7 +598,7 @@ def test_ios_brand_localizes_system_surfaces_and_preserves_source_keys(
     original_source = source.read_bytes()
     rebrand.ios_brand_only()
     for locale in ("en", "zh-Hans", "zh-Hant", "fr"):
-        name = "念步" if locale.startswith("zh") else "Nelan"
+        name = "Nivo"
         info_text = (ios / f"{locale}.lproj/InfoPlist.strings").read_text(encoding="utf-8")
         assert f'"CFBundleDisplayName" = "{name}";' in info_text
         assert "nanoMuse needs" not in info_text
@@ -601,16 +607,16 @@ def test_ios_brand_localizes_system_surfaces_and_preserves_source_keys(
             assert name in extension.read_text(encoding="utf-8")
     data = json.loads(catalogue.read_text(encoding="utf-8"))["strings"]
     assert "About Nivo Bot" in data
-    assert data["About Nivo Bot"]["localizations"]["zh-Hans"]["stringUnit"]["value"] == "关于念步"
+    assert data["About Nivo Bot"]["localizations"]["zh-Hans"]["stringUnit"]["value"] == "关于Nivo"
     assert (
         data["nanoMuse is Locked"]["localizations"]["en"]["stringUnit"]["value"]
-        == "Nelan is Locked"
+        == "Nivo is Locked"
     )
     credit = data[
         "Nivo Bot builds on nanoMuse and OpenMinis. Their licenses and attribution are preserved."
     ]
     assert credit["localizations"]["en"]["stringUnit"]["value"].startswith(
-        "Nelan builds on nanoMuse and OpenMinis"
+        "Nivo builds on nanoMuse and OpenMinis"
     )
     assert source.read_bytes() == original_source
     text = project.read_text(encoding="utf-8")

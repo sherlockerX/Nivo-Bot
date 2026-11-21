@@ -1,29 +1,29 @@
 /* Info.plist permission strings — Russian */
 
-"NSLocationWhenInUseUsageDescription" = "Nelan использует вашу геопозицию, чтобы записывать в истории сессий, где были начаты сессии агента.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Nelan использует геопозицию в фоновом режиме, чтобы задачи агента продолжали выполняться, когда приложение свёрнуто. Данные о местоположении используются только для записи истории подключений сессий.";
-"NSCalendarsUsageDescription" = "Nelan использует доступ к календарю, чтобы ИИ-агент мог просматривать ваше расписание, проверять свободное время и создавать события от вашего имени.";
-"NSCalendarsFullAccessUsageDescription" = "Nelan использует доступ к календарю, чтобы ИИ-агент мог просматривать ваше расписание, проверять свободное время и создавать события от вашего имени.";
-"NSRemindersUsageDescription" = "Nelan использует доступ к напоминаниям, чтобы ИИ-агент мог просматривать и создавать их от вашего имени.";
-"NSRemindersFullAccessUsageDescription" = "Nelan использует доступ к напоминаниям, чтобы ИИ-агент мог просматривать и создавать их от вашего имени.";
-"NSCameraUsageDescription" = "Nelan требуется доступ к камере, чтобы делать снимки для диалогов с ИИ.";
-"NSPhotoLibraryUsageDescription" = "Nelan требуется доступ к медиатеке, чтобы прикреплять изображения к диалогам с ИИ.";
-"NSPhotoLibraryAddUsageDescription" = "Nelan требуется разрешение, чтобы сохранять видео и изображения в вашу медиатеку.";
-"NSHealthShareUsageDescription" = "Nelan использует доступ к HealthKit, чтобы ИИ-агент мог читать ваши данные о здоровье — шаги, пульс, сон и тренировки — от вашего имени.";
-"NSHealthUpdateUsageDescription" = "Nelan использует доступ к записи в HealthKit, чтобы ИИ-агент мог сохранять данные о здоровье — шаги, вес и потребление воды — от вашего имени.";
-"NSContactsUsageDescription" = "Nelan использует доступ к контактам, чтобы ИИ-агент мог искать, просматривать и управлять ими от вашего имени.";
-"NSAppleMusicUsageDescription" = "Nelan использует доступ к медиатеке, чтобы ИИ-агент мог искать музыку и управлять воспроизведением от вашего имени.";
-"NSMicrophoneUsageDescription" = "Nelan требуется доступ к микрофону для голосового ввода текста в чате.";
-"NSSpeechRecognitionUsageDescription" = "Nelan использует распознавание речи, чтобы преобразовывать вашу речь в текстовые сообщения.";
-"NSHomeKitUsageDescription" = "Nelan использует доступ к HomeKit, чтобы ИИ-агент мог просматривать и управлять аксессуарами вашего умного дома от вашего имени.";
-"NSAlarmKitUsageDescription" = "Nelan использует AlarmKit, чтобы ИИ-агент мог устанавливать будильники и таймеры от вашего имени.";
-"NSLocalNetworkUsageDescription" = "Nelan использует локальную сеть для отладочного сервера и чтобы ИИ-агент мог обращаться к сервисам в вашей собственной сети."; /* nanoMuse: the app has no VM; the sentence matches Info.plist */
+"NSLocationWhenInUseUsageDescription" = "Nivo использует вашу геопозицию, чтобы записывать в истории сессий, где были начаты сессии агента.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Nivo использует геопозицию в фоновом режиме, чтобы задачи агента продолжали выполняться, когда приложение свёрнуто. Данные о местоположении используются только для записи истории подключений сессий.";
+"NSCalendarsUsageDescription" = "Nivo использует доступ к календарю, чтобы ИИ-агент мог просматривать ваше расписание, проверять свободное время и создавать события от вашего имени.";
+"NSCalendarsFullAccessUsageDescription" = "Nivo использует доступ к календарю, чтобы ИИ-агент мог просматривать ваше расписание, проверять свободное время и создавать события от вашего имени.";
+"NSRemindersUsageDescription" = "Nivo использует доступ к напоминаниям, чтобы ИИ-агент мог просматривать и создавать их от вашего имени.";
+"NSRemindersFullAccessUsageDescription" = "Nivo использует доступ к напоминаниям, чтобы ИИ-агент мог просматривать и создавать их от вашего имени.";
+"NSCameraUsageDescription" = "Nivo требуется доступ к камере, чтобы делать снимки для диалогов с ИИ.";
+"NSPhotoLibraryUsageDescription" = "Nivo требуется доступ к медиатеке, чтобы прикреплять изображения к диалогам с ИИ.";
+"NSPhotoLibraryAddUsageDescription" = "Nivo требуется разрешение, чтобы сохранять видео и изображения в вашу медиатеку.";
+"NSHealthShareUsageDescription" = "Nivo использует доступ к HealthKit, чтобы ИИ-агент мог читать ваши данные о здоровье — шаги, пульс, сон и тренировки — от вашего имени.";
+"NSHealthUpdateUsageDescription" = "Nivo использует доступ к записи в HealthKit, чтобы ИИ-агент мог сохранять данные о здоровье — шаги, вес и потребление воды — от вашего имени.";
+"NSContactsUsageDescription" = "Nivo использует доступ к контактам, чтобы ИИ-агент мог искать, просматривать и управлять ими от вашего имени.";
+"NSAppleMusicUsageDescription" = "Nivo использует доступ к медиатеке, чтобы ИИ-агент мог искать музыку и управлять воспроизведением от вашего имени.";
+"NSMicrophoneUsageDescription" = "Nivo требуется доступ к микрофону для голосового ввода текста в чате.";
+"NSSpeechRecognitionUsageDescription" = "Nivo использует распознавание речи, чтобы преобразовывать вашу речь в текстовые сообщения.";
+"NSHomeKitUsageDescription" = "Nivo использует доступ к HomeKit, чтобы ИИ-агент мог просматривать и управлять аксессуарами вашего умного дома от вашего имени.";
+"NSAlarmKitUsageDescription" = "Nivo использует AlarmKit, чтобы ИИ-агент мог устанавливать будильники и таймеры от вашего имени.";
+"NSLocalNetworkUsageDescription" = "Nivo использует локальную сеть для отладочного сервера и чтобы ИИ-агент мог обращаться к сервисам в вашей собственной сети."; /* nanoMuse: the app has no VM; the sentence matches Info.plist */
 
 /* nanoMuse: the keys Info.plist declares but this file lacked, so the prompt is in the person's language */
-"NFCReaderUsageDescription" = "Nelan использует NFC, чтобы ИИ-агент мог читать и записывать NFC-метки от вашего имени.";
-"NSBluetoothAlwaysUsageDescription" = "Nelan использует Bluetooth, чтобы ИИ-агент мог искать ближайшие BLE-устройства, подключаться к ним и обмениваться данными от вашего имени.";
-"NSBluetoothPeripheralUsageDescription" = "Nelan использует Bluetooth, чтобы ИИ-агент мог искать ближайшие BLE-устройства, подключаться к ним и обмениваться данными от вашего имени.";
-"NSFaceIDUsageDescription" = "Nelan использует Face ID для защиты заблокированных чатов, чтобы только вы могли видеть их содержимое.";
+"NFCReaderUsageDescription" = "Nivo использует NFC, чтобы ИИ-агент мог читать и записывать NFC-метки от вашего имени.";
+"NSBluetoothAlwaysUsageDescription" = "Nivo использует Bluetooth, чтобы ИИ-агент мог искать ближайшие BLE-устройства, подключаться к ним и обмениваться данными от вашего имени.";
+"NSBluetoothPeripheralUsageDescription" = "Nivo использует Bluetooth, чтобы ИИ-агент мог искать ближайшие BLE-устройства, подключаться к ним и обмениваться данными от вашего имени.";
+"NSFaceIDUsageDescription" = "Nivo использует Face ID для защиты заблокированных чатов, чтобы только вы могли видеть их содержимое.";
 
 /* nanoMuse: 系统桌面和设置采用当前产品名称。 */
-"CFBundleDisplayName" = "Nelan";
+"CFBundleDisplayName" = "Nivo";

@@ -20,8 +20,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 REPOSITORY = "sherlockerX/Nivo-Bot"
 ORIGIN = "https://nivo.8666886.xyz/downloads/"
 LEGACY_ANDROID_PACKAGE_ID = "io.github.nanomuse.app"
-ANDROID_PACKAGE_ID = "io.github.sherlockerx.nelan"
-ANDROID_PACKAGE_SWITCH_VERSION = (2, 0, 9)
+NELAN_ANDROID_PACKAGE_ID = "io.github.sherlockerx.nelan"
+ANDROID_PACKAGE_ID = "io.github.nivo"
+NELAN_ANDROID_VERSION = (2, 0, 9)
 IOS_BUNDLE_ID = "io.github.nanomuse.app"
 MAX_SIZE = 2 * 1024 * 1024 * 1024
 
@@ -69,7 +70,7 @@ def artifact(name: str, url: object, digest: object, size: object) -> Artifact:
 
 def mobile_artifact(tag: str, suffix: str, url: object, digest: object, size: object) -> Artifact:
     """仅接受新旧品牌的完整固定地址，继续共用哈希与大小校验。"""
-    for prefix in ("Nelan", "Nivo-Bot"):
+    for prefix in ("Nivo", "Nelan", "Nivo-Bot"):
         name = f"{prefix}-{tag}-{suffix}"
         if url == ORIGIN + name:
             return artifact(name, url, digest, size)
@@ -137,7 +138,7 @@ def load_plan(root: Path, tag: str) -> ReleasePlan:
     notes = root / "docs/releases" / f"{tag}.md"
     lines = notes.read_text(encoding="utf-8").splitlines()
     title = lines[0].removeprefix("# ") if lines else ""
-    brands = "|".join(re.escape(name) for name in ("Nivo Bot", "念步", "Nelan"))
+    brands = "|".join(re.escape(name) for name in ("Nivo", "Nivo Bot", "念步", "Nelan"))
     if not re.fullmatch(rf"(?:{brands}) {re.escape(version)} · [A-Z][A-Za-z]+", title):
         raise ValueError("Release notes heading does not match the tag")
     return ReleasePlan(tag, version, code, title, notes, artifacts)
@@ -200,13 +201,13 @@ def verify_apk(path: Path, plan: ReleasePlan, aapt: str) -> None:
     match = re.search(
         r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", output, re.M
     )
-    # Android从2.0.9建立独立安装身份，不能因文件名换品牌而接受其他版本的包名。
+    # 包名跟随已发行的版本边界，与下载文件的名字无关。
     version_parts = tuple(int(part) for part in plan.version.split("."))
-    package_id = (
-        ANDROID_PACKAGE_ID
-        if version_parts >= ANDROID_PACKAGE_SWITCH_VERSION
-        else LEGACY_ANDROID_PACKAGE_ID
-    )
+    package_id = ANDROID_PACKAGE_ID
+    if version_parts == NELAN_ANDROID_VERSION:
+        package_id = NELAN_ANDROID_PACKAGE_ID
+    elif version_parts < NELAN_ANDROID_VERSION:
+        package_id = LEGACY_ANDROID_PACKAGE_ID
     if not match or match.groups() != (package_id, str(plan.code), plan.version):
         raise ValueError("APK package, version or build code mismatch")
 

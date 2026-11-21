@@ -32,11 +32,28 @@ final class NivoPresetDefaultsTests: XCTestCase {
 
     /// 已适配的iOS资源可以重复转换，不会重新生成Android设备说明。
     func testAdaptedDeviceWordingIsIdempotent() {
-        let source = "你运行在念步（Nelan）的Android客户端中。"
-        let expected = "你运行在念步（Nelan）的iOS客户端中。"
+        let source = "你运行在Nivo的Android客户端中。"
+        let expected = "你运行在Nivo的iOS客户端中。"
         let adapted = NivoPresetDefaults.contentForIPhone(source)
         XCTAssertEqual(adapted, expected)
         XCTAssertEqual(NivoPresetDefaults.contentForIPhone(adapted), expected)
+    }
+
+    /// 用实际打包的完整模板核对两个平台的旧版默认记忆，任何个人追加均不得迁移。
+    func testUnmodifiedCompanionMemoryMigratesOnce() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("NanoMuse/Resources/preset.json")
+        let url = Bundle.main.url(forResource: "preset", withExtension: "json") ?? sourceURL
+        let files = try JSONDecoder().decode([String: [String: String]].self, from: Data(contentsOf: url))
+        let android = try XCTUnwrap(files["files"]?["memory/GLOBAL.md"])
+        let target = NivoPresetDefaults.contentForIPhone(android)
+        XCTAssertTrue(target.contains("在Nivo的iOS客户端"))
+        for template in [android, target] {
+            let old = template.replacingOccurrences(of: "在Nivo的", with: "在念步（Nelan）的")
+            XCTAssertEqual(NivoPresetDefaults.migratedGlobalContent(old, replacement: target), target)
+            XCTAssertNil(NivoPresetDefaults.migratedGlobalContent(old + "我叫Nelan。", replacement: target))
+        }
+        XCTAssertNil(NivoPresetDefaults.migratedGlobalContent(target, replacement: target))
     }
 
     /// iOS播种时已替换设备名的完整旧模板可以升级。

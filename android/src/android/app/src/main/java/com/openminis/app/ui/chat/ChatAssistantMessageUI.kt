@@ -846,7 +846,7 @@ internal fun ToolCallPill(
 // ─── Thinking Block (iOS: collapsible "Deep Thinking" section, blue tint) ────
 
 @Composable
-internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: Boolean = true) {
+internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: Boolean = true, isVisible: Boolean = true) { // nanoMuse: 隐藏时保留静态标识。
     // Per-block expand state, keyed by block.id so the user's manual toggle on
     // an earlier (finished) thinking block survives recomposition while a
     // later block is still streaming. The previous LaunchedEffect snapped
@@ -917,12 +917,8 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                 },
         ) {
             if (isStreaming && block.toolStatus != ToolBlockStatus.SUCCESS) {
-                // iOS: ProgressView().controlSize(.mini) while streaming
-                CircularProgressIndicator(
-                    modifier = Modifier.size(13.dp),
-                    color = thinkingBlue,
-                    strokeWidth = 1.5.dp,
-                )
+                // nanoMuse: 当前推理使用动态星形，历史推理保留下方的静态图标。
+                io.github.nanomuse.ui.chat.NivoThinkingStars(thinkingBlue, isVisible, Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
             } else {
                 Icon(

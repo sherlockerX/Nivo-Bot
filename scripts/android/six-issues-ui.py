@@ -30,7 +30,7 @@ def snapshot() -> list[ET.Element]:
         adb("shell", "rm", remote)
         nodes = list(ET.fromstring(document).iter("node"))
         packages = {node.get("package") for node in nodes}
-        if "io.github.sherlockerx.nelan.uitest" not in packages:
+        if "io.github.nivo.uitest" not in packages:
             raise RuntimeError("隔离验收应用不在前台，拒绝操作")
         return nodes
     raise RuntimeError("没有取得当前UI快照")

@@ -210,9 +210,9 @@ jobs:
         run: |
           set -euo pipefail
           test -z "$(find Payload -name '*.xctest' -print -quit)"
-          zip -qry ../Nivo-Bot-unsigned.ipa Payload
+          zip -qry ../Nivo-unsigned.ipa Payload
           cd ..
-          shasum -a 256 Nivo-Bot-unsigned.ipa > Nivo-Bot-unsigned.sha256
+          shasum -a 256 Nivo-unsigned.ipa > Nivo-unsigned.sha256
           # 来源信息读取已打包的应用与实际文件，不从版本清单推测产物身份。
           python3 - <<'PY'
           import hashlib
@@ -223,7 +223,7 @@ jobs:
           import subprocess
           import zipfile
 
-          ipa = Path("Nivo-Bot-unsigned.ipa")
+          ipa = Path("Nivo-unsigned.ipa")
           app = Path("unsigned/Payload/Minis.app")
           with zipfile.ZipFile(ipa) as archive:
               info = plistlib.loads(archive.read("Payload/Minis.app/Info.plist"))
@@ -253,7 +253,7 @@ jobs:
               "unsigned": True,
               "ipa": {"name": ipa.name, "sha256": digest.hexdigest(), "sizeBytes": ipa.stat().st_size},
           }
-          Path("Nivo-Bot-build-provenance.json").write_text(
+          Path("Nivo-build-provenance.json").write_text(
               json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
           )
           PY
@@ -262,9 +262,9 @@ jobs:
         with:
           name: nivo-ios-unsigned-${{ github.run_number }}
           path: |
-            android/src/ios/build/Nivo-Bot-unsigned.ipa
-            android/src/ios/build/Nivo-Bot-unsigned.sha256
-            android/src/ios/build/Nivo-Bot-build-provenance.json
+            android/src/ios/build/Nivo-unsigned.ipa
+            android/src/ios/build/Nivo-unsigned.sha256
+            android/src/ios/build/Nivo-build-provenance.json
           retention-days: 14
           if-no-files-found: error
 

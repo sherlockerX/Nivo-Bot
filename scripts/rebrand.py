@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""生成念步／Nelan手机品牌资源，重复执行不产生额外变化。
+"""生成Nivo手机品牌资源，重复执行不产生额外变化。
 
 日常更名使用brand-only入口，只更新可见资源，保留版本和安装身份。
 完整上游移植入口还处理包标识、版本、链接、配色、通知图标和历史文案；
@@ -35,12 +35,12 @@ JAVA = MAIN / "java" / "com" / "openminis" / "app"
 RES = MAIN / "res"
 IOS = ROOT / "android" / "src" / "ios"
 
-ANDROID_APP_ID = "io.github.sherlockerx.nelan"
+ANDROID_APP_ID = "io.github.nivo"
 IOS_APP_ID = "io.github.nanomuse.app"  # iOS保留已发行身份，不能随Android包名变动。
-NAME = "Nelan"  # 手机产品的英文显示名；持久化标识保留原值。
-CHINESE_NAME = "念步"
-VERSION_NAME = "2.0.9"
-VERSION_CODE = 60
+NAME = "Nivo"  # 所有手机语言使用同一产品名，助手昵称另外本地化。
+CHINESE_NAME = NAME
+VERSION_NAME = "2.0.10"
+VERSION_CODE = 61
 # 手机版本使用同一发布来源，完整品牌生成也不能恢复旧的Android版本。
 ANDROID_VERSION_NAME = VERSION_NAME
 ANDROID_VERSION_CODE = VERSION_CODE
@@ -658,14 +658,16 @@ MOBILE_BRAND = re.compile(
 )
 MOBILE_BRAND_OR_URL = re.compile(
     r"`[^`]*`|(?:[a-zA-Z][a-zA-Z0-9+.-]*://|www\.)[^\s<>\"']+|"
+    r"念步(?:（Nelan）|\(Nelan\)|/Nelan)|"
+    r"(?<![A-Za-z0-9_./@-])(?:Nelan|Nivo)(?P<ko_particle>으로|을|은|과|이)(?![가-힣])|"
     r"(?<![A-Za-z0-9_./@-])(?:Nivo Bot|Nivo|Nicholasx|nanoMuse|Minis|Nelan|念步)[ -](?:Cloud|Desktop)(?![A-Za-z])|"
-    r"(?<![A-Za-z0-9_./@-])(?:nanoMuses|AI-nanoMuse Agent|Nelan-nanoMuse Agent)(?![A-Za-z0-9_])|"
+    r"(?<![A-Za-z0-9_./@-])(?:Nelans|nanoMuses|AI-nanoMuse Agent|Nelan-nanoMuse Agent)(?![A-Za-z0-9_])|"
     + MOBILE_BRAND.pattern
 )
 IOS_BRAND_LOCALES = ("en", "zh-Hans", "zh-Hant", "ja", "ko", "fr", "de", "es", "ru")
 MOBILE_RESOURCE_COPY = {
     "en": {
-        "no_files": "No Nelan files",
+        "no_files": "No Nivo files",
         "system_files": "Manage the assistant’s identity, preferences and memory here. Files stay on this phone and can be edited on this page.",
         "avatar": "Avatar images stay on this phone. Creating an avatar uses your configured image provider.",
         "settings": "Providers, model groups, skills, appearance and advanced settings.",
@@ -673,7 +675,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Account sync is unavailable in this version.",
     },
     "zh": {
-        "no_files": "暂无念步文件",
+        "no_files": "暂无Nivo文件",
         "system_files": "在这里管理助手的身份、偏好和记忆。文件保存在这台手机上，可以在此页面编辑。",
         "avatar": "形象图片保存在这台手机上。创建形象会使用你配置的图像服务商。",
         "settings": "服务商、模型组、技能、外观和高级设置。",
@@ -681,7 +683,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "当前版本不支持账号同步。",
     },
     "zh-Hant": {
-        "no_files": "暫無念步檔案",
+        "no_files": "暫無Nivo檔案",
         "system_files": "在這裡管理助手的身分、偏好和記憶。檔案儲存在這台手機上，可以在此頁面編輯。",
         "avatar": "形象圖片儲存在這台手機上。建立形象會使用你設定的圖像服務商。",
         "settings": "服務商、模型群組、技能、外觀和進階設定。",
@@ -689,7 +691,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "目前版本不支援帳號同步。",
     },
     "de": {
-        "no_files": "Keine Nelan-Dateien",
+        "no_files": "Keine Nivo-Dateien",
         "system_files": "Verwalte hier Identität, Vorlieben und Erinnerungen des Assistenten. Die Dateien bleiben auf diesem Telefon und können hier bearbeitet werden.",
         "avatar": "Avatarbilder bleiben auf diesem Telefon. Für neue Avatare wird dein eingerichteter Bildanbieter verwendet.",
         "settings": "Anbieter, Modellgruppen, Fähigkeiten, Darstellung und erweiterte Einstellungen.",
@@ -697,7 +699,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Die Kontosynchronisierung ist in dieser Version nicht verfügbar.",
     },
     "es": {
-        "no_files": "No hay archivos de Nelan",
+        "no_files": "No hay archivos de Nivo",
         "system_files": "Gestiona aquí la identidad, las preferencias y la memoria del asistente. Los archivos permanecen en este teléfono y se pueden editar en esta página.",
         "avatar": "Las imágenes del avatar permanecen en este teléfono. Crear un avatar utiliza el proveedor de imágenes configurado.",
         "settings": "Proveedores, grupos de modelos, habilidades, apariencia y ajustes avanzados.",
@@ -705,7 +707,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "La sincronización de la cuenta no está disponible en esta versión.",
     },
     "fil": {
-        "no_files": "Walang mga file ng Nelan",
+        "no_files": "Walang mga file ng Nivo",
         "system_files": "Pamahalaan dito ang pagkakakilanlan, mga kagustuhan at alaala ng assistant. Nananatili ang mga file sa teleponong ito at puwedeng i-edit sa pahinang ito.",
         "avatar": "Nananatili sa teleponong ito ang mga larawan ng avatar. Ginagamit sa paggawa ng avatar ang itinakda mong provider ng larawan.",
         "settings": "Mga provider, grupo ng modelo, kasanayan, hitsura at advanced na setting.",
@@ -713,7 +715,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Hindi available ang pag-sync ng account sa bersyong ito.",
     },
     "fr": {
-        "no_files": "Aucun fichier Nelan",
+        "no_files": "Aucun fichier Nivo",
         "system_files": "Gérez ici l'identité, les préférences et la mémoire de l'assistant. Les fichiers restent sur ce téléphone et peuvent être modifiés sur cette page.",
         "avatar": "Les images de l'avatar restent sur ce téléphone. La création utilise votre fournisseur d'images configuré.",
         "settings": "Fournisseurs, groupes de modèles, compétences, apparence et paramètres avancés.",
@@ -721,7 +723,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "La synchronisation du compte est indisponible dans cette version.",
     },
     "in": {
-        "no_files": "Tidak ada file Nelan",
+        "no_files": "Tidak ada file Nivo",
         "system_files": "Kelola identitas, preferensi, dan ingatan asisten di sini. File tetap berada di ponsel ini dan dapat diedit di halaman ini.",
         "avatar": "Gambar avatar tetap berada di ponsel ini. Pembuatan avatar menggunakan penyedia gambar yang Anda konfigurasi.",
         "settings": "Penyedia, grup model, keterampilan, tampilan, dan pengaturan lanjutan.",
@@ -729,7 +731,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Sinkronisasi akun tidak tersedia dalam versi ini.",
     },
     "ja": {
-        "no_files": "Nelanのファイルはありません",
+        "no_files": "Nivoのファイルはありません",
         "system_files": "助手の情報、好み、記憶をここで管理できます。ファイルはこの端末に保存され、このページで編集できます。",
         "avatar": "アバター画像はこの端末に保存されます。作成には設定した画像プロバイダーを使用します。",
         "settings": "プロバイダー、モデルグループ、スキル、外観、詳細設定。",
@@ -737,7 +739,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "このバージョンではアカウントの同期を利用できません。",
     },
     "ko": {
-        "no_files": "Nelan 파일이 없습니다",
+        "no_files": "Nivo 파일이 없습니다",
         "system_files": "여기에서 도우미의 정체성, 선호도, 기억을 관리합니다. 파일은 이 휴대전화에 저장되며 이 페이지에서 편집할 수 있습니다.",
         "avatar": "아바타 이미지는 이 휴대전화에 저장됩니다. 아바타를 만들 때 설정한 이미지 제공업체를 사용합니다.",
         "settings": "제공업체, 모델 그룹, 스킬, 외관 및 고급 설정.",
@@ -745,7 +747,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "이 버전에서는 계정 동기화를 사용할 수 없습니다.",
     },
     "ms": {
-        "no_files": "Tiada fail Nelan",
+        "no_files": "Tiada fail Nivo",
         "system_files": "Urus identiti, pilihan dan ingatan pembantu di sini. Fail kekal pada telefon ini dan boleh disunting pada halaman ini.",
         "avatar": "Imej avatar kekal pada telefon ini. Penciptaan avatar menggunakan penyedia imej yang anda tetapkan.",
         "settings": "Penyedia, kumpulan model, kemahiran, penampilan dan tetapan lanjutan.",
@@ -753,7 +755,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Penyegerakan akaun tidak tersedia dalam versi ini.",
     },
     "pl": {
-        "no_files": "Brak plików Nelan",
+        "no_files": "Brak plików Nivo",
         "system_files": "Zarządzaj tutaj tożsamością, preferencjami i pamięcią asystenta. Pliki pozostają na tym telefonie i można je edytować na tej stronie.",
         "avatar": "Obrazy awatara pozostają na tym telefonie. Tworzenie awatara korzysta ze skonfigurowanego dostawcy obrazów.",
         "settings": "Dostawcy, grupy modeli, umiejętności, wygląd i ustawienia zaawansowane.",
@@ -761,7 +763,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Synchronizacja konta jest niedostępna w tej wersji.",
     },
     "pt-rBR": {
-        "no_files": "Nenhum arquivo do Nelan",
+        "no_files": "Nenhum arquivo do Nivo",
         "system_files": "Gerencie aqui a identidade, as preferências e a memória do assistente. Os arquivos ficam neste celular e podem ser editados nesta página.",
         "avatar": "As imagens do avatar ficam neste celular. A criação usa o provedor de imagens configurado.",
         "settings": "Provedores, grupos de modelos, habilidades, aparência e configurações avançadas.",
@@ -769,7 +771,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "A sincronização de conta não está disponível nesta versão.",
     },
     "ro": {
-        "no_files": "Nu există fișiere Nelan",
+        "no_files": "Nu există fișiere Nivo",
         "system_files": "Gestionează aici identitatea, preferințele și memoria asistentului. Fișierele rămân pe acest telefon și pot fi editate pe această pagină.",
         "avatar": "Imaginile avatarului rămân pe acest telefon. Crearea unui avatar folosește furnizorul de imagini configurat.",
         "settings": "Furnizori, grupuri de modele, abilități, aspect și setări avansate.",
@@ -777,7 +779,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Sincronizarea contului nu este disponibilă în această versiune.",
     },
     "ru": {
-        "no_files": "Нет файлов Nelan",
+        "no_files": "Нет файлов Nivo",
         "system_files": "Здесь можно управлять личностью, предпочтениями и памятью помощника. Файлы остаются на этом телефоне и редактируются на этой странице.",
         "avatar": "Изображения аватара остаются на этом телефоне. Для создания используется настроенный провайдер изображений.",
         "settings": "Провайдеры, группы моделей, навыки, оформление и расширенные настройки.",
@@ -785,7 +787,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "Синхронизация аккаунта недоступна в этой версии.",
     },
     "th": {
-        "no_files": "ไม่มีไฟล์ Nelan",
+        "no_files": "ไม่มีไฟล์ Nivo",
         "system_files": "จัดการตัวตน ความชอบ และความทรงจำของผู้ช่วยได้ที่นี่ ไฟล์จะอยู่ในโทรศัพท์เครื่องนี้และแก้ไขได้ในหน้านี้",
         "avatar": "ภาพอวาตาร์จะอยู่ในโทรศัพท์เครื่องนี้ การสร้างอวาตาร์ใช้ผู้ให้บริการภาพที่คุณตั้งค่าไว้",
         "settings": "ผู้ให้บริการ กลุ่มโมเดล ทักษะ รูปลักษณ์ และการตั้งค่าขั้นสูง",
@@ -793,7 +795,7 @@ MOBILE_RESOURCE_COPY = {
         "sync": "เวอร์ชันนี้ไม่รองรับการซิงค์บัญชี",
     },
     "tr": {
-        "no_files": "Nelan dosyası yok",
+        "no_files": "Nivo dosyası yok",
         "system_files": "Asistanın kimliğini, tercihlerini ve belleğini buradan yönetin. Dosyalar bu telefonda kalır ve bu sayfada düzenlenebilir.",
         "avatar": "Avatar görselleri bu telefonda kalır. Avatar oluşturmak için yapılandırdığınız görsel sağlayıcısı kullanılır.",
         "settings": "Sağlayıcılar, model grupları, beceriler, görünüm ve gelişmiş ayarlar.",
@@ -1059,7 +1061,7 @@ IOS_MEDIA_COPY = {
 IOS_SURFACE_COPY = {
     "en": {
         "toy": "3D toy",
-        "home": "Nelan home",
+        "home": "Nivo home",
         "home_layout": "The home view combines chat, feed, ideas, goals and library. Turn it off to open the classic chat list. The title setting switches side chats between the assistant's name and the model.",
         "header": "The header shows the name by default. Turn this on to show the model group and provider below it; tap to switch. Otherwise, open More → Model or Settings.",
         "portraits": "Portraits of Shiqi and the pictures you request.",
@@ -1067,7 +1069,7 @@ IOS_SURFACE_COPY = {
     },
     "zh": {
         "toy": "3D玩偶",
-        "home": "念步主页",
+        "home": "Nivo主页",
         "home_layout": "主页将对话、动态、灵感、目标和资料库放在一起。关闭后显示经典对话列表。标题设置可让旁聊显示助手名字或模型。",
         "header": "标题默认只显示名字。开启后会在下方显示模型组和服务商，轻点即可切换；关闭时可通过“更多→模型”或设置切换。",
         "portraits": "十七的形象和你请求生成的图片。",
@@ -1075,7 +1077,7 @@ IOS_SURFACE_COPY = {
     },
     "zh-Hant": {
         "toy": "3D玩偶",
-        "home": "念步主頁",
+        "home": "Nivo主頁",
         "home_layout": "主頁結合對話、動態、靈感、目標和資料庫。關閉後顯示經典對話列表。標題設定可讓旁聊顯示助手名字或模型。",
         "header": "標題預設只顯示名字。開啟後會在下方顯示模型群組和服務商，輕點即可切換；關閉時可透過「更多→模型」或設定切換。",
         "portraits": "十七的形象和你要求產生的圖片。",
@@ -1083,7 +1085,7 @@ IOS_SURFACE_COPY = {
     },
     "de": {
         "toy": "3D-Spielzeug",
-        "home": "Nelan-Startseite",
+        "home": "Nivo-Startseite",
         "home_layout": "Die Startseite vereint Chat, Feed, Ideen, Ziele und Bibliothek. Ausgeschaltet öffnet sich die klassische Chatliste. Die Titeleinstellung zeigt in Nebenchats den Namen des Assistenten oder das Modell.",
         "header": "Standardmäßig steht im Titel nur der Name. Aktiviere diese Option für Modellgruppe und Anbieter darunter; tippe zum Wechseln. Andernfalls findest du das Modell unter Mehr → Modell oder in den Einstellungen.",
         "portraits": "Porträts von Shiqi und deine angeforderten Bilder.",
@@ -1091,7 +1093,7 @@ IOS_SURFACE_COPY = {
     },
     "es": {
         "toy": "Juguete 3D",
-        "home": "Inicio de Nelan",
+        "home": "Inicio de Nivo",
         "home_layout": "El inicio reúne chat, actividad, ideas, objetivos y biblioteca. Al desactivarlo se abre la lista clásica de chats. El ajuste del título muestra el nombre del asistente o el modelo en los chats secundarios.",
         "header": "El encabezado muestra solo el nombre de forma predeterminada. Activa esta opción para ver el grupo de modelos y el proveedor; toca para cambiarlos. Si está desactivada, usa Más → Modelo o Ajustes.",
         "portraits": "Retratos de Shiqi y las imágenes que solicites.",
@@ -1099,7 +1101,7 @@ IOS_SURFACE_COPY = {
     },
     "fr": {
         "toy": "Jouet 3D",
-        "home": "Accueil Nelan",
+        "home": "Accueil Nivo",
         "home_layout": "L'accueil réunit discussion, fil, idées, objectifs et bibliothèque. Désactivé, il ouvre la liste classique des discussions. Le réglage du titre affiche le nom de l'assistant ou le modèle dans les discussions secondaires.",
         "header": "Par défaut, le titre affiche seulement le nom. Activez cette option pour afficher le groupe de modèles et le fournisseur ; touchez-les pour changer. Sinon, utilisez Plus → Modèle ou les paramètres.",
         "portraits": "Portraits de Shiqi et images que vous demandez.",
@@ -1107,7 +1109,7 @@ IOS_SURFACE_COPY = {
     },
     "ja": {
         "toy": "3Dトイ",
-        "home": "Nelanホーム",
+        "home": "Nivoホーム",
         "home_layout": "ホームにはチャット、フィード、アイデア、目標、ライブラリがまとまっています。オフにすると従来のチャット一覧が開きます。タイトル設定でサブチャットに助手名またはモデルを表示できます。",
         "header": "通常は名前だけを表示します。オンにすると下にモデルグループとプロバイダーが表示され、タップで切り替えられます。オフの場合は「その他→モデル」または設定から変更できます。",
         "portraits": "Shiqiのポートレートとリクエストした画像。",
@@ -1115,7 +1117,7 @@ IOS_SURFACE_COPY = {
     },
     "ko": {
         "toy": "3D 장난감",
-        "home": "Nelan 홈",
+        "home": "Nivo 홈",
         "home_layout": "홈에는 채팅, 피드, 아이디어, 목표, 라이브러리가 모여 있습니다. 끄면 기존 채팅 목록이 열립니다. 제목 설정으로 보조 채팅에 도우미 이름이나 모델을 표시할 수 있습니다.",
         "header": "기본적으로 이름만 표시합니다. 켜면 아래에 모델 그룹과 제공업체가 표시되며 눌러서 바꿀 수 있습니다. 끈 상태에서는 더보기→모델 또는 설정에서 바꿀 수 있습니다.",
         "portraits": "Shiqi의 초상화와 요청한 이미지입니다.",
@@ -1123,7 +1125,7 @@ IOS_SURFACE_COPY = {
     },
     "ru": {
         "toy": "3D-игрушка",
-        "home": "Главная Nelan",
+        "home": "Главная Nivo",
         "home_layout": "Главная объединяет чат, ленту, идеи, цели и библиотеку. При отключении открывается классический список чатов. Настройка заголовка показывает имя помощника или модель в дополнительных чатах.",
         "header": "По умолчанию отображается только имя. Включите эту настройку, чтобы видеть группу моделей и провайдера; нажмите для переключения. Иначе выберите Ещё → Модель или откройте настройки.",
         "portraits": "Портреты Shiqi и изображения по вашему запросу.",
@@ -1340,8 +1342,8 @@ def mobile_locale(locale: str) -> str:
 
 
 def mobile_name(locale: str) -> str:
-    """中文系统使用念步，其他语言使用Nelan。"""
-    return CHINESE_NAME if locale.startswith("zh") else NAME
+    """产品名称在各语言和系统扩展中保持一致。"""
+    return NAME
 
 
 def mobile_brand_text(text: str, locale: str) -> str:
@@ -1351,14 +1353,18 @@ def mobile_brand_text(text: str, locale: str) -> str:
     def substitute(match: re.Match[str]) -> str:
         if re.match(r"`|[a-zA-Z][a-zA-Z0-9+.-]*://|www\.", match[0]):
             return match[0]
+        if particle := match["ko_particle"]:
+            # Nivo以元音结尾，韩语助词随新名称调整。
+            suffix = {"으로": "로", "을": "를", "은": "는", "과": "와", "이": "가"}
+            return NAME + (suffix[particle] if locale == "ko" else particle)
         if match[0].endswith((" Cloud", "-Cloud", " Desktop", "-Desktop")):
             return "nanoMuse Desktop" if match[0].endswith("Desktop") else "nanoMuse Cloud"
-        if match[0] == "nanoMuses":
-            return "Nelans"
+        if match[0] in ("nanoMuses", "Nelans"):
+            return f"{NAME}s"
         if match[0] == "AI-nanoMuse Agent":
-            return "ИИ-агент Nelan" if locale == "ru" else "Nelan AI agent"
+            return f"ИИ-агент {NAME}" if locale == "ru" else f"{NAME} AI agent"
         if match[0] == "Nelan-nanoMuse Agent":
-            return "Nelan-Agent"
+            return f"{NAME}-Agent"
         if preserve_upstream and match[0] == "nanoMuse":
             return match[0]
         return mobile_name(locale)
@@ -1366,7 +1372,7 @@ def mobile_brand_text(text: str, locale: str) -> str:
     result = MOBILE_BRAND_OR_URL.sub(substitute, text)
     if locale.startswith("zh"):
         result = re.sub(
-            r"(?<=[\u3400-\u9fff]) +(?=念步)|(?<=念步) +(?=[\u3400-\u9fff])", "", result
+            rf"(?<=[\u3400-\u9fff]) +(?={NAME})|(?<={NAME}) +(?=[\u3400-\u9fff])", "", result
         )
     return result
 
@@ -1385,37 +1391,37 @@ def localized_system_label(target: str, locale: str) -> str:
     name = mobile_name(locale)
     labels = {
         "ShareExtension": {
-            "en": "Share to Nelan",
-            "zh-Hans": "分享到念步",
-            "zh-Hant": "分享到念步",
-            "ja": "Nelanに共有",
-            "ko": "Nelan으로 공유",
-            "fr": "Partager avec Nelan",
-            "de": "Mit Nelan teilen",
-            "es": "Compartir con Nelan",
-            "ru": "Поделиться с Nelan",
+            "en": "Share to Nivo",
+            "zh-Hans": "分享到Nivo",
+            "zh-Hant": "分享到Nivo",
+            "ja": "Nivoに共有",
+            "ko": "Nivo로 공유",
+            "fr": "Partager avec Nivo",
+            "de": "Mit Nivo teilen",
+            "es": "Compartir con Nivo",
+            "ru": "Поделиться с Nivo",
         },
         "FileProvider": {
-            "en": "Nelan Files",
-            "zh-Hans": "念步文件",
-            "zh-Hant": "念步檔案",
-            "ja": "Nelanのファイル",
-            "ko": "Nelan 파일",
-            "fr": "Fichiers Nelan",
-            "de": "Nelan-Dateien",
-            "es": "Archivos de Nelan",
-            "ru": "Файлы Nelan",
+            "en": "Nivo Files",
+            "zh-Hans": "Nivo文件",
+            "zh-Hant": "Nivo檔案",
+            "ja": "Nivoのファイル",
+            "ko": "Nivo 파일",
+            "fr": "Fichiers Nivo",
+            "de": "Nivo-Dateien",
+            "es": "Archivos de Nivo",
+            "ru": "Файлы Nivo",
         },
         "AgentWidget": {
-            "en": "Nelan Activity",
-            "zh-Hans": "念步动态",
-            "zh-Hant": "念步動態",
-            "ja": "Nelanのアクティビティ",
-            "ko": "Nelan 활동",
-            "fr": "Activité Nelan",
-            "de": "Nelan-Aktivität",
-            "es": "Actividad de Nelan",
-            "ru": "Активность Nelan",
+            "en": "Nivo Activity",
+            "zh-Hans": "Nivo动态",
+            "zh-Hant": "Nivo動態",
+            "ja": "Nivoのアクティビティ",
+            "ko": "Nivo 활동",
+            "fr": "Activité Nivo",
+            "de": "Nivo-Aktivität",
+            "es": "Actividad de Nivo",
+            "ru": "Активность Nivo",
         },
     }
     return labels.get(target, {}).get(locale, name)
@@ -1498,7 +1504,7 @@ def ios_extension_labels(text: str) -> str:
                 path,
                 "/* nanoMuse: 扩展的系统显示名称与文件入口名称。 */\n"
                 f'"CFBundleDisplayName" = "{localized_system_label(target, locale)}";\n'
-                f'"Nelan" = "{mobile_name(locale)}";\n',
+                f'"{NAME}" = "{mobile_name(locale)}";\n',
             )
             file_id = ios_brand_resource_id(f"{target}.{locale}")
             members.append(f"\t\t\t\t{file_id} /* {locale} */,")
@@ -1544,16 +1550,16 @@ def ios_catalogue_brand() -> None:
         ios_catalogue_entry_brand(key, entry)
     # 修正原翻译中将英文Agent和产品名重复拼接的句子，保留AppIntents使用的键。
     russian_intents = {
-        "Re-runs the AI agent from a specific user message in a session. Presents a list of user messages to choose from, then retries from that point.": "Перезапускает ИИ-агента Nelan с выбранного сообщения пользователя. Показывает список сообщений для выбора и повторяет выполнение с этого места.",
-        "Sends a follow-up prompt to an existing nanoMuse session, continuing the conversation with the AI agent.": "Отправляет дополнительный запрос в существующую сессию Nelan, продолжая разговор с ИИ-агентом.",
-        "Sends a prompt to the nanoMuse AI agent. Returns session info immediately while the task runs in the background.": "Отправляет запрос ИИ-агенту Nelan. Сразу возвращает сведения о сессии, пока задача выполняется в фоне.",
+        "Re-runs the AI agent from a specific user message in a session. Presents a list of user messages to choose from, then retries from that point.": "Перезапускает ИИ-агента Nivo с выбранного сообщения пользователя. Показывает список сообщений для выбора и повторяет выполнение с этого места.",
+        "Sends a follow-up prompt to an existing nanoMuse session, continuing the conversation with the AI agent.": "Отправляет дополнительный запрос в существующую сессию Nivo, продолжая разговор с ИИ-агентом.",
+        "Sends a prompt to the nanoMuse AI agent. Returns session info immediately while the task runs in the background.": "Отправляет запрос ИИ-агенту Nivo. Сразу возвращает сведения о сессии, пока задача выполняется в фоне.",
     }
     for key, value in russian_intents.items():
         if key in strings:
             strings[key].setdefault("localizations", {})["ru"] = {
                 "stringUnit": {"state": "translated", "value": value}
             }
-    strings["Nelan"] = {
+    strings[NAME] = {
         "localizations": {
             locale: {"stringUnit": {"state": "translated", "value": mobile_name(locale)}}
             for locale in IOS_BRAND_LOCALES
@@ -1612,20 +1618,20 @@ def ios_brand_only() -> None:
         IOS / "Minis.xcodeproj/project.pbxproj",
         [
             (
-                r'INFOPLIST_KEY_CFBundleDisplayName = "?(?:Minis|nanoMuse|Nicholasx|Nivo Bot)"?;',
-                'INFOPLIST_KEY_CFBundleDisplayName = "Nelan";',
+                r'INFOPLIST_KEY_CFBundleDisplayName = "?(?:Minis|nanoMuse|Nicholasx|Nivo Bot|Nelan)"?;',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Nivo";',
             ),
             (
-                r'INFOPLIST_KEY_CFBundleDisplayName = "Share to (?:Minis|nanoMuse|Nicholasx|Nivo Bot)";',
-                'INFOPLIST_KEY_CFBundleDisplayName = "Share to Nelan";',
+                r'INFOPLIST_KEY_CFBundleDisplayName = "Share to (?:Minis|nanoMuse|Nicholasx|Nivo Bot|Nelan)";',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Share to Nivo";',
             ),
             (
-                r'INFOPLIST_KEY_CFBundleDisplayName = "(?:Minis|nanoMuse|Nicholasx|Nivo Bot) Files";',
-                'INFOPLIST_KEY_CFBundleDisplayName = "Nelan Files";',
+                r'INFOPLIST_KEY_CFBundleDisplayName = "(?:Minis|nanoMuse|Nicholasx|Nivo Bot|Nelan) Files";',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Nivo Files";',
             ),
             (
-                r'INFOPLIST_KEY_CFBundleDisplayName = "Agent Activity";',
-                'INFOPLIST_KEY_CFBundleDisplayName = "Nelan Activity";',
+                r'INFOPLIST_KEY_CFBundleDisplayName = "(?:Agent|Nelan) Activity";',
+                'INFOPLIST_KEY_CFBundleDisplayName = "Nivo Activity";',
             ),
         ],
     )

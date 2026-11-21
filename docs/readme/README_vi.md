@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 **Trò chuyện AI, công việc, tập trung, ghi chép hằng ngày và huấn luyện phát triển trên Android và iOS.**
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
 
-Nivo Bot là không gian AI cho cuộc sống hằng ngày. Bắt đầu bằng trò chuyện, chuyển bước tiếp theo thành công việc, dành thời gian tập trung và lưu trải nghiệm để xem lại.
+Nivo là không gian AI cho cuộc sống hằng ngày. Bắt đầu bằng trò chuyện, chuyển bước tiếp theo thành công việc, dành thời gian tập trung và lưu trải nghiệm để xem lại.
 
 Miễn phí, mã nguồn mở và phi lợi nhuận. Bạn chọn nhà cung cấp mô hình; yêu cầu có thể mất phí. TTS Android đọc phản hồi bằng máy giọng nói trên điện thoại.
 
 ## Khám phá Nivo
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 Giới thiệu bằng hình minh họa và nội dung mẫu. GIF trượt ngang qua sáu mô-đun; nhấn hình tĩnh để phóng to. Đây là hình giải thích, không phải ảnh chụp thiết bị.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ Giữ thông báo bản quyền và giấy phép gốc. Không đưa khóa API, 
 
 ## Người duy trì
 
-Fork Nivo Bot này do <a href="https://github.com/sherlockerX">sherlockerX</a> duy trì. Hãy báo vấn đề riêng của Nivo tại đây để người duy trì nhận được.
+Fork Nivo này do <a href="https://github.com/sherlockerX">sherlockerX</a> duy trì. Hãy báo vấn đề riêng của Nivo tại đây để người duy trì nhận được.
 
 ## Giấy phép
 
@@ -176,9 +176,9 @@ Fork Nivo Bot này do <a href="https://github.com/sherlockerX">sherlockerX</a> d
 
 ## Lời cảm ơn
 
-Nivo Bot dựa trên [nanoMuse](https://github.com/nano-muse/nanoMuse), có nền tảng tác nhân, tích hợp và kiến trúc giúp công việc này khả thi. Cảm ơn nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> và các cộng tác viên. Nền tảng điện thoại đến từ [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+Nivo dựa trên [nanoMuse](https://github.com/nano-muse/nanoMuse), có nền tảng tác nhân, tích hợp và kiến trúc giúp công việc này khả thi. Cảm ơn nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> và các cộng tác viên. Nền tảng điện thoại đến từ [OpenMinis](https://github.com/OpenMinis/OpenMinis).
 
-Danh sách ghi nhận đóng góp lịch sử nanoMuse. Lời cảm ơn và cột mốc nằm trong [hồ sơ nguồn gốc](../archive/upstream-readme-vi.md); điều khoản phụ thuộc ở [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot được duy trì độc lập.
+Danh sách ghi nhận đóng góp lịch sử nanoMuse. Lời cảm ơn và cột mốc nằm trong [hồ sơ nguồn gốc](../archive/upstream-readme-vi.md); điều khoản phụ thuộc ở [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo được duy trì độc lập.
 
 <details>
 <summary>Cộng tác viên và nguồn gốc</summary>

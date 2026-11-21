@@ -98,26 +98,22 @@ class MobilePublishTest(unittest.TestCase):
         self.assertEqual(len(plan.artifacts), 3)
         self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), before)
 
-    def test_nelan_artifacts_preserve_historical_records(self) -> None:
-        """新品牌的APK、IPA和共享源码可发布，历史记录保持原样。"""
-        for row in self.catalogue["releases"]:
-            for field in ("downloadUrl", "sourceUrl"):
-                row[field] = row[field].replace("Nivo-Bot-", "Nelan-")
-        self.catalogue["releases"].append({"version": "2.0.0", "platform": "android"})
-        self.save_catalogue()
-        before = copy.deepcopy(self.catalogue)
-
-        plan = self.plan()
-
-        self.assertEqual(
-            [item.name for item in plan.artifacts],
-            [
-                "Nelan-v2.0.5-arm64.apk",
-                "Nelan-v2.0.5-unsigned.ipa",
-                "Nelan-v2.0.5-source.zip",
-            ],
-        )
-        self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), before)
+    def test_branded_artifacts_preserve_historical_records(self) -> None:
+        """新旧品牌的三个附件均按真实文件名加载，历史记录保持原样。"""
+        original = copy.deepcopy(self.catalogue)
+        for prefix in ("Nelan", "Nivo"):
+            with self.subTest(prefix=prefix):
+                self.catalogue = copy.deepcopy(original)
+                for row in self.catalogue["releases"]:
+                    for field in ("downloadUrl", "sourceUrl"):
+                        row[field] = row[field].replace("Nivo-Bot-", f"{prefix}-")
+                self.catalogue["releases"].append({"version": "2.0.0", "platform": "android"})
+                self.save_catalogue()
+                self.assertEqual(
+                    [item.name for item in self.plan().artifacts],
+                    [f"{prefix}-v2.0.5-{suffix}" for suffix in ("arm64.apk", "unsigned.ipa", "source.zip")],
+                )
+                self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), self.catalogue)
 
     def test_nelan_android_release_uses_exact_new_names_and_keeps_ios_history(self) -> None:
         """2.0.9仅交付新名称的Android与源码，旧iOS记录不成为新附件。"""
@@ -465,7 +461,7 @@ class MobilePublishTest(unittest.TestCase):
         """只接受正式域名的固定版本文件，不接受重定向来源或编码路径。"""
         original = copy.deepcopy(self.catalogue)
         for prefix, (index, field, suffix) in product(
-            ("Nelan", "Nivo-Bot"),
+            ("Nivo", "Nelan", "Nivo-Bot"),
             (
                 (0, "downloadUrl", "arm64.apk"),
                 (1, "downloadUrl", "unsigned.ipa"),
@@ -512,7 +508,7 @@ class MobilePublishTest(unittest.TestCase):
     def test_wrong_release_notes_title_is_rejected(self):
         """发行说明必须对应当前版本，标题由文件确定。"""
         for brand, ending in product(
-            ("Nivo Bot", "念步", "Nelan"),
+            ("Nivo", "Nivo Bot", "念步", "Nelan"),
             ("2.0.4 · Other", "2.0.5 · cadence", "2.0.5 · Cadence extra", "2.0.5"),
         ):
             self.write("docs/releases/v2.0.5.md", f"# {brand} {ending}\n")
@@ -525,7 +521,7 @@ class MobilePublishTest(unittest.TestCase):
 
     def test_new_brand_titles_keep_exact_version_and_codename(self) -> None:
         """中文与英文新品牌标题沿用精确版本及英文代号格式。"""
-        for title in ("念步 2.0.5 · Cadence", "Nelan 2.0.5 · Cadence"):
+        for title in ("念步 2.0.5 · Cadence", "Nelan 2.0.5 · Cadence", "Nivo 2.0.5 · Cadence"):
             with self.subTest(title=title):
                 self.write("docs/releases/v2.0.5.md", f"# {title}\n")
                 self.assertEqual(self.plan().title, title)
@@ -599,12 +595,12 @@ class MobilePublishTest(unittest.TestCase):
                         publisher.verify_apk(self.root / "app.apk", self.plan(), "aapt")
 
     def test_android_package_switch_is_bound_to_release_version(self) -> None:
-        """2.0.9起只接受新Android包名，历史版本只能接受原包名。"""
+        """每个发行阶段只接受该阶段的正式包名。"""
         for version, code, expected_package in (
             ("2.0.8", 59, "io.github.nanomuse.app"),
             ("2.0.9", 60, "io.github.sherlockerx.nelan"),
-            ("2.0.10", 61, "io.github.sherlockerx.nelan"),
-            ("2.1.0", 62, "io.github.sherlockerx.nelan"),
+            ("2.0.10", 61, "io.github.nivo"),
+            ("2.1.0", 62, "io.github.nivo"),
         ):
             plan = replace(self.plan(), tag=f"v{version}", version=version, code=code)
             for package in (
@@ -612,6 +608,8 @@ class MobilePublishTest(unittest.TestCase):
                 "io.github.sherlockerx.nelan",
                 "io.github.nanomuse.app.uitest",
                 "io.github.sherlockerx.nelan.uitest",
+                "io.github.nivo",
+                "io.github.nivo.uitest",
             ):
                 badging = (
                     f"package: name='{package}' versionCode='{code}' versionName='{version}'\n"
@@ -631,7 +629,7 @@ class MobilePublishTest(unittest.TestCase):
         ipa = self.root / "app.ipa"
         for version, code in (("2.0.8", 59), ("2.0.9", 60), ("2.0.10", 61)):
             plan = replace(self.plan(), tag=f"v{version}", version=version, code=code)
-            for package in ("io.github.nanomuse.app", "io.github.sherlockerx.nelan"):
+            for package in ("io.github.nanomuse.app", "io.github.sherlockerx.nelan", "io.github.nivo"):
                 with zipfile.ZipFile(ipa, "w") as archive:
                     archive.writestr(
                         "Payload/Nelan.app/Info.plist",

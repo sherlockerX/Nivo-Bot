@@ -7,7 +7,7 @@
     <string name="nm_about_upstream">Berasaskan OpenMinis 1.13</string>
     <string name="nm_about_upstream_detail">GPL-3.0 · diubah suai sejak 2026-09-24 · sumber di GitHub</string>
     <string name="nm_about_trademark">Tidak berkaitan dengan Meta</string>
-    <string name="nm_about_trademark_detail">Muse ialah tanda dagangan Meta Platforms, Inc. Nelan ialah projek perisian bebas yang berasingan.</string>
+    <string name="nm_about_trademark_detail">Muse ialah tanda dagangan Meta Platforms, Inc. Nivo ialah projek perisian bebas yang berasingan.</string>
 
     <!-- Chat header -->
     <string name="nm_avatar_content_description">Ejen anda. Ketik untuk menukar nama, ikon atau gayanya.</string>
@@ -22,18 +22,18 @@
     <string name="nm_star_action">Beri bintang di GitHub</string>
     <string name="nm_star_later">Bukan sekarang</string>
     <string name="nm_star_done">Sudah saya beri bintang</string>
-    <string name="nm_star_signed_in">Selamat datang. Nelan percuma, sumber terbuka dan bukan untuk keuntungan: ejen peribadi untuk sesiapa yang menjalankannya. Jika ia bermakna bagi anda, bintang di GitHub ialah cara orang seterusnya menjumpainya.</string>
+    <string name="nm_star_signed_in">Selamat datang. Nivo percuma, sumber terbuka dan bukan untuk keuntungan: ejen peribadi untuk sesiapa yang menjalankannya. Jika ia bermakna bagi anda, bintang di GitHub ialah cara orang seterusnya menjumpainya.</string>
     <plurals name="nm_star_tasks">
-        <item quantity="other">%1$d tugas selesai. Jika Nelan berguna, bintang di GitHub membantu orang seterusnya menjumpainya.</item>
+        <item quantity="other">%1$d tugas selesai. Jika Nivo berguna, bintang di GitHub membantu orang seterusnya menjumpainya.</item>
     </plurals>
-    <string name="nm_star_days_used_week">Seminggu bersama Nelan. Jika ia sudah ada tempat dalam hari anda, bintang di GitHub membantu orang seterusnya menjumpainya.</string>
-    <string name="nm_star_days_used_month">Sebulan bersama Nelan. Jika ia sudah menjadi sebahagian daripada rutin anda, bintang di GitHub memberitahu orang lain bahawa ia patut dicuba.</string>
+    <string name="nm_star_days_used_week">Seminggu bersama Nivo. Jika ia sudah ada tempat dalam hari anda, bintang di GitHub membantu orang seterusnya menjumpainya.</string>
+    <string name="nm_star_days_used_month">Sebulan bersama Nivo. Jika ia sudah menjadi sebahagian daripada rutin anda, bintang di GitHub memberitahu orang lain bahawa ia patut dicuba.</string>
     <plurals name="nm_star_days_used">
-        <item quantity="other">%1$d hari bersama Nelan. Jika ia sudah ada tempat dalam hari anda, bintang di GitHub membantu orang seterusnya menjumpainya.</item>
+        <item quantity="other">%1$d hari bersama Nivo. Jika ia sudah ada tempat dalam hari anda, bintang di GitHub membantu orang seterusnya menjumpainya.</item>
     </plurals>
-    <string name="nm_star_goal_done">Matlamat tercapai. Jika Nelan membantu anda sampai ke situ, bintang di GitHub memberitahu orang yang membinanya.</string>
-    <string name="nm_star_new_look">Wajah baharu, dilukis untuk anda. Jika anda suka hala tuju Nelan, bintang di GitHub membantu lebih ramai orang menjumpainya.</string>
-    <string name="nm_star_exhausted">Peruntukan percuma sudah habis. Terima kasih kerana sampai sejauh ini. Jika Nelan layak menerimanya, bintang di GitHub mengekalkan projek ini dalam pandangan orang seterusnya.</string>
+    <string name="nm_star_goal_done">Matlamat tercapai. Jika Nivo membantu anda sampai ke situ, bintang di GitHub memberitahu orang yang membinanya.</string>
+    <string name="nm_star_new_look">Wajah baharu, dilukis untuk anda. Jika anda suka hala tuju Nivo, bintang di GitHub membantu lebih ramai orang menjumpainya.</string>
+    <string name="nm_star_exhausted">Peruntukan percuma sudah habis. Terima kasih kerana sampai sejauh ini. Jika Nivo layak menerimanya, bintang di GitHub mengekalkan projek ini dalam pandangan orang seterusnya.</string>
     <string name="nm_chat_menu_rename">Namakan semula sembang</string>
 
     <!-- Foreground-service notification title while no tool is running -->
@@ -196,7 +196,7 @@
     <string name="nm_risk_class_outbound">Hantar</string>
     <string name="nm_risk_class_money">Bayar</string>
     <string name="nm_risk_class_install">Pasang</string>
-    <string name="nm_grants_header">Kelulusan yang diingati Nelan</string>
+    <string name="nm_grants_header">Kelulusan yang diingati Nivo</string>
     <string name="nm_grants_empty">Belum ada yang diingati</string>
     <string name="nm_grants_revoke">Batalkan</string>
     <string name="nm_grants_revoke_confirm">Batalkan kelulusan ini? Kali seterusnya ia muncul, anda akan ditanya semula.</string>
@@ -204,7 +204,7 @@
     <string name="nm_risk_remember_money_note">Disahkan dengan kunci skrin anda. Pembayaran dalam satu aplikasi atau laman ini kemudiannya berjalan tanpa kad; disenaraikan dahulu di bawah Tetapan → Kebenaran, tempat anda boleh membatalkannya bila-bila masa.</string>
     <string name="nm_risk_remember_money_needs_lock">Untuk mengingati pembayaran, tetapkan kunci skrin dahulu (Tetapan → Keselamatan): mengingati satu pembayaran disahkan dengannya.</string>
     <string name="nm_risk_lock_title">Sahkan bahawa ini anda</string>
-    <string name="nm_risk_lock_subtitle">Nelan akan mengingati kelulusan pembayaran untuk %1$s dan menjalankannya tanpa bertanya.</string>
+    <string name="nm_risk_lock_subtitle">Nivo akan mengingati kelulusan pembayaran untuk %1$s dan menjalankannya tanpa bertanya.</string>
     <string name="nm_risk_remembered_toast">Diingati · lihat Tetapan → Kebenaran untuk membatalkan</string>
     <string name="nm_risk_tier_highest">Berjalan tanpa bertanya · pembayaran</string>
     <string name="nm_risk_tier_confirm">Diingati daripada kad · padam dan hantar</string>
@@ -246,7 +246,7 @@
     <string name="nm_sysfiles_open_memory">Buka memori</string>
     <string name="nm_sysfiles_footer">Urus identiti, pilihan dan ingatan pembantu di sini. Fail kekal pada telefon ini dan boleh disunting pada halaman ini.</string>
     <string name="nm_sysfile_about_lead">Tentang fail ini.</string>
-    <string name="nm_sysfile_about_soul">Ini persona ejen: nilai dan tabiat yang cuba dipegangnya dalam setiap perbualan, namanya, dan gaya jawapannya. Ia bermula daripada templat yang disertakan bersama Nelan; ejen mungkin memperhalusinya dari semasa ke semasa dan memberitahu anda apabila berbuat demikian. Anda boleh menyuntingnya bila-bila masa. Nota ini bukan sebahagian daripada fail.</string>
+    <string name="nm_sysfile_about_soul">Ini persona ejen: nilai dan tabiat yang cuba dipegangnya dalam setiap perbualan, namanya, dan gaya jawapannya. Ia bermula daripada templat yang disertakan bersama Nivo; ejen mungkin memperhalusinya dari semasa ke semasa dan memberitahu anda apabila berbuat demikian. Anda boleh menyuntingnya bila-bila masa. Nota ini bukan sebahagian daripada fail.</string>
     <string name="nm_sysfile_about_user">Ejen menyimpan fail ini sebagai nota kerjanya tentang anda: nama anda, cara anda suka dipanggil, zon waktu anda, dan konteks yang diperlukannya untuk berguna, seperti apa yang sedang anda usahakan. Ia mengisinya dari semasa ke semasa daripada perbualan anda dan membacanya pada permulaan setiap perbualan. Ia mencerminkan pemahaman semasa ejen, jadi ia mungkin tidak lengkap atau lapuk. Anda boleh menyunting apa sahaja di sini, dan ejen akan mengikut apa yang anda tulis. Nota ini bukan sebahagian daripada fail.</string>
     <string name="nm_sysfile_about_memory">Nota kekal yang disimpan ejen merentas perbualan: perkara yang patut diingat, dalam kata-katanya sendiri, serta apa sahaja yang anda import daripada pembantu lain. Diari hari demi hari disimpan di sebelahnya dalam folder memori. Dibaca pada permulaan setiap perbualan apabila memori dihidupkan. Nota ini bukan sebahagian daripada fail.</string>
     <string name="nm_sysfile_about_heartbeat">Bila ejen bangun dengan sendirinya: setiap rutin dan setiap semakan matlamat, dengan jadualnya dan bagaimana larian terakhir berjalan. Dijana daripada rutin, jadi ia baca sahaja di sini; ubah dari Matlamat → Rutin. Nota ini bukan sebahagian daripada fail.</string>
@@ -354,7 +354,7 @@
     <string name="nm_a11y_own_clip_preview">Pratonton klip anda</string>
 
     <!-- First run (Muse-style welcome; the steps are OpenMinis' provider and model screens) -->
-    <string name="nm_setup_title">Selamat datang ke Nelan</string>
+    <string name="nm_setup_title">Selamat datang ke Nivo</string>
     <string name="nm_setup_step_models">Pilih model</string>
     <string name="nm_setup_step_models_sub">Model yang disediakan penyedia anda disenaraikan untuk anda; pilih sehingga tiga</string>
     <string name="nm_setup_step_start">Kenali %1$s</string>
@@ -370,7 +370,7 @@
     <string name="nm_settings_no_model">Belum ada model</string>
     <string name="nm_settings_no_model_sub">Tambah penyedia dan pilih modelnya</string>
     <string name="nm_settings_change_model">Tukar</string>
-    <string name="nm_settings_version">Nelan %1$s (%2$d)</string>
+    <string name="nm_settings_version">Nivo %1$s (%2$d)</string>
     <string name="nm_version_title">Versi</string>
     <string name="nm_version_checking">Menyemak keluaran terkini…</string>
     <string name="nm_version_have">Terkini %1$s, anda sudah ada</string>
@@ -450,7 +450,7 @@
     <string name="nm_avatar_share_title">Kongsi avatar saya</string>
     <string name="nm_avatar_share_subtitle">Pilih satu kad. Ia dihantar melalui helaian kongsi sistem.</string>
     <string name="nm_avatar_share_system">Kongsi</string>
-    <string name="nm_avatar_share_bubble">Hai, saya %1$s, ejen AI peribadi. Kenali Nelan: sumber terbuka, berjalan di telefon anda.</string>
+    <string name="nm_avatar_share_bubble">Hai, saya %1$s, ejen AI peribadi. Kenali Nivo: sumber terbuka, berjalan di telefon anda.</string>
     <string name="nm_avatar_share_tagline">Ejen AI peribadi anda, sumber terbuka</string>
 
     <!-- 0.1.10 · Motion -->
@@ -502,7 +502,7 @@
     <string name="nm_hands_section_needs">Apa yang diperlukannya</string>
     <string name="nm_hands_needs_footer">Perkhidmatan kebolehcapaian mengambil tangkapan skrin dan melakukan gerak isyarat; ia tidak membaca kandungan skrin. Melukis di atas aplikasi lain adalah untuk kapsul.</string>
     <string name="nm_hands_need_a11y">Perkhidmatan kebolehcapaian</string>
-    <string name="nm_hands_need_a11y_fix">Hidupkan Nelan di bawah Aplikasi dipasang dalam tetapan kebolehcapaian</string>
+    <string name="nm_hands_need_a11y_fix">Hidupkan Nivo di bawah Aplikasi dipasang dalam tetapan kebolehcapaian</string>
     <string name="nm_hands_need_overlay">Paparkan di atas aplikasi lain</string>
     <string name="nm_hands_need_overlay_fix">Benarkan, supaya kapsul dengan Berhenti boleh dipaparkan</string>
     <string name="nm_hands_need_model">Model yang boleh melihat gambar</string>
@@ -540,7 +540,7 @@
     <string name="nm_hands_protected_screen">Skrin ini dilindungi dan tidak boleh dibaca. Selesaikan bahagian ini sendiri, kemudian ketik Teruskan.</string>
     <string name="nm_hands_secret_field">Medan kata laluan atau kod: sila isi sendiri, kemudian ketik Teruskan.</string>
     <string name="nm_hands_approval_title">Menunggu kelulusan anda</string>
-    <string name="nm_hands_approval_detail">Ketik “%1$s”: sahkan dalam Nelan (ia meminta kunci skrin anda).</string>
+    <string name="nm_hands_approval_detail">Ketik “%1$s”: sahkan dalam Nivo (ia meminta kunci skrin anda).</string>
     <string name="nm_hands_approval_here">Ketik “%1$s”?</string>
     <string name="nm_hands_allow_once">Benarkan</string>
     <string name="nm_hands_deny">Tolak</string>
@@ -571,7 +571,7 @@
     <!-- Reach (0.1.13): the phone drives your computer -->
     <string name="nm_pc_title">Komputer</string>
     <string name="nm_pc_none_short">Tiada</string>
-    <string name="nm_pc_intro">Sebut di sini, dilakukan di komputer anda: perintah, fail, halaman dalam pelayarnya, pandangan skrinnya, atau satu tugas penuh untuk Nelan di sana. Telefon mengendalikan komputer, bukan sebaliknya; setiap kelulusan diputuskan di sini dahulu.</string>
+    <string name="nm_pc_intro">Sebut di sini, dilakukan di komputer anda: perintah, fail, halaman dalam pelayarnya, pandangan skrinnya, atau satu tugas penuh untuk Nivo di sana. Telefon mengendalikan komputer, bukan sebaliknya; setiap kelulusan diputuskan di sini dahulu.</string>
     <string name="nm_pc_hub_title">Cara mudah: nanoMuse Desktop, akaun yang sama</string>
     <string name="nm_pc_hub_body">Pasang nanoMuse Desktop di komputer dan log masuk dengan akaun telefon ini; ia muncul di bawah Akaun → Peranti dalam beberapa saat.</string>
     <string name="nm_pc_hub_download">Dapatkan nanoMuse Desktop</string>
@@ -623,7 +623,7 @@
     <string name="nm_welcome_feat_hands_sub">Menempah kereta api, memesan makanan, mencari sesuatu dalam aplikasi; anda memerhati, dan boleh menghentikannya bila-bila masa</string>
     <string name="nm_welcome_feat_reach">Capaian: komputer anda, dari sini</string>
     <string name="nm_welcome_feat_reach_sub">Pasang nanoMuse Desktop pada mesin Mac, Windows atau Linux, log masuk dengan akaun yang sama, dan beri ia kerja dari telefon</string>
-    <string name="nm_welcome_notice">Nelan ialah projek komuniti sumber terbuka bukan untuk keuntungan: percuma, selamanya. Model datang dengan peruntukan percuma yang dibayar oleh pembangun; selepas itu, kunci anda sendiri. Tiada apa-apa dijual; apa yang disimpan relay ada dalam dasar privasi, dan Tetapan → Kawalan data adalah milik anda.</string>
+    <string name="nm_welcome_notice">Nivo ialah projek komuniti sumber terbuka bukan untuk keuntungan: percuma, selamanya. Model datang dengan peruntukan percuma yang dibayar oleh pembangun; selepas itu, kunci anda sendiri. Tiada apa-apa dijual; apa yang disimpan relay ada dalam dasar privasi, dan Tetapan → Kawalan data adalah milik anda.</string>
     <string name="nm_welcome_hands_title">Benarkan ia menggunakan telefon anda</string>
     <string name="nm_welcome_hands_sub">Dengan dua kebenaran, ia boleh membuka aplikasi, mengetik dan menaip untuk anda. Satu kapsul dengan setiap langkah dan butang Berhenti kekal di skrin; log masuk, kata laluan dan kod sentiasa milik anda.</string>
     <string name="nm_welcome_hands_turn_on">Hidupkan</string>
@@ -761,7 +761,7 @@
     <string name="nm_cloud_invite_share">Kongsi pautan</string>
     <string name="nm_cloud_invite_copy">Salin</string>
     <string name="nm_cloud_invite_copied">Disalin</string>
-    <string name="nm_cloud_invite_share_text">Cuba Nelan bersama saya: ejen peribadi sumber terbuka sepenuhnya, percuma digunakan. Daftar dengan kod saya %1$s: %2$s</string>
+    <string name="nm_cloud_invite_share_text">Cuba Nivo bersama saya: ejen peribadi sumber terbuka sepenuhnya, percuma digunakan. Daftar dengan kod saya %1$s: %2$s</string>
     <string name="nm_cloud_invite_count">%1$d rakan menyertai</string>
     <string name="nm_cloud_invite_earned">¥%1$s ditambah melalui jemputan</string>
     <string name="nm_cloud_invite_have">Ada kod jemputan?</string>
@@ -802,7 +802,7 @@
     <string name="nm_cloud_ev_contribute_deleted">Kawalan data: perbualan yang disimpan dipadam</string>
     <string name="nm_cloud_ev_contribute_default">Kawalan data: hidup untuk akaun baharu</string>
     <string name="nm_data_title">Kawalan data</string>
-    <string name="nm_data_improve">Bantu perbaiki model AI Nelan</string>
+    <string name="nm_data_improve">Bantu perbaiki model AI Nivo</string>
     <string name="nm_data_why">Semasa ini dihidupkan, teks sembang anda dengan model nanoMuse Cloud (apa yang anda tulis, apa yang dijawabnya dan alat yang dipilihnya untuk dipanggil) disimpan di relay untuk melatih model terbuka komuniti sendiri. Bukan memori atau SOUL anda (gesaan sistem), bukan apa yang dikembalikan alat, bukan gambar, dan tidak pernah bersebelahan dengan identiti anda. Kunci API anda sendiri tidak pernah melalui relay.</string>
     <string name="nm_data_default_on">Akaun baharu bermula dengan ia dihidupkan.</string>
     <string name="nm_data_default_off">Akaun baharu bermula dengan ia dimatikan.</string>
@@ -861,7 +861,7 @@
     <!-- 0.1.20: the coding agents on the account's computers -->
     <string name="nm_coding_title">Ejen pengekodan</string>
     <string name="nm_coding_intro">Cursor, Codex dan Claude Code di komputer anda: sesi mereka, balasan terakhir mereka, dan mesej kepada mana-mana satu, dari sini. Tiada apa-apa milik mereka disalin ke telefon.</string>
-    <string name="nm_coding_no_computer">Tiada komputer dengan ejen pengekodan dalam talian. Jalankan Nelan di komputer tempat Cursor, Codex atau Claude Code dipasang, log masuk dengan akaun ini.</string>
+    <string name="nm_coding_no_computer">Tiada komputer dengan ejen pengekodan dalam talian. Jalankan Nivo di komputer tempat Cursor, Codex atau Claude Code dipasang, log masuk dengan akaun ini.</string>
     <string name="nm_coding_account_hint">Telefon ini log masuk sebagai %1$s; komputer mesti menggunakan akaun yang sama.</string>
     <string name="nm_coding_refresh">Segarkan</string>
     <string name="nm_coding_all">Semua</string>
@@ -895,12 +895,12 @@
     <string name="nm_cloud_tokens_line">%1$s token kesemuanya · %2$s hari ini</string>
     <string name="nm_cloud_notice_title">Percuma, sumber terbuka, bukan untuk keuntungan</string>
     <string name="nm_cloud_notice_closing">Jumpa pepijat, mahu ciri, ada tampalan? Repositori GitHub ialah tempatnya.</string>
-    <string name="nm_cloud_notice">Nelan ialah projek komuniti sumber terbuka bukan untuk keuntungan: percuma, selamanya. Model datang dengan peruntukan percuma yang dibayar oleh pembangun; selepas itu, kunci anda sendiri. Tiada apa-apa dijual; apa yang disimpan relay ada dalam dasar privasi, dan Tetapan → Kawalan data adalah milik anda. Padam akaun bila-bila anda suka.</string>
+    <string name="nm_cloud_notice">Nivo ialah projek komuniti sumber terbuka bukan untuk keuntungan: percuma, selamanya. Model datang dengan peruntukan percuma yang dibayar oleh pembangun; selepas itu, kunci anda sendiri. Tiada apa-apa dijual; apa yang disimpan relay ada dalam dasar privasi, dan Tetapan → Kawalan data adalah milik anda. Padam akaun bila-bila anda suka.</string>
 
     <!-- nanoMuse: devices on the hub -->
     <string name="nm_hub_channel">Mesej daripada peranti anda</string>
     <string name="nm_hub_service_channel">Disambungkan ke peranti anda</string>
-    <string name="nm_hub_service_title">Nelan · boleh dicapai dari peranti anda</string>
+    <string name="nm_hub_service_title">Nivo · boleh dicapai dari peranti anda</string>
     <string name="nm_hub_service_connecting">Menyambung ke nanoMuse Cloud…</string>
     <string name="nm_hub_service_alone">Tiada peranti lain dalam talian sekarang</string>
     <plurals name="nm_hub_service_devices">
@@ -940,7 +940,7 @@
     <string name="nm_hub_err_not_controllable">Peranti itu tidak boleh diminta melakukan sesuatu.</string>
     <string name="nm_hub_err_unknown_agent">Ejen pengekodan itu tiada di komputer.</string>
     <string name="nm_hub_err_no_session">Sesi itu sudah tiada di komputer.</string>
-    <string name="nm_hub_err_unknown_action">Komputer menjalankan Nelan versi lama yang tidak mengenali tindakan ini.</string>
+    <string name="nm_hub_err_unknown_action">Komputer menjalankan Nivo versi lama yang tidak mengenali tindakan ini.</string>
     <string name="nm_hub_err_bad_key">Log keluar di relay; log masuk semula.</string>
     <string name="nm_hub_err_generic">Komputer tidak dapat melakukannya.</string>
     <string name="nm_devices_refused">Ditolak oleh relay; log masuk semula</string>
@@ -959,7 +959,7 @@
     <string name="nm_connectors_sign_in">Log masuk</string>
     <string name="nm_connectors_disconnect">Putuskan</string>
     <string name="nm_connectors_docs">Halaman vendor tentang pelayan ini</string>
-    <string name="nm_connectors_how_oauth">Log masuk dengan akaun %1$s anda dalam pelayar; Nelan mendaftarkan dirinya dengan perkhidmatan itu, jadi tiada apa-apa perlu ditaip. Token kekal di telefon ini.</string>
+    <string name="nm_connectors_how_oauth">Log masuk dengan akaun %1$s anda dalam pelayar; Nivo mendaftarkan dirinya dengan perkhidmatan itu, jadi tiada apa-apa perlu ditaip. Token kekal di telefon ini.</string>
     <string name="nm_connectors_how_key">Memerlukan kunci daripada perkhidmatan: %1$s. Ia disimpan dalam entri MCP di telefon ini sahaja.</string>
     <string name="nm_connectors_how_none">Terbuka kepada semua; tiada log masuk diperlukan.</string>
     <string name="nm_connectors_how_auto">Menyemak apa yang diperlukan pelayan dahulu: tiada, log masuk, atau kunci.</string>
@@ -1022,7 +1022,7 @@
     <string name="nm_devices_ask_hint">Ketik peranti yang dalam talian untuk menulis kepadanya dari sembang: mesej bermula dengan @ dan namanya, dan peranti itu yang melakukan kerja.</string>
     <string name="nm_reach_the_provider">penyedia</string>
     <string name="nm_reach_unreachable_title">%1$s tidak dapat dicapai dari rangkaian ini</string>
-    <string name="nm_reach_unreachable_body">Tiada jawapan daripada %1$s. Ini soal laluan dari telefon ini ke penyedia; pelayan Nelan sendiri tidak terlibat.</string>
+    <string name="nm_reach_unreachable_body">Tiada jawapan daripada %1$s. Ini soal laluan dari telefon ini ke penyedia; pelayan Nivo sendiri tidak terlibat.</string>
     <string name="nm_reach_region_title">OpenAI tidak berkhidmat di wilayah ini</string>
     <string name="nm_reach_region_body">Permintaan sampai ke OpenAI, yang menjawab bahawa perkhidmatannya tidak ditawarkan di tempat asal sambungan ini.</string>
     <string name="nm_reach_signed_out_title">Log masuk ChatGPT tidak lagi sah</string>

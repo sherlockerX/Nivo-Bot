@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 <strong>AIチャット、タスク、集中、日々の記録と成長コーチをAndroidとiOSで。</strong>
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">製品サイト</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題報告</a> · <a href="../../OPEN_SOURCE.md">開発への参加</a>
 </p>
 
-Nivo Botは日常生活のためのAIワークスペースです。会話から始め、次の一歩をタスクにし、集中する時間を確保して、経験を振り返れる記録に残します。
+Nivoは日常生活のためのAIワークスペースです。会話から始め、次の一歩をタスクにし、集中する時間を確保して、経験を振り返れる記録に残します。
 
 無料・オープンソース・非営利。モデル提供元を自分で選び、リクエスト料金は提供元に従います。Android標準TTSで返信を読み上げます。
 
 ## Nivoを見てみる
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 サンプル内容を使った機能説明図です。GIFが6つのモジュールを横に切り替えます。静止画はクリックして拡大できます。実機のスクリーンショットではありません。
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ Androidツリーは上流の構造、パッケージIDと出典表示を保ち�
 
 ## メンテナー
 
-Nivo Botのこのフォークは<a href="https://github.com/sherlockerX">sherlockerX</a>が管理しています。Nivo固有の問題はここで報告してください。
+Nivoのこのフォークは<a href="https://github.com/sherlockerX">sherlockerX</a>が管理しています。Nivo固有の問題はここで報告してください。
 
 ## ライセンス
 
@@ -176,9 +176,9 @@ Nivo Botのこのフォークは<a href="https://github.com/sherlockerX">sherloc
 
 ## 謝辞
 
-Nivo Botは[nanoMuse](https://github.com/nano-muse/nanoMuse)を基にしています。エージェント基盤、統合、アーキテクチャを提供したnanoMuse、<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>と貢献者の皆さんに感謝します。モバイル基盤は[OpenMinis](https://github.com/OpenMinis/OpenMinis)です。
+Nivoは[nanoMuse](https://github.com/nano-muse/nanoMuse)を基にしています。エージェント基盤、統合、アーキテクチャを提供したnanoMuse、<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>と貢献者の皆さんに感謝します。モバイル基盤は[OpenMinis](https://github.com/OpenMinis/OpenMinis)です。
 
-下の名簿はnanoMuseの過去の貢献への謝辞です。全文と過去の節目は[出典アーカイブ](../archive/upstream-readme-ja.md)、依存関係の条件は[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)にあります。Nivo Botは独立して管理されています。
+下の名簿はnanoMuseの過去の貢献への謝辞です。全文と過去の節目は[出典アーカイブ](../archive/upstream-readme-ja.md)、依存関係の条件は[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)にあります。Nivoは独立して管理されています。
 
 <details>
 <summary>上流の貢献者と出典</summary>

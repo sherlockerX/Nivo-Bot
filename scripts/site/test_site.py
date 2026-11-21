@@ -243,13 +243,14 @@ class ProductSiteTests(unittest.TestCase):
         release = next(item for item in catalogue["releases"] if item["platform"] == "android")
         release.update(
             version="9.0.0",
-            packageId="io.github.sherlockerx.nelan",
+            productName="Nivo",
+            packageId="io.github.nivo",
             migration="backup-restore",
         )
         release.pop("checksumsUrl", None)
         for content in (release_card(release), release_detail(release), downloads(catalogue)):
             self.assertIn("独立应用", content)
-            self.assertIn("io.github.sherlockerx.nelan", content)
+            self.assertIn("io.github.nivo", content)
             self.assertIn("先在旧版导出备份", content)
             self.assertIn("重新授权", content)
             self.assertIn("部分数据需保留在旧版", content)
@@ -268,6 +269,9 @@ class ProductSiteTests(unittest.TestCase):
         """迁移说明必须区分通用备份、待办JSON、专注导出与尚不能完整恢复的数据。"""
         content = installation()
         for requirement in (
+            "io.github.nivo",
+            "io.github.sherlockerx.nelan",
+            "io.github.nanomuse.app",
             ".minisbak",
             "生活碎片与照片",
             "教练进度",

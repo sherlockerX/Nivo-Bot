@@ -49,8 +49,15 @@ class DefaultGlobalMemoryMigrationTest {
     }
 
     @Test
+    fun should_migrateStockNelanMemoryOnly_when_restoringOldBackup() {
+        val oldStock = current.replace("在Nivo的Android客户端", "在念步（Nelan）的Android客户端")
+        assertEquals(current, DefaultGlobalMemoryMigration.replacement(oldStock, current))
+        assertNull(DefaultGlobalMemoryMigration.replacement(oldStock + "我叫Nelan。\n", current))
+    }
+
+    @Test
     fun should_useCurrentIdentityAndQueries_when_loadingBundledDefault() {
-        assertTrue(current.contains("念步（Nelan）"))
+        assertTrue(current.contains("在Nivo的Android客户端"))
         assertTrue(current.contains("你的名字和性格以SOUL.md为准"))
         assertTrue(current.contains("十七"))
         assertTrue(current.contains("Shiqi"))

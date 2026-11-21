@@ -141,7 +141,7 @@ def main() -> None:
         signing = (
             "debug-signed" if variant == "debug" else "release-signed" if signed else "unsigned"
         )
-        filename = f"Nelan-{identity['versionName']}-{identity['versionCode']}-arm64-{signing}.apk"
+        filename = f"Nivo-{identity['versionName']}-{identity['versionCode']}-arm64-{signing}.apk"
         target = output / filename
         shutil.copyfile(source, target)
         with target.open("rb") as stream:
@@ -161,7 +161,7 @@ def main() -> None:
     (output / "build-info.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     checksums = "".join(f"{item['sha256']}  {item['file']}\n" for item in packages)
     (output / "SHA256SUMS").write_text(checksums, encoding="ascii")
-    summary = "## Nelan Android APK\n\n"
+    summary = "## Nivo Android APK\n\n"
     summary += f"Commit: `{metadata['commit']}`\n\n"
     summary += "|APK|Package|Signing|\n|---|---|---|\n"
     summary += "".join(

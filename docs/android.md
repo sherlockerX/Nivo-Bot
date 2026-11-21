@@ -10,7 +10,9 @@ Built-in provider lists exclude catalogue entries marked `is_relay`, including O
 
 Within an existing app data container, local mode preserves the current data owner, chats, task records, files and provider configuration. Existing built-in Cloud providers are disabled and hidden from provider settings; their IDs, keys, models and group bindings are retained so old records are not deleted or reassigned. If a chat still refers to an old Cloud model, select your own provider before sending. Existing account archives remain stored without being merged into the current workspace. Fresh installations use the local owner.
 
-Android `2.0.9 (60)` uses the new application ID `io.github.sherlockerx.nelan`. It installs alongside `io.github.nanomuse.app` with independent private storage, credentials and system grants; it cannot update the old app in place, even with the same certificate. The new app does not automatically inherit old records. Keep the old installation and use only the supported export/import routes in the [migration notes](releases/v2.0.9.md#moving-from-the-old-android-package). The general backup does not transfer life-log records/photos, Coach progress, focus history or custom pets, and system permissions must be checked again.
+The current Nivo Android source uses `io.github.nivo`. Published Android `2.0.9 (60)` uses `io.github.sherlockerx.nelan`; earlier releases use `io.github.nanomuse.app`. Android gives each ID separate storage, credentials and permissions. Keep your existing installation when trying a different ID. The [migration notes](releases/v2.0.9.md#moving-from-the-old-android-package) list the supported transfers: the general backup does not transfer daily fragments/photos, Coach progress, focus history or custom pets.
+
+In chat, three stars pulse while waiting for a reply and beside active reasoning. A running tool has its own status. When the reply arrives the stars disappear; with system animations disabled they remain still.
 
 Android automatic cloud backup is disabled with `allowBackup="false"`. User-initiated export/import and user-configured backup destinations remain available. Reinstalling does not restore chats from the former account service; keep a manual backup before uninstalling.
 
@@ -52,15 +54,15 @@ Local Nicholasx builds: [provider setup, timing, sandbox and CLI fixes](android-
 browser, MCP servers, skills and scheduled tasks inside the APK, with nanoMuse's own
 identity, design and features on top. Everything of nanoMuse's lives in
 `io.github.nanomuse.*`; edits inside OpenMinis files are marked `// nanoMuse:`. The
-application ID is `io.github.sherlockerx.nelan` and the URL scheme the system knows the app by remains
-`nanomuse://`, distinct from OpenMinis. Both the old nanoMuse package and the new Nelan package
-can handle that external scheme, so link routing with both installed needs phone verification.
+application ID is `io.github.nivo` and the URL scheme the system knows the app by remains
+`nanomuse://`, distinct from OpenMinis. Older packages also handle this external scheme;
+the system may ask which installation should open a link.
 Inside the app, links stay `minis://…` (upstream's vocabulary, shared with the sandbox,
 the system prompt and the model), a `nanomuse://` link arriving from the system is read as its
 `minis://` form, and every link of the app's own that the app opens itself is addressed to
 `MainActivity` by name, never resolved by the system
 (`io.github.nanomuse.deeplink.OwnScheme`). The sandbox's offload socket, the abstract socket
-proot talks to the app through, is the app's own too: `io.github.sherlockerx.nelan.native-offload`
+proot talks to the app through, is the app's own too: `io.github.nivo.native-offload`
 rather than upstream's `native-offload`, since abstract sockets are one namespace for every
 app on the device and whichever app bound the shared name second would die at start; when
 even that name is still held by a previous process of ours, the server binds a per-process
@@ -71,12 +73,8 @@ around a Python server, two APK flavours) is kept as a design record in
 download today.
 
 The release targets arm64-v8a, Android 8.0 / API 26 or newer, with `targetSdk` 35.
-Android `2.0.9 (60)` “Companion” is being prepared under the new package ID. The earlier
-old-ID APK candidate and source archive are obsolete and require rebuilding. A matching
-certificate permits compatible updates only within the same package identity; it cannot
-bridge this package change. The update entries use this branch's GitHub Releases instead
-of the upstream download index. Final filenames, hashes and availability belong in the
-[release notes](releases/v2.0.9.md); this page does not establish that the new APK is published.
+The published Android `2.0.9 (60)` artifacts are identified in the
+[release notes](releases/v2.0.9.md). The current development build is a separate application.
 
 The task interface shares light and dark cards, status summaries and compact search. Capture a task from the fixed list composer, or complete and reopen it from its status control; unfinished tasks appear first. Other views use a compact add action. Details and editing use a scrolling bottom panel with calendar date selection and clearing. Large text uses a scrolling date strip, quadrants select one readable result list, and the chart places the completed count at its centre with selectable tag rows.
 

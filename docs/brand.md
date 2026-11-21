@@ -1,8 +1,8 @@
-# Nelan brand
+# Nivo brand
 
 ## Mobile product names
 
-The Android and iOS source uses **念步** in Simplified and Traditional Chinese and **Nelan** in other languages. The bundled companion is **十七 / Shiqi**. Product labels and the companion's name are separate: a personal assistant name is kept when its file is present in the app's data container.
+The Android and iOS apps display **Nivo** in every language. The bundled companion is **十七 / Shiqi**. A personal assistant name is kept when its file is present in the app's data container.
 
 The mobile display name appears on the launcher, in Settings, permission descriptions, notifications, sharing and file entry points. The iOS share extension, Files provider and activity widget each include their own localized `InfoPlist.strings`. Model-facing product descriptions use the same current name; commands and protocol identifiers keep their existing spelling.
 
@@ -10,7 +10,7 @@ Default assistant templates are recognized by their complete contents. Android a
 
 The display rules are:
 
-- Ordinary pages, messages, notifications and the default assistant introduction use 念步 / Nelan and 十七 / Shiqi. Local storage descriptions do not advertise the removed account or cross-device sync service.
+- Ordinary pages, notifications and the default assistant introduction distinguish Nivo, the app, from 十七 / Shiqi, the companion. Local storage descriptions do not advertise the removed account or cross-device sync service.
 - Advanced tools lead with their purpose, such as managing app settings. Details and the terminal retain real commands, paths and formats, including `minis-config`, `/var/minis` and `.minisbak`. A historical identifier in a command or file path is not another product name.
 - About names **nanoMuse** and **OpenMinis** as upstream projects. Their license notices and copyright attribution remain intact. Old conversations, imported documents and personally edited identity or memory files are not rewritten to remove historical names.
 
@@ -23,11 +23,11 @@ python scripts/rebrand.py --ios-brand-only
 
 These commands preserve version fields, installation identifiers, signing settings, app groups, Keychain access, database and file paths, URL schemes and the existing website address. The source namespace and asset names retain `nanomuse` for compatibility. Upstream attribution, licenses and references to disabled historical services retain their original names. This does not add a cloud service to the local mobile product.
 
-The separately authorized Android `2.0.9 (60)` release changes the application ID to **`io.github.sherlockerx.nelan`**. It installs alongside the old **`io.github.nanomuse.app`** package. Android assigns it a separate sandbox and permissions; retaining the signing certificate does not turn it into an in-place update or grant it access to the old app's files. Relative storage paths and the `com.openminis.app` source namespace remain compatibility contracts, not shared storage between the two installations.
+The current Android source uses **`io.github.nivo`**. Published Android `2.0.9 (60)` uses `io.github.sherlockerx.nelan`; earlier APKs use `io.github.nanomuse.app`. All three IDs have separate storage, permissions and credentials, even with the same signing certificate. The iOS bundle ID remains `io.github.nanomuse.app`.
 
-Use the old app's export tools and the new app's import tools only for the categories they support. The general `.minisbak` does not include life-log records/photos, Coach progress, focus history or custom-pet settings. Todo has a separate JSON export/import. Focus can export history, but its importer restores only disabled lock plans and the whitelist. The [release notes](releases/v2.0.9.md#moving-from-the-old-android-package) list the migration scope. Keep the old installation and its data until the retained records and supported transfers have been checked.
+Use the old app's export tools and the new app's import tools only for the categories they support. The general `.minisbak` does not include life-log records/photos, Coach progress, focus history or custom-pet settings. Todo has a separate JSON export/import. Focus can export history, but its importer restores only disabled lock plans and the whitelist. Follow the [Android migration guide](https://nivo.8666886.xyz/install.html#android-migration); the [detailed release notes](releases/v2.0.9.md#moving-from-the-old-android-package) list the reviewed scope. Keep the old installation and its data until the retained records and supported transfers have been checked.
 
-The final `Nelan-v2.0.9-arm64.apk`, source archive and checksum file have passed local verification and replace the obsolete old-ID candidates. The APK's new package identity and original release certificate were verified. The source archive remains fixed to APK source commit `905f9f23cba0017083a3fc50f3d443a7ade55f9b`; final verification documentation belongs to the subsequent publication commit. Public deployment and download verification remain pending. The iOS source has the matching brand and companion changes, but this round has no Xcode build or iPhone validation and publishes no new IPA. The retained iOS download is `2.0.8 (59)`, which does not contain these new source changes.
+The final `Nelan-v2.0.9-arm64.apk`, source archive and checksum file have passed local verification and replace the obsolete old-ID candidates. The APK's new package identity and original release certificate were verified. The source archive remains fixed to APK source commit `905f9f23cba0017083a3fc50f3d443a7ade55f9b`; final verification documentation belongs to the subsequent publication commit. The [public release page](https://nivo.8666886.xyz/releases/android-2.0.9.html) is deployed. All 54 static-file HTTP checks passed with CDN additions recorded separately, and all three complete artifact downloads match the local sizes and SHA256 hashes. These checks do not establish browser or phone acceptance. The iOS source has the matching brand and companion changes, but this round has no Xcode build or iPhone validation and publishes no new IPA. The retained iOS download is `2.0.8 (59)`, which does not contain these new source changes.
 
 Phone acceptance must check both apps can coexist, the supported backup transfers, new-package permissions, and Chinese and English system surfaces. Runtime permissions, accessibility, overlay, usage access, alarms and file grants must be checked or granted for the new app. Device Owner authority does not transfer through a backup. Windows portable tests and Swift syntax parsing cannot replace an Xcode build or phone verification.
 

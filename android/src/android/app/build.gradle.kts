@@ -63,12 +63,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.sherlockerx.nelan"
+        applicationId = "io.github.nivo"
         minSdk = 26
         targetSdk = 35
         // nanoMuse：Nicholasx的Android独立发行版本，内部编号保持递增。
-        versionCode = 60
-        versionName = "2.0.9"
+        versionCode = 61
+        versionName = "2.0.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

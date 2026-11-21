@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
  */
 object McpAuthDiscovery {
     private const val TAG = "McpAuthDiscovery"
-    private const val CLIENT_NAME = "Nelan"
+    private const val CLIENT_NAME = io.github.nanomuse.identity.MobileProduct.NAME
     private const val CLIENT_URI = "https://nivo.8666886.xyz/"
     private const val PROTOCOL = "2025-06-18"
     private const val TIMEOUT_S = 15L

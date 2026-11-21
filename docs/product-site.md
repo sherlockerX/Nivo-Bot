@@ -1,6 +1,6 @@
 # 产品网站维护
 
-念步/Nelan站点采用独立HTML页面，默认助手为十七/Shiqi。目录页支持浏览器搜索、后退和直接分享链接。源码位于`site/`，生成入口及内容源位于`scripts/site/`。域名、仓库地址、nanoMuse与OpenMinis上游致谢继续保留原标识。
+Nivo站点采用独立HTML页面，默认助手为十七/Shiqi。目录页支持浏览器搜索、后退和直接分享链接。源码位于`site/`，生成入口及内容源位于`scripts/site/`。域名、仓库地址、nanoMuse与OpenMinis上游致谢继续保留原标识。
 
 ## 内容组织
 
@@ -18,7 +18,7 @@
 
 官方来源存于每个服务商内容条目的`docs`与`console`字段。入口包括百炼、DeepSeek、Kimi、GLM、方舟、MiniMax、OpenAI、Claude、Gemini、xAI、Groq、Mistral，以及Ollama、LM Studio和vLLM文档；另外提供自定义服务教程。原厂商资料核对日期为2026-11-13，未使用个人Key逐一请求所有厂商。2026-11-19按本地模式要求移除了预设中转商推荐，手机目录和网站均依据`providers.json`的`is_relay`字段过滤展示；已有用户配置保留兼容。
 
-入门页说明首次启动可以暂时跳过模型配置，以及念步本地档案和模型厂商API认证的区别。隐私页说明移除原账号验证、项目中继、跨设备同步与iCloud Keychain同步后的数据流，并保留第三方API、MCP及联网工具的实际边界。维护分支的说明不能冒充已发布安装包的新行为，下载目录及历史包哈希保持真实。现有截图拍摄于品牌更新前，保留原始界面并明确标注，不作为新版品牌或实机运行的验收证据。
+入门页说明首次启动可以暂时跳过模型配置，以及Nivo本地档案和模型厂商API认证的区别。隐私页说明移除原账号验证、项目中继、跨设备同步与iCloud Keychain同步后的数据流，并保留第三方API、MCP及联网工具的实际边界。维护分支的说明不能冒充已发布安装包的新行为，下载目录及历史包哈希保持真实。现有截图拍摄于品牌更新前，保留原始界面并明确标注，不作为新版品牌或实机运行的验收证据。
 
 信息结构参考[Linear](https://linear.app/features)的独立功能入口、[Raycast](https://www.raycast.com/)的产品图叙事和[Obsidian](https://obsidian.md/download)的平台下载分区；未复制其品牌图像或界面。
 
@@ -46,8 +46,8 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 |`platforms`|平台ID、名称、`available`或`unreleased`状态|
 |`releases[].id`|全站唯一发行记录ID|
 |`platform`|与平台列表中的ID对应|
-|`productName`|本条发行时的产品名称；新品牌填写`念步/Nelan`，未标注的既有记录沿用原品牌|
-|`packageId`|可选的Android APK包名，须与实际安装包一致；2.0.9使用`io.github.sherlockerx.nelan`|
+|`productName`|本条发行时的产品名称；新品牌填写`Nivo`，未标注的既有记录沿用原品牌|
+|`packageId`|Android APK的实际包名；Nivo开发版使用`io.github.nivo`，已发布2.0.9使用`io.github.sherlockerx.nelan`|
 |`migration`|独立应用迁移填写`backup-restore`，要求有效Android APK包名；历史记录无需补填|
 |`version`、`versionCode`|展示版本和内部编号；按数字比较版本|
 |`channel`|`stable`或`beta`，下载页也可查看全部|
@@ -73,7 +73,7 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 
 安装页的`android-migration`展开区依据[2.0.9迁移范围核验](releases/v2.0.9.md)说明各类备份：通用`.minisbak`不包含生活碎片与照片、教练进度、自定义宠物、定时例程和通用设置；待办使用单独JSON；专注JSON虽导出sessions/spans，现有导入只恢复停用状态的锁计划与白名单，不恢复专注历史或活动会话。下载卡明确提示“部分数据需保留在旧版，查看迁移范围”，不能因部分导入成功建议删除旧应用。
 
-当前网站名称与历史安装包名称分别维护。`render_site.py`的`SITE_NAME`控制导航、页脚和WebSite信息；静态下载卡、动态下载卡及SoftwareApplication信息读取每条记录的`productName`。缺省名称只用于兼容未标注的历史记录，不根据版本号推测品牌。新品牌的真实发行须显式填写`productName: "念步/Nelan"`；版本说明、源代码URL、安装文件名和哈希保留各版真实身份。
+当前网站名称与历史安装包名称分别维护。`render_site.py`的`SITE_NAME`控制导航、页脚和WebSite信息；静态下载卡、动态下载卡及SoftwareApplication信息读取每条记录的`productName`。缺省名称只用于兼容未标注的历史记录。实际发布Nivo时填写`productName: "Nivo"`；版本说明、源代码URL、安装文件名和哈希保留各版真实身份。
 
 iOS实际提供发行文件后，将平台状态改为`available`，填写实际分发方式、最低系统、文件入口和对应源码。未签名IPA使用`distribution: "ipa"`和`signing: "unsigned"`，卡片、独立说明页与禁用JavaScript时的入口都会说明需自行签名，不能直接安装到iPhone。只有实际存在的TestFlight或App Store入口才使用对应分发类型。没有直链IPA时不编造文件大小或SHA256。
 

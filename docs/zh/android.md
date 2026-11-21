@@ -10,7 +10,9 @@ Debug与Release均可跳过首次引导，重启后继续保留该选择。应�
 
 在已有应用数据容器内，本地模式保留当前数据归属、聊天、任务、文件和服务商配置。原内置Cloud服务商会被禁用，并从服务商设置中隐藏；它的ID、密钥、模型和分组绑定仍保留，旧记录不会因此被删除或重新分配。旧聊天仍指向Cloud模型时，需要先选择自己的服务商再发送。已有账号归档继续保存在原处，不会自动合并到当前工作区。全新安装使用本地归属。
 
-Android`2.0.9(60)`改用新包名`io.github.sherlockerx.nelan`，与`io.github.nanomuse.app`并存，私有存储、凭据和系统授权彼此独立。即使签名相同，也不能覆盖更新旧应用，旧记录不会自动进入新应用。请保留旧安装，按[迁移说明](../releases/v2.0.9.md#moving-from-the-old-android-package)使用现有导出与导入入口。通用备份不迁移心得及照片、教练进度、专注历史或自定义宠物，系统权限也须重新确认。
+Nivo的Android开发版使用`io.github.nivo`。已发布的Android`2.0.9(60)`使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。每个包名的私有存储、凭据与系统授权彼此独立。请保留旧安装，按[迁移说明](../releases/v2.0.9.md#moving-from-the-old-android-package)导出与导入已支持的内容。通用备份不迁移心得及照片、教练进度、专注历史或自定义宠物。
+
+聊天等待回复时会显示三颗交替闪动的星星，推理进行中也会出现在步骤标题旁。工具运行时显示工具自己的状态；正文开始后星星消失。关闭系统动画时，三颗星保持静止。
 
 应用通过`allowBackup="false"`关闭Android系统自动云备份，保留用户主动导出、导入和自行配置的备份目的地。重装后不会从原账号服务取回聊天，卸载前请保存手动备份。
 
@@ -49,13 +51,13 @@ Android`2.0.9(60)`改用新包名`io.github.sherlockerx.nelan`，与`io.github.n
 1.13（GPL-3.0）：一个原生 App，智能体**在手机上**运行，Linux shell、浏览器、MCP 服务器、
 技能和定时任务都装在 APK 里，再加上 nanoMuse 自己的身份、设计和功能。属于 nanoMuse 的一切
 都在 `io.github.nanomuse.*` 下；OpenMinis 文件里的改动用 `// nanoMuse:` 标出。应用ID为
-`io.github.sherlockerx.nelan`，系统URL scheme保留`nanomuse://`，与OpenMinis区分。
-旧nanoMuse包和新Nelan包都可响应这个外部scheme，双应用并存时的链接分发仍需手机核验。
+`io.github.nivo`，系统URL scheme保留`nanomuse://`，与OpenMinis区分。
+旧安装也可响应这个外部scheme；并装时系统可能询问用哪个应用打开链接。
 App内部的链接仍是`minis://…`（上游的词汇，沙箱、
 系统提示词和模型都用它），从系统进来的 `nanomuse://` 链接按它的 `minis://` 形式读，App 自己打开
 自己的链接时一律按名字指向 `MainActivity`，不交给系统去解析
 （`io.github.nanomuse.deeplink.OwnScheme`）。沙箱的 offload 套接字（proot 和 App 之间通信的
-抽象套接字）也是App自己的：叫`io.github.sherlockerx.nelan.native-offload`，不用上游的
+抽象套接字）也是App自己的：叫`io.github.nivo.native-offload`，不用上游的
 `native-offload`，因为抽象套接字在整台设备上只有一个命名空间，两个 App 用同一个名字，后启动的那个
 会在启动时直接死掉；如果连这个名字都还被我们自己上一个进程占着，服务端就改绑一个带进程号的名字，
 并把它告诉 proot（`io.github.nanomuse.sandbox.OffloadSocketName`）。这个选择的来龙去脉
@@ -64,10 +66,7 @@ App内部的链接仍是`minis://…`（上游的词汇，沙箱、
 下载到的东西。
 
 正式包面向arm64-v8a、Android8.0／API26及以上，`targetSdk`为35。
-Android`2.0.9(60)`「Companion」正在按新包名准备，旧包名APK候选及源码归档已过时，须重新构建。
-相同证书仅在包名相同且满足系统升级条件时允许覆盖更新，不能跨过本次包名变化。
-更新入口使用本分支GitHub Releases，不再查询上游下载索引。最终文件名、校验值和可用性见
-[发行说明](../releases/v2.0.9.md)，本页不表示新包已经公开发布。
+已发布的Android`2.0.9(60)`文件及校验值见[发行说明](../releases/v2.0.9.md)。当前开发版使用独立的安装身份。
 
 ## 安装 {#install}
 

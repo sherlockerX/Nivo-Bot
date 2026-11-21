@@ -622,8 +622,8 @@ def run(base: str, output: Path, full: bool = False) -> dict:
             id="android-2.10.0-fixture",
             version="2.10.0",
             versionCode=60,
-            productName="念步/Nelan",
-            packageId="io.github.sherlockerx.nelan",
+            productName="Nivo",
+            packageId="io.github.nivo",
             migration="backup-restore",
             summary="隔离测试：验证新包名迁移提示，非正式发行记录。",
         )
@@ -645,7 +645,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         context.route("**/releases.json", lambda route: route.fulfill(json=future))
         page.goto(base + "downloads.html", wait_until="networkidle")
         expect(page.locator("#release-version")).to_have_value("android-2.10.0-fixture")
-        expect(page.locator("#release-content h2")).to_contain_text("念步/Nelan")
+        expect(page.locator("#release-content h2")).to_contain_text("Nivo v2.10.0")
         check_binary_card(page.locator("#release-content .release-card"), newer)
         capture_page(page, output / "migration-fixture-desktop.png", full_page=True)
         page.set_viewport_size({"width": 320, "height": 900})
@@ -659,6 +659,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         page.set_viewport_size({"width": 1440, "height": 1000})
         migration_link.click()
         expect(page).to_have_url(base + "install.html#android-migration")
+        expect(page.locator("#android-migration")).to_contain_text("io.github.nivo")
         expect(page.locator("#android-migration")).to_contain_text("io.github.sherlockerx.nelan")
         expect(page.locator("#android-migration")).to_contain_text("不恢复专注历史")
         expect(page.locator("#android-migration")).to_contain_text("生活碎片与照片")

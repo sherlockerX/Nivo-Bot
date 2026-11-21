@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 **Чат с ИИ, задачи, фокус, ежедневные заметки и обучение на Android и iOS.**
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
 </p>
 
-Nivo Bot, пространство ИИ для повседневной жизни. Начните с беседы, превратите следующий шаг в задачу, уделите ей время и сохраните опыт, к которому можно вернуться.
+Nivo, пространство ИИ для повседневной жизни. Начните с беседы, превратите следующий шаг в задачу, уделите ей время и сохраните опыт, к которому можно вернуться.
 
 Бесплатно, с открытым кодом, без коммерческой цели. Выберите поставщика моделей; запросы могут оплачиваться. Android TTS читает ответы голосовым движком телефона.
 
 ## Знакомство с Nivo
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 Иллюстрированный обзор с примерами. GIF горизонтально показывает шесть модулей; нажмите на статичную картинку для увеличения. Это поясняющие изображения, а не скриншоты устройства.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 
 ## Сопровождение
 
-Этот форк Nivo Bot сопровождает <a href="https://github.com/sherlockerX">sherlockerX</a>. Сообщайте о проблемах Nivo здесь, чтобы они дошли до сопровождающего форк.
+Этот форк Nivo сопровождает <a href="https://github.com/sherlockerX">sherlockerX</a>. Сообщайте о проблемах Nivo здесь, чтобы они дошли до сопровождающего форк.
 
 ## Лицензия
 
@@ -176,9 +176,9 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 
 ## Благодарности
 
-Nivo Bot основан на [nanoMuse](https://github.com/nano-muse/nanoMuse), чьи основа агента, интеграции и архитектура сделали эту работу возможной. Спасибо nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> и участникам. Основа приложения для телефона взята из [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+Nivo основан на [nanoMuse](https://github.com/nano-muse/nanoMuse), чьи основа агента, интеграции и архитектура сделали эту работу возможной. Спасибо nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> и участникам. Основа приложения для телефона взята из [OpenMinis](https://github.com/OpenMinis/OpenMinis).
 
-Список признаёт исторический вклад в nanoMuse. Благодарности и этапы находятся в [архиве происхождения](../archive/upstream-readme-ru.md); условия зависимостей остаются в [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot сопровождается независимо.
+Список признаёт исторический вклад в nanoMuse. Благодарности и этапы находятся в [архиве происхождения](../archive/upstream-readme-ru.md); условия зависимостей остаются в [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo сопровождается независимо.
 
 <details>
 <summary>Участники и происхождение</summary>

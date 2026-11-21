@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 **Chat AI, tugas, fokus, catatan harian dan pelatihan pengembangan diri di Android dan iOS.**
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">Situs web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Laporan masalah</a> · <a href="../../OPEN_SOURCE.md">Berkontribusi</a>
 </p>
 
-Nivo Bot adalah ruang kerja AI untuk keseharian. Mulai dari percakapan, ubah langkah berikutnya menjadi tugas, berikan waktu fokus dan simpan pengalaman untuk ditinjau kembali.
+Nivo adalah ruang kerja AI untuk keseharian. Mulai dari percakapan, ubah langkah berikutnya menjadi tugas, berikan waktu fokus dan simpan pengalaman untuk ditinjau kembali.
 
 Gratis, sumber terbuka dan nirlaba. Pilih penyedia model Anda; permintaannya mungkin berbayar. TTS Android membaca balasan dengan mesin suara ponsel.
 
 ## Jelajahi Nivo
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 Tur ilustrasi dengan isi contoh. GIF bergeser horizontal melalui enam modul; klik gambar statis untuk memperbesar. Ini ilustrasi penjelasan, bukan tangkapan layar perangkat.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ Pertahankan pemberitahuan hak cipta dan lisensi hulu. Jangan memasukkan kunci AP
 
 ## Pemelihara
 
-Fork Nivo Bot ini dipelihara oleh <a href="https://github.com/sherlockerX">sherlockerX</a>. Laporkan masalah khusus Nivo di sini agar diterima pemelihara fork ini.
+Fork Nivo ini dipelihara oleh <a href="https://github.com/sherlockerX">sherlockerX</a>. Laporkan masalah khusus Nivo di sini agar diterima pemelihara fork ini.
 
 ## Lisensi
 
@@ -176,9 +176,9 @@ Fork Nivo Bot ini dipelihara oleh <a href="https://github.com/sherlockerX">sherl
 
 ## Terima kasih
 
-Nivo Bot dibangun di atas [nanoMuse](https://github.com/nano-muse/nanoMuse), dengan fondasi agen, integrasi dan arsitektur yang memungkinkan pekerjaan ini. Terima kasih kepada nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> dan kontributornya. Fondasi ponsel berasal dari [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+Nivo dibangun di atas [nanoMuse](https://github.com/nano-muse/nanoMuse), dengan fondasi agen, integrasi dan arsitektur yang memungkinkan pekerjaan ini. Terima kasih kepada nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> dan kontributornya. Fondasi ponsel berasal dari [OpenMinis](https://github.com/OpenMinis/OpenMinis).
 
-Daftar berikut mengakui kontribusi historis nanoMuse. Kredit dan tonggak ada di [arsip asal-usul](../archive/upstream-readme-id.md); ketentuan dependensi ada di [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot dipelihara secara independen.
+Daftar berikut mengakui kontribusi historis nanoMuse. Kredit dan tonggak ada di [arsip asal-usul](../archive/upstream-readme-id.md); ketentuan dependensi ada di [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo dipelihara secara independen.
 
 <details>
 <summary>Kontributor dan asal-usul</summary>

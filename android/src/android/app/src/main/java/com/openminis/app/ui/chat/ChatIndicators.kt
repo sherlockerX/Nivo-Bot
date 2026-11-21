@@ -151,11 +151,10 @@ internal fun CompactProgressIndicator(
     }
 }
 
-// ─── Typing Indicator (three dots pulsing) ────────────────────────────────────
+// nanoMuse: 等待模型时显示三颗星，朗读仍使用包含助手昵称的本地化状态。
 
 @Composable
-internal fun TypingIndicator() {
-    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+internal fun TypingIndicator(isVisible: Boolean = true) {
     // Live Soul name → "<custom name> is thinking…" when the user renamed
     // the assistant in Soul settings. SoulStore.cachedMetadata is a StateFlow
     // that's updated on save (SoulSettingsScreen) and at app start
@@ -167,32 +166,14 @@ internal fun TypingIndicator() {
 
     Row(
         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.Bottom,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        io.github.nanomuse.ui.chat.NivoThinkingStars(ChatColors.tertiaryText, isVisible)
         Text(
             text = stringResource(R.string.chat_typing_indicator, soulName),
             fontSize = 15.sp,
             color = ChatColors.tertiaryText,
         )
-        // Animated bouncing dots
-        val dots = listOf(".", ".", ".")
-        dots.forEachIndexed { index, dot ->
-            val offsetY by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = -6f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(400, delayMillis = index * 150, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "dot_bounce_$index",
-            )
-            Text(
-                text = dot,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = ChatColors.tertiaryText,
-                modifier = Modifier.graphicsLayer { translationY = offsetY },
-            )
-        }
     }
 }

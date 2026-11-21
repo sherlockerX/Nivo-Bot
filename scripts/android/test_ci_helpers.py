@@ -81,21 +81,21 @@ class ArtifactTests(unittest.TestCase):
     def test_new_install_identity_is_required_for_each_variant(self) -> None:
         """正式包与隔离包分别校验，旧身份不能混入新发行。"""
         configured = {
-            "package": "io.github.sherlockerx.nelan",
+            "package": "io.github.nivo",
             "versionName": "2.0.9",
             "versionCode": "60",
         }
         for variant, suffix in (("release", ""), ("debug", ".uitest")):
             identity = {
                 **configured,
-                "package": "io.github.sherlockerx.nelan" + suffix,
+                "package": "io.github.nivo" + suffix,
                 "abis": ["arm64-v8a"],
             }
             artifacts.validate_identity(identity, variant, configured)
             for rejected in (
                 "io.github.nanomuse.app" + suffix,
                 "unrelated.app",
-                "io.github.sherlockerx.nelan" + ("" if suffix else ".uitest"),
+                "io.github.nivo" + ("" if suffix else ".uitest"),
             ):
                 with self.subTest(variant=variant, rejected=rejected):
                     with self.assertRaisesRegex(ValueError, "identity"):
@@ -173,7 +173,7 @@ class ArtifactBuildIdentityTests(unittest.TestCase):
         (reports / "TEST-fixture.xml").write_text(
             '<testsuite tests="1" failures="0" errors="0" skipped="0"/>', encoding="utf-8"
         )
-        self.configure_build("io.github.sherlockerx.nelan", "2.0.9", "60")
+        self.configure_build("io.github.nivo", "2.0.9", "60")
 
     def configure_build(self, package: str, version: str, code: str) -> None:
         """将源码声明与默认模拟产物设为同一身份。"""
@@ -228,7 +228,7 @@ class ArtifactBuildIdentityTests(unittest.TestCase):
         metadata = json.loads((self.root / "build/ci-android/build-info.json").read_text())
         self.assertEqual(
             [package["package"] for package in metadata["packages"]],
-            ["io.github.sherlockerx.nelan.uitest", "io.github.sherlockerx.nelan"],
+            ["io.github.nivo.uitest", "io.github.nivo"],
         )
 
     def test_historical_build_keeps_its_original_identity(self) -> None:
@@ -241,7 +241,7 @@ class ArtifactBuildIdentityTests(unittest.TestCase):
     def test_historical_configuration_rejects_new_package_identity(self) -> None:
         """旧版源码不能因为新包名已知而接受不同安装身份。"""
         self.configure_build("io.github.nanomuse.app", "2.0.8", "59")
-        self.actual["debug"]["package"] = "io.github.sherlockerx.nelan.uitest"
+        self.actual["debug"]["package"] = "io.github.nivo.uitest"
         with self.assertRaisesRegex(ValueError, "APK identity"):
             self.run_ci()
         self.assertFalse((self.root / "build/ci-android/build-info.json").exists())
@@ -259,12 +259,12 @@ class ArtifactBuildIdentityTests(unittest.TestCase):
         for variant, field, value in (
             ("debug", "package", "io.github.nanomuse.app.uitest"),
             ("release", "package", "io.github.nanomuse.app"),
-            ("debug", "package", "io.github.sherlockerx.nelan"),
-            ("release", "package", "io.github.sherlockerx.nelan.uitest"),
+            ("debug", "package", "io.github.nivo"),
+            ("release", "package", "io.github.nivo.uitest"),
             ("debug", "versionName", "2.0.8"),
             ("release", "versionCode", "59"),
         ):
-            self.configure_build("io.github.sherlockerx.nelan", "2.0.9", "60")
+            self.configure_build("io.github.nivo", "2.0.9", "60")
             self.actual[variant][field] = value
             with self.subTest(variant=variant, field=field), self.assertRaises(ValueError):
                 self.run_ci()

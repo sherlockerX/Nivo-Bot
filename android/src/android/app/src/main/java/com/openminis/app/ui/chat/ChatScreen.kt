@@ -4618,7 +4618,7 @@ fun ChatScreen(
                             } } // nanoMuse: bubble
                             // nanoMuse: 点击只切换展示行，下一次测量直接保持标题位置。
                             is FlatChatItem.AssistantSteps -> io.github.nanomuse.ui.chat.AgentStepsFold(
-                                row = item, isExpanded = item.messageId in nmStepFolds.expanded,
+                                row = item, isExpanded = item.messageId in nmStepFolds.expanded, isVisible = nmPresentationVisible, // nanoMuse: 隐藏页停止星形动画。
                                 onToggle = {
                                     // Mosaic: steps open in their own sheet; one still expanded in the chat folds back.
                                     if (item.messageId in nmStepFolds.expanded) {
@@ -4654,8 +4654,9 @@ fun ChatScreen(
                                     // ThinkingBlockView semantics.
                                     ThinkingBlock(
                                         block = item.block,
-                                        isStreaming = item.isLastBlockOverall && item.messageIsStreaming,
+                                        isStreaming = item.isLastBlockOverall && item.isReceivingModelResponse, // nanoMuse: 当前轮次仍在接收推理。
                                         isLast = item.isLast,
+                                        isVisible = nmPresentationVisible, // nanoMuse: 思考区跟随当前聊天的可见状态。
                                     )
                                 }
                             }
@@ -4773,7 +4774,7 @@ fun ChatScreen(
                                     onOpenSession = { onMoveToSession(it) },
                                 )
                             }
-                            is FlatChatItem.AssistantTyping -> TypingIndicator()
+                            is FlatChatItem.AssistantTyping -> TypingIndicator(nmPresentationVisible) // nanoMuse: 隐藏聊天不绘制动态帧。
                             // nanoMuse: a provider that could not be reached (or refused the
                             // region, or whose sign-in ran out) is a card, not the socket's text
                             is FlatChatItem.AssistantError -> io.github.nanomuse.ui.chat.NmProviderErrorOrBanner(

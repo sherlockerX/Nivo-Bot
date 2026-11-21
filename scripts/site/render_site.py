@@ -22,7 +22,7 @@ from screenshots import (
 ROOT = Path(__file__).resolve().parents[2] / "site"
 ORIGIN = "https://nivo.8666886.xyz/"
 REPO = "https://github.com/sherlockerX/Nivo-Bot"
-SITE_NAME = "念步/Nelan"
+SITE_NAME = "Nivo"
 LEGACY_PRODUCT_NAME = "Nivo Bot"
 ASSET_HASH = ""
 GOOGLE_SITE_VERIFICATION = "QVsEHxt7qwqGw9QpgACh-3VsNUXY6RNqMSVKd5DIol0"
@@ -99,7 +99,7 @@ def page(
     preview_url = screenshot_url(screenshot_id, ORIGIN, ASSET_HASH)
     preview_alt = SCREENSHOTS[screenshot_id]["alt"]
     navigation = [
-        ("index.html", "认识念步", "home"),
+        ("index.html", "认识Nivo", "home"),
         ("features.html", "功能画廊", "features"),
         ("models.html", "模型接入", "models"),
         ("developers.html", "开放项目", "developers"),
@@ -184,7 +184,7 @@ def carousel(prefix: str = "") -> str:
         tabs.append(
             f'<button type="button" role="tab" id="slide-tab-{feature["id"]}" aria-controls="slide-{feature["id"]}" aria-selected="{str(active).lower()}" tabindex="{0 if active else -1}" data-slide="{index}">{icon(feature["id"])}{feature["name"]}</button>'
         )
-    return f"""<section class="gallery" aria-label="念步功能轮播" aria-roledescription="图片轮播" tabindex="0" data-carousel>
+    return f"""<section class="gallery" aria-label="Nivo功能轮播" aria-roledescription="图片轮播" tabindex="0" data-carousel>
 <div class="gallery-tabs" role="tablist" aria-label="选择要了解的功能">{"".join(tabs)}</div><div class="gallery-stage">{"".join(slides)}</div>
 <div class="gallery-controls"><span class="muted">{SCREENSHOT_NOTE}</span><div><span data-carousel-count aria-live="polite" aria-atomic="true">01 / 06</span><button type="button" data-carousel-prev aria-label="上一个功能">←</button><button type="button" data-carousel-play aria-label="播放自动轮播">播放</button><button type="button" data-carousel-next aria-label="下一个功能">→</button></div></div></section>"""
 
@@ -195,7 +195,7 @@ def home() -> str:
         f'<a href="features/{feature["id"]}.html">{icon(feature["id"])}<span>{feature["name"]}</span></a>'
         for feature in FEATURES
     )
-    return f"""<section class="hero wrap home-hero"><div class="hero-content"><p class="product-label">属于你的AI日常工作台</p><h1>把一个想法，<br>带进日常。</h1><p class="hero-copy">聊清楚，动手做，回头看。<br>念步把AI对话、待办、专注与成长记录连在一起。和助手十七聊出下一步，让每一小步都有迹可循。</p><div class="actions"><a class="button primary" href="downloads.html">获取念步{icon("download")}</a><a class="text-link" href="features.html">看看怎么用</a></div><p class="hero-availability">Android与iOS · 免费开源客户端</p><div class="hero-model-note">模型由你选择，记录留在本机。<a href="privacy.html">了解数据去向</a><small>本地模式与默认助手名称以对应版本说明为准。</small></div></div>{day_story(ASSET_HASH)}</section>
+    return f"""<section class="hero wrap home-hero"><div class="hero-content"><p class="product-label">属于你的AI日常工作台</p><h1>把一个想法，<br>带进日常。</h1><p class="hero-copy">聊清楚，动手做，回头看。<br>Nivo把AI对话、待办、专注与成长记录连在一起。和助手十七聊出下一步，让每一小步都有迹可循。</p><div class="actions"><a class="button primary" href="downloads.html">获取Nivo{icon("download")}</a><a class="text-link" href="features.html">看看怎么用</a></div><p class="hero-availability">Android与iOS · 免费开源客户端</p><div class="hero-model-note">模型由你选择，记录留在本机。<a href="privacy.html">了解数据去向</a><small>本地模式与默认助手名称以对应版本说明为准。</small></div></div>{day_story(ASSET_HASH)}</section>
 <section class="wrap feature-strip"><h2>六个入口，<br>接住同一天。</h2><nav aria-label="探索各项功能">{feature_links}</nav></section>
 <nav class="wrap entry-grid" aria-label="选择下一步"><a href="features.html">{icon("chat")}<h2>先看一眼日常用法</h2><p>从聊天开始，到一条可以回看的记录。也为学习和灵感留个位置。</p><span class="entry-action">打开功能画廊</span></a><a href="models.html">{icon("model")}<h2>接上熟悉的模型</h2><p>官方API、本地模型、自定义服务。找到你的方式，按教程配置。</p><span class="entry-action">阅读接入教程</span></a><a href="downloads.html">{icon("download")}<h2>选好版本，再开始</h2><p>查看Android安装包、iOS签名要求，以及每个版本的变化。</p><span class="entry-action">进入下载中心</span></a></nav>"""
 
@@ -259,7 +259,7 @@ def getting_started() -> str:
         title_block(
             "MODEL SETUP / START HERE", "第一次连接模型。", "先理解几个设置，再选择你自己的服务商。"
         )
-        + """<section class="wrap"><aside class="callout"><h2>可以先用起来，再连接AI。</h2><p>本地模式允许首次打开时选择“暂时跳过”，先使用待办、普通专注和生活记录。需要AI回复时再从设置添加服务商。本地档案与模型厂商账号是两件事：念步不要求注册项目账号，模型API仍按你选择的服务进行认证。</p><p>本说明对应正在维护的本地模式版本；下载包的实际改动请核对各版本说明。</p></aside><div class="start-guide"><div><span class="eyebrow">第一次接入？</span><h2>先走通文字对话，<br>其他能力慢慢加。</h2><p>从“设置→模型”或“添加AI服务商”进入。选官方厂商，或选择自定义服务并填写自己的地址；模型名称、协议和服务地址应同时核对。</p></div><ol><li><b>01</b><span>在所选服务管理方准备可用的API凭证。</span></li><li><b>02</b><span>在App选择协议，填写基础URL和Key。</span></li><li><b>03</b><span>刷新模型或手动添加精确模型ID。</span></li><li><b>04</b><span>在设置中选择“对话”模型，发一条短问候。</span></li></ol></div>
+        + """<section class="wrap"><aside class="callout"><h2>可以先用起来，再连接AI。</h2><p>本地模式允许首次打开时选择“暂时跳过”，先使用待办、普通专注和生活记录。需要AI回复时再从设置添加服务商。本地档案与模型厂商账号是两件事：Nivo不要求注册项目账号，模型API仍按你选择的服务进行认证。</p><p>本说明对应正在维护的本地模式版本；下载包的实际改动请核对各版本说明。</p></aside><div class="start-guide"><div><span class="eyebrow">第一次接入？</span><h2>先走通文字对话，<br>其他能力慢慢加。</h2><p>从“设置→模型”或“添加AI服务商”进入。选官方厂商，或选择自定义服务并填写自己的地址；模型名称、协议和服务地址应同时核对。</p></div><ol><li><b>01</b><span>在所选服务管理方准备可用的API凭证。</span></li><li><b>02</b><span>在App选择协议，填写基础URL和Key。</span></li><li><b>03</b><span>刷新模型或手动添加精确模型ID。</span></li><li><b>04</b><span>在设置中选择“对话”模型，发一条短问候。</span></li></ol></div>
 <div class="concept-grid"><article><h3>API Key是凭证</h3><p>只填App的服务商设置。这里不会要求你输入Key，也不会替你测试真实请求。</p></article><article><h3>Base URL是服务入口</h3><p>不是控制台网址，也通常不是完整的/chat/completions操作地址。</p></article><article><h3>模型ID是准确名字</h3><p>优先从平台列表复制，厂商前缀、大小写和日期后缀都可能有意义。</p></article></div>
 </section><section class="wrap section reading-grid"><div><p class="eyebrow">连接模型之前</p><h2>四个设置，<br>先弄清它们的关系。</h2></div><div><details open><summary>对话、操作屏幕、生成图片、生成视频要全部配置吗？</summary><p>不需要。先选“对话”模型。操作屏幕需要视觉能力，生成图片和视频需要专用模型及App已适配的接口，不能用普通文本模型代替。</p></details><details><summary>为什么自动追加/v1会影响连接？</summary><p>App会根据开关拼接地址。基础URL已经含/v1时不要再追加；智谱的/v4、方舟的/v3和Gemini原生/v1beta也不能再追加。每篇教程都给出字段和开关的对应值。</p></details><details><summary>聊天会员、API余额、Coding套餐是一回事吗？</summary><p>通常分别管理。订阅能否用于第三方App、可用端点及客户端范围，须以具体产品条款为准。不要把编程套餐当作通用无限聊天额度。</p></details><details><summary>没有模型列表怎么办？</summary><p>有些服务不支持列举模型。在App服务商详情里使用“添加自定义模型”，填写控制台给出的精确ID；普通聊天成功后再验证流式和工具。</p></details><details><summary>朗读和语音输入也要买模型服务吗？</summary><p>回复可使用手机系统TTS。语音输入可以沿用手机输入法；专门的实时语音服务是另一项可选配置，不是文字聊天的前提。</p></details><details><summary>这些教程是否代表全部厂商都经过实机验证？</summary><p>教程根据当前App源码和官方资料整理，核对日期为2026-11-13；没有使用你的Key逐一请求所有厂商。模型、计费和账号可用性以实际控制台为准。</p></details></div></section><div class="wrap page-end"><a class="button primary" href="models.html">选择服务商</a></div>"""
     )
@@ -293,8 +293,8 @@ def provider_detail(provider: dict) -> str:
 <section id="configure"><h2>02 / 在App里填写</h2><p>进入添加AI服务商，选择对应预置或下面指定的协议。API Key只写入App的凭证字段；不要发到主要聊天，也不要贴在本网页。</p><div class="config-card"><div class="config-card-title"><span>{p["mark"]}</span><div><strong>{p["name"]}</strong><small>字段对应表 · 非真实密钥</small></div></div><dl><dt>服务商类型／协议</dt><dd>{protocol}</dd><dt>基础URL字段</dt><dd><code>{esc(form)}</code><button type="button" class="copy-button" data-copy="{esc(form)}" aria-label="复制{p["name"]}基础URL">复制</button></dd><dt>自动追加/v1</dt><dd><span class="toggle-label">{"开启" if append else "关闭"}</span></dd><dt>最终API入口</dt><dd><code>{esc(url)}</code></dd><dt>API Key</dt><dd>{"按自建服务的认证设置填写；无认证时无需厂商Key" if local else "填写上一步取得的完整Key，不附加Bearer或请求头名称"}</dd><dt>模型ID参考</dt><dd><code>{esc(p["model"])}</code><small>示例不保证你的账号已开通；优先使用当前列表中的准确ID。</small></dd></dl></div><ul class="guide-points">{specials}</ul>{('<h3>其他地域</h3><ul class="endpoint-list">' + regions + "</ul><p>地域地址和API Key一起切换，再按结尾路径检查/v1开关。</p>") if regions else ""}</section>
 <section id="verify"><h2>03 / 从一条回复开始验证</h2><ol class="numbered-list"><li><strong>保存连接设置。</strong>修改URL和/v1开关后，点击保存URL设置；不要只编辑后直接返回。</li><li><strong>刷新模型。</strong>在服务商详情点击刷新模型；不提供列表时，使用添加自定义模型并填精确ID。</li><li><strong>选为对话模型。</strong>在设置的模型选择中选中该服务商下的模型，主要聊天和新对话使用所选模型；已有旁聊可能保留原选择。</li><li><strong>先发短文本。</strong>例如“请用一句话说你好”。看到完整回复后，再检查流式输出是否正常。</li><li><strong>再试应用工具。</strong>请求查询现有待办或建立一个明确任务，回到待办页确认工具是否实际保存；普通文字回复不算工具成功。</li><li><strong>最后加可选能力。</strong>图片理解、操作屏幕、图像或视频分别验证。系统TTS可沿用手机语音引擎。</li></ol><aside class="callout"><h3>如何判断接入成功？</h3><p>保存配置、读取模型列表、普通回复、流式回复、工具执行是不同检查。只看到模型名或一句“可以帮你”不足以证明全部功能已适配。</p></aside></section>
 <section id="troubleshoot"><h2>04 / 出问题时先看哪里</h2><div class="table-wrap"><table><thead><tr><th>现象</th><th>优先排查</th></tr></thead><tbody>{errors}<tr><th scope="row">地址或协议报错</th><td>检查是否填了网页登录地址、完整操作路径，或重复追加/v1。协议必须与服务端一致。</td></tr><tr><th scope="row">能聊天，不能创建任务</th><td>检查模型工具调用支持及应用授权；改用服务商中明确支持工具的模型，再查看工具返回结果。</td></tr><tr><th scope="row">长对话才失败</th><td>新开一个短对话，降低上下文和输出长度，检查服务端限额及错误详情。</td></tr></tbody></table></div></section>
-<section><h2>05 / 费用与数据去向</h2><p>{p["cost"]}</p><p>请求会发送到你填入的服务端。使用聚合网关时还可能到达其上游模型；本地服务也可能因所选模型或工具联网。请按实际端点和启用的功能判断数据流。</p><a href="../privacy.html" class="text-link">了解念步的数据边界</a></section>
-<section id="sources"><h2>官方资料与维护依据</h2><p>本篇将官方端点资料与念步的实际表单逻辑对照整理，未使用个人Key逐一请求厂商。后续遇到控制台迁移，以官方最新文档为准。</p><ul><li>{link(p["docs"], esc(p["name"]) + "官方文档")}</li><li>{link(p["console"], "控制台／产品入口")}</li><li>{link(REPO + "/blob/master/android/src/android/app/src/main/java/io/github/nanomuse/cloud/OwnKeyPresets.kt", "App预置与/v1拼接逻辑")}</li></ul></section><div class="article-end"><a href="../models.html" class="text-link">返回全部服务商</a><a class="button primary" href="../downloads.html">获取App</a></div></article></div>'''
+<section><h2>05 / 费用与数据去向</h2><p>{p["cost"]}</p><p>请求会发送到你填入的服务端。使用聚合网关时还可能到达其上游模型；本地服务也可能因所选模型或工具联网。请按实际端点和启用的功能判断数据流。</p><a href="../privacy.html" class="text-link">了解Nivo的数据边界</a></section>
+<section id="sources"><h2>官方资料与维护依据</h2><p>本篇将官方端点资料与Nivo的实际表单逻辑对照整理，未使用个人Key逐一请求厂商。后续遇到控制台迁移，以官方最新文档为准。</p><ul><li>{link(p["docs"], esc(p["name"]) + "官方文档")}</li><li>{link(p["console"], "控制台／产品入口")}</li><li>{link(REPO + "/blob/master/android/src/android/app/src/main/java/io/github/nanomuse/cloud/OwnKeyPresets.kt", "App预置与/v1拼接逻辑")}</li></ul></section><div class="article-end"><a href="../models.html" class="text-link">返回全部服务商</a><a class="button primary" href="../downloads.html">获取App</a></div></article></div>'''
 
 
 def release_installation(release: dict) -> str:
@@ -379,11 +379,11 @@ def downloads(releases: dict) -> str:
     return (
         title_block(
             "A PLACE TO START, AND RETURN",
-            "下载念步。",
+            "下载Nivo。",
             "选择你的平台、渠道与版本。安装说明和历史发行可从上方栏目单独打开。",
         )
         + f'''<section class="wrap download-layout" data-downloads><div><div class="platform-tabs" role="tablist" aria-label="选择平台">{tabs}</div><div class="download-filters"><label>发行渠道<select id="release-channel"><option value="stable">稳定版</option><option value="beta">测试版</option><option value="all">全部已发布版本</option></select></label><label>选择版本<select id="release-version"><option value="{first["id"]}">v{first["version"]}（{first["versionCode"]}）· {first["releasedAt"]}</option></select></label></div><p id="release-message" role="status" aria-live="polite" class="muted">正在同步版本目录；下方提供当前正式版。</p><div id="release-content" role="tabpanel" aria-labelledby="platform-android" tabindex="0">{release_card(first)}</div><button type="button" id="release-retry" class="text-button" hidden>重新加载版本目录</button><section id="release-fallback" aria-label="静态发行下载入口" hidden><h2>直接选择发行文件</h2><p>以下来自本站随页面保留的发行记录，安装前请核对版本与签名要求。</p>{fallback}</section><noscript><p>未启用JavaScript时，Android下载见上方，iOS发行状态与安装前提见下方。</p>{noscript_ios}</noscript></div><aside class="download-aside"><span class="eyebrow">安装前须知</span><h2>开始之前，<br>把这些准备好。</h2><ol><li><strong>选择对的设备</strong><p>Android使用arm64-v8a安装包。iOS未签名IPA需自行签名；请先阅读安装说明，确认设备与签名条件。</p></li><li><strong>先备份，再迁移</strong><p>Android改用新包名时会安装为独立应用。请先从旧版导出备份，在新版导入并重新授权；确认记录可用前保留旧版。原包名版本之间的覆盖升级仍需核对签名。</p><a href="install.html#android-migration" class="text-link">查看迁移步骤</a></li><li><strong>连接一个模型</strong><p>客户端开源；模型服务由你选择，调用费用遵循服务商规则。</p><a href="models.html" class="text-link">接入教程</a></li></ol></aside></section>
-<p class="wrap release-maintenance">产品现名为念步/Nelan，默认助手为十七/Shiqi；历史发行保留当时的名称、文件与校验信息。2.0.5历史包不包含免项目账号登录、跳过模型配置等后续改动。每个安装包的实际行为请以<a href="versions.html">版本说明</a>为准。</p><div class="wrap page-end"><a class="text-link" href="versions.html">查看所有历史版本</a><a class="text-link" href="install.html">安装与升级说明</a></div>'''
+<p class="wrap release-maintenance">产品现名为Nivo，默认助手为十七/Shiqi；历史发行保留当时的名称、文件与校验信息。2.0.5历史包不包含免项目账号登录、跳过模型配置等后续改动。每个安装包的实际行为请以<a href="versions.html">版本说明</a>为准。</p><div class="wrap page-end"><a class="text-link" href="versions.html">查看所有历史版本</a><a class="text-link" href="install.html">安装与升级说明</a></div>'''
     )
 
 
@@ -410,7 +410,7 @@ def version_history(releases: dict) -> str:
 def android_migration_guide() -> str:
     """说明独立Android应用的部分备份能力，导出成功不能视作完整恢复。"""
     return """<details open id="android-migration"><summary>Android新包名如何迁移？</summary>
-<p>念步Android2.0.9改用包名<code>io.github.sherlockerx.nelan</code>，作为独立应用安装，可与原包名<code>io.github.nanomuse.app</code>的旧版并存，不能覆盖安装或自动读取旧版私有数据。是否已发布及实际文件以下载目录为准。</p>
+<p>Nivo的Android开发版使用<code>io.github.nivo</code>。已发布的念步2.0.9使用<code>io.github.sherlockerx.nelan</code>，更早的安装包使用<code>io.github.nanomuse.app</code>。不同包名可以并存，不能覆盖安装或自动读取旧版私有数据。请保留旧应用，下载时以所选版本标明的包名为准。</p>
 <p><strong>部分数据需保留在旧版。</strong>以下是当前实现支持的范围，尚不代表完整迁移已在手机上验证。</p>
 <div class="table-wrap"><table><thead><tr><th>内容</th><th>迁移方式与限制</th></tr></thead><tbody>
 <tr><th scope="row">聊天、文件、技能、记忆与MCP</th><td>通用<code>.minisbak</code>按勾选分类备份。聊天附件需勾选包含聊天文件，文件大小上限可能造成遗漏；导入后核对缺失、跳过与失败计数。记忆和MCP配置会覆盖新应用同名文件，宜在新应用尚未编辑个人内容时恢复，之后重启并核对MCP本地路径。</td></tr>
@@ -467,7 +467,7 @@ def developers() -> str:
         title_block(
             "BUILD IN THE OPEN",
             "一起把日常工具做好。",
-            "念步/Nelan是一个持续维护的开源衍生项目。了解构建方式、模块边界与每次发行对应的源码。",
+            "Nivo是一个持续维护的开源衍生项目。了解构建方式、模块边界与每次发行对应的源码。",
         )
         + f"""<div class="wrap narrow"><section id="start"><h2>从源码开始</h2><p>{link(REPO, "打开sherlockerX/Nivo-Bot仓库", "text-link")}</p><pre><code>git clone --recurse-submodules {REPO}.git
 cd Nivo-Bot
@@ -525,7 +525,7 @@ def generated(root: Path) -> dict[str, str]:
         "features.html": page(
             "features.html",
             "功能画廊",
-            "用真实截图认识念步/Nelan的六个功能入口。",
+            "用真实截图认识Nivo的六个功能入口。",
             feature_index(),
             "features",
         ),
@@ -567,7 +567,7 @@ def generated(root: Path) -> dict[str, str]:
         "developers.html": page(
             "developers.html",
             "开放项目",
-            "构建念步/Nelan，了解源码、许可、版本维护与贡献方式。",
+            "构建Nivo，了解源码、许可、版本维护与贡献方式。",
             developers(),
             "developers",
         ),

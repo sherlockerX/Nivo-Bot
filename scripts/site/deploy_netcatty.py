@@ -21,7 +21,7 @@ ORIGIN_CHECK_PATHS = (
     "releases.json",
 )
 
-CADDY = """# 念步/Nelan静态站点，公网HTTPS继续由原Caddy代理提供。
+CADDY = """# Nivo静态站点，公网HTTPS继续由原Caddy代理提供。
 :80 {
     root * /site/current
     encode zstd gzip

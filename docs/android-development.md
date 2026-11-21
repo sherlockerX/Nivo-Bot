@@ -54,9 +54,9 @@ $env:ANDROID_HOME = '你的Android SDK目录'
 
 产物在`android/src/android/app/build/outputs/apk/`，报告在`app/build/reports/tests/`。`Build-Android.ps1 -Target Release`默认要求项目签名；Debug仍可用于开发。直接调用Gradle时用`-Pnm.requireReleaseKey=true`防止缺失配置时回退Debug。密钥应保存在仓库外，签名配置不得提交。
 
-## Nivo Bot的Android版本与签名
+## Nivo的Android版本与签名 {#nivo-bot的android版本与签名}
 
-当前Android目标版本为`2.0.9`「Companion」，`versionCode=60`，新包名为`io.github.sherlockerx.nelan`。它与旧包`io.github.nanomuse.app`并存，不能覆盖更新或自动继承旧应用数据；相同签名也不会改变这一点。旧包名APK候选与源码归档须按新身份重建，源码版本修改不代表已经创建标签或公开发布。iOS下载仍为`2.0.8(59)`；本轮仅同步iOS源码，不产生新IPA，也没有对应Xcode或iPhone验证。
+Nivo开发版的Android包名为`io.github.nivo`，版本字段暂留`2.0.9(60)`。已发布的念步2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。三者可并存，签名相同也无法跨包覆盖升级或自动继承数据。下一次正式发布应提升版本和构建号，不替换已有2.0.9文件。已发布iOS包仍为`2.0.8(59)`，其Bundle ID没有更改。
 
 版本号与应用ID由`app/build.gradle.kts`记录；`scripts/rebrand.py`的`ANDROID_VERSION_NAME`、`ANDROID_VERSION_CODE`及`ANDROID_APP_ID`须同步，完整生成入口会应用这些值。`--android-brand-only`只更新品牌资源，保留当前版本和安装身份。`VERSION_NAME`和`VERSION_CODE`也用于iOS源码生成，源码字段更新不改变已留存IPA。后续升级需递增Android内部编号；不要为升版本而更换证书。整个多平台仓库的`release-bump.sh`不是本分支Android单独发版入口。
 
@@ -71,7 +71,7 @@ $env:ANDROID_HOME = '你的Android SDK目录'
 
 脚本创建RSA3072签名密钥、公钥证书和Windows DPAPI加密凭据，目录只允许当前用户和SYSTEM访问。`android/keystore.properties`只保存证书路径和别名，不存口令。构建时临时注入口令环境变量，结束后恢复。不得将密钥目录、凭据XML或签名配置打进开源包。凭据XML只能在原Windows用户和机器解密：迁移电脑前需在本机将口令转存密码管理器，并单独备份密钥；不能只复制XML就认为完成备份。
 
-**包名与签名共同影响安装兼容性。**同包名通常必须同签名才能覆盖升级；本次改用`io.github.sherlockerx.nelan`后，旧包独立保留。新应用有自己的私有目录、Keystore和权限。迁移仅使用[已支持的备份类别](releases/v2.0.9.md#moving-from-the-old-android-package)，不复制旧加密偏好文件，也不承诺心得、教练、专注历史等完整恢复。真机须验证双应用并存、导入报告、新包授权及旧记录留存。
+**包名与签名共同影响安装兼容性。**新包`io.github.nivo`有自己的私有目录、Keystore和权限。使用不同证书的同包名Debug和Release也不能直接互相覆盖。迁移仅使用[已支持的备份类别](releases/v2.0.9.md#moving-from-the-old-android-package)，保留旧应用查看心得、教练和专注历史等尚不能完整迁移的记录。
 
 ## 必须保持的约束
 

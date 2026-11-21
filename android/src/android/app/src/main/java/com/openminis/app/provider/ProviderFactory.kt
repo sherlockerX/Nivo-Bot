@@ -114,7 +114,7 @@ object ProviderFactory {
                     extraHeaders = mapOf(
                         "HTTP-Referer" to "https://github.com/OpenMinis/OpenMinis",
                         // nanoMuse: 服务商侧展示当前产品名，鉴权与路由字段保持不变。
-                        "X-Title" to "Nelan",
+                        "X-Title" to io.github.nanomuse.identity.MobileProduct.NAME,
                     ),
                 )
             }

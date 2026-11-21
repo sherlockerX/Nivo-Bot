@@ -43,7 +43,7 @@ object OpenRouterModelsApi {
             .header("Authorization", "Bearer $apiKey")
             .header("HTTP-Referer", "https://github.com/OpenMinis/OpenMinis")
             // nanoMuse: 服务商侧展示当前产品名，既有来源网址保持兼容。
-            .header("X-Title", "Nelan")
+            .header("X-Title", io.github.nanomuse.identity.MobileProduct.NAME)
             // [T-android-default-ua] brand outbound /api/v1/models request.
             .applyUserAgentOverride(null)
             .build()

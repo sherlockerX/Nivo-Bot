@@ -1,29 +1,29 @@
 /* Info.plist permission strings — Deutsch */
 
-"NSLocationWhenInUseUsageDescription" = "Nelan verwendet Ihren Standort, um den Startort von Agent-Sitzungen in Ihrem Sitzungsverlauf aufzuzeichnen.";
-"NSLocationAlwaysAndWhenInUseUsageDescription" = "Nelan verwendet den Hintergrund-Standort, um Agent-Aufgaben im Hintergrund weiterlaufen zu lassen. Standortdaten werden nur zur Aufzeichnung des Sitzungsverlaufs verwendet.";
-"NSCalendarsUsageDescription" = "Nelan greift auf den Kalender zu, damit der KI-Agent Ihren Terminplan einsehen, Verfügbarkeiten prüfen und Termine in Ihrem Namen erstellen kann.";
-"NSCalendarsFullAccessUsageDescription" = "Nelan greift auf den Kalender zu, damit der KI-Agent Ihren Terminplan einsehen, Verfügbarkeiten prüfen und Termine in Ihrem Namen erstellen kann.";
-"NSRemindersUsageDescription" = "Nelan greift auf Erinnerungen zu, damit der KI-Agent Erinnerungen in Ihrem Namen suchen und erstellen kann.";
-"NSRemindersFullAccessUsageDescription" = "Nelan greift auf Erinnerungen zu, damit der KI-Agent Erinnerungen in Ihrem Namen suchen und erstellen kann.";
-"NSCameraUsageDescription" = "Nelan benötigt Kamerazugriff, um Fotos für KI-Unterhaltungen aufzunehmen.";
-"NSPhotoLibraryUsageDescription" = "Nelan benötigt Zugriff auf die Fotomediathek, um Bilder an KI-Unterhaltungen anzuhängen.";
-"NSPhotoLibraryAddUsageDescription" = "Nelan benötigt die Berechtigung, Videos und Bilder in Ihrer Fotomediathek zu speichern.";
-"NSHealthShareUsageDescription" = "Nelan greift auf HealthKit zu, damit der KI-Agent Gesundheitsdaten wie Schritte, Herzfrequenz, Schlaf und Workouts in Ihrem Namen lesen kann.";
-"NSHealthUpdateUsageDescription" = "Nelan greift schreibend auf HealthKit zu, damit der KI-Agent Gesundheitsdaten wie Schritte, Gewicht und Wasseraufnahme in Ihrem Namen aufzeichnen kann.";
-"NSContactsUsageDescription" = "Nelan greift auf Kontakte zu, damit der KI-Agent Ihre Kontakte in Ihrem Namen suchen, anzeigen und verwalten kann.";
-"NSAppleMusicUsageDescription" = "Nelan greift auf die Mediathek zu, damit der KI-Agent Ihre Musikbibliothek durchsuchen und die Wiedergabe steuern kann.";
-"NSMicrophoneUsageDescription" = "Nelan benötigt Mikrofonzugriff für die Spracheingabe im Chat.";
-"NSSpeechRecognitionUsageDescription" = "Nelan verwendet Spracherkennung, um Ihre Stimme in Textnachrichten umzuwandeln.";
-"NSHomeKitUsageDescription" = "Nelan greift auf HomeKit zu, damit der KI-Agent Ihre Smart-Home-Geräte in Ihrem Namen abfragen und steuern kann.";
-"NSAlarmKitUsageDescription" = "Nelan verwendet AlarmKit, damit der KI-Agent Wecker und Timer in Ihrem Namen stellen kann.";
-"NSLocalNetworkUsageDescription" = "Nelan nutzt das lokale Netzwerk für den Debug-Server und damit der KI-Agent Dienste in deinem eigenen Netzwerk erreichen kann."; /* nanoMuse: the app has no VM; the sentence matches Info.plist */
+"NSLocationWhenInUseUsageDescription" = "Nivo verwendet Ihren Standort, um den Startort von Agent-Sitzungen in Ihrem Sitzungsverlauf aufzuzeichnen.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Nivo verwendet den Hintergrund-Standort, um Agent-Aufgaben im Hintergrund weiterlaufen zu lassen. Standortdaten werden nur zur Aufzeichnung des Sitzungsverlaufs verwendet.";
+"NSCalendarsUsageDescription" = "Nivo greift auf den Kalender zu, damit der KI-Agent Ihren Terminplan einsehen, Verfügbarkeiten prüfen und Termine in Ihrem Namen erstellen kann.";
+"NSCalendarsFullAccessUsageDescription" = "Nivo greift auf den Kalender zu, damit der KI-Agent Ihren Terminplan einsehen, Verfügbarkeiten prüfen und Termine in Ihrem Namen erstellen kann.";
+"NSRemindersUsageDescription" = "Nivo greift auf Erinnerungen zu, damit der KI-Agent Erinnerungen in Ihrem Namen suchen und erstellen kann.";
+"NSRemindersFullAccessUsageDescription" = "Nivo greift auf Erinnerungen zu, damit der KI-Agent Erinnerungen in Ihrem Namen suchen und erstellen kann.";
+"NSCameraUsageDescription" = "Nivo benötigt Kamerazugriff, um Fotos für KI-Unterhaltungen aufzunehmen.";
+"NSPhotoLibraryUsageDescription" = "Nivo benötigt Zugriff auf die Fotomediathek, um Bilder an KI-Unterhaltungen anzuhängen.";
+"NSPhotoLibraryAddUsageDescription" = "Nivo benötigt die Berechtigung, Videos und Bilder in Ihrer Fotomediathek zu speichern.";
+"NSHealthShareUsageDescription" = "Nivo greift auf HealthKit zu, damit der KI-Agent Gesundheitsdaten wie Schritte, Herzfrequenz, Schlaf und Workouts in Ihrem Namen lesen kann.";
+"NSHealthUpdateUsageDescription" = "Nivo greift schreibend auf HealthKit zu, damit der KI-Agent Gesundheitsdaten wie Schritte, Gewicht und Wasseraufnahme in Ihrem Namen aufzeichnen kann.";
+"NSContactsUsageDescription" = "Nivo greift auf Kontakte zu, damit der KI-Agent Ihre Kontakte in Ihrem Namen suchen, anzeigen und verwalten kann.";
+"NSAppleMusicUsageDescription" = "Nivo greift auf die Mediathek zu, damit der KI-Agent Ihre Musikbibliothek durchsuchen und die Wiedergabe steuern kann.";
+"NSMicrophoneUsageDescription" = "Nivo benötigt Mikrofonzugriff für die Spracheingabe im Chat.";
+"NSSpeechRecognitionUsageDescription" = "Nivo verwendet Spracherkennung, um Ihre Stimme in Textnachrichten umzuwandeln.";
+"NSHomeKitUsageDescription" = "Nivo greift auf HomeKit zu, damit der KI-Agent Ihre Smart-Home-Geräte in Ihrem Namen abfragen und steuern kann.";
+"NSAlarmKitUsageDescription" = "Nivo verwendet AlarmKit, damit der KI-Agent Wecker und Timer in Ihrem Namen stellen kann.";
+"NSLocalNetworkUsageDescription" = "Nivo nutzt das lokale Netzwerk für den Debug-Server und damit der KI-Agent Dienste in deinem eigenen Netzwerk erreichen kann."; /* nanoMuse: the app has no VM; the sentence matches Info.plist */
 
 /* nanoMuse: the keys Info.plist declares but this file lacked, so the prompt is in the person's language */
-"NFCReaderUsageDescription" = "Nelan nutzt NFC, damit der KI-Agent in deinem Auftrag NFC-Tags lesen und beschreiben kann.";
-"NSBluetoothAlwaysUsageDescription" = "Nelan nutzt Bluetooth, damit der KI-Agent in deinem Auftrag BLE-Geräte in der Nähe suchen, verbinden und mit ihnen kommunizieren kann.";
-"NSBluetoothPeripheralUsageDescription" = "Nelan nutzt Bluetooth, damit der KI-Agent in deinem Auftrag BLE-Geräte in der Nähe suchen, verbinden und mit ihnen kommunizieren kann.";
-"NSFaceIDUsageDescription" = "Nelan nutzt Face ID, um gesperrte Chat-Sitzungen zu schützen, damit nur du ihren Inhalt sehen kannst.";
+"NFCReaderUsageDescription" = "Nivo nutzt NFC, damit der KI-Agent in deinem Auftrag NFC-Tags lesen und beschreiben kann.";
+"NSBluetoothAlwaysUsageDescription" = "Nivo nutzt Bluetooth, damit der KI-Agent in deinem Auftrag BLE-Geräte in der Nähe suchen, verbinden und mit ihnen kommunizieren kann.";
+"NSBluetoothPeripheralUsageDescription" = "Nivo nutzt Bluetooth, damit der KI-Agent in deinem Auftrag BLE-Geräte in der Nähe suchen, verbinden und mit ihnen kommunizieren kann.";
+"NSFaceIDUsageDescription" = "Nivo nutzt Face ID, um gesperrte Chat-Sitzungen zu schützen, damit nur du ihren Inhalt sehen kannst.";
 
 /* nanoMuse: 系统桌面和设置采用当前产品名称。 */
-"CFBundleDisplayName" = "Nelan";
+"CFBundleDisplayName" = "Nivo";

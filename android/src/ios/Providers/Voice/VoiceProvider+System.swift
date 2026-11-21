@@ -395,7 +395,7 @@ final class SystemVoiceProvider: NSObject, VoiceInputCapable, VoiceOutputCapable
     static func sampleText(forLanguage langCode: String?) -> String {
         let lc = (langCode ?? "en").lowercased()
         // nanoMuse: 试音文案跟随所选语音语言，产品名与助手昵称分离。
-        if lc.hasPrefix("zh") { return "你好，这是念步的语音测试。" }
+        if lc.hasPrefix("zh") { return "你好，这是\(NivoProduct.englishName)的语音测试。" }
         if lc.hasPrefix("ja") { return "こんにちは、これは\(NivoProduct.englishName)の音声テストです。" }
         if lc.hasPrefix("ko") { return "안녕하세요, \(NivoProduct.englishName) 음성 테스트입니다." }
         return "Hi! This is \(NivoProduct.englishName) testing this voice."

@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 <strong>在Android與iOS使用AI聊天、待辦、專注、生活片段與成長教練。</strong>
@@ -27,28 +27,28 @@
   <a href="https://nivo.8666886.xyz/">產品網站</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題回報</a> · <a href="../../OPEN_SOURCE.md">參與貢獻</a>
 </p>
 
-Nivo Bot是面向日常生活的AI工作臺。從一句想法開始，把下一步變成待辦，留一段時間專注，再把經歷保存在可以回顧的記錄裡。
+Nivo是面向日常生活的AI工作臺。從一句想法開始，把下一步變成待辦，留一段時間專注，再把經歷保存在可以回顧的記錄裡。
 
 免費、開源、非營利。模型服務由你選擇，費用以服務商為準；回覆朗讀使用手機既有的Android系統TTS引擎。
 
 ## 先看看怎麼用
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 原創功能示意，採用範例內容。GIF橫向輪播6個模組，點擊下方靜態圖可放大。這些是功能說明圖，不是手機實拍畫面。
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -168,7 +168,7 @@ Android目錄保留上游結構、套件識別與來源聲明。修改模組邊�
 
 ## 維護者
 
-Nivo Bot分支由<a href="https://github.com/sherlockerX">sherlockerX</a>維護。與Nivo相關的問題請提交到本儲存庫，方便本分支維護者處理。
+Nivo分支由<a href="https://github.com/sherlockerX">sherlockerX</a>維護。與Nivo相關的問題請提交到本儲存庫，方便本分支維護者處理。
 
 ## 開源授權
 
@@ -176,9 +176,9 @@ Nivo Bot分支由<a href="https://github.com/sherlockerX">sherlockerX</a>維護�
 
 ## 致謝
 
-Nivo Bot基於[nanoMuse](https://github.com/nano-muse/nanoMuse)繼續開發。感謝其個人代理基礎、模型與工具整合和應用架構，感謝維護者<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>與貢獻者。手機底座來自[OpenMinis](https://github.com/OpenMinis/OpenMinis)。
+Nivo基於[nanoMuse](https://github.com/nano-muse/nanoMuse)繼續開發。感謝其個人代理基礎、模型與工具整合和應用架構，感謝維護者<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>與貢獻者。手機底座來自[OpenMinis](https://github.com/OpenMinis/OpenMinis)。
 
-下方名單致謝nanoMuse的上游歷史貢獻。完整致謝與歷史里程碑見[來源檔案](../archive/upstream-readme-zh-TW.md)，相依條款保留在[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。Nivo Bot由本分支獨立維護。
+下方名單致謝nanoMuse的上游歷史貢獻。完整致謝與歷史里程碑見[來源檔案](../archive/upstream-readme-zh-TW.md)，相依條款保留在[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。Nivo由本分支獨立維護。
 
 <details>
 <summary>上游貢獻者與來源</summary>

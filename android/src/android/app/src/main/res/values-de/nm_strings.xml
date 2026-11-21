@@ -7,7 +7,7 @@
     <string name="nm_about_upstream">Basiert auf OpenMinis 1.13</string>
     <string name="nm_about_upstream_detail">GPL-3.0 · geändert seit 2026-09-24 · Quellcode auf GitHub</string>
     <string name="nm_about_trademark">Nicht mit Meta verbunden</string>
-    <string name="nm_about_trademark_detail">Muse ist eine Marke von Meta Platforms, Inc. Nelan ist ein unabhängiges Freie-Software-Projekt.</string>
+    <string name="nm_about_trademark_detail">Muse ist eine Marke von Meta Platforms, Inc. Nivo ist ein unabhängiges Freie-Software-Projekt.</string>
 
     <!-- Chat header -->
     <string name="nm_avatar_content_description">Dein Agent. Tippe, um Name, Bild oder Stil zu ändern.</string>
@@ -22,20 +22,20 @@
     <string name="nm_star_action">Auf GitHub bewerten</string>
     <string name="nm_star_later">Jetzt nicht</string>
     <string name="nm_star_done">Stern schon gegeben</string>
-    <string name="nm_star_signed_in">Willkommen. Nelan ist kostenlos, quelloffen und gemeinnützig: ein persönlicher Agent für alle, die ihn ausführen. Wenn dir das etwas wert ist, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</string>
+    <string name="nm_star_signed_in">Willkommen. Nivo ist kostenlos, quelloffen und gemeinnützig: ein persönlicher Agent für alle, die ihn ausführen. Wenn dir das etwas wert ist, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</string>
     <plurals name="nm_star_tasks">
-        <item quantity="one">Eine Aufgabe erledigt. Wenn Nelan geholfen hat, zeigt ein Stern auf GitHub den Leuten, die daran bauen, dass es das getan hat.</item>
-        <item quantity="other">%1$d Aufgaben erledigt. Wenn Nelan nützlich ist, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</item>
+        <item quantity="one">Eine Aufgabe erledigt. Wenn Nivo geholfen hat, zeigt ein Stern auf GitHub den Leuten, die daran bauen, dass es das getan hat.</item>
+        <item quantity="other">%1$d Aufgaben erledigt. Wenn Nivo nützlich ist, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</item>
     </plurals>
-    <string name="nm_star_days_used_week">Eine Woche mit Nelan. Wenn es sich einen Platz in deinem Tag verdient hat, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</string>
-    <string name="nm_star_days_used_month">Ein Monat mit Nelan. Wenn es Teil deiner Routine geworden ist, sagt ein Stern auf GitHub anderen, dass sich ein Versuch lohnt.</string>
+    <string name="nm_star_days_used_week">Eine Woche mit Nivo. Wenn es sich einen Platz in deinem Tag verdient hat, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</string>
+    <string name="nm_star_days_used_month">Ein Monat mit Nivo. Wenn es Teil deiner Routine geworden ist, sagt ein Stern auf GitHub anderen, dass sich ein Versuch lohnt.</string>
     <plurals name="nm_star_days_used">
-        <item quantity="one">Ein Tag mit Nelan. Wenn es geholfen hat, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</item>
-        <item quantity="other">%1$d Tage mit Nelan. Wenn es sich einen Platz in deinem Tag verdient hat, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</item>
+        <item quantity="one">Ein Tag mit Nivo. Wenn es geholfen hat, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</item>
+        <item quantity="other">%1$d Tage mit Nivo. Wenn es sich einen Platz in deinem Tag verdient hat, hilft ein Stern auf GitHub der nächsten Person, es zu finden.</item>
     </plurals>
-    <string name="nm_star_goal_done">Ziel erreicht. Wenn Nelan dir dabei geholfen hat, sagt ein Stern auf GitHub das den Leuten, die daran bauen.</string>
-    <string name="nm_star_new_look">Ein neues Gesicht, für dich gezeichnet. Wenn dir gefällt, wohin Nelan geht, hilft ein Stern auf GitHub, dass mehr Leute es finden.</string>
-    <string name="nm_star_exhausted">Das kostenlose Guthaben ist aufgebraucht. Danke, dass du bis hierher gekommen bist. Wenn Nelan es verdient hat, hält ein Stern auf GitHub das Projekt für die nächste Person sichtbar.</string>
+    <string name="nm_star_goal_done">Ziel erreicht. Wenn Nivo dir dabei geholfen hat, sagt ein Stern auf GitHub das den Leuten, die daran bauen.</string>
+    <string name="nm_star_new_look">Ein neues Gesicht, für dich gezeichnet. Wenn dir gefällt, wohin Nivo geht, hilft ein Stern auf GitHub, dass mehr Leute es finden.</string>
+    <string name="nm_star_exhausted">Das kostenlose Guthaben ist aufgebraucht. Danke, dass du bis hierher gekommen bist. Wenn Nivo es verdient hat, hält ein Stern auf GitHub das Projekt für die nächste Person sichtbar.</string>
     <string name="nm_chat_menu_rename">Chat umbenennen</string>
 
     <!-- Foreground-service notification title while no tool is running -->
@@ -199,7 +199,7 @@
     <string name="nm_risk_class_outbound">Senden</string>
     <string name="nm_risk_class_money">Bezahlen</string>
     <string name="nm_risk_class_install">Installieren</string>
-    <string name="nm_grants_header">Von Nelan gemerkte Freigaben</string>
+    <string name="nm_grants_header">Von Nivo gemerkte Freigaben</string>
     <string name="nm_grants_empty">Noch nichts gemerkt</string>
     <string name="nm_grants_revoke">Widerrufen</string>
     <string name="nm_grants_revoke_confirm">Diese Freigabe widerrufen? Beim nächsten Mal wirst du wieder gefragt.</string>
@@ -207,7 +207,7 @@
     <string name="nm_risk_remember_money_note">Mit deiner Bildschirmsperre bestätigt. Zahlungen in dieser einen App oder Website laufen dann ohne Karte; sie stehen ganz oben unter Einstellungen → Berechtigungen, wo du sie jederzeit widerrufen kannst.</string>
     <string name="nm_risk_remember_money_needs_lock">Um Zahlungen zu merken, richte zuerst eine Bildschirmsperre ein (Einstellungen → Sicherheit): Das Merken wird damit bestätigt.</string>
     <string name="nm_risk_lock_title">Bestätige, dass du es bist</string>
-    <string name="nm_risk_lock_subtitle">Nelan merkt sich Zahlungsfreigaben für %1$s und führt sie ohne Nachfrage aus.</string>
+    <string name="nm_risk_lock_subtitle">Nivo merkt sich Zahlungsfreigaben für %1$s und führt sie ohne Nachfrage aus.</string>
     <string name="nm_risk_remembered_toast">Gemerkt · zum Widerrufen siehe Einstellungen → Berechtigungen</string>
     <string name="nm_risk_tier_highest">Läuft ohne Nachfrage · Zahlungen</string>
     <string name="nm_risk_tier_confirm">Über die Karte gemerkt · Löschen und Senden</string>
@@ -249,7 +249,7 @@
     <string name="nm_sysfiles_open_memory">Gedächtnis öffnen</string>
     <string name="nm_sysfiles_footer">Verwalte hier Identität, Vorlieben und Erinnerungen des Assistenten. Die Dateien bleiben auf diesem Telefon und können hier bearbeitet werden.</string>
     <string name="nm_sysfile_about_lead">Über diese Datei.</string>
-    <string name="nm_sysfile_about_soul">Das ist die Persönlichkeit des Agenten: die Werte und Gewohnheiten, an die er sich in jedem Gespräch zu halten versucht, sein Name und der Stil, in dem er antwortet. Sie beginnt mit einer Vorlage, die mit Nelan kommt; der Agent kann sie mit der Zeit verfeinern und sagt dir, wenn er das tut. Du kannst sie jederzeit bearbeiten. Dieser Hinweis ist nicht Teil der Datei.</string>
+    <string name="nm_sysfile_about_soul">Das ist die Persönlichkeit des Agenten: die Werte und Gewohnheiten, an die er sich in jedem Gespräch zu halten versucht, sein Name und der Stil, in dem er antwortet. Sie beginnt mit einer Vorlage, die mit Nivo kommt; der Agent kann sie mit der Zeit verfeinern und sagt dir, wenn er das tut. Du kannst sie jederzeit bearbeiten. Dieser Hinweis ist nicht Teil der Datei.</string>
     <string name="nm_sysfile_about_user">Der Agent führt diese Datei als seine Arbeitsnotizen über dich: dein Name, wie du angesprochen werden möchtest, deine Zeitzone und der Kontext, den er braucht, um nützlich zu sein, etwa woran du gerade arbeitest. Er füllt sie mit der Zeit aus euren Gesprächen und liest sie zu Beginn jedes Gesprächs. Sie zeigt sein aktuelles Verständnis und kann darum unvollständig oder veraltet sein. Du kannst hier alles bearbeiten, und der Agent richtet sich nach dem, was du schreibst. Dieser Hinweis ist nicht Teil der Datei.</string>
     <string name="nm_sysfile_about_memory">Dauerhafte Notizen, die der Agent über Gespräche hinweg behält: das, was es wert ist, behalten zu werden, in seinen eigenen Worten, plus alles, was du aus einem anderen Assistenten importiert hast. Das tägliche Tagebuch liegt daneben im Gedächtnisordner. Wird zu Beginn jedes Gesprächs gelesen, wenn das Gedächtnis an ist. Dieser Hinweis ist nicht Teil der Datei.</string>
     <string name="nm_sysfile_about_heartbeat">Wann der Agent von selbst aufwacht: jede Routine und jede Zielprüfung, mit Zeitplan und Ergebnis der letzten Ausführung. Aus den Routinen erzeugt, darum hier nur lesbar; ändere sie unter Ziele → Routinen. Dieser Hinweis ist nicht Teil der Datei.</string>
@@ -357,7 +357,7 @@
     <string name="nm_a11y_own_clip_preview">Vorschau deines Clips</string>
 
     <!-- First run (Muse-style welcome; the steps are OpenMinis' provider and model screens) -->
-    <string name="nm_setup_title">Willkommen bei Nelan</string>
+    <string name="nm_setup_title">Willkommen bei Nivo</string>
     <string name="nm_setup_step_models">Modelle wählen</string>
     <string name="nm_setup_step_models_sub">Die Modelle deines Anbieters werden für dich aufgelistet; wähle bis zu drei</string>
     <string name="nm_setup_step_start">Lerne %1$s kennen</string>
@@ -373,7 +373,7 @@
     <string name="nm_settings_no_model">Noch kein Modell</string>
     <string name="nm_settings_no_model_sub">Füge einen Anbieter hinzu und wähle seine Modelle</string>
     <string name="nm_settings_change_model">Ändern</string>
-    <string name="nm_settings_version">Nelan %1$s (%2$d)</string>
+    <string name="nm_settings_version">Nivo %1$s (%2$d)</string>
     <string name="nm_version_title">Version</string>
     <string name="nm_version_checking">Suche nach der neuesten Version…</string>
     <string name="nm_version_have">Neueste Version %1$s, du hast sie</string>
@@ -453,7 +453,7 @@
     <string name="nm_avatar_share_title">Meinen Avatar teilen</string>
     <string name="nm_avatar_share_subtitle">Wähle eine Karte. Sie geht über das Teilen-Menü des Systems hinaus.</string>
     <string name="nm_avatar_share_system">Teilen</string>
-    <string name="nm_avatar_share_bubble">Hallo, ich bin %1$s, ein persönlicher KI-Agent. Das ist Nelan: quelloffen, läuft auf deinem Telefon.</string>
+    <string name="nm_avatar_share_bubble">Hallo, ich bin %1$s, ein persönlicher KI-Agent. Das ist Nivo: quelloffen, läuft auf deinem Telefon.</string>
     <string name="nm_avatar_share_tagline">Dein persönlicher KI-Agent, quelloffen</string>
 
     <!-- 0.1.10 · Motion -->
@@ -505,7 +505,7 @@
     <string name="nm_hands_section_needs">Was er braucht</string>
     <string name="nm_hands_needs_footer">Der Bedienungshilfen-Dienst macht den Screenshot und führt die Gesten aus; er liest den Bildschirminhalt nicht. Das Einblenden über anderen Apps ist für die Kapsel.</string>
     <string name="nm_hands_need_a11y">Bedienungshilfen-Dienst</string>
-    <string name="nm_hands_need_a11y_fix">Schalte Nelan in den Bedienungshilfen unter Installierte Apps ein</string>
+    <string name="nm_hands_need_a11y_fix">Schalte Nivo in den Bedienungshilfen unter Installierte Apps ein</string>
     <string name="nm_hands_need_overlay">Über anderen Apps einblenden</string>
     <string name="nm_hands_need_overlay_fix">Erlaube es, damit die Kapsel mit Stopp gezeigt werden kann</string>
     <string name="nm_hands_need_model">Ein Modell, das Bilder sieht</string>
@@ -543,7 +543,7 @@
     <string name="nm_hands_protected_screen">Dieser Bildschirm ist geschützt und kann nicht gelesen werden. Erledige diesen Teil selbst und tippe dann auf Weiter.</string>
     <string name="nm_hands_secret_field">Ein Passwort- oder Codefeld: bitte fülle es selbst aus und tippe dann auf Weiter.</string>
     <string name="nm_hands_approval_title">Wartet auf deine Freigabe</string>
-    <string name="nm_hands_approval_detail">Auf „%1$s“ tippen: bestätige in Nelan (es fragt nach deiner Bildschirmsperre).</string>
+    <string name="nm_hands_approval_detail">Auf „%1$s“ tippen: bestätige in Nivo (es fragt nach deiner Bildschirmsperre).</string>
     <string name="nm_hands_approval_here">Auf „%1$s“ tippen?</string>
     <string name="nm_hands_allow_once">Erlauben</string>
     <string name="nm_hands_deny">Ablehnen</string>
@@ -574,7 +574,7 @@
     <!-- Reach (0.1.13): the phone drives your computer -->
     <string name="nm_pc_title">Computer</string>
     <string name="nm_pc_none_short">Keiner</string>
-    <string name="nm_pc_intro">Hier gesagt, auf deinem Computer erledigt: ein Befehl, eine Datei, eine Seite in seinem Browser, ein Blick auf seinen Bildschirm oder eine ganze Aufgabe für das Nelan dort. Das Telefon steuert den Computer, nie umgekehrt; jede Freigabe wird zuerst hier entschieden.</string>
+    <string name="nm_pc_intro">Hier gesagt, auf deinem Computer erledigt: ein Befehl, eine Datei, eine Seite in seinem Browser, ein Blick auf seinen Bildschirm oder eine ganze Aufgabe für das Nivo dort. Das Telefon steuert den Computer, nie umgekehrt; jede Freigabe wird zuerst hier entschieden.</string>
     <string name="nm_pc_hub_title">Der einfache Weg: nanoMuse Desktop, gleiches Konto</string>
     <string name="nm_pc_hub_body">Installiere nanoMuse Desktop auf dem Computer und melde dich mit dem Konto dieses Telefons an; er erscheint innerhalb von Sekunden unter Konto → Geräte.</string>
     <string name="nm_pc_hub_download">nanoMuse Desktop holen</string>
@@ -626,7 +626,7 @@
     <string name="nm_welcome_feat_hands_sub">Bucht den Zug, bestellt das Essen, schlägt etwas in einer App nach; du schaust zu und kannst ihn jederzeit stoppen</string>
     <string name="nm_welcome_feat_reach">Reichweite: deine Computer, von hier aus</string>
     <string name="nm_welcome_feat_reach_sub">Installiere nanoMuse Desktop auf einem Mac, Windows- oder Linux-Rechner, melde dich mit demselben Konto an und gib ihm Arbeit vom Telefon aus</string>
-    <string name="nm_welcome_notice">Nelan ist ein gemeinnütziges quelloffenes Community-Projekt: kostenlos, für immer. Das Modell kommt mit einem kostenlosen Guthaben, bezahlt vom Entwickler; danach dein eigener Schlüssel. Nichts wird verkauft; was das Relay behält, steht in der Datenschutzerklärung, und Einstellungen → Datenkontrolle gehört dir.</string>
+    <string name="nm_welcome_notice">Nivo ist ein gemeinnütziges quelloffenes Community-Projekt: kostenlos, für immer. Das Modell kommt mit einem kostenlosen Guthaben, bezahlt vom Entwickler; danach dein eigener Schlüssel. Nichts wird verkauft; was das Relay behält, steht in der Datenschutzerklärung, und Einstellungen → Datenkontrolle gehört dir.</string>
     <string name="nm_welcome_hands_title">Lass ihn dein Telefon nutzen</string>
     <string name="nm_welcome_hands_sub">Mit zwei Berechtigungen kann er Apps öffnen, für dich tippen und eingeben. Eine Kapsel mit jedem Schritt und einem Stopp-Knopf bleibt auf dem Bildschirm; Logins, Passwörter und Codes bleiben immer bei dir.</string>
     <string name="nm_welcome_hands_turn_on">Einschalten</string>
@@ -764,7 +764,7 @@
     <string name="nm_cloud_invite_share">Link teilen</string>
     <string name="nm_cloud_invite_copy">Kopieren</string>
     <string name="nm_cloud_invite_copied">Kopiert</string>
-    <string name="nm_cloud_invite_share_text">Probier Nelan mit mir aus: ein vollständig quelloffener persönlicher Agent, kostenlos nutzbar. Registriere dich mit meinem Code %1$s: %2$s</string>
+    <string name="nm_cloud_invite_share_text">Probier Nivo mit mir aus: ein vollständig quelloffener persönlicher Agent, kostenlos nutzbar. Registriere dich mit meinem Code %1$s: %2$s</string>
     <string name="nm_cloud_invite_count">%1$d Freunde sind dabei</string>
     <string name="nm_cloud_invite_earned">¥%1$s durch Einladungen dazugekommen</string>
     <string name="nm_cloud_invite_have">Hast du einen Einladungscode?</string>
@@ -805,7 +805,7 @@
     <string name="nm_cloud_ev_contribute_deleted">Datenkontrolle: behaltene Gespräche gelöscht</string>
     <string name="nm_cloud_ev_contribute_default">Datenkontrolle: für neue Konten an</string>
     <string name="nm_data_title">Datenkontrolle</string>
-    <string name="nm_data_improve">Die KI-Modelle von Nelan verbessern helfen</string>
+    <string name="nm_data_improve">Die KI-Modelle von Nivo verbessern helfen</string>
     <string name="nm_data_why">Solange das an ist, wird der Text deiner Chats mit den Modellen von nanoMuse Cloud (was du geschrieben hast, was es geantwortet hat und welche Werkzeuge es aufgerufen hat) auf dem Relay behalten, um das eigene offene Modell der Community zu trainieren. Nicht dein Gedächtnis oder SOUL (der Systemprompt), nicht, was Werkzeuge zurückgegeben haben, keine Bilder, und nie zusammen damit, wer du bist. Dein eigener API-Schlüssel läuft nie über das Relay.</string>
     <string name="nm_data_default_on">Neue Konten beginnen damit an.</string>
     <string name="nm_data_default_off">Neue Konten beginnen damit aus.</string>
@@ -864,7 +864,7 @@
     <!-- 0.1.20: the coding agents on the account's computers -->
     <string name="nm_coding_title">Coding-Agenten</string>
     <string name="nm_coding_intro">Cursor, Codex und Claude Code auf deinen Computern: ihre Sitzungen, ihre letzte Antwort und eine Nachricht an jeden von ihnen, von hier aus. Nichts davon wird auf das Telefon kopiert.</string>
-    <string name="nm_coding_no_computer">Kein Computer mit einem Coding-Agenten ist online. Starte Nelan auf dem Computer, auf dem Cursor, Codex oder Claude Code installiert ist, angemeldet mit diesem Konto.</string>
+    <string name="nm_coding_no_computer">Kein Computer mit einem Coding-Agenten ist online. Starte Nivo auf dem Computer, auf dem Cursor, Codex oder Claude Code installiert ist, angemeldet mit diesem Konto.</string>
     <string name="nm_coding_account_hint">Dieses Telefon ist als %1$s angemeldet; der Computer muss dasselbe Konto verwenden.</string>
     <string name="nm_coding_refresh">Aktualisieren</string>
     <string name="nm_coding_all">Alle</string>
@@ -898,12 +898,12 @@
     <string name="nm_cloud_tokens_line">%1$s Tokens insgesamt · %2$s heute</string>
     <string name="nm_cloud_notice_title">Kostenlos, quelloffen, gemeinnützig</string>
     <string name="nm_cloud_notice_closing">Einen Fehler gefunden, eine Funktion gewünscht, einen Patch parat? Das GitHub-Repository ist der richtige Ort.</string>
-    <string name="nm_cloud_notice">Nelan ist ein gemeinnütziges quelloffenes Community-Projekt: kostenlos, für immer. Das Modell kommt mit einem kostenlosen Guthaben, bezahlt vom Entwickler; danach dein eigener Schlüssel. Nichts wird verkauft; was das Relay behält, steht in der Datenschutzerklärung, und Einstellungen → Datenkontrolle gehört dir. Lösche das Konto, wann immer du willst.</string>
+    <string name="nm_cloud_notice">Nivo ist ein gemeinnütziges quelloffenes Community-Projekt: kostenlos, für immer. Das Modell kommt mit einem kostenlosen Guthaben, bezahlt vom Entwickler; danach dein eigener Schlüssel. Nichts wird verkauft; was das Relay behält, steht in der Datenschutzerklärung, und Einstellungen → Datenkontrolle gehört dir. Lösche das Konto, wann immer du willst.</string>
 
     <!-- nanoMuse: devices on the hub -->
     <string name="nm_hub_channel">Nachrichten von deinen Geräten</string>
     <string name="nm_hub_service_channel">Mit deinen Geräten verbunden</string>
-    <string name="nm_hub_service_title">Nelan · von deinen Geräten erreichbar</string>
+    <string name="nm_hub_service_title">Nivo · von deinen Geräten erreichbar</string>
     <string name="nm_hub_service_connecting">Verbinde mit nanoMuse Cloud…</string>
     <string name="nm_hub_service_alone">Gerade ist kein anderes Gerät online</string>
     <plurals name="nm_hub_service_devices">
@@ -944,7 +944,7 @@
     <string name="nm_hub_err_not_controllable">Dieses Gerät kann nicht um Aufgaben gebeten werden.</string>
     <string name="nm_hub_err_unknown_agent">Dieser Coding-Agent ist nicht auf dem Computer.</string>
     <string name="nm_hub_err_no_session">Diese Sitzung ist nicht mehr auf dem Computer.</string>
-    <string name="nm_hub_err_unknown_action">Auf dem Computer läuft ein älteres Nelan, das diese Aktion nicht kennt.</string>
+    <string name="nm_hub_err_unknown_action">Auf dem Computer läuft ein älteres Nivo, das diese Aktion nicht kennt.</string>
     <string name="nm_hub_err_bad_key">Beim Relay abgemeldet; melde dich erneut an.</string>
     <string name="nm_hub_err_generic">Der Computer konnte es nicht erledigen.</string>
     <string name="nm_devices_refused">Vom Relay abgelehnt; erneut anmelden</string>
@@ -963,7 +963,7 @@
     <string name="nm_connectors_sign_in">Anmelden</string>
     <string name="nm_connectors_disconnect">Trennen</string>
     <string name="nm_connectors_docs">Die Seite des Anbieters zu diesem Server</string>
-    <string name="nm_connectors_how_oauth">Meldet sich im Browser mit deinem %1$s-Konto an; Nelan registriert sich selbst beim Dienst, es gibt also nichts einzutippen. Das Token bleibt auf diesem Telefon.</string>
+    <string name="nm_connectors_how_oauth">Meldet sich im Browser mit deinem %1$s-Konto an; Nivo registriert sich selbst beim Dienst, es gibt also nichts einzutippen. Das Token bleibt auf diesem Telefon.</string>
     <string name="nm_connectors_how_key">Braucht einen Schlüssel vom Dienst: %1$s. Er wird nur im MCP-Eintrag auf diesem Telefon aufbewahrt.</string>
     <string name="nm_connectors_how_none">Offen für alle; keine Anmeldung nötig.</string>
     <string name="nm_connectors_how_auto">Prüft zuerst, was der Server braucht: nichts, eine Anmeldung oder einen Schlüssel.</string>
@@ -1026,7 +1026,7 @@
     <string name="nm_devices_ask_hint">Tippe auf ein Gerät, das online ist, um es aus dem Chat anzuschreiben: Die Nachricht beginnt mit @ und seinem Namen, und dieses Gerät erledigt die Arbeit.</string>
     <string name="nm_reach_the_provider">der Anbieter</string>
     <string name="nm_reach_unreachable_title">%1$s ist aus diesem Netz nicht erreichbar</string>
-    <string name="nm_reach_unreachable_body">Von %1$s kam keine Antwort. Es geht um den Weg von diesem Telefon zum Anbieter; Nelans eigene Server sind nicht beteiligt.</string>
+    <string name="nm_reach_unreachable_body">Von %1$s kam keine Antwort. Es geht um den Weg von diesem Telefon zum Anbieter; Nivos eigene Server sind nicht beteiligt.</string>
     <string name="nm_reach_region_title">OpenAI bedient diese Region nicht</string>
     <string name="nm_reach_region_body">Die Anfrage hat OpenAI erreicht; die Antwort war, dass der Dienst dort, woher diese Verbindung kommt, nicht angeboten wird.</string>
     <string name="nm_reach_signed_out_title">Die ChatGPT-Anmeldung gilt nicht mehr</string>
