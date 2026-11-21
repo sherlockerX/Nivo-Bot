@@ -171,6 +171,8 @@ class ProductSiteTests(unittest.TestCase):
         )
         release.pop("certificateSha256", None)
         release.pop("checksumsUrl", None)
+        release.pop("packageId", None)
+        release.pop("migration", None)
         catalogue["releases"].append(release)
         return catalogue
 
@@ -300,6 +302,8 @@ class ProductSiteTests(unittest.TestCase):
                 release = next(
                     item for item in catalogue["releases"] if item["platform"] == "android"
                 )
+                release.pop("packageId", None)
+                release.pop("migration", None)
                 release.update(overrides)
                 errors = validate_releases(catalogue)
                 self.assertTrue(

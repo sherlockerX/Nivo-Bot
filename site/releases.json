@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "product": "Nivo Bot",
-  "updatedAt": "2026-11-20",
+  "product": "念步/Nelan",
+  "updatedAt": "2026-11-21",
   "platforms": [
     {
       "id": "android",
@@ -17,6 +17,43 @@
     }
   ],
   "releases": [
+    {
+      "id": "android-2.0.9-60-arm64",
+      "platform": "android",
+      "productName": "念步/Nelan",
+      "version": "2.0.9",
+      "versionCode": 60,
+      "channel": "stable",
+      "distribution": "apk",
+      "packageId": "io.github.sherlockerx.nelan",
+      "migration": "backup-restore",
+      "releasedAt": "2026-11-21",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 42013135,
+      "sha256": "34d68f592d5096485b463fa1efee710647a8af759de8101b6876584d334eff35",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nelan-v2.0.9-arm64.apk",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.9.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nelan-v2.0.9-source.zip",
+      "sourceSha256": "f724f6c9f4932b62ab004ec5a04fba7700196c5cb09c08c4fc7c2ccf1656f390",
+      "sourceSizeBytes": 64696802,
+      "sourceCommit": "905f9f23cba0017083a3fc50f3d443a7ade55f9b",
+      "notesUrl": "releases/android-2.0.9.html",
+      "summary": "念步/Nelan与十七使用新Android包名发行，与旧版并存，支持的记录需手动迁移。",
+      "notes": [
+        "产品名统一为念步/Nelan，默认伙伴更换为十七/Shiqi，内置离线状态动画",
+        "包名改为io.github.sherlockerx.nelan，沿用正式证书，作为独立应用安装",
+        "普通页面、通知和AI默认身份更新名称；仅迁移完整且未经编辑的旧默认模板",
+        "快捷入口、文件分享、Shizuku和闹钟权限使用新身份，内部命令和格式保留兼容",
+        "通用备份可携带聊天、所选文件、记忆及配置；待办需单独导出导入",
+        "专注历史、生活碎片、教练进度和自定义宠物暂无完整迁移路径，请保留旧版",
+        "专注配置导入只恢复计划和白名单，恢复的计划默认关闭，系统权限需重新授权",
+        "1660项Android回归中1658通过、2跳过、0失败；新身份Release构建与验签通过",
+        "保留rclone在16KB页设备上的兼容限制，本轮未宣称Lint全量通过",
+        "仅发布Android2.0.9，iOS继续提供原2.0.8未签名Release包，上游署名与许可证保留"
+      ]
+    },
     {
       "id": "ios-2.0.8-59-arm64",
       "platform": "ios",

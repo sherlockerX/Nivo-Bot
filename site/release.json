@@ -1,15 +1,20 @@
 {
-  "product": "Nivo Bot",
-  "version": "2.0.7",
-  "versionCode": 58,
+  "product": "念步/Nelan",
+  "version": "2.0.9",
+  "versionCode": 60,
   "androidMinimum": "8.0",
   "abi": "arm64-v8a",
   "channel": "public",
-  "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk",
-  "sha256": "c71df8cf358ecbebfc8fa8ea7fda8062cce84a9be3b5b5edd86c4622cf9a8494",
+  "downloadUrl": "https://nivo.8666886.xyz/downloads/Nelan-v2.0.9-arm64.apk",
+  "sha256": "34d68f592d5096485b463fa1efee710647a8af759de8101b6876584d334eff35",
   "repository": "https://github.com/sherlockerX/Nivo-Bot",
-  "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip",
+  "sourceUrl": "https://nivo.8666886.xyz/downloads/Nelan-v2.0.9-source.zip",
   "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
-  "sizeBytes": 40969779,
-  "sourceCommit": "449324dae61f183c4a08f748252662e759ecb34e"
+  "sizeBytes": 42013135,
+  "sourceCommit": "905f9f23cba0017083a3fc50f3d443a7ade55f9b",
+  "sourceSha256": "f724f6c9f4932b62ab004ec5a04fba7700196c5cb09c08c4fc7c2ccf1656f390",
+  "sourceSizeBytes": 64696802,
+  "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.9.txt",
+  "packageId": "io.github.sherlockerx.nelan",
+  "migration": "backup-restore"
 }

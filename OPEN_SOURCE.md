@@ -2,7 +2,7 @@
 
 念步（Nelan）是基于nanoMuse与OpenMinis持续开发的Android与iOS应用，内置伙伴为十七／Shiqi。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。仓库及历史下载文件保留原标识，根README与九份翻译介绍本分支，文末致谢nanoMuse并保留上游贡献者名单。上游的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
 
-Android2.0.9(60)Companion使用新包名`io.github.sherlockerx.nelan`，与旧包`io.github.nanomuse.app`并存，不能覆盖更新。新应用有独立私有目录、Keystore及系统权限，同一签名不会自动转移旧数据。旧包名APK候选及源码归档已过时，须按新身份重建并核验；改包名前的1660项JVM测试（1658通过、2跳过）不验证新包安装和迁移。当前不宣称已上线，原Android2.0.7(58)产物保留为历史记录。
+Android2.0.9(60)Companion使用新包名`io.github.sherlockerx.nelan`，与旧包`io.github.nanomuse.app`并存，不能覆盖更新。新应用有独立私有目录、Keystore及系统权限，同一签名不会自动转移旧数据。新包名下1660项JVM测试完成，1658通过、2跳过、0失败或错误，Debug与正式Release构建通过。最终APK、源码归档及校验文件已完成本地核验，正式证书与原版本一致，旧包名候选已作废。公网部署与下载核验仍待完成，双应用安装和迁移仍需真机验收；原Android2.0.7(58)产物保留为历史记录。
 
 旧应用应继续保留。现有`.minisbak`可导入聊天及选择的文件、技能、记忆、MCP配置、服务商／模型、所选凭据和环境变量；待办使用独立JSON导入。专注只能导入停用状态的锁定计划和白名单，不能恢复专注历史。心得及照片、教练进度、自定义宠物、周期任务和通用偏好不在通用备份范围内，不能承诺完整迁移。详细限制和手机验收步骤见[迁移说明](docs/releases/v2.0.9.md#moving-from-the-old-android-package)。系统权限与Device Owner不会随备份转移。
 
@@ -12,13 +12,15 @@ iOS下载继续保留2.0.8(59)Clarity未签名ReleaseIPA及其对应源码和校
 
 |平台|安装包|对应源码|校验文件|
 |---|---|---|---|
-|Android2.0.9(60)，新包并存安装|新包名APK待重建核验|新身份归档待重建|待生成并核验|
+|Android2.0.9(60)，本地已核验、待上线|`Nelan-v2.0.9-arm64.apk`|`Nelan-v2.0.9-source.zip`|`SHA256SUMS-v2.0.9.txt`|
 |Android2.0.7(58)，历史文件|[APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip)|[SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt)|
 |iOS2.0.8(59)，未签名Release|[未签名ReleaseIPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip)|[SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt)|
 
 提交`4163621fba0d40cabdb7354eaba8f9b97ad7be5c`的[CI44797863407](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44797863407)完整通过：835项便携Swift测试、0失败，地图离线回归、Release设备应用编译、应用测试目标编译及NanoMuse源码零警告检查通过。应用测试仅编译、未执行，地图离线回归未请求Apple服务。IPA为70035647字节，SHA256为`ad631e6b0f4f1ecb7d8c71c4691d53734b1fb15ad0957796eed1344f6fd39a6a`；源码ZIP为76465089字节，SHA256为`c44c1d9a762f9a281bf3984b252d6648cb067013c001cc7aa024e6a11df25313`，核验8379份源码文件，ZIP共8380项。新ReleaseIPA仍需自行签名后进行手机验收。本地核验不证明公网下载可用。
 
-本轮平台范围和待核验字段见[2.0.9发行说明](docs/releases/v2.0.9.md)，实际保留的原生输入见[2.0.9输入清单](docs/releases/v2.0.9-build-inputs.json)。rclone的4KB加载段对齐和固定proot-loader的完整源码重建缺口仍保留，未建立16KB页设备兼容性，也不承诺逐字节可复现构建。iOS原包证据见[2.0.8发行说明](docs/releases/v2.0.8.md)，Android历史身份见[2.0.7发行说明](docs/releases/v2.0.7.md)。每个平台的源码归档须记录实际快照与依赖覆盖范围，不能用新源码覆盖旧安装包的来源记录。
+Android2.0.9APK为42013135字节，源码ZIP为64696802字节，校验文件为181字节，完整SHA256、证书及APK检查记录见[2.0.9发行说明](docs/releases/v2.0.9.md)。源码归档固定于APK源码提交`905f9f23cba0017083a3fc50f3d443a7ade55f9b`，包含4892份源码文件，ZIP完整性与关键文件比对通过。最终核验文档由后续发布提交记录，不回写已固定的源码包，也不改变APK对应的源码提交。
+
+实际保留的原生输入见[2.0.9输入清单](docs/releases/v2.0.9-build-inputs.json)。proot子模块已展开，iSH及其嵌套iOS子模块未展开；外部依赖和工具链仍须单独准备。rclone的4KB加载段对齐和固定proot-loader的完整源码重建缺口仍保留，未建立16KB页设备兼容性，也不承诺逐字节可复现构建。iOS原包证据见[2.0.8发行说明](docs/releases/v2.0.8.md)，Android历史身份见[2.0.7发行说明](docs/releases/v2.0.7.md)。每个平台的源码归档记录自己的快照与依赖覆盖范围，不能用新源码覆盖旧安装包的来源记录。
 
 - 产品网站源码：[site/](site/README.md)。纯静态、无需Node依赖，可部署到GitHub Pages或其他静态主机。
 - Android构建：[docs/android-development.md](docs/android-development.md)。
