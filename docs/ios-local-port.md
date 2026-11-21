@@ -2,7 +2,7 @@
 
 ## Current validation {#current-validation}
 
-The current mobile release is **2.0.10 (61)**. Its [Release workflow](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44939268250) builds an arm64 unsigned IPA under the original bundle ID. Sign it before installing; iPhone runtime acceptance is pending.
+The current mobile release is **2.0.10 (61)**. Its [Release workflow](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44944710859) builds an arm64 unsigned IPA under the original bundle ID. Sign it before installing; iPhone runtime acceptance is pending.
 
 ## Historical 2.0.5 build
 

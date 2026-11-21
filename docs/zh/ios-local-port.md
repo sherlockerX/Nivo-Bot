@@ -2,7 +2,7 @@
 
 ## 当前验证 {#current-validation}
 
-当前移动版本为**2.0.10(61)**。[Release构建](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44939268250)使用原Bundle ID生成arm64未签名IPA，安装前需自行签名；iPhone上的运行体验仍待真机验证。
+当前移动版本为**2.0.10(61)**。[Release构建](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44944710859)使用原Bundle ID生成arm64未签名IPA，安装前需自行签名；iPhone上的运行体验仍待真机验证。
 
 ## 2.0.5的构建记录
 

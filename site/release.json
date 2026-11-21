@@ -11,9 +11,9 @@
   "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip",
   "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
   "sizeBytes": 42013631,
-  "sourceCommit": "ab735230d5d7be326925f71a34f0491abaea2a81",
-  "sourceSha256": "4b1685c79953a527c8c29a8e41ab436e029d3436b3dc6987d95d84d0da052ba5",
-  "sourceSizeBytes": 78642966,
+  "sourceCommit": "c422072ab3a329d074c8cd95bc6e55e5e7cbf592",
+  "sourceSha256": "d62359c0dc1aa86b4eedb26176c949c0dca95e563a52a294d3036fd8c427ab8b",
+  "sourceSizeBytes": 78642968,
   "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt",
   "packageId": "io.github.nivo",
   "migration": "backup-restore"
