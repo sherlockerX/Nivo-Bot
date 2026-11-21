@@ -11,6 +11,7 @@
     python scripts/rebrand.py            # 完整上游移植，再报告历史检查项
     python scripts/rebrand.py --check    # 只检查，不写入
     python scripts/rebrand.py --android-brand-only  # 仅更新Android可见品牌，不更改版本或数据标识
+    python scripts/rebrand.py --android-identity-only  # 显式更新Android安装身份与快捷入口
     python scripts/rebrand.py --ios-brand-only      # 仅更新iOS可见品牌，不更改版本或数据标识
     python scripts/rebrand.py --ios-version-only    # 仅更新iOS版本，不更改品牌、图像或数据标识
     python scripts/rebrand.py --versions-only       # 仅更新Android和iOS版本
@@ -34,7 +35,8 @@ JAVA = MAIN / "java" / "com" / "openminis" / "app"
 RES = MAIN / "res"
 IOS = ROOT / "android" / "src" / "ios"
 
-APP_ID = "io.github.nanomuse.app"
+ANDROID_APP_ID = "io.github.sherlockerx.nelan"
+IOS_APP_ID = "io.github.nanomuse.app"  # iOS保留已发行身份，不能随Android包名变动。
 NAME = "Nelan"  # 手机产品的英文显示名；持久化标识保留原值。
 CHINESE_NAME = "念步"
 VERSION_NAME = "2.0.9"
@@ -77,14 +79,27 @@ def android_versions_only() -> None:
 def gradle() -> None:
     """完整品牌生成复用版本入口，再更新应用标识。"""
     android_versions_only()
-    edit(APP / "build.gradle.kts", [(r'applicationId = "[^"]+"', f'applicationId = "{APP_ID}"')])
+    edit(
+        APP / "build.gradle.kts",
+        [(r'applicationId = "[^"]+"', f'applicationId = "{ANDROID_APP_ID}"')],
+    )
+
+
+def android_identity_only() -> None:
+    """仅显式切换Android安装身份及入口，不调整版本或另一平台。"""
+    edit(
+        APP / "build.gradle.kts",
+        [(r'applicationId = "[^"]+"', f'applicationId = "{ANDROID_APP_ID}"')],
+    )
+    package_ids()
 
 
 def package_ids() -> None:
+    """将快捷入口指向当前Android应用，无障碍组件使用运行时安装ID。"""
     edit(
         RES / "xml" / "shortcuts.xml",
         [
-            (r'android:targetPackage="[^"]+"', f'android:targetPackage="{APP_ID}"'),
+            (r'android:targetPackage="[^"]+"', f'android:targetPackage="{ANDROID_APP_ID}"'),
         ],
     )
     a11y = JAVA / "accessibility" / "MinisAccessibilityService.kt"
@@ -329,7 +344,7 @@ def reword() -> None:
 # --- iOS -------------------------------------------------------------------------------------
 
 IOS_ID_RULES = [
-    (r"com\.openminis\.app", APP_ID),
+    (r"com\.openminis\.app", IOS_APP_ID),
     (r"com\.openminis\.MinisTests", "io.github.nanomuse.MinisTests"),
     (r"com\.openminis\.MinisUITests", "io.github.nanomuse.MinisUITests"),
 ]
@@ -530,7 +545,7 @@ def check() -> int:
     problems = 0
     gradle_text = (APP / "build.gradle.kts").read_text(encoding="utf-8")
     for want in (
-        f'applicationId = "{APP_ID}"',
+        f'applicationId = "{ANDROID_APP_ID}"',
         f"versionCode = {ANDROID_VERSION_CODE}",
         f'versionName = "{ANDROID_VERSION_NAME}"',
     ):
@@ -563,6 +578,10 @@ def main(argv: list[str] | None = None) -> int:
     if args == ["--android-brand-only"]:
         android_brand_only()
         print(f"{len(set(changed))} Android brand files changed")
+        return 0
+    if args == ["--android-identity-only"]:
+        android_identity_only()
+        print(f"{len(set(changed))} Android identity files changed")
         return 0
     if args == ["--ios-brand-only"]:
         ios_brand_only()

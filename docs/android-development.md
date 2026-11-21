@@ -56,9 +56,9 @@ $env:ANDROID_HOME = '你的Android SDK目录'
 
 ## Nivo Bot的Android版本与签名
 
-本分支的Android独立版本为`2.0.0`，`versionCode=51`，包名继续使用`io.github.nanomuse.app`。GitHub发行标签将使用`v2.0.0`，源码版本修改不等于已公开发布。iOS、桌面、Python运行时沿用各自原有版本，本次不宣称平台功能同步。
+当前Android目标版本为`2.0.9`「Companion」，`versionCode=60`，新包名为`io.github.sherlockerx.nelan`。它与旧包`io.github.nanomuse.app`并存，不能覆盖更新或自动继承旧应用数据；相同签名也不会改变这一点。旧包名APK候选与源码归档须按新身份重建，源码版本修改不代表已经创建标签或公开发布。iOS下载仍为`2.0.8(59)`；本轮仅同步iOS源码，不产生新IPA，也没有对应Xcode或iPhone验证。
 
-版本号由`app/build.gradle.kts`决定；`scripts/rebrand.py`的`ANDROID_VERSION_NAME`和`ANDROID_VERSION_CODE`必须同步更新，否则重新品牌化会覆盖版本。原`VERSION_NAME`和`VERSION_CODE`继续用于iOS。后续升级需递增Android内部编号；不要为升版本而更换证书。整个多平台仓库的`release-bump.sh`不是本分支Android单独发版入口。
+版本号与应用ID由`app/build.gradle.kts`记录；`scripts/rebrand.py`的`ANDROID_VERSION_NAME`、`ANDROID_VERSION_CODE`及`ANDROID_APP_ID`须同步，完整生成入口会应用这些值。`--android-brand-only`只更新品牌资源，保留当前版本和安装身份。`VERSION_NAME`和`VERSION_CODE`也用于iOS源码生成，源码字段更新不改变已留存IPA。后续升级需递增Android内部编号；不要为升版本而更换证书。整个多平台仓库的`release-bump.sh`不是本分支Android单独发版入口。
 
 两个Android更新入口均指向`sherlockerX/Nicholasx`，不再请求上游下载索引。版本栏使用独立缓存；既有`MOSAIC_OFFLINE`自动检查开关仍保留。尚未公开发布时，关于页可能显示无发行版或无法访问，不会虚构下载链接。
 
@@ -71,11 +71,11 @@ $env:ANDROID_HOME = '你的Android SDK目录'
 
 脚本创建RSA3072签名密钥、公钥证书和Windows DPAPI加密凭据，目录只允许当前用户和SYSTEM访问。`android/keystore.properties`只保存证书路径和别名，不存口令。构建时临时注入口令环境变量，结束后恢复。不得将密钥目录、凭据XML或签名配置打进开源包。凭据XML只能在原Windows用户和机器解密：迁移电脑前需在本机将口令转存密码管理器，并单独备份密钥；不能只复制XML就认为完成备份。
 
-**换证书会影响安装兼容性。**同包名通常必须同签名才能覆盖升级。新专用证书无法直接覆盖Debug或上游证书安装的旧包。先核对手机上旧APK的证书，再决定保留旧证书升级或迁移到新证书；不要直接卸载旧应用。备份应分别核验聊天、待办、教练、专注、碎片和附件的覆盖范围，当前没有验证跨证书完整恢复。更换包名可并存，但不能自动继承旧数据。
+**包名与签名共同影响安装兼容性。**同包名通常必须同签名才能覆盖升级；本次改用`io.github.sherlockerx.nelan`后，旧包独立保留。新应用有自己的私有目录、Keystore和权限。迁移仅使用[已支持的备份类别](releases/v2.0.9.md#moving-from-the-old-android-package)，不复制旧加密偏好文件，也不承诺心得、教练、专注历史等完整恢复。真机须验证双应用并存、导入报告、新包授权及旧记录留存。
 
 ## 必须保持的约束
 
-- 不移动`com.openminis.app`namespace或修改沙盒路径；新增功能放在`io.github.nanomuse.*`，上游修改带nanoMuse说明。
+- 不移动`com.openminis.app`namespace或修改沙盒相对路径；新applicationId会改变Android私有目录根路径。新增功能放在`io.github.nanomuse.*`，上游修改带nanoMuse说明。
 - Room的历史schema是测试资产，不按“旧文件”删除。
 - 分词字典、KaTeX资源、模型目录和原生输入缺失会破坏构建或运行，应通过源码审计发现。
 - 账号切换后旧页面不得写入；所有待办修改在事务内检查revision；专注实际耗时不由AI填写。

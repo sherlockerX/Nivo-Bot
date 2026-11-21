@@ -47,6 +47,8 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 |`releases[].id`|全站唯一发行记录ID|
 |`platform`|与平台列表中的ID对应|
 |`productName`|本条发行时的产品名称；新品牌填写`念步/Nelan`，未标注的既有记录沿用原品牌|
+|`packageId`|可选的Android APK包名，须与实际安装包一致；2.0.9使用`io.github.sherlockerx.nelan`|
+|`migration`|独立应用迁移填写`backup-restore`，要求有效Android APK包名；历史记录无需补填|
 |`version`、`versionCode`|展示版本和内部编号；按数字比较版本|
 |`channel`|`stable`或`beta`，下载页也可查看全部|
 |`distribution`|`apk`、`ipa`、`app-store`或`testflight`|
@@ -65,7 +67,11 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 
 新增版本时，先上传实际文件并核对大小、SHA256和证书，再添加记录；不要覆盖同名历史文件。源码归档从构建使用的固定commit导出，记录`sourceCommit`及归档实际大小、SHA256，不用未提交工作区或移动分支地址代替该安装包的对应源码。重新生成站点后，旧版说明不会随推荐版本改变。
 
-最新稳定版由清单按平台独立计算，Android与iOS可以保留不同版本。APK保持`io.github.nanomuse.app`与此前正式版签名；实际覆盖升级仍须真机验证。共用源码版本更新不等于各平台都发布新安装包，未核验的新版本不能提前加入下载目录。
+最新稳定版由清单按平台独立计算，Android与iOS可以保留不同版本。Android2.0.9采用独立包名`io.github.sherlockerx.nelan`，旧版包名`io.github.nanomuse.app`保留历史身份。新包可与旧版并存，不能覆盖安装旧包；用户需先备份、再在新应用导入恢复并重新授权，确认记录可用前保留旧版。iOS2.0.8的包与安装要求不随Android调整改变。共用源码版本更新不等于各平台都发布新安装包，未核验的新版本不能提前加入下载目录。
+
+新Android发行的`packageId`记录真实包名，`migration: "backup-restore"`控制静态下载卡、动态下载卡、发行说明和SoftwareApplication描述中的独立应用迁移提示。页面不根据版本号或品牌名称猜测迁移关系。缺省迁移字段的历史记录保留原安装说明；不能把新包的迁移方式回写到旧发行。升级说明只承诺按实际备份范围恢复，不承诺全部凭证或系统权限自动迁移。
+
+安装页的`android-migration`展开区依据[2.0.9迁移范围核验](releases/v2.0.9.md)说明各类备份：通用`.minisbak`不包含生活碎片与照片、教练进度、自定义宠物、定时例程和通用设置；待办使用单独JSON；专注JSON虽导出sessions/spans，现有导入只恢复停用状态的锁计划与白名单，不恢复专注历史或活动会话。下载卡明确提示“部分数据需保留在旧版，查看迁移范围”，不能因部分导入成功建议删除旧应用。
 
 当前网站名称与历史安装包名称分别维护。`render_site.py`的`SITE_NAME`控制导航、页脚和WebSite信息；静态下载卡、动态下载卡及SoftwareApplication信息读取每条记录的`productName`。缺省名称只用于兼容未标注的历史记录，不根据版本号推测品牌。新品牌的真实发行须显式填写`productName: "念步/Nelan"`；版本说明、源代码URL、安装文件名和哈希保留各版真实身份。
 

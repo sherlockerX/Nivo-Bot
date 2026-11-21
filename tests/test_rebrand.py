@@ -259,6 +259,58 @@ def test_android_brand_only_localizes_names_without_changing_install_identity(
     assert {p: p.read_bytes() for p in before} == before
 
 
+def test_android_identity_switch_is_scoped_and_idempotent(
+    rebrand: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """新安装身份同步快捷入口，同时保留源码命名空间、版本和iOS身份。"""
+    app = tmp_path / "android/app"
+    java = app / "src/main/java/com/openminis/app"
+    res = app / "src/main/res"
+    for name, path in {"ROOT": tmp_path, "APP": app, "JAVA": java, "RES": res}.items():
+        monkeypatch.setattr(rebrand, name, path)
+    (res / "xml").mkdir(parents=True)
+    (java / "accessibility").mkdir(parents=True)
+    gradle = app / "build.gradle.kts"
+    original = (
+        'namespace = "com.openminis.app"\napplicationId = "io.github.nanomuse.app"\n'
+        'versionName = "2.0.9"\nversionCode = 60\n'
+    )
+    gradle.write_text(original, encoding="utf-8")
+    shortcuts = res / "xml/shortcuts.xml"
+    shortcuts.write_text('android:targetPackage="io.github.nanomuse.app"\n', encoding="utf-8")
+    service = java / "accessibility/MinisAccessibilityService.kt"
+    service.write_text(
+        "import com.openminis.app.BuildConfig\n"
+        'val SERVICE_ID = "${BuildConfig.APPLICATION_ID}/com.openminis.app.accessibility.'
+        'MinisAccessibilityService"\n',
+        encoding="utf-8",
+    )
+    ios = tmp_path / "ios.plist"
+    ios.write_text("io.github.nanomuse.app", encoding="utf-8")
+    protected = {path: path.read_bytes() for path in (service, ios)}
+    assert rebrand.main(["--android-identity-only"]) == 0
+    assert gradle.read_text("utf-8") == original.replace(
+        'applicationId = "io.github.nanomuse.app"',
+        'applicationId = "io.github.sherlockerx.nelan"',
+    )
+    assert 'android:targetPackage="io.github.sherlockerx.nelan"' in shortcuts.read_text("utf-8")
+    assert {path: path.read_bytes() for path in protected} == protected
+    before = {path: path.read_bytes() for path in (gradle, shortcuts)}
+    assert rebrand.main(["--android-identity-only"]) == 0
+    assert {path: path.read_bytes() for path in before} == before
+
+
+def test_android_identity_does_not_change_ios_rebrand_rules(rebrand: ModuleType) -> None:
+    """完整品牌脚本仍将iOS上游身份映射到已发行的Bundle标识。"""
+    import re
+
+    value = "com.openminis.app.share"
+    for pattern, replacement in rebrand.IOS_ID_RULES:
+        value = re.sub(pattern, replacement, value)
+    assert value == "io.github.nanomuse.app.share"
+    assert rebrand.ANDROID_APP_ID == "io.github.sherlockerx.nelan"
+
+
 @pytest.mark.parametrize(
     "source, expected",
     [

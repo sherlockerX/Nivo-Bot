@@ -122,6 +122,25 @@ def preview_image_errors(root: Path, name: str, images: list[str], files: list[s
     return errors
 
 
+def migration_errors(release: dict) -> list[str]:
+    """独立应用迁移只适用于带明确包名的Android APK记录。"""
+    errors = []
+    package_id = release.get("packageId")
+    has_valid_package = isinstance(package_id, str) and bool(
+        re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+", package_id)
+    )
+    is_android_apk = (
+        release.get("platform") == "android" and release.get("distribution", "apk") == "apk"
+    )
+    if "packageId" in release and (not has_valid_package or not is_android_apk):
+        errors.append("Android package ID requires a valid APK identity")
+    if "migration" in release and (
+        release["migration"] != "backup-restore" or not has_valid_package or not is_android_apk
+    ):
+        errors.append("Backup-restore migration requires an Android APK package ID")
+    return errors
+
+
 def validate_releases(data: dict) -> list[str]:
     """支持APK、IPA和官方商店入口，尚未发布的平台不得伪造发行记录。"""
     errors = []
@@ -130,6 +149,7 @@ def validate_releases(data: dict) -> list[str]:
     platforms = {p["id"]: p for p in data.get("platforms", [])}
     ids = set()
     for release in data.get("releases", []):
+        errors.extend(migration_errors(release))
         if not release.get("id") or release["id"] in ids:
             errors.append("Duplicate or missing release ID")
         ids.add(release.get("id"))

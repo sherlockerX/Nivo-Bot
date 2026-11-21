@@ -63,7 +63,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.nanomuse.app"
+        applicationId = "io.github.sherlockerx.nelan"
         minSdk = 26
         targetSdk = 35
         // nanoMuse：Nicholasx的Android独立发行版本，内部编号保持递增。

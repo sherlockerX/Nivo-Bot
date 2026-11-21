@@ -8,7 +8,9 @@ First-run setup can be skipped in both Debug and Release builds, and that choice
 
 Built-in provider lists exclude catalogue entries marked `is_relay`, including OpenRouter, SiliconFlow, OpenCode, Standard Compute and CheaperInference. Existing configurations and OAuth credentials remain usable; you can still configure your own compatible endpoint. Old allowance messages now lead to provider settings without invitations, project links or relay recommendations.
 
-Upgrading preserves the current local data owner, chats, task records, files and provider configuration. Existing built-in Cloud providers are disabled and hidden from provider settings; their IDs, keys, models and group bindings are retained so old records are not deleted or reassigned. If a chat still refers to an old Cloud model, select your own provider before sending. Existing account archives remain stored without being merged into the current workspace. Fresh installations use the local owner.
+Within an existing app data container, local mode preserves the current data owner, chats, task records, files and provider configuration. Existing built-in Cloud providers are disabled and hidden from provider settings; their IDs, keys, models and group bindings are retained so old records are not deleted or reassigned. If a chat still refers to an old Cloud model, select your own provider before sending. Existing account archives remain stored without being merged into the current workspace. Fresh installations use the local owner.
+
+Android `2.0.9 (60)` uses the new application ID `io.github.sherlockerx.nelan`. It installs alongside `io.github.nanomuse.app` with independent private storage, credentials and system grants; it cannot update the old app in place, even with the same certificate. The new app does not automatically inherit old records. Keep the old installation and use only the supported export/import routes in the [migration notes](releases/v2.0.9.md#moving-from-the-old-android-package). The general backup does not transfer life-log records/photos, Coach progress, focus history or custom pets, and system permissions must be checked again.
 
 Android automatic cloud backup is disabled with `allowBackup="false"`. User-initiated export/import and user-configured backup destinations remain available. Reinstalling does not restore chats from the former account service; keep a manual backup before uninstalling.
 
@@ -50,14 +52,15 @@ Local Nicholasx builds: [provider setup, timing, sandbox and CLI fixes](android-
 browser, MCP servers, skills and scheduled tasks inside the APK, with nanoMuse's own
 identity, design and features on top. Everything of nanoMuse's lives in
 `io.github.nanomuse.*`; edits inside OpenMinis files are marked `// nanoMuse:`. The
-application id is `io.github.nanomuse.app` and the URL scheme the system knows the app by is
-`nanomuse://`, so a phone that also has OpenMinis installed never has two apps claiming one
-scheme; inside the app, links stay `minis://…` (upstream's vocabulary, shared with the sandbox,
+application ID is `io.github.sherlockerx.nelan` and the URL scheme the system knows the app by remains
+`nanomuse://`, distinct from OpenMinis. Both the old nanoMuse package and the new Nelan package
+can handle that external scheme, so link routing with both installed needs phone verification.
+Inside the app, links stay `minis://…` (upstream's vocabulary, shared with the sandbox,
 the system prompt and the model), a `nanomuse://` link arriving from the system is read as its
 `minis://` form, and every link of the app's own that the app opens itself is addressed to
 `MainActivity` by name, never resolved by the system
 (`io.github.nanomuse.deeplink.OwnScheme`). The sandbox's offload socket, the abstract socket
-proot talks to the app through, is the app's own too: `io.github.nanomuse.app.native-offload`
+proot talks to the app through, is the app's own too: `io.github.sherlockerx.nelan.native-offload`
 rather than upstream's `native-offload`, since abstract sockets are one namespace for every
 app on the device and whichever app bound the shared name second would die at start; when
 even that name is still held by a previous process of ours, the server binds a per-process
@@ -67,20 +70,21 @@ around a Python server, two APK flavours) is kept as a design record in
 [archive/android-python-line.md](archive/android-python-line.md) and is not what you
 download today.
 
-One APK, one architecture: `nanoMuse-<version>-arm64.apk` (arm64-v8a, Android 8.0 / API 26
-or newer, `targetSdk` 35). Every release is signed with the same key, so a newer APK
-installs over the old one and keeps its data. No Play Store listing: *Settings → Version* shows
-the installed build next to the newest release (`nanomuse.cn/dl/index.json` first, this
-repository's GitHub Releases second: *Latest 0.1.x, you have it* / *0.1.x is out, tap to
-update*) and offers the download.
+The release targets arm64-v8a, Android 8.0 / API 26 or newer, with `targetSdk` 35.
+Android `2.0.9 (60)` “Companion” is being prepared under the new package ID. The earlier
+old-ID APK candidate and source archive are obsolete and require rebuilding. A matching
+certificate permits compatible updates only within the same package identity; it cannot
+bridge this package change. The update entries use this branch's GitHub Releases instead
+of the upstream download index. Final filenames, hashes and availability belong in the
+[release notes](releases/v2.0.9.md); this page does not establish that the new APK is published.
 
 The task interface shares light and dark cards, status summaries and compact search. Capture a task from the fixed list composer, or complete and reopen it from its status control; unfinished tasks appear first. Other views use a compact add action. Details and editing use a scrolling bottom panel with calendar date selection and clearing. Large text uses a scrolling date strip, quadrants select one readable result list, and the chart places the completed count at its centre with selectable tag rows.
 
 ## Install
 
-1. Download `nanoMuse-<version>-arm64.apk` from the
-   [latest release](https://github.com/nano-muse/nanoMuse/releases/latest). Verify with
-   `sha256sum -c nanoMuse-<version>-arm64.apk.sha256` if you like.
+1. Use this branch's [release page](https://github.com/sherlockerX/Nivo-Bot/releases) and
+   verify the APK against that release's checksum file. Check the
+   [2.0.9 preparation status](releases/v2.0.9.md) before expecting a new-package download.
 2. Open it. Android asks once to allow installs from your browser or file manager.
 3. **Add your own model.** Open **Settings → Models** and add an API key, a compatible endpoint or a supported provider OAuth account. Configure **Chat**, **Operating the screen**, **Making pictures** and **Making clips** according to the provider's capabilities. A provider group shows eight models until you tap *Show N more*; the search field filters larger lists by model ID or name. Choosing a chat model applies to the main chat and new chats; existing side chats keep their selection. The other three pickers offer *Automatic*. If no usable provider is configured, the app asks you to choose one before sending.
 
@@ -453,7 +457,7 @@ The top-right controls open records, day/week/month/year statistics, and JSON ex
 
 In a daily record, choose finished focus sessions to describe what the time was spent on. Selections survive drafts and are committed atomically with the record. Diary snapshots remain available after deleting a focus record.
 
-Ordinary chats, including a newly created chat, can use `focus_query` and `todo_query` to review saved records for the current account. The main chat also offers `focus_command` and task commands. Commands start, pause, resume, finish or delete actual timers; callers cannot fabricate past duration. JSON export is available; focus JSON import is not included.
+Ordinary chats, including a newly created chat, can use `focus_query` and `todo_query` to review saved records for the current account. The main chat also offers `focus_command` and task commands. Commands start, pause, resume, finish or delete actual timers; callers cannot fabricate past duration. Focus JSON export includes history, but import restores only disabled lock plans and the whitelist; it does not restore that history or active timers.
 
 In **Tasks → Groups and tags → Browse and create**, delete a group or tag after reviewing the confirmation. Tasks remain; group deletion moves them to Ungrouped, and tag deletion removes current associations. Historical completion snapshots remain unchanged.
 

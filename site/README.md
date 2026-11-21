@@ -38,7 +38,11 @@ python -m http.server 8783 --bind 127.0.0.1 --directory site
 
 新品牌发行记录应显式设置`productName: "念步/Nelan"`，用于静态与动态下载卡及SoftwareApplication结构化数据。未标注此字段的既有记录继续显示发行时的原品牌，不能通过修改全局网站名重命名旧包。顶层`product`可随当前品牌维护，但不会覆盖每条记录的历史名称。
 
-Android保留包名`io.github.nanomuse.app`与原正式版签名身份；真机覆盖升级须另行验证。源码包从构建使用的固定commit导出，清单记录`sourceCommit`、`sourceSha256`与`sourceSizeBytes`，不以未提交工作区或移动分支代替对应源码。
+Android2.0.9采用独立包名`io.github.sherlockerx.nelan`。新发行记录填写`packageId: "io.github.sherlockerx.nelan"`和`migration: "backup-restore"`，使下载卡与发行说明明确提示先在旧版备份，再安装新版、导入恢复并重新授权。新旧应用可以并存，新包不能覆盖安装原包名`io.github.nanomuse.app`的旧版；确认恢复可用前保留旧版。旧记录保留原身份，iOS2.0.8不随Android包名调整改变。真实迁移结果及备份范围须另行验证，不承诺所有数据、凭证和权限自动继承。
+
+部分数据需持续保留在旧版：通用`.minisbak`不含生活碎片与照片、教练进度、自定义宠物、定时例程和通用设置，待办有单独JSON；专注JSON导入只恢复停用的锁计划与白名单，不恢复专注历史。安装页列出这些范围，下载卡提供明确提示与链接。依据见[2.0.9迁移核验](../docs/releases/v2.0.9.md)。
+
+源码包从构建使用的固定commit导出，清单记录`sourceCommit`、`sourceSha256`与`sourceSizeBytes`，不以未提交工作区或移动分支代替对应源码。
 
 `scripts/release/publish_mobile.py`按当前标签内的真实发行记录支持Android单平台、iOS单平台或双平台发布。双平台同版须共享同一份源码归档；只有官网实际文件与清单校验通过后，`mobile-release.yml`才创建或补全GitHub发行。旧iOS包不会随Android版本更新而自动成为新版。
 

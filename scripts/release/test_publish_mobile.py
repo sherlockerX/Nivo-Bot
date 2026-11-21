@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
+from dataclasses import replace
 from itertools import product
 from pathlib import Path
 from unittest.mock import patch
@@ -596,6 +597,58 @@ class MobilePublishTest(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError):
                         publisher.verify_apk(self.root / "app.apk", self.plan(), "aapt")
+
+    def test_android_package_switch_is_bound_to_release_version(self) -> None:
+        """2.0.9起只接受新Android包名，历史版本只能接受原包名。"""
+        for version, code, expected_package in (
+            ("2.0.8", 59, "io.github.nanomuse.app"),
+            ("2.0.9", 60, "io.github.sherlockerx.nelan"),
+            ("2.0.10", 61, "io.github.sherlockerx.nelan"),
+            ("2.1.0", 62, "io.github.sherlockerx.nelan"),
+        ):
+            plan = replace(self.plan(), tag=f"v{version}", version=version, code=code)
+            for package in (
+                "io.github.nanomuse.app",
+                "io.github.sherlockerx.nelan",
+                "io.github.nanomuse.app.uitest",
+                "io.github.sherlockerx.nelan.uitest",
+            ):
+                badging = (
+                    f"package: name='{package}' versionCode='{code}' versionName='{version}'\n"
+                )
+                with (
+                    self.subTest(version=version, package=package),
+                    patch.object(publisher, "run", return_value=badging),
+                ):
+                    if package == expected_package:
+                        publisher.verify_apk(self.root / "app.apk", plan, "aapt")
+                    else:
+                        with self.assertRaisesRegex(ValueError, "APK package"):
+                            publisher.verify_apk(self.root / "app.apk", plan, "aapt")
+
+    def test_ios_bundle_identity_does_not_follow_android_package_switch(self) -> None:
+        """新旧版本IPA均保留原bundle ID，Android新包名不能用于iOS。"""
+        ipa = self.root / "app.ipa"
+        for version, code in (("2.0.8", 59), ("2.0.9", 60), ("2.0.10", 61)):
+            plan = replace(self.plan(), tag=f"v{version}", version=version, code=code)
+            for package in ("io.github.nanomuse.app", "io.github.sherlockerx.nelan"):
+                with zipfile.ZipFile(ipa, "w") as archive:
+                    archive.writestr(
+                        "Payload/Nelan.app/Info.plist",
+                        plistlib.dumps(
+                            {
+                                "CFBundleIdentifier": package,
+                                "CFBundleShortVersionString": version,
+                                "CFBundleVersion": str(code),
+                            }
+                        ),
+                    )
+                with self.subTest(version=version, package=package):
+                    if package == "io.github.nanomuse.app":
+                        publisher.verify_ipa(ipa, plan)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "IPA bundle"):
+                            publisher.verify_ipa(ipa, plan)
 
     def test_release_absence_requires_actual_404(self):
         """鉴权或网络失败不能被误判为尚未创建发布。"""

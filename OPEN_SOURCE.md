@@ -2,7 +2,9 @@
 
 念步（Nelan）是基于nanoMuse与OpenMinis持续开发的Android与iOS应用，内置伙伴为十七／Shiqi。此分支聚焦AI聊天、教练训练、待办、专注、生活碎片及其协作；保留GPL许可和上游归属。仓库及历史下载文件保留原标识，根README与九份翻译介绍本分支，文末致谢nanoMuse并保留上游贡献者名单。上游的下载、社区、TestFlight、免费额度和网站属于上游项目，不代表此分支的服务承诺。
 
-Android2.0.9(60)Companion正在准备正式包，包含念步／Nelan产品名称、十七伙伴及完整旧默认模板的安全升级。1660项JVM测试中1658项通过、2跳过；最终ReleaseAPK、源码归档和公网可用性尚待核验，不能据此宣称新包已经上线。原Android2.0.7(58)产物继续作为历史记录保留。
+Android2.0.9(60)Companion使用新包名`io.github.sherlockerx.nelan`，与旧包`io.github.nanomuse.app`并存，不能覆盖更新。新应用有独立私有目录、Keystore及系统权限，同一签名不会自动转移旧数据。旧包名APK候选及源码归档已过时，须按新身份重建并核验；改包名前的1660项JVM测试（1658通过、2跳过）不验证新包安装和迁移。当前不宣称已上线，原Android2.0.7(58)产物保留为历史记录。
+
+旧应用应继续保留。现有`.minisbak`可导入聊天及选择的文件、技能、记忆、MCP配置、服务商／模型、所选凭据和环境变量；待办使用独立JSON导入。专注只能导入停用状态的锁定计划和白名单，不能恢复专注历史。心得及照片、教练进度、自定义宠物、周期任务和通用偏好不在通用备份范围内，不能承诺完整迁移。详细限制和手机验收步骤见[迁移说明](docs/releases/v2.0.9.md#moving-from-the-old-android-package)。系统权限与Device Owner不会随备份转移。
 
 iOS下载继续保留2.0.8(59)Clarity未签名ReleaseIPA及其对应源码和校验值。本轮只同步iOS源码品牌变更与版本字段，33项Windows便携XCTest及45份Swift语法解析通过，尚未进行本轮Xcode构建或iPhone验证，也不发布2.0.9IPA。2.0.8的完整发行CI和本地产物核验不能用作本轮源码证据。用户之前的iPhone反馈仅对应更早的检查包，实际2.0.8ReleaseIPA仍需个人签名后的手机验收。
 
@@ -10,7 +12,7 @@ iOS下载继续保留2.0.8(59)Clarity未签名ReleaseIPA及其对应源码和校
 
 |平台|安装包|对应源码|校验文件|
 |---|---|---|---|
-|Android2.0.9(60)，发布准备|最终APK及下载待核验|归档身份待补充|待生成并核验|
+|Android2.0.9(60)，新包并存安装|新包名APK待重建核验|新身份归档待重建|待生成并核验|
 |Android2.0.7(58)，历史文件|[APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip)|[SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt)|
 |iOS2.0.8(59)，未签名Release|[未签名ReleaseIPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip)|[SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt)|
 
@@ -35,10 +37,10 @@ iOS下载继续保留2.0.8(59)Clarity未签名ReleaseIPA及其对应源码和校
 
 1. 工作树和候选包的LICENSE、第三方说明、Room迁移schema及运行资源齐全。
 2. `source_audit.py`没有未处理的凭据命中；另行检查Git历史，发现真实泄露须轮换凭据，不能只删当前文件。
-3. 发布签名、包名和升级路径确定。Android应用ID沿用`io.github.nanomuse.app`，与上游可能冲突；改变标识前评估本地数据迁移，不能直接替换字符串。iOS未签名IPA须明确个人签名前提。
+3. 核验Android新包名`io.github.sherlockerx.nelan`及其签名，确认能与`io.github.nanomuse.app`并存。说明支持的备份类别、未迁移数据和新包授权要求，不承诺覆盖更新或完整数据迁移。iOS未签名IPA须明确个人签名前提。
 4. 版本号与APK、IPA、源码提交、校验和对应。下载和发布记录使用本分支的[正式仓库](https://github.com/sherlockerX/Nivo-Bot/releases)，不引用上游发行版作自己的下载。
 5. 在新环境验证依赖可获得、子模块齐全、arm64原生构建和测试。已有缓存上的构建成功不等于新机器可复现。
-6. 真机检查安装升级、聊天配置、待办、专注、生活记录、教练恢复；明确未经验证的设备和服务。
+6. 真机检查双应用并存、受支持的备份恢复、聊天与模型配置、待办、停用专注计划及新包权限；确认未覆盖的生活记录、教练等数据仍可在旧应用访问，明确未经验证的设备和服务。
 7. 更换或审核上游服务地址、隐私说明、支持渠道和营销文案。不要承诺未运营的免费服务。
 
 ## 本地检查与候选包

@@ -27,8 +27,10 @@ from render_site import (
     application_metadata,
     downloads,
     generated,
+    installation,
     release_card,
     release_detail,
+    release_installation,
     release_product_name,
 )
 
@@ -231,6 +233,78 @@ class ProductSiteTests(unittest.TestCase):
                 catalogue["releases"][0]["productName"] = invalid_name
                 self.assertIn(
                     "Release product name must be a non-empty string", validate_releases(catalogue)
+                )
+
+    def test_android_migration_notice_survives_static_downloads_and_metadata(self) -> None:
+        """独立包名的备份恢复提示在动态加载前、脚本禁用和发行说明中均可读。"""
+        catalogue = copy.deepcopy(self.catalogue)
+        release = next(item for item in catalogue["releases"] if item["platform"] == "android")
+        release.update(
+            version="9.0.0",
+            packageId="io.github.sherlockerx.nelan",
+            migration="backup-restore",
+        )
+        release.pop("checksumsUrl", None)
+        for content in (release_card(release), release_detail(release), downloads(catalogue)):
+            self.assertIn("独立应用", content)
+            self.assertIn("io.github.sherlockerx.nelan", content)
+            self.assertIn("先在旧版导出备份", content)
+            self.assertIn("重新授权", content)
+            self.assertIn("部分数据需保留在旧版", content)
+        android = next(
+            app
+            for app in application_metadata(catalogue)
+            if app["operatingSystem"].startswith("Android")
+        )
+        self.assertIn("不能覆盖安装", android["description"])
+        release.pop("migration")
+        release.pop("packageId")
+        self.assertIn("同包名覆盖升级", release_installation(release))
+        self.assertNotIn("独立应用", release_card(release))
+
+    def test_android_migration_guide_discloses_partial_backup_limits(self) -> None:
+        """迁移说明必须区分通用备份、待办JSON、专注导出与尚不能完整恢复的数据。"""
+        content = installation()
+        for requirement in (
+            ".minisbak",
+            "生活碎片与照片",
+            "教练进度",
+            "自定义宠物",
+            "定时例程",
+            "通用设置",
+            "待办JSON",
+            "只恢复锁定计划与应用白名单",
+            "不恢复专注历史",
+            "计划默认停用",
+            "部分数据需保留在旧版",
+        ):
+            self.assertIn(requirement, content)
+
+    def test_migration_metadata_rejects_missing_identity_and_other_platforms(self) -> None:
+        """迁移枚举与实际Android包名绑定，错误类型或跨平台记录应被拒绝。"""
+        for overrides in (
+            {"migration": "backup-restore"},
+            {"packageId": "io.github.sherlockerx.nelan", "migration": "automatic"},
+            {"packageId": "io.github.sherlockerx.nelan", "migration": None},
+            {"packageId": "io.github.sherlockerx.nelan", "migration": {}},
+            {
+                "packageId": "io.github.sherlockerx.nelan",
+                "migration": "backup-restore",
+                "platform": "ios",
+            },
+            {"packageId": "invalid package"},
+            {"packageId": None},
+        ):
+            with self.subTest(overrides=overrides):
+                catalogue = copy.deepcopy(self.catalogue)
+                release = next(
+                    item for item in catalogue["releases"] if item["platform"] == "android"
+                )
+                release.update(overrides)
+                errors = validate_releases(catalogue)
+                self.assertTrue(
+                    any("migration" in error.lower() or "package ID" in error for error in errors),
+                    errors,
                 )
 
     def test_duplicate_releases_and_insecure_downloads_are_rejected(self) -> None:

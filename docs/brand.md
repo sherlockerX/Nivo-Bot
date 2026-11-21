@@ -2,7 +2,7 @@
 
 ## Mobile product names
 
-The Android and iOS apps use **念步** in Simplified and Traditional Chinese and **Nelan** in other languages. The bundled companion is **十七 / Shiqi**. Product labels and the companion's name are separate: a personal assistant name saved by the user is kept.
+The Android and iOS source uses **念步** in Simplified and Traditional Chinese and **Nelan** in other languages. The bundled companion is **十七 / Shiqi**. Product labels and the companion's name are separate: a personal assistant name is kept when its file is present in the app's data container.
 
 The mobile display name appears on the launcher, in Settings, permission descriptions, notifications, sharing and file entry points. The iOS share extension, Files provider and activity widget each include their own localized `InfoPlist.strings`. Model-facing product descriptions use the same current name; commands and protocol identifiers keep their existing spelling.
 
@@ -23,9 +23,13 @@ python scripts/rebrand.py --ios-brand-only
 
 These commands preserve version fields, installation identifiers, signing settings, app groups, Keychain access, database and file paths, URL schemes and the existing website address. The source namespace and asset names retain `nanomuse` for compatibility. Upstream attribution, licenses and references to disabled historical services retain their original names. This does not add a cloud service to the local mobile product.
 
-The Android changes are part of the `2.0.9 (60)` Companion release preparation. Final APK identity, corresponding source and public availability are still pending; the [release notes](releases/v2.0.9.md) record the current evidence. The iOS source has the matching brand and companion changes, but this round has no Xcode build or iPhone validation and publishes no new IPA. The retained iOS download is `2.0.8 (59)`, which does not contain these new source changes.
+The separately authorized Android `2.0.9 (60)` release changes the application ID to **`io.github.sherlockerx.nelan`**. It installs alongside the old **`io.github.nanomuse.app`** package. Android assigns it a separate sandbox and permissions; retaining the signing certificate does not turn it into an in-place update or grant it access to the old app's files. Relative storage paths and the `com.openminis.app` source namespace remain compatibility contracts, not shared storage between the two installations.
 
-Before phone acceptance, verify the launcher name, Settings and permission dialogs in both Chinese and English; verify sharing, Files and notifications on iPhone when a new iOS build is available; upgrade an existing installation using its original signing identity and check its records and custom assistant name. Windows portable tests and Swift syntax parsing cannot replace an Xcode build or phone verification.
+Use the old app's export tools and the new app's import tools only for the categories they support. The general `.minisbak` does not include life-log records/photos, Coach progress, focus history or custom-pet settings. Todo has a separate JSON export/import. Focus can export history, but its importer restores only disabled lock plans and the whitelist. The [release notes](releases/v2.0.9.md#moving-from-the-old-android-package) list the migration scope. Keep the old installation and its data until the retained records and supported transfers have been checked.
+
+The earlier old-ID APK candidate and source archive are obsolete. A new APK and source archive must be built and checked before publication; public availability remains unverified. The iOS source has the matching brand and companion changes, but this round has no Xcode build or iPhone validation and publishes no new IPA. The retained iOS download is `2.0.8 (59)`, which does not contain these new source changes.
+
+Phone acceptance must check both apps can coexist, the supported backup transfers, new-package permissions, and Chinese and English system surfaces. Runtime permissions, accessibility, overlay, usage access, alarms and file grants must be checked or granted for the new app. Device Owner authority does not transfer through a backup. Windows portable tests and Swift syntax parsing cannot replace an Xcode build or phone verification.
 
 ## Existing visual identity
 

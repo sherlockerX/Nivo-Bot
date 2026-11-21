@@ -19,7 +19,10 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPOSITORY = "sherlockerX/Nivo-Bot"
 ORIGIN = "https://nivo.8666886.xyz/downloads/"
-PACKAGE_ID = "io.github.nanomuse.app"
+LEGACY_ANDROID_PACKAGE_ID = "io.github.nanomuse.app"
+ANDROID_PACKAGE_ID = "io.github.sherlockerx.nelan"
+ANDROID_PACKAGE_SWITCH_VERSION = (2, 0, 9)
+IOS_BUNDLE_ID = "io.github.nanomuse.app"
 MAX_SIZE = 2 * 1024 * 1024 * 1024
 
 
@@ -197,7 +200,14 @@ def verify_apk(path: Path, plan: ReleasePlan, aapt: str) -> None:
     match = re.search(
         r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", output, re.M
     )
-    if not match or match.groups() != (PACKAGE_ID, str(plan.code), plan.version):
+    # Android从2.0.9建立独立安装身份，不能因文件名换品牌而接受其他版本的包名。
+    version_parts = tuple(int(part) for part in plan.version.split("."))
+    package_id = (
+        ANDROID_PACKAGE_ID
+        if version_parts >= ANDROID_PACKAGE_SWITCH_VERSION
+        else LEGACY_ANDROID_PACKAGE_ID
+    )
+    if not match or match.groups() != (package_id, str(plan.code), plan.version):
         raise ValueError("APK package, version or build code mismatch")
 
 
@@ -217,7 +227,7 @@ def verify_ipa(path: Path, plan: ReleasePlan) -> None:
         info.get("CFBundleShortVersionString"),
         info.get("CFBundleVersion"),
     )
-    if actual != (PACKAGE_ID, plan.version, str(plan.code)):
+    if actual != (IOS_BUNDLE_ID, plan.version, str(plan.code)):
         raise ValueError("IPA bundle, version or build code mismatch")
 
 
