@@ -81,7 +81,7 @@ enum NanoMusePreset {
         guard let bundled = files["memory/GLOBAL.md"] else { return }
         let target = NanoMuseDirs.memory.appendingPathComponent("GLOBAL.md")
         let replacement = NivoPresetDefaults.contentForIPhone(bundled)
-        try? NivoPresetDefaults.migrateGlobalFile(at: target, replacement: replacement)
+        _ = try? NivoPresetDefaults.migrateGlobalFile(at: target, replacement: replacement)
     }
 
     /// Each preset skill once, as an ordinary skill the owner can edit or delete, with its other files.
