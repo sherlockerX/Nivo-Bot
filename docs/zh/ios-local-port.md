@@ -1,8 +1,10 @@
 # Nivo Bot的iOS适配
 
-本页记录Nivo Bot待办、专注、生活碎片与教练的iOS原生实现。源码位于`android/src/ios/NanoMuse/`。版本**2.0.5(56)**通过GitHub Actions交付未签名IPA。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发，安装前需要自行签名。
+## 当前验证 {#current-validation}
 
-## 当前验证，2026年11月19日 {#current-validation}
+当前移动版本为**2.0.10(61)**。[Release构建](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44939268250)使用原Bundle ID生成arm64未签名IPA，安装前需自行签名；iPhone上的运行体验仍待真机验证。
+
+## 2.0.5的构建记录
 
 **2.0.5(56)**的发布CI已通过，对应[运行44517545021](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021)和提交`4e473f9138afe84d38e0f62c113a3a5c2a1cf7d4`。691项便携测试全部通过，0失败；未签名设备构建、应用测试目标`build-for-testing`及`NanoMuse/`零警告检查也均通过。应用测试编译不会执行应用XCTest测试，也不等于iPhone真机验收。
 

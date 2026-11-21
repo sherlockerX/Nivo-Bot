@@ -410,7 +410,7 @@ def version_history(releases: dict) -> str:
 def android_migration_guide() -> str:
     """说明独立Android应用的部分备份能力，导出成功不能视作完整恢复。"""
     return """<details open id="android-migration"><summary>Android新包名如何迁移？</summary>
-<p>Nivo的Android开发版使用<code>io.github.nivo</code>。已发布的念步2.0.9使用<code>io.github.sherlockerx.nelan</code>，更早的安装包使用<code>io.github.nanomuse.app</code>。不同包名可以并存，不能覆盖安装或自动读取旧版私有数据。请保留旧应用，下载时以所选版本标明的包名为准。</p>
+<p>Nivo的Android正式版从2.0.10起使用<code>io.github.nivo</code>。念步2.0.9使用<code>io.github.sherlockerx.nelan</code>，更早的安装包使用<code>io.github.nanomuse.app</code>。不同包名可以并存，不能覆盖安装或自动读取旧版私有数据。请保留旧应用，下载时以所选版本标明的包名为准。</p>
 <p><strong>部分数据需保留在旧版。</strong>以下是当前实现支持的范围，尚不代表完整迁移已在手机上验证。</p>
 <div class="table-wrap"><table><thead><tr><th>内容</th><th>迁移方式与限制</th></tr></thead><tbody>
 <tr><th scope="row">聊天、文件、技能、记忆与MCP</th><td>通用<code>.minisbak</code>按勾选分类备份。聊天附件需勾选包含聊天文件，文件大小上限可能造成遗漏；导入后核对缺失、跳过与失败计数。记忆和MCP配置会覆盖新应用同名文件，宜在新应用尚未编辑个人内容时恢复，之后重启并核对MCP本地路径。</td></tr>

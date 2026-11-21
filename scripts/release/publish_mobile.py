@@ -111,7 +111,15 @@ def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifa
         )
     if any(source != sources[0] for source in sources[1:]):
         raise ValueError("Platform source archive identities disagree")
-    return tuple(artifacts + [sources[0]])
+    artifacts.append(sources[0])
+    if tuple(map(int, tag[1:].split("."))) >= (2, 0, 10):
+        name = f"SHA256SUMS-{tag}.txt"
+        if any(row.get("checksumsUrl") != ORIGIN + name for row in selected):
+            raise ValueError("Platform checksum URLs must match the release")
+        # 校验清单来自三方可复算的内容，不信任待下载的清单本身。
+        content = "".join(f"{item.sha256}  {item.name}\n" for item in artifacts).encode("ascii")
+        artifacts.append(artifact(name, ORIGIN + name, hashlib.sha256(content).hexdigest(), len(content)))
+    return tuple(artifacts)
 
 
 def load_plan(root: Path, tag: str) -> ReleasePlan:

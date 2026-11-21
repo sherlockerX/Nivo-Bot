@@ -56,7 +56,7 @@ $env:ANDROID_HOME = '你的Android SDK目录'
 
 ## Nivo的Android版本与签名 {#nivo-bot的android版本与签名}
 
-Nivo开发版的Android包名为`io.github.nivo`，版本字段暂留`2.0.9(60)`。已发布的念步2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。三者可并存，签名相同也无法跨包覆盖升级或自动继承数据。下一次正式发布应提升版本和构建号，不替换已有2.0.9文件。已发布iOS包仍为`2.0.8(59)`，其Bundle ID没有更改。
+Nivo的Android和iOS发行版本为`2.0.10(61)`。Android包名为`io.github.nivo`，此前的念步2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。三者可并存，签名相同也无法跨包覆盖升级或自动继承数据。iOS保留原Bundle ID，安装前需自行签名。
 
 版本号与应用ID由`app/build.gradle.kts`记录；`scripts/rebrand.py`的`ANDROID_VERSION_NAME`、`ANDROID_VERSION_CODE`及`ANDROID_APP_ID`须同步，完整生成入口会应用这些值。`--android-brand-only`只更新品牌资源，保留当前版本和安装身份。`VERSION_NAME`和`VERSION_CODE`也用于iOS源码生成，源码字段更新不改变已留存IPA。后续升级需递增Android内部编号；不要为升版本而更换证书。整个多平台仓库的`release-bump.sh`不是本分支Android单独发版入口。
 

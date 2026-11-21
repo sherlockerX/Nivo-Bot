@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">製品サイト</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題報告</a> · <a href="../../OPEN_SOURCE.md">開発への参加</a>
 </p>
@@ -86,17 +86,15 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 | リソース | リンク |
 |---|---|
 | 製品サイト | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android8.0以上、arm64 | [Nivo Bot v2.0.7 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS16以上、個人署名が必要 | [未署名IPA v2.0.8（Release）](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| APKに対応するソース | [v2.0.7ソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| iOSのIPAに対応するソース | [v2.0.8のiOSソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| ダウンロードのチェックサム | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| iOSダウンロードのチェックサム | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| リリース情報 | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android8.0以上、arm64 | [Nivo v2.0.10 APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS16以上、個人署名が必要 | [未署名IPA v2.0.10（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Android・iOS共通ソース | [v2.0.10ソース一式](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| ダウンロードのチェックサム | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| リリース情報 | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59)ClarityはRelease構成の未署名IPAとしてビルドされました。リリースCIに成功し、IPAと対応するソースアーカイブのローカル検証も完了しました。Androidのダウンロードは2.0.7(58)のまま、APK、ソース、チェックサム、署名を維持します。ユーザーは監査ブランチをiPhoneで確認し、問題はないと報告しましたが、新しい2.0.8のReleaseバイナリを検証した結果ではありません。プラットフォームに対応する上記のソースとチェックサムを使用してください。インストール前に個人署名が必要です。このフォークにはApple Developer Programのアカウントがなく、TestFlightやApp Storeでの配布はありません。強制集中、繰り返しロック予定とアプリ許可リストはAndroid専用です。iOSには集中リマインダーとアクセスガイドの手順があり、ユーザーがiOSで開始・終了します。CIでのコンパイル成功はiPhone実機での動作確認を意味しません。
+AndroidとiOSはどちらも2.0.10（61）です。Androidは従来のリリース証明書で署名しています。iOSのIPAはインストール前にご自身で署名してください。TestFlightやApp Storeでの配布はありません。
 
-アプリIDは`io.github.nanomuse.app`のままで、以前のNivo Bot正式版と同じ署名を使用します。今回のリリースでは、Android実機で既存のインストールに上書き更新するテストは行っていません。古いDebug鍵や上流の鍵で署名したアプリは通常この版で上書き更新できません。削除前にバックアップと復元範囲を確認してください。[バージョンと署名ガイド](../android-development.md#nivo-bot的android版本与签名)を参照できます。
+Androidの新しいパッケージ名は`io.github.nivo`です。旧版とは別にインストールされます。集中履歴、日々の記録、コーチの進捗は通常のバックアップでは移行できないため、旧版を残してください。
 
 Androidのソースアーカイブは、ビルドに使用した固定コミットから書き出します。ダウンロード一覧にはそのコミットとアーカイブのチェックサムを記録します。確認や再ビルドには、インストールしたバージョンに対応するソースを使用してください。
 

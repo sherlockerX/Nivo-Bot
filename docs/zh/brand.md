@@ -23,11 +23,11 @@ python scripts/rebrand.py --ios-brand-only
 
 这两个入口保留版本字段、安装标识、签名配置、App Group、Keychain访问、数据库与文件路径、URL scheme和现有官网地址。代码命名空间及素材文件名保留nanomuse以维持兼容。上游致谢、许可证及停用历史服务的说明继续保留原名；这不表示手机本地产品新增了云服务。
 
-Android开发版使用**`io.github.nivo`**。已发布的Android`2.0.9(60)`使用`io.github.sherlockerx.nelan`，更早的APK使用`io.github.nanomuse.app`。三个包名分别拥有独立的私有目录、权限和凭据，即使签名相同也不会自动迁移数据。iOS的Bundle ID保留`io.github.nanomuse.app`。
+Android2.0.10使用**`io.github.nivo`**。已发布的Android`2.0.9(60)`使用`io.github.sherlockerx.nelan`，更早的APK使用`io.github.nanomuse.app`。三个包名分别拥有独立的私有目录、权限和凭据，即使签名相同也不会自动迁移数据。iOS的Bundle ID保留`io.github.nanomuse.app`。
 
 迁移须在旧应用导出，再在新应用中导入各自支持的类别。通用`.minisbak`不包含心得记录与照片、教练进度、专注历史或自定义宠物设置。待办有独立JSON导出与导入；专注可导出历史，但导入端只恢复停用状态的锁定计划和白名单。操作入口见[Android迁移指南](https://nivo.8666886.xyz/install.html#android-migration)，代码覆盖范围见[详细发行说明](../releases/v2.0.9.md#moving-from-the-old-android-package)。在确认可迁移内容和留存记录之前，应保留旧应用及其数据。
 
-最终`Nelan-v2.0.9-arm64.apk`、源码归档及校验文件已完成本地核验，替代过时的旧包名候选；APK的新身份及原正式证书均已确认。源码包固定于APK源码提交`905f9f23cba0017083a3fc50f3d443a7ade55f9b`，最终核验文档由后续发布提交记录。[公网发行页](https://nivo.8666886.xyz/releases/android-2.0.9.html)已部署，54份静态文件HTTP检查通过且CDN追加内容单独记录，3份完整下载的大小与SHA256全部一致。这些检查不代表浏览器或手机验收通过。iOS源码包含对应品牌与伙伴变更，但本轮没有Xcode构建或iPhone验证，也不发布新IPA。iOS下载保留`2.0.8(59)`，该旧包不包含本轮源码变更。
+[2.0.10双端发行](../releases/v2.0.10.md)统一使用Nivo。iOS在原Bundle ID下更换显示名称，安装前仍需自行签名。[2.0.9发行页](https://nivo.8666886.xyz/releases/android-2.0.9.html)保留当时的名称、安装包和对应源码。
 
 手机验收应检查双应用并存、受支持的备份迁移、新应用权限以及中英文系统入口。运行时权限、无障碍、悬浮窗、使用情况访问、闹钟和文件授权须在新应用中重新检查或授予，Device Owner不能通过备份转移。Windows便携测试和Swift语法解析不能代替Xcode构建或真机验证。
 

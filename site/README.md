@@ -38,7 +38,7 @@ python -m http.server 8783 --bind 127.0.0.1 --directory site
 
 Nivo发行记录应显式设置`productName: "Nivo"`，用于静态与动态下载卡及SoftwareApplication结构化数据。顶层`product`是当前网站名称；历史记录保留发行时的产品名。
 
-已发布Android2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。首次发布`io.github.nivo`时，在实际核验安装包后填写该`packageId`与`migration: "backup-restore"`，提示用户保留旧版、导入支持的备份并重新授权。包名变更不更新已发布的iOS2.0.8。
+Android2.0.10使用`io.github.nivo`，2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。新包在清单中标注`packageId`与`migration: "backup-restore"`，提示用户保留旧版、导入支持的备份并重新授权。iOS2.0.10的Bundle ID未变，Release IPA需自行签名。
 
 部分数据需持续保留在旧版：通用`.minisbak`不含生活碎片与照片、教练进度、自定义宠物、定时例程和通用设置，待办有单独JSON；专注JSON导入只恢复停用的锁计划与白名单，不恢复专注历史。安装页列出这些范围，下载卡提供明确提示与链接。依据见[2.0.9迁移核验](../docs/releases/v2.0.9.md)。
 

@@ -1,8 +1,10 @@
 # Nivo Bot iOS port
 
-This page describes the native iOS implementation of Nivo Bot's tasks, focus, daily fragments and Coach. Source lives under `android/src/ios/NanoMuse/`. Version **2.0.5 (56)** uses an unsigned IPA delivery path through GitHub Actions. This fork has no Apple Developer Program account and provides no TestFlight or App Store distribution; installation requires personal signing.
+## Current validation {#current-validation}
 
-## Current validation, 2026-11-19 {#current-validation}
+The current mobile release is **2.0.10 (61)**. Its [Release workflow](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44939268250) builds an arm64 unsigned IPA under the original bundle ID. Sign it before installing; iPhone runtime acceptance is pending.
+
+## Historical 2.0.5 build
 
 The release CI for **2.0.5 (56)** passed in [run 44517545021](https://github.com/sherlockerX/Nivo-Bot/actions/runs/44517545021) at commit `4e473f9138afe84d38e0f62c113a3a5c2a1cf7d4`. All 691 portable tests passed with zero failures. The unsigned device build, application-test target `build-for-testing` and zero-warning check for `NanoMuse/` also passed. Application-test compilation does not execute the application XCTest suites or establish iPhone runtime acceptance.
 

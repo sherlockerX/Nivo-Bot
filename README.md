@@ -22,7 +22,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="docs/releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="docs/releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Website</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Issues</a> · <a href="OPEN_SOURCE.md">Contribute</a>
 </p>
@@ -86,17 +86,15 @@ Learning, tasks, focus records and fragments use local storage with module-speci
 | Resource | Link |
 |---|---|
 | Product website | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0+, arm64 | [Nivo Bot v2.0.7 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16+, personal signing required | [Unsigned IPA v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| Source corresponding to the APK | [v2.0.7 source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| Source corresponding to the iOS IPA | [v2.0.8 iOS source bundle](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| Download checksums | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| iOS download checksums | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| Release details | [Android2.0.7](docs/releases/v2.0.7.md) · [iOS2.0.8](docs/releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0+, arm64 | [Nivo v2.0.10 APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS 16+, personal signing required | [Unsigned IPA v2.0.10 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Android and iOS source | [v2.0.10 source bundle](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| Download checksums | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| Release details | [Android2.0.10](docs/releases/v2.0.10.md) · [iOS2.0.10](docs/releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59) Clarity was built as an unsigned Release IPA. Release CI passed, and the IPA and corresponding source archive passed local verification. Android downloads remain 2.0.7(58), with the same APK, source archive, checksums and signing identity. The user reported no issues with the audit branch on an iPhone; this does not accept the new 2.0.8 Release binary. Use the platform-specific source and checksum links above. Personal signing is required before installation. This fork has no Apple Developer Program account and provides no TestFlight or App Store distribution. Forced focus, recurring lock plans and app whitelists are Android-only; iOS provides focus reminders and Guided Access instructions, which the user starts and ends in iOS. CI compilation does not establish iPhone runtime acceptance.
+Android and iOS share version 2.0.10 (61). Android uses the original release signing certificate. The iOS Release IPA requires personal signing; it is not distributed through TestFlight or the App Store.
 
-The application ID remains `io.github.nanomuse.app`, with the same formal signing identity as the previous Nivo Bot releases. An in-place upgrade on a physical Android phone has not been tested for this release. Installations signed with an old Debug or upstream key normally cannot be updated with this release. Check backup and restore coverage before uninstalling anything; see the [version and signing guide](docs/android-development.md#nivo-bot的android版本与签名).
+Android now installs as `io.github.nivo`, alongside older versions. Keep the old app: focus history, daily fragments and Coach progress cannot be transferred with the general backup.
 
 The Android source archive is exported from the fixed commit used for the build. The download catalogue records that commit and the archive checksum; use the source entry for the installed version when reviewing or rebuilding it.
 

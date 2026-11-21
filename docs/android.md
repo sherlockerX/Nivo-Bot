@@ -73,8 +73,7 @@ around a Python server, two APK flavours) is kept as a design record in
 download today.
 
 The release targets arm64-v8a, Android 8.0 / API 26 or newer, with `targetSdk` 35.
-The published Android `2.0.9 (60)` artifacts are identified in the
-[release notes](releases/v2.0.9.md). The current development build is a separate application.
+The [2.0.10 (61) release notes](releases/v2.0.10.md) identify the current APK. Android installs it alongside older packages.
 
 The task interface shares light and dark cards, status summaries and compact search. Capture a task from the fixed list composer, or complete and reopen it from its status control; unfinished tasks appear first. Other views use a compact add action. Details and editing use a scrolling bottom panel with calendar date selection and clearing. Large text uses a scrolling date strip, quadrants select one readable result list, and the chart places the completed count at its centre with selectable tag rows.
 
@@ -82,7 +81,7 @@ The task interface shares light and dark cards, status summaries and compact sea
 
 1. Use this branch's [release page](https://github.com/sherlockerX/Nivo-Bot/releases) and
    verify the APK against that release's checksum file. Check the
-   [2.0.9 preparation status](releases/v2.0.9.md) before expecting a new-package download.
+   [migration guide](https://nivo.8666886.xyz/install.html#android-migration) before removing an older installation.
 2. Open it. Android asks once to allow installs from your browser or file manager.
 3. **Add your own model.** Open **Settings → Models** and add an API key, a compatible endpoint or a supported provider OAuth account. Configure **Chat**, **Operating the screen**, **Making pictures** and **Making clips** according to the provider's capabilities. A provider group shows eight models until you tap *Show N more*; the search field filters larger lists by model ID or name. Choosing a chat model applies to the main chat and new chats; existing side chats keep their selection. The other three pickers offer *Automatic*. If no usable provider is configured, the app asks you to choose one before sending.
 

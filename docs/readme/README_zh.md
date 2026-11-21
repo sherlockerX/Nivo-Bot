@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">产品网站</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">问题反馈</a> · <a href="../../OPEN_SOURCE.md">参与贡献</a>
 </p>
@@ -86,17 +86,15 @@ AI通过应用工具保存任务变更，聊天里说“建好了”不等于任
 |资源|链接|
 |---|---|
 |产品网站|[nivo.8666886.xyz](https://nivo.8666886.xyz/)|
-|Android8.0及以上，arm64|[Nivo Bot v2.0.7安装包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk)|
-|iOS16及以上，需自行签名|[v2.0.8未签名IPA（Release）](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa)|
-|与安装包对应的源码|[v2.0.7源码包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip)|
-|与iOS安装包对应的源码|[v2.0.8的iOS源码包](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip)|
-|下载校验和|[SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt)|
-|iOS下载校验和|[SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt)|
-|发行详情|[Android2.0.7](../releases/v2.0.7.md)·[iOS2.0.8](../releases/v2.0.8.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)|
+|Android8.0及以上，arm64|[Nivo v2.0.10安装包](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk)|
+|iOS16及以上，需自行签名|[v2.0.10未签名IPA（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa)|
+| 双端对应源码 |[v2.0.10源码包](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip)|
+|下载校验和|[SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt)|
+|发行详情|[Android2.0.10](../releases/v2.0.10.md)·[iOS2.0.10](../releases/v2.0.10.md)·[Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml)|
 
-iOS2.0.8(59)Clarity已以Release配置构建未签名IPA，发行CI通过，IPA与对应源码包通过本地核验。Android下载保留2.0.7(58)，沿用原APK、源码包、校验和与签名身份。用户已确认检查分支在iPhone上使用没有问题，这不代表新的2.0.8Release安装包已经验收。请使用上方对应平台的源码与校验和，安装前仍需自行签名。本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在iOS中手动开启和结束。CI编译成功不等于iPhone真机验收。
+Android与iOS均为2.0.10(61)。Android沿用原正式证书；iOS提供需自行签名的Release IPA，不通过TestFlight或App Store分发。
 
-应用ID仍为`io.github.nanomuse.app`，延续此前Nivo Bot正式版的签名身份。本次尚未在Android真机上测试覆盖升级。旧Debug签名或上游签名的安装通常不能直接覆盖升级。卸载前请核对备份与恢复范围，详见[版本与签名指南](../android-development.md#nivo-bot的android版本与签名)。
+Android新包名为`io.github.nivo`，会与旧版并存。请先保留旧应用：通用备份不能迁移专注历史、生活碎片和教练进度。
 
 Android源码包从构建使用的固定commit导出，下载清单记录该commit与源码包校验和；检查或重新构建时，请选择与已安装版本对应的源码。
 

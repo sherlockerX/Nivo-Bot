@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
@@ -86,17 +86,15 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 | Tài nguyên | Liên kết |
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| Mã nguồn tương ứng với IPA iOS | [Gói mã nguồn iOS v2.0.8](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| Mã kiểm tra tải xuống iOS | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| Thông tin bản phát hành | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 trở lên, arm64 | [APK Nivo v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.10 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Mã nguồn Android và iOS | [Gói mã nguồn v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| Thông tin bản phát hành | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59) Clarity đã được biên dịch thành IPA chưa ký với cấu hình Release. CI phát hành đã thành công; IPA và gói mã nguồn tương ứng đã vượt qua kiểm tra cục bộ. Android giữ bản 2.0.7(58), cùng APK, gói mã nguồn, mã kiểm tra và danh tính chữ ký. Người dùng xác nhận không gặp vấn đề khi kiểm tra nhánh kiểm tra trên iPhone; phản hồi này không xác nhận tệp nhị phân Release 2.0.8 mới. Hãy dùng liên kết mã nguồn và mã kiểm tra phía trên phù hợp với nền tảng. Cần tự ký trước khi cài đặt. Fork này không có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
+Android và iOS cùng dùng phiên bản 2.0.10 (61). Android giữ chứng chỉ ký phát hành cũ. Bạn cần tự ký IPA iOS trước khi cài đặt; ứng dụng không được phân phối qua TestFlight hay App Store.
 
-ID ứng dụng vẫn là `io.github.nanomuse.app`, với cùng danh tính chữ ký như các bản phát hành chính thức trước của Nivo Bot. Bản này chưa được kiểm thử cập nhật đè lên bản đã cài trên điện thoại Android thật. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
+Gói Android mới `io.github.nivo` được cài song song với phiên bản cũ. Hãy giữ ứng dụng cũ vì bản sao lưu chung không chuyển lịch sử tập trung, ghi chép hằng ngày và tiến độ luyện tập.
 
 Gói mã nguồn Android được xuất từ commit cố định dùng để biên dịch. Danh mục tải xuống ghi lại commit đó và mã kiểm tra của gói; hãy dùng mã nguồn đúng phiên bản đã cài khi kiểm tra hoặc biên dịch lại.
 

@@ -1,42 +1,30 @@
 ---
 layout: home
-title: nanoMuse 文档
+title: Nivo文档
 hero:
-  text: 开源的个人智能体，面向你的每一台设备。
-  tagline: 一个智能体，在你的手机、电脑和网页上，一个账号串起来。它动手做事而不只是回答，App 关了也继续干，把记得的东西写在你读得懂的文件里，遇到无法撤销的操作会先问你。整套东西在一个仓库里，GPL-3.0-or-later；同一套中继也能跑在你自己的服务器上。
+  name: Nivo
+  text: 把对话、待办、专注和日常记录放在同一部手机里。
+  tagline: Android与iOS应用使用自己的模型供应商，学习和生活记录保存在设备上。
   actions:
     - theme: brand
       text: 安装
-      link: /zh/android
+      link: https://nivo.8666886.xyz/downloads.html
     - theme: alt
-      text: 在浏览器里看演示
-      link: https://demo.nanomuse.dev/
-    - theme: alt
-      text: 自己部署
-      link: /zh/self-hosting
+      text: 功能介绍
+      link: https://nivo.8666886.xyz/features.html
     - theme: alt
       text: GitHub
-      link: https://github.com/nano-muse/nanoMuse
-    - theme: alt
-      text: 论文
-      link: https://arxiv.org/abs/2610.08699
+      link: https://github.com/sherlockerX/Nivo-Bot
 ---
 
 ## 安装 {#install}
 
-| | |
+|平台|Nivo2.0.10(61)|
 |---|---|
-| **浏览器** | [demo.nanomuse.dev](https://demo.nanomuse.dev/)：登录之后，一台模拟手机里的 nanoMuse，旁边有中英文各一组可以点的例句。这是演示；下面的 App 才是正式版 |
-| **Android** 8.0 以上，arm64 | [nanoMuse-1.0.6-arm64.apk](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-1.0.6-arm64.apk) · [怎么装](/zh/android) |
-| **iPhone / iPad** | [TestFlight](https://testflight.apple.com/join/ZHexbDqc)：测试版，已通过 Apple 的 beta 审核；从这个链接安装 · [iOS](/zh/ios) |
-| **macOS** 12 以上 | [Apple 芯片](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-arm64.dmg) · [Intel](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-x64.dmg) · [桌面版](/zh/desktop) |
-| **Windows** 10 以上 | [nanoMuse-Desktop-1.0.6-win-x64.exe](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-win-x64.exe) |
-| **Linux** x64 | [AppImage](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.AppImage) · [.deb](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.deb) · [tar.gz](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.tar.gz) |
-| **Docker** | `bash scripts/self-host.sh --local` 搭自己的中继；`docker compose up -d app` 跑网页版 · [自己部署](/zh/self-hosting) |
+|Android8.0及以上，arm64|[正式签名APK](https://nivo.8666886.xyz/downloads.html?platform=android)·[迁移与安装](/zh/android)|
+|iOS16及以上，arm64|[未签名IPA，需自行签名](https://nivo.8666886.xyz/downloads.html?platform=ios)·[iOS说明](/zh/ios)|
 
-所有下载都在 [最新版本](https://github.com/nano-muse/nanoMuse/releases/latest)；GitHub 下不动的话，同样的文件在 [nanomuse.cn/dl](https://nanomuse.cn/dl/)。
-
-[1.0.6 Beacon 改了什么](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.6) · [每个客户端能做什么](/zh/parity) · [从哪儿开始参与](/zh/roadmap) · [中继保存什么](/zh/privacy) · [什么留在手机上，归谁](/zh/sync)
+下方保留上游nanoMuse的开发资料与历史。
 
 ## 宣传片 {#the-film}
 

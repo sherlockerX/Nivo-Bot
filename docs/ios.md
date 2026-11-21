@@ -33,8 +33,8 @@ Push and pull-request runs always use `Debug`. Select `Release` for an optimized
 candidate. Device compilation, the saved application and application-test compilation all use
 the selected configuration; portable regression tests keep their existing configuration.
 
-The `nivo-ios-unsigned-<run_number>` artifact contains `Nivo-Bot-unsigned.ipa`, its SHA256 file
-and `Nivo-Bot-build-provenance.json`. The JSON records the workflow's actual `GITHUB_SHA`, run
+The `nivo-ios-unsigned-<run_number>` artifact contains `Nivo-unsigned.ipa`, its SHA256 file
+and `Nivo-build-provenance.json`. The JSON records the workflow's actual `GITHUB_SHA`, run
 URL and build configuration, the packaged app's bundle ID, version, build number and minimum
 iOS version, the executable's architectures, confirmed unsigned status, and the IPA's SHA256
 and size in bytes. The app is copied before test embedding and the package excludes `.xctest`

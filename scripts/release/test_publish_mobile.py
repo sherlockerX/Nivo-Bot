@@ -68,6 +68,30 @@ class MobilePublishTest(unittest.TestCase):
         """读取真实发布配置解析器。"""
         return publisher.load_plan(self.root, self.tag)
 
+    def test_new_release_downloads_exact_joint_checksum_file(self):
+        """新版两个平台共用一份精确校验清单，历史标签保持原附件集合。"""
+        rows = self.catalogue['releases']
+        self.assertEqual(len(self.plan().artifacts), 3)
+        url = publisher.ORIGIN + 'SHA256SUMS-v2.0.10.txt'
+        for row in rows:
+            for field in ('downloadUrl', 'sourceUrl'):
+                row[field] = row[field].replace('Nivo-Bot-v2.0.5', 'Nivo-v2.0.10')
+            row.update(versionCode=61, checksumsUrl=url)
+        files = publisher.release_artifacts(rows, 'v2.0.10', 61)
+        self.assertEqual(len(files), 4)
+        expected = ''.join(f'{item.sha256}  {item.name}\n' for item in files[:3]).encode('ascii')
+        checklist = files[-1]
+        self.assertEqual(checklist.url, url)
+        self.assertEqual(checklist.size, len(expected))
+        self.assertEqual(checklist.sha256, hashlib.sha256(expected).hexdigest())
+        path = self.root / checklist.name
+        path.write_bytes(expected.replace(b'arm64.apk', b'wrong.apk'))
+        with self.assertRaisesRegex(ValueError, 'mismatch'):
+            publisher.verify_file(path, checklist)
+        rows[1]['checksumsUrl'] = publisher.ORIGIN + 'SHA256SUMS.txt'
+        with self.assertRaisesRegex(ValueError, 'checksum'):
+            publisher.release_artifacts(rows, 'v2.0.10', 61)
+
     def release(self):
         """构造已完整发布且内容一致的GitHub响应。"""
         return {

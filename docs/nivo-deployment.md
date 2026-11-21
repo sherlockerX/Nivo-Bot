@@ -10,7 +10,7 @@
 
 下载目录只包含安装包、对应源码和校验文件。签名密钥、签名配置、加密凭据、本机记录、服务器证书、Git配置与数据库均不得放进站点。每个平台的安装包身份必须与其`releases.json`记录及对应源码一致，`release.json`兼容入口对应当前Android发行；不同平台的最新可下载版本可以不同。历史文件保持原名与原校验和。
 
-各平台最新版本从正式清单独立读取。Android2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。首次发布`io.github.nivo`时，核对最终APK包名、版本、构建号和证书指纹，再填写该`packageId`与`migration: "backup-restore"`。请提示用户保留旧应用、只导入已支持的备份，并按需重新授权。iOS2.0.8继续保留原文件与安装要求。
+双端2.0.10共用构建号61。Android使用`io.github.nivo`与原正式证书，2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。跨包名安装时保留旧应用，只导入支持的备份并重新授权。iOS沿用原Bundle ID，提供需自行签名的Release IPA。官网与GitHub提供同一份双端源码和同版SHA256清单。
 
 站点使用Nivo品牌与十七/Shiqi助手名称，仍部署在既有域名及`nivo-site`容器。新品牌的正式发行记录显式设置`productName: "Nivo"`；旧记录、文件名、校验和及对应源码不随网站换名改写。本地生成页面不代表新版已上线。
 

@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
 </p>
@@ -86,17 +86,15 @@ Nivo, пространство ИИ для повседневной жизни. 
 | Ресурс | Ссылка |
 |---|---|
 | Сайт продукта | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| Исходный код, соответствующий APK | [Архив исходников v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| Исходники, соответствующие IPA для iOS | [Архив исходников iOS v2.0.8](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| Контрольные суммы | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| Контрольные суммы загрузок iOS | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| Сведения о выпуске | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 и новее, arm64 | [APK Nivo v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA v2.0.10 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Исходный код Android и iOS | [Архив исходников v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| Контрольные суммы | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| Сведения о выпуске | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59) Clarity собран как неподписанный IPA в конфигурации Release. CI выпуска завершён успешно; IPA и соответствующий архив исходников прошли локальную проверку. Загрузки Android остаются на версии 2.0.7(58), с теми же APK, архивом исходников, контрольными суммами и подписью. Пользователь сообщил об отсутствии проблем после проверки ветки аудита на iPhone; это не подтверждает проверку нового бинарного файла Release 2.0.8. Используйте ссылки на исходники и контрольные суммы для соответствующей платформы. Перед установкой требуется личная подпись. У этого форка нет учётной записи Apple Developer Program, распространение через TestFlight или App Store не предоставляется. Принудительный фокус, повторяющиеся планы блокировки и списки разрешённых приложений доступны только на Android; iOS предоставляет напоминания и инструкции по Гид-доступу, который пользователь запускает и завершает в iOS. Компиляция в CI не подтверждает работу на iPhone.
+Android и iOS получили версию 2.0.10 (61). Для Android сохранён прежний сертификат подписи. IPA для iOS нужно подписать самостоятельно перед установкой; публикации в TestFlight и App Store нет.
 
-ID приложения остаётся `io.github.nanomuse.app`; используется та же подпись, что и в предыдущих официальных выпусках Nivo Bot. Обновление поверх существующей установки на физическом телефоне Android для этого выпуска не проверялось. Обычно этот выпуск не может обновить установку со старой подписью Debug или исходного проекта. До удаления проверьте резервное копирование и восстановление; см. [руководство по версиям и подписи](../android-development.md#nivo-bot的android版本与签名).
+Пакет Android `io.github.nivo` устанавливается рядом со старой версией. Сохраните старое приложение: общая резервная копия не переносит историю концентрации, ежедневные записи и прогресс занятий с тренером.
 
 Архив исходников Android экспортируется из фиксированного коммита, использованного для сборки. Каталог загрузок содержит этот коммит и контрольную сумму архива; для проверки или повторной сборки выбирайте исходники установленной версии.
 
