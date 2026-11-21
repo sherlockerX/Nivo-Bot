@@ -133,6 +133,10 @@ def validate_releases(data: dict) -> list[str]:
         if not release.get("id") or release["id"] in ids:
             errors.append("Duplicate or missing release ID")
         ids.add(release.get("id"))
+        if "productName" in release and (
+            not isinstance(release["productName"], str) or not release["productName"].strip()
+        ):
+            errors.append("Release product name must be a non-empty string")
         platform = platforms.get(release.get("platform"))
         if not platform or platform.get("status") != "available":
             errors.append("Release exists on an unavailable platform")

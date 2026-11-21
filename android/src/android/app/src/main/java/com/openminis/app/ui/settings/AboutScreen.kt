@@ -93,14 +93,22 @@ fun AboutScreen(onBack: () -> Unit) {
             )
         }
 
-        // Mosaic: the licence line stays (GPL-3.0); the repository, upstream and trademark links
-        // and the update check are gone from the personal build.
+        // nanoMuse: 保留许可证并明确上游来源，产品身份仍由本地化名称展示。
         SettingsSection(header = stringResource(R.string.nm_about_build)) {
             SettingsRow(
                 icon = Icons.Outlined.Code,
                 iconColor = tileBlue,
                 title = stringResource(R.string.nm_about_license),
                 subtitle = "GPL-3.0-or-later",
+                showDivider = true,
+                minHeight = 72.dp,
+            )
+            // nanoMuse: 关于页集中说明nanoMuse与OpenMinis的上游贡献。
+            SettingsRow(
+                icon = Icons.Outlined.Code,
+                iconColor = tileBlue,
+                title = stringResource(R.string.nm_about_upstream_credit_title),
+                subtitle = stringResource(R.string.nm_about_upstream_credit_body),
                 showDivider = false,
                 minHeight = 72.dp,
             )

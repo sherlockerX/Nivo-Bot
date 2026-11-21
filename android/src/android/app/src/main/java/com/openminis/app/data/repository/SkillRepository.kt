@@ -593,7 +593,8 @@ class SkillRepository(private val context: Context) {
             // Older imports (pre-fix) never persisted the source URL. Users need
             // to re-import the skill from Minis Skills so the URL gets saved.
             return@withContext UpdateResult.Failure(
-                "No source URL on file. Re-import this skill from Nicholasx Skills to enable updates."
+                // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+                "No source URL on file. Re-import this skill from the skills library to enable updates."
             )
         }
 

@@ -1,0 +1,126 @@
+{
+  "name": "Shiqi",
+  "displayNameZh": "十七",
+  "preparedDate": "2026-11-21",
+  "source": "Five completed character videos supplied by the project maintainer for this replacement.",
+  "generationProvider": null,
+  "generationProviderNote": "Original model and generation settings were not supplied.",
+  "preparation": {
+    "video": "FFmpeg libx264, CRF 22, slow preset, 640x640 Lanczos, square pixels, yuv420p, faststart; audio and source metadata removed.",
+    "poster": "First decoded frame of each prepared video, WebP quality 92.",
+    "duration": "All source video frames retained; source audio padding omitted.",
+    "storage": "Historical resource filenames and built-in wardrobe ID retained for compatibility."
+  },
+  "assets": [
+    {
+      "state": "idle",
+      "label": "待命",
+      "source": "待命.mp4",
+      "source_sha256": "c99775b05a1db0d9171287dc3418d578d83efde741422bcbf02aa6552965cf14",
+      "source_bytes": 668338,
+      "video_sha256": "59dfd33236bc7bb7e891530ce85f090acdede2b8033c18b66d43f397aa065ef3",
+      "video_bytes": 291011,
+      "poster_sha256": "6e6cfbd811d41cb0cb3d6543cef06e11a92d28f8b936cd3836e02b89c27104de",
+      "poster_bytes": 37830,
+      "duration": "5.041667",
+      "width": 640,
+      "height": 640,
+      "codec": "h264",
+      "has_audio": false,
+      "destinations": [
+        "android\\src\\android\\app\\src\\main\\res\\raw\\nm_motion_idle.mp4",
+        "android\\src\\android\\app\\src\\main\\res\\drawable-nodpi\\nm_avatar_idle.webp",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-idle.mp4",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-idle.webp"
+      ]
+    },
+    {
+      "state": "working",
+      "label": "干活中",
+      "source": "干活中.mp4",
+      "source_sha256": "dea7cf22d87398dd33f858eb4f7dc1dd2c004a674b2ab9b576c921b40e45eb7d",
+      "source_bytes": 2411203,
+      "video_sha256": "d3be2f05d9745ee059d429989c14c4a1ab251be29aab274fb9ac0d9e62cca046",
+      "video_bytes": 411483,
+      "poster_sha256": "a9b1ade3b711c4c02cdea4cfac7f414cc84d7f0b002674bdf4cce8c5a5900eb1",
+      "poster_bytes": 46832,
+      "duration": "5.041667",
+      "width": 640,
+      "height": 640,
+      "codec": "h264",
+      "has_audio": false,
+      "destinations": [
+        "android\\src\\android\\app\\src\\main\\res\\raw\\nm_motion_working.mp4",
+        "android\\src\\android\\app\\src\\main\\res\\drawable-nodpi\\nm_avatar_working.webp",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-working.mp4",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-working.webp"
+      ]
+    },
+    {
+      "state": "waiting",
+      "label": "等你回复",
+      "source": "等你回复.mp4",
+      "source_sha256": "454f46ac6ec4166cf4d7add29f542adc08d34ab12ae0931e25bf56dda06d6890",
+      "source_bytes": 2560282,
+      "video_sha256": "b0c3b7f68976bac43a0a349b260cdc8063fb5303a2c3df4f03a566a841286fa4",
+      "video_bytes": 393503,
+      "poster_sha256": "10edff710f633ed398429094436a6959a30adf8ccb636cb7e6e877ba3973f7e0",
+      "poster_bytes": 53576,
+      "duration": "5.041667",
+      "width": 640,
+      "height": 640,
+      "codec": "h264",
+      "has_audio": false,
+      "destinations": [
+        "android\\src\\android\\app\\src\\main\\res\\raw\\nm_motion_waiting.mp4",
+        "android\\src\\android\\app\\src\\main\\res\\drawable-nodpi\\nm_avatar_waiting.webp",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-waiting.mp4",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-waiting.webp"
+      ]
+    },
+    {
+      "state": "happy",
+      "label": "搞定",
+      "source": "搞定.mp4",
+      "source_sha256": "d6e103ac65efaa58a85fa2f96d44c138d1d3d9444a5669ab691dfc2bf7fb8fe4",
+      "source_bytes": 2877007,
+      "video_sha256": "c2b1697c48615f2c15e6b6b0c2f37e210e528d38e223a161b15a698bd1029baa",
+      "video_bytes": 468475,
+      "poster_sha256": "455a6e72da12374c80866ffe1fba88d8dc36df94081ade616801d2513dd1a633",
+      "poster_bytes": 51400,
+      "duration": "5.041667",
+      "width": 640,
+      "height": 640,
+      "codec": "h264",
+      "has_audio": false,
+      "destinations": [
+        "android\\src\\android\\app\\src\\main\\res\\raw\\nm_motion_happy.mp4",
+        "android\\src\\android\\app\\src\\main\\res\\drawable-nodpi\\nm_avatar_happy.webp",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-happy.mp4",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-happy.webp"
+      ]
+    },
+    {
+      "state": "error",
+      "label": "出了点问题",
+      "source": "出了点问题.mp4",
+      "source_sha256": "896e934c7e1b893209d5481b12c44acdfe8f232679cf1f8edd1c8d1dd90f3561",
+      "source_bytes": 2513735,
+      "video_sha256": "c5ebe891d56485658f2eafe664d5ae89ab531a1ad8ea494101f01b913b961afc",
+      "video_bytes": 371103,
+      "poster_sha256": "e7f583c44abb7fa1fb7d449c39f8b559314935c8ed081ba5681f3a669b2dc176",
+      "poster_bytes": 47574,
+      "duration": "5.041667",
+      "width": 640,
+      "height": 640,
+      "codec": "h264",
+      "has_audio": false,
+      "destinations": [
+        "android\\src\\android\\app\\src\\main\\res\\raw\\nm_motion_error.mp4",
+        "android\\src\\android\\app\\src\\main\\res\\drawable-nodpi\\nm_avatar_error.webp",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-error.mp4",
+        "android\\src\\ios\\NanoMuse\\Resources\\dragon-error.webp"
+      ]
+    }
+  ]
+}

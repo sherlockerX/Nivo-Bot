@@ -2769,7 +2769,8 @@ fun ChatScreen(
                             // Tap: Settings → Soul, same as the face above.
                             val topBarSoul by com.openminis.app.agent.SoulStore
                                 .cachedMetadata.collectAsState()
-                            val displayTitle = topBarSoul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+                            // nanoMuse: 聊天标题使用本地化助手身份。
+                            val displayTitle = io.github.nanomuse.identity.AssistantIdentity.displayName(topBarSoul.name, stringResource(R.string.nm_pet_dragon))
                             // nanoMuse: while the agent works or waits, the
                             // status line says what it is doing (Muse's
                             // "Generating options" / "正在等待批准").
@@ -6561,7 +6562,8 @@ fun ChatScreen(
                                                 if (nmChoosingName) stringResource(R.string.nm_naming_placeholder)
                                                 // nanoMuse: Muse's pill says just "Message".
                                                 else if (nmPill) stringResource(R.string.nm_composer_placeholder)
-                                                else composerPlaceholderText(idx, soulName.name),
+                                                // nanoMuse: 输入提示与聊天标题共用本地化助手身份。
+                                                else composerPlaceholderText(idx, io.github.nanomuse.identity.AssistantIdentity.displayName(soulName.name, stringResource(R.string.nm_pet_dragon))),
                                                 color = if (nmPill) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                                                 fontSize = 16.5.sp * chatInputFontScale,

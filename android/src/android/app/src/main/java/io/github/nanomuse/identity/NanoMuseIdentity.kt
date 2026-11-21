@@ -12,7 +12,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.openminis.app.R
-import com.openminis.app.agent.SoulMetadata
 import com.openminis.app.agent.SoulStore
 
 /**
@@ -24,14 +23,13 @@ import com.openminis.app.agent.SoulStore
  */
 object NanoMuseIdentity {
 
-    /** The current name, read from disk so receivers and services get the live value. */
+    /** 默认助手随界面语言显示；缓存中的用户自定义昵称保持不变。 */
     fun name(context: Context): String {
-        val cached = SoulStore.cachedMetadata.value.name.trim()
-        return cached.ifEmpty { SoulMetadata.DEFAULT.name }
+        return AssistantIdentity.displayName(SoulStore.cachedMetadata.value.name, context.getString(R.string.nm_pet_dragon))
     }
 
     /** True until the user (or the agent) has renamed it. */
-    fun hasDefaultName(context: Context): Boolean = name(context) == SoulMetadata.DEFAULT.name
+    fun hasDefaultName(context: Context): Boolean = name(context) == context.getString(R.string.nm_pet_dragon)
 
     @Volatile private var cachedFace: Bitmap? = null
 

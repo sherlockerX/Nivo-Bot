@@ -289,7 +289,8 @@ internal fun AssistantHeader() {
     // to pick up image icons; sharing the renderer makes that class of
     // divergence impossible rather than merely unlikely.
     val soulMeta by com.openminis.app.agent.SoulStore.cachedMetadata.collectAsState()
-    val displayName = soulMeta.name.ifBlank { com.openminis.app.agent.SoulMetadata.DEFAULT.name }
+    // nanoMuse: 消息署名使用助手身份，产品品牌不替代用户昵称。
+    val displayName = io.github.nanomuse.identity.AssistantIdentity.displayName(soulMeta.name, stringResource(com.openminis.app.R.string.nm_pet_dragon))
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

@@ -183,7 +183,7 @@ enum LLMProviderFactory {
         let provider = OpenAIProvider(apiKey: key, model: model, customBaseURL: customBase ?? "https://openrouter.ai/api", appendV1Suffix: customBase == nil)
         provider.extraHeaders = [
             "HTTP-Referer": "https://github.com/OpenMinis/OpenMinis",
-            "X-Title": "nanoMuse App",
+                "X-Title": NivoProduct.englishName, // nanoMuse: 展示标签使用英文品牌，协议与地址不变。
         ]
         provider.useOpenRouterCompat = true
         return applyCustomUserAgent(provider, instance: instance)

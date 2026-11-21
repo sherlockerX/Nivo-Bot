@@ -43,22 +43,21 @@ import io.github.nanomuse.avatar.AvatarStore
 import kotlinx.coroutines.delay
 
 /**
- * What the face is doing. The built-in character — a small pale-yellow dragon, drawn and posed
- * with qwen-image-3.0-pro and animated with MiniMax-H3 (the 0.1.21 defaults; a user's own face now
- * comes from qwen-image-3.0 and wan2.2-i2v-flash, the same way) —
- * has a still per mood and a 4-second looping clip for the four moods that last long enough
- * to move; a custom face has a picture per mood when the image model could pose it.
+ * 聊天中宠物的状态。默认形象十七的每种状态都有静态封面和约五秒的静音视频，
+ * 用户自选形象仍优先使用自己的图片和视频。
  */
 enum class AgentMood(@DrawableRes val drawable: Int, @RawRes val motion: Int?) {
     IDLE(R.drawable.nm_avatar_idle, R.raw.nm_motion_idle),
     WORKING(R.drawable.nm_avatar_working, R.raw.nm_motion_working),
     WAITING(R.drawable.nm_avatar_waiting, R.raw.nm_motion_waiting),
     HAPPY(R.drawable.nm_avatar_happy, R.raw.nm_motion_happy),
-    ERROR(R.drawable.nm_avatar_error, null),
+    ERROR(R.drawable.nm_avatar_error, R.raw.nm_motion_error),
 }
 
-private const val HAPPY_AFTERGLOW_MS = 3_000L
-private const val ERROR_AFTERGLOW_MS = 4_000L
+// 为约五秒的内置动作预留加载和过渡时间，新一轮对话仍立即优先显示工作状态。
+internal const val AVATAR_MOOD_PREVIEW_MS = 5_500L
+private const val HAPPY_AFTERGLOW_MS = AVATAR_MOOD_PREVIEW_MS
+private const val ERROR_AFTERGLOW_MS = AVATAR_MOOD_PREVIEW_MS
 
 /**
  * The mood of the chat header, derived from the session's own streaming flag and the app-wide
@@ -119,11 +118,8 @@ fun rememberAgentMood(isStreaming: Boolean, error: String?): AgentMood {
 }
 
 /**
- * The face at [size]: the built-in dragon, or the user's own picture set from Settings →
- * Appearance. It cross-fades between moods and moves the way Muse's does — a slow breath at
- * rest, a busy bob while working, a curious tilt while waiting, a pop when it is pleased and a
- * quick shake when something failed. Tapping it opens the appearance page. A clip of the
- * person's own ([io.github.nanomuse.avatar.OwnClip]) plays over the still for every mood.
+ * 按指定尺寸显示十七或用户自选形象，并在状态之间渐变切换。
+ * 点击可打开形象页面；用户导入的视频优先于内置视频，加载期间显示对应静态封面。
  */
 @Composable
 fun AgentAvatar(
@@ -275,8 +271,7 @@ fun AgentAvatar(
 }
 
 /**
- * The face on its pale disc, the way both headers show it. Every face — the built-in dragon
- * too — brings its own white background and fills the disc.
+ * 将宠物放入聊天页共用的圆形底盘，封面和视频使用相同的裁切范围。
  */
 @Composable
 fun AgentAvatarDisc(

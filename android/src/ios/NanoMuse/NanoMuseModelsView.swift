@@ -271,10 +271,8 @@ struct NanoMuseSlotPickerView: View {
     }
 
     private var emptyLine: String {
-        switch slot {
-        case .chat, .hands: return AppLocalized("Sign in to nanoMuse Cloud or add a provider")
-        case .image, .video: return AppLocalized("Add a provider")
-        }
+        // nanoMuse: 本地版本没有云端登录入口，所有槽位均提示添加服务商。
+        AppLocalized("Add a provider")
     }
 
     /// The sentence naming the providers the iPhone cannot draw or film through (`%@`), and why.

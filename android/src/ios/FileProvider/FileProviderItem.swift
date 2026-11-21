@@ -37,7 +37,8 @@ final class FileProviderItem: NSObject, NSFileProviderItem {
     }
 
     var filename: String {
-        if isRoot { return "nanoMuse" }
+        // nanoMuse: 文件扩展读取自身的本地化资源，不依赖主App模块。
+        if isRoot { return Bundle.main.localizedString(forKey: "Nelan", value: "Nelan", table: "InfoPlist") }
         return fileURL.lastPathComponent
     }
 

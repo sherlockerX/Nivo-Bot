@@ -162,7 +162,8 @@ internal fun TypingIndicator() {
     // (MinisApp.onCreate via refreshCache); collectAsState makes Compose
     // recompose the indicator immediately when it changes.
     val soulMeta by com.openminis.app.agent.SoulStore.cachedMetadata.collectAsState()
-    val soulName = soulMeta.name.trim().ifEmpty { "Nivo Bot" }
+    // nanoMuse: 默认助手名称本地化，保留用户自定义昵称。
+    val soulName = io.github.nanomuse.identity.AssistantIdentity.displayName(soulMeta.name, stringResource(R.string.nm_pet_dragon))
 
     Row(
         modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),

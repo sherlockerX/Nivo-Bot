@@ -184,6 +184,7 @@
     const ids = new Set(), platformIds = new Set(data.platforms.map(p => p.id));
     for (const release of data.releases) {
       if (!release.id || ids.has(release.id) || !platformIds.has(release.platform)) throw new Error('版本ID或平台不正确');
+      if ('productName' in release && (typeof release.productName !== 'string' || !release.productName.trim())) throw new Error('发行产品名称不正确');
       if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(release.version) || !['stable', 'beta'].includes(release.channel)) throw new Error('版本信息不完整');
       const distribution = release.distribution || 'apk';
       if ('checksumsUrl' in release && (!['apk', 'ipa'].includes(distribution) || release.checksumsUrl !== `https://nivo.8666886.xyz/downloads/SHA256SUMS-v${release.version}.txt`)) throw new Error('校验清单与发行版本不符');
@@ -201,7 +202,7 @@
   function renderRelease(release) {
     const card = node('div', undefined, 'release-card');
     const heading = node('div', undefined, 'release-heading');
-    const title = node('div'); title.append(node('p', `${release.platform === 'android' ? 'Android' : 'iOS'} ${release.channel === 'stable' ? '稳定版' : '测试版'}`, 'eyebrow'), node('h2', `Nivo Bot v${release.version}`));
+    const title = node('div'); title.append(node('p', `${release.platform === 'android' ? 'Android' : 'iOS'} ${release.channel === 'stable' ? '稳定版' : '测试版'}`, 'eyebrow'), node('h2', `${release.productName || 'Nivo Bot'} v${release.version}`));
     const distribution = release.distribution || 'apk';
     const isUnsigned = release.signing === 'unsigned';
     const method = isUnsigned ? '未签名IPA' : {apk:'正式签名', ipa:'IPA', 'app-store':'App Store', testflight:'TestFlight'}[distribution];

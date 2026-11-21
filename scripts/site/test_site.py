@@ -21,12 +21,15 @@ from check_site import CORE_FILES, Page, check, site_files, validate_releases
 from content import FEATURES, PROVIDERS
 from deploy_netcatty import deploy, unpack
 from render_site import (
+    LEGACY_PRODUCT_NAME,
     ROOT,
+    SITE_NAME,
     application_metadata,
     downloads,
     generated,
     release_card,
     release_detail,
+    release_product_name,
 )
 
 
@@ -140,8 +143,12 @@ class ProductSiteTests(unittest.TestCase):
     def test_mismatched_checksum_file_is_rejected(self) -> None:
         """错误版本的文件即使位于官网，也不能用来校验当前安装包。"""
         catalogue = copy.deepcopy(self.catalogue)
-        catalogue["releases"][0]["checksumsUrl"] = "https://nivo.8666886.xyz/downloads/SHA256SUMS.txt"
-        self.assertIn("Checksum file must belong to this binary release", validate_releases(catalogue))
+        catalogue["releases"][0]["checksumsUrl"] = (
+            "https://nivo.8666886.xyz/downloads/SHA256SUMS.txt"
+        )
+        self.assertIn(
+            "Checksum file must belong to this binary release", validate_releases(catalogue)
+        )
 
     def unsigned_ios_catalogue(self) -> dict:
         """构造仅用于测试的未签名IPA，不写入真实发行清单。"""
@@ -199,6 +206,32 @@ class ProductSiteTests(unittest.TestCase):
         self.assertFalse(
             any(app["operatingSystem"].startswith("iOS") for app in application_metadata(catalogue))
         )
+
+    def test_rebrand_preserves_historical_binary_names_and_new_release_identity(self) -> None:
+        """新站品牌不改写旧包名称，显式发行名称同时用于下载卡和搜索元数据。"""
+        catalogue = self.unsigned_ios_catalogue()
+        release = catalogue["releases"][-1]
+        release.pop("productName", None)
+        self.assertEqual(release_product_name(release), LEGACY_PRODUCT_NAME)
+        self.assertIn(LEGACY_PRODUCT_NAME, release_card(release))
+        release["productName"] = SITE_NAME
+        self.assertIn(SITE_NAME, release_card(release))
+        applications = application_metadata(catalogue)
+        ios = next(app for app in applications if app["operatingSystem"].startswith("iOS"))
+        self.assertEqual(ios["name"], SITE_NAME)
+        release["productName"] = '<img src="invalid" onerror="alert(1)">'
+        self.assertNotIn(release["productName"], release_card(release))
+        self.assertIn("&lt;img", release_card(release))
+
+    def test_invalid_explicit_release_product_name_is_rejected(self) -> None:
+        """显式名称必须是非空文本，避免动态卡与静态卡出现不同的回退行为。"""
+        for invalid_name in (None, "", "  ", 17):
+            with self.subTest(product_name=invalid_name):
+                catalogue = copy.deepcopy(self.catalogue)
+                catalogue["releases"][0]["productName"] = invalid_name
+                self.assertIn(
+                    "Release product name must be a non-empty string", validate_releases(catalogue)
+                )
 
     def test_duplicate_releases_and_insecure_downloads_are_rejected(self) -> None:
         """阻止选择器出现重名项或不安全下载协议。"""
@@ -518,10 +551,23 @@ class DeploymentEvidenceTests(unittest.TestCase):
         self.manifest_path.write_text(json.dumps(self.previous_manifest), encoding="utf-8")
         self.manifest_bytes = self.manifest_path.read_bytes()
         self.archive = self.root / "site.tar.gz"
-        files = {
-            "index.html": b"<h1>Nivo Bot</h1>",
-            "release.json": json.dumps({"version": "2.0.5", "versionCode": 56}).encode(),
+        self.files = {
+            path: f"<!doctype html><title>念步/Nelan</title><h1>{path}</h1>".encode()
+            for path in (
+                "index.html",
+                "features.html",
+                "models.html",
+                "models/gemini.html",
+                "downloads.html",
+            )
         }
+        self.files.update(
+            {
+                "releases.json": json.dumps({"schemaVersion": 2, "product": "念步/Nelan"}).encode(),
+                "release.json": json.dumps({"version": "2.0.5", "versionCode": 56}).encode(),
+            }
+        )
+        files = self.files
         files["files.json"] = json.dumps(
             {
                 "files": {
@@ -562,8 +608,49 @@ class DeploymentEvidenceTests(unittest.TestCase):
         patches.enter_context(patch.object(Path, "symlink_to", symlink))
         patches.enter_context(patch("deploy_netcatty.os.replace", replace))
         self.command = patches.enter_context(
-            patch("deploy_netcatty.command", return_value="Nivo Bot")
+            patch("deploy_netcatty.command", side_effect=self.origin_response)
         )
+
+    def origin_response(self, *arguments: str, content: bytes | None = None) -> str:
+        """模拟返回本次归档内的实际页面内容，配置命令只返回成功状态。"""
+        address = arguments[-1]
+        if address.startswith("http://127.0.0.1/"):
+            return self.files[address.removeprefix("http://127.0.0.1/")].decode()
+        return "ok"
+
+    def test_rebranded_pages_are_verified_against_the_uploaded_manifest(self) -> None:
+        """新品牌页面可发布，源站必须逐一返回对应的已校验文件。"""
+        result = deploy(self.root, self.archive, "site-nelan")
+        self.assertEqual(result["verified_files"], 7)
+        requests = [
+            call.args[-1]
+            for call in self.command.call_args_list
+            if call.args[-1].startswith("http://127.0.0.1/")
+        ]
+        self.assertEqual(len(requests), 6)
+        self.assertIn("http://127.0.0.1/releases.json", requests)
+
+    def test_origin_content_mismatch_rejects_old_brand_and_same_brand_stale_pages(self) -> None:
+        """即使响应包含新旧品牌，错误页面也必须触发回滚。"""
+        for label, body in (
+            ("old", "<h1>Nivo旧站</h1>"),
+            ("new", "<!doctype html><title>念步/Nelan</title><h1>旧内容</h1>"),
+        ):
+            with self.subTest(brand=label):
+
+                def stale_response(
+                    *arguments: str, content: bytes | None = None, response: str = body
+                ) -> str:
+                    """所有页面返回同一份错误内容，避免品牌关键词被误当成有效页面。"""
+                    return response if arguments[-1].startswith("http://127.0.0.1/") else "ok"
+
+                self.command.side_effect = stale_response
+                with self.assertRaisesRegex(
+                    ValueError, "Published page is not the expected document"
+                ):
+                    deploy(self.root, self.archive, "site-stale-" + label)
+                self.assertEqual((self.root / "www/current").resolve(), self.previous)
+                self.assertEqual(self.manifest_path.read_bytes(), self.manifest_bytes)
 
     def test_publish_preserves_search_and_archives_previous_public_verification(self) -> None:
         """新版本继承搜索记录，并保留带版本身份的旧公网验收历史。"""

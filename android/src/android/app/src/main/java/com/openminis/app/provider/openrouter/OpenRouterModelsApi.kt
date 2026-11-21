@@ -42,7 +42,8 @@ object OpenRouterModelsApi {
             .url("https://openrouter.ai/api/v1/models")
             .header("Authorization", "Bearer $apiKey")
             .header("HTTP-Referer", "https://github.com/OpenMinis/OpenMinis")
-            .header("X-Title", "Nicholasx App")
+            // nanoMuse: 服务商侧展示当前产品名，既有来源网址保持兼容。
+            .header("X-Title", "Nelan")
             // [T-android-default-ua] brand outbound /api/v1/models request.
             .applyUserAgentOverride(null)
             .build()

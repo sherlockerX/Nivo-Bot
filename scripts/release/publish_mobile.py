@@ -64,6 +64,15 @@ def artifact(name: str, url: object, digest: object, size: object) -> Artifact:
     return Artifact(name, str(url), digest.lower(), size)
 
 
+def mobile_artifact(tag: str, suffix: str, url: object, digest: object, size: object) -> Artifact:
+    """仅接受新旧品牌的完整固定地址，继续共用哈希与大小校验。"""
+    for prefix in ("Nelan", "Nivo-Bot"):
+        name = f"{prefix}-{tag}-{suffix}"
+        if url == ORIGIN + name:
+            return artifact(name, url, digest, size)
+    raise ValueError(f"Unexpected download URL for {tag}-{suffix}")
+
+
 def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifact, ...]:
     """当前实际发行的平台必须共享一份源码，并符合各自分发约束。"""
     artifacts = []
@@ -79,16 +88,18 @@ def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifa
             raise ValueError("Expected an explicitly unsigned iOS IPA")
         suffix = "arm64.apk" if platform == "android" else "unsigned.ipa"
         artifacts.append(
-            artifact(
-                f"Nivo-Bot-{tag}-{suffix}",
+            mobile_artifact(
+                tag,
+                suffix,
                 row.get("downloadUrl"),
                 row.get("sha256"),
                 row.get("sizeBytes"),
             )
         )
         sources.append(
-            artifact(
-                f"Nivo-Bot-{tag}-source.zip",
+            mobile_artifact(
+                tag,
+                "source.zip",
                 row.get("sourceUrl"),
                 row.get("sourceSha256"),
                 row.get("sourceSizeBytes"),
@@ -123,7 +134,8 @@ def load_plan(root: Path, tag: str) -> ReleasePlan:
     notes = root / "docs/releases" / f"{tag}.md"
     lines = notes.read_text(encoding="utf-8").splitlines()
     title = lines[0].removeprefix("# ") if lines else ""
-    if not re.fullmatch(rf"Nivo Bot {re.escape(version)} · [A-Z][A-Za-z]+", title):
+    brands = "|".join(re.escape(name) for name in ("Nivo Bot", "念步", "Nelan"))
+    if not re.fullmatch(rf"(?:{brands}) {re.escape(version)} · [A-Z][A-Za-z]+", title):
         raise ValueError("Release notes heading does not match the tag")
     return ReleasePlan(tag, version, code, title, notes, artifacts)
 
@@ -215,8 +227,7 @@ def verify_packages(folder: Path, plan: ReleasePlan) -> None:
         if item.name.endswith(".apk"):
             android_home = os.environ.get("ANDROID_HOME")
             tools = (
-                sorted((Path(android_home) / "build-tools").glob("*/aapt"))
-                if android_home else []
+                sorted((Path(android_home) / "build-tools").glob("*/aapt")) if android_home else []
             )
             if not tools:
                 raise ValueError("Android SDK aapt is required to verify the APK")

@@ -304,7 +304,8 @@ fun SoulSettingsScreen(onBack: () -> Unit) {
                 }
                 Column(modifier = Modifier.padding(start = 4.dp)) {
                     Text(
-                        text = name.ifBlank { "Nivo Bot" },
+                        // nanoMuse: 预览名称本地化，不改变正在编辑的原始昵称。
+                        text = io.github.nanomuse.identity.AssistantIdentity.displayName(name, stringResource(R.string.nm_pet_dragon)),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,

@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -57,7 +59,7 @@ class AlarmOffloadHandler(private val context: Context) : NativeOffloadHandler {
         } catch (e: SecurityException) {
             AppLogger.warning(TAG, "SecurityException: ${e.message}")
             val body = JSONObject().put("error", "exact_alarm_denied")
-                .put("message", "Exact alarms are blocked. On Android 14+ the user must grant 'Alarms & reminders' in Settings; on Xiaomi/Huawei/Oppo/OnePlus/Vivo, also enable autostart and disable battery optimization for Nicholasx. Underlying: ${e.message}")
+                .put("message", "Exact alarms are blocked. On Android 14+ the user must grant 'Alarms & reminders' in Settings; on Xiaomi/Huawei/Oppo/OnePlus/Vivo, also enable autostart and disable battery optimization for ${context.getString(com.openminis.app.R.string.app_name)}. Underlying: ${e.message}")
                 .toString()
             NativeOffloadResult(77, OffloadOutput.formatBody(body, args) + "\n")
         } catch (e: Throwable) {
@@ -254,7 +256,7 @@ class AlarmOffloadHandler(private val context: Context) : NativeOffloadHandler {
             AppLogger.info(TAG, "open: launched system Clock SHOW_ALARMS")
             val data = JSONObject()
                 .put("opened", true)
-                .put("hint", "System Clock launched. Tell the user to view, edit, or cancel alarms in the Clock app's Alarms tab (or Timers tab for timers). Nicholasx cannot enumerate or cancel alarms programmatically — Android's Clock API is fire-and-forget.")
+                .put("hint", "System Clock launched. Tell the user to view, edit, or cancel alarms in the Clock app's Alarms tab (or Timers tab for timers). ${context.getString(com.openminis.app.R.string.app_name)} cannot enumerate or cancel alarms programmatically — Android's Clock API is fire-and-forget.")
             emitEnvelope("open", data, args)
         } catch (e: ActivityNotFoundException) {
             val body = JSONObject().put("error", "no_clock_app")
@@ -357,7 +359,7 @@ class AlarmOffloadHandler(private val context: Context) : NativeOffloadHandler {
             put("minute", minute)
             put("repeat", mode.name)
             put("view_url", VIEW_URL)
-            put("hint", "Alarm saved to the system Clock app. Open the Clock app, or $VIEW_URL inside Nicholasx, to view or cancel.")
+            put("hint", "Alarm saved to the system Clock app. Open the Clock app, or $VIEW_URL inside ${context.getString(com.openminis.app.R.string.app_name)}, to view or cancel.")
         }
     }
 
@@ -371,7 +373,7 @@ class AlarmOffloadHandler(private val context: Context) : NativeOffloadHandler {
             put("duration_seconds", durationSec)
             put("fires_at", formatIso(firesAt))
             put("view_url", VIEW_URL)
-            put("hint", "Timer started in the system Clock app. Open the Clock app's Timer tab, or $VIEW_URL inside Nicholasx, to view or stop.")
+            put("hint", "Timer started in the system Clock app. Open the Clock app's Timer tab, or $VIEW_URL inside ${context.getString(com.openminis.app.R.string.app_name)}, to view or stop.")
         }
     }
 
@@ -389,7 +391,7 @@ class AlarmOffloadHandler(private val context: Context) : NativeOffloadHandler {
         if (needsHint && (action == "set" || action == "timer")) {
             data.put(
                 "oem_hint",
-                "${OsCompat.oemLabel()} aggressively kills background alarms. Please enable Autostart and disable battery optimization for Nicholasx in system settings to keep this alarm reliable.",
+                "${OsCompat.oemLabel()} aggressively kills background alarms. Please enable Autostart and disable battery optimization for ${context.getString(com.openminis.app.R.string.app_name)} in system settings to keep this alarm reliable.",
             )
         }
         val envelope = JSONObject()

@@ -605,7 +605,8 @@ private fun AgentBrowsingOverlay(accent: Color, onTakeover: () -> Unit) {
             // nanoMuse: "<name> is browsing" — the Soul name, like the composer placeholder.
             val browsingSoul by com.openminis.app.agent.SoulStore.cachedMetadata.collectAsState()
             Text(
-                stringResource(R.string.browser_minis_browsing, browsingSoul.name.trim().ifEmpty { "Nivo Bot" }),
+                // nanoMuse: 浏览状态使用本地化助手名而非产品名。
+                stringResource(R.string.browser_minis_browsing, io.github.nanomuse.identity.AssistantIdentity.displayName(browsingSoul.name, stringResource(R.string.nm_pet_dragon))),
                 color = Color.White.copy(alpha = 0.9f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,

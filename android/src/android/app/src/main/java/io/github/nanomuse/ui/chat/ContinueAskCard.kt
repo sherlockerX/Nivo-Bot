@@ -57,7 +57,7 @@ fun ContinueAskHost(viewModel: ChatViewModel) {
     ) {
         val n = steps ?: 0
         val soul by SoulStore.cachedMetadata.collectAsState()
-        val name = soul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+        val name = io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon))
         Surface(
             shape = RoundedCornerShape(22.dp),
             color = MuseTones.surface,

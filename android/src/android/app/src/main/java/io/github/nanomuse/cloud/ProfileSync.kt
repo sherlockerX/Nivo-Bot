@@ -217,7 +217,7 @@ object ProfileSync {
 
     private fun push(context: Context) {
         val account = account(context)
-        val name = SoulStore.load(context)?.metadata?.name?.takeIf { it.isNotBlank() } ?: "nanoMuse"
+        val name = SoulStore.load(context)?.metadata?.name?.takeIf { it.isNotBlank() } ?: com.openminis.app.agent.SoulMetadata.DEFAULT.name
         val p = prefs(context)
         val stamp = faceStamp()
         // A phone that never pushed or pulled and wears no face has nothing to say about the

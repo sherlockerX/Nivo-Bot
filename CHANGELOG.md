@@ -4,6 +4,13 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-11-21 · Companion
+
+- Prepared Android 2.0.9 (60) with the existing application ID and release signing configuration. Final APK identity and publication checks are pending. iOS source changes and version fields are included, but no 2.0.9 IPA is built or published; the retained iOS download is 2.0.8 (59). This round has no Xcode or iPhone validation of the new iOS changes. See the [release notes](docs/releases/v2.0.9.md) for platform scope and evidence.
+- Removed old product names and obsolete account-sync instructions from reachable mobile settings and avatar pages. Led advanced settings with their purpose while preserving real commands and file formats, and identified nanoMuse and OpenMinis as upstream projects in About. Updated untouched default assistant and memory files without replacing personal edits; the default memory now directs the assistant to the available personal-record tools.
+- Renamed the Android and iOS product displays to 念步 in Chinese and Nelan in other languages, including settings, system permission descriptions, notifications, sharing and file entry points. Separated the Shiqi companion name from the product name and preserved saved personal names. Added localized iOS extension labels and made brand-only generation preserve installation identities and version fields. Matched complete historical and localized default identity templates to protect custom content without enabling cloud sync. Kept protocol names, data paths, signing settings, existing website URLs and upstream attribution.
+- Replaced the Android and iPhone default pet with Shiqi (十七), using maintainer-supplied silent clips and matching first-frame covers. Added the built-in error clip, updated the wardrobe name and character description, and extended preview/completion timing to fit the supplied animations. Preserved existing custom pets, imported clips and assistant names.
+
 ## [2.0.8] - 2026-11-20 · Clarity
 
 - Replaced the locale-dependent alphabet symbol in iOS System files with a named sort menu. Empty editable files now have an Edit action, failed saves keep drafts, and file and fragment menus have spoken labels.

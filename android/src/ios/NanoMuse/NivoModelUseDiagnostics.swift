@@ -2,10 +2,11 @@ import Foundation
 
 /// 模型工具的授权说明；聊天绑定不授予终端调用其他模型的权限。
 enum NivoModelUseDiagnostics {
-    static let noModelsHint =
+    static var noModelsHint: String {
         "No authorized, enabled models match this request. Open Settings > Model Groups > " +
-        "Models nanoMuse Can Call at Runtime (minis://settings/model-groups) to add models or groups. " +
+        "Models \(NivoProduct.name) Can Call at Runtime (minis://settings/model-groups) to add models or groups. " +
         "Chat model selection is separate; --all does not grant access to other configured models."
+    }
 }
 
 /// 错误保留原始模型或供应商身份，操作建议作为独立字段传入。

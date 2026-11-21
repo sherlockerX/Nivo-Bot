@@ -12,7 +12,16 @@ import tarfile
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
-CADDY = """# Nivo Bot静态站点，公网HTTPS继续由原Caddy代理提供。
+ORIGIN_CHECK_PATHS = (
+    "index.html",
+    "features.html",
+    "models.html",
+    "models/gemini.html",
+    "downloads.html",
+    "releases.json",
+)
+
+CADDY = """# 念步/Nelan静态站点，公网HTTPS继续由原Caddy代理提供。
 :80 {
     root * /site/current
     encode zstd gzip
@@ -109,6 +118,8 @@ def deploy(root: Path, archive: Path, release_id: str) -> dict:
     release.mkdir(exist_ok=False)
     unpack(archive, release)
     manifest = json.loads((release / "files.json").read_text(encoding="utf-8"))
+    if not set(ORIGIN_CHECK_PATHS).issubset(manifest["files"]):
+        raise ValueError("Missing origin verification files in manifest")
     for name, digest in manifest["files"].items():
         if not (release / name).resolve().is_relative_to(release.resolve()):
             raise ValueError("Manifest path escapes release")
@@ -151,19 +162,13 @@ def deploy(root: Path, archive: Path, release_id: str) -> dict:
             "--adapter",
             "caddyfile",
         )
-        for path in (
-            "index.html",
-            "features.html",
-            "models.html",
-            "models/gemini.html",
-            "downloads.html",
-            "releases.json",
-        ):
+        for path in ORIGIN_CHECK_PATHS:
             body = command(
                 "docker", "exec", "nivo-site", "wget", "-qO-", "http://127.0.0.1/" + path
             )
-            if "Nivo" not in body and "schemaVersion" not in body:
-                raise ValueError("Published page is not the expected document")
+            # 源站响应应与已校验归档逐字节一致，不能用品牌词判断新旧版本。
+            if hashlib.sha256(body.encode("utf-8")).hexdigest() != manifest["files"][path]:
+                raise ValueError("Published page is not the expected document: " + path)
         after_downloads = {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest()
             for p in downloads.iterdir()

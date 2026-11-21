@@ -353,7 +353,8 @@ internal fun ToolDetailSheet(
                 // the elapsed-duration text) so it sits next to where the
                 // user is already scanning timing info.
                 Text(
-                    text = "Nivo Bot Computer",
+                    // nanoMuse: 产品标题随应用语言切换。
+                    text = stringResource(com.openminis.app.R.string.nm_brand_computer, stringResource(com.openminis.app.R.string.app_name)),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = ChatColors.primaryText,
@@ -1203,7 +1204,7 @@ internal fun ToolDetailSheet(
                     // Title + subtitle
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = toolTitleLabel(block.toolName, block.toolStatus), // nanoMuse (issue #67): past tense once over
+                            text = toolTitleLabel(LocalContext.current, block.toolName, block.toolStatus), // nanoMuse: 保留用户昵称并本地化状态。
                             fontSize = 14.sp,
                             lineHeight = 16.sp,
                             fontWeight = FontWeight.SemiBold,

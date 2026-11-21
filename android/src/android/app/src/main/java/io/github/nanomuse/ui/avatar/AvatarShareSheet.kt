@@ -68,7 +68,7 @@ import kotlinx.coroutines.withContext
 fun AvatarShareSheet(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val soul by SoulStore.cachedMetadata.collectAsState()
-    val name = soul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    val name = io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon))
     val current by AvatarStore.current.collectAsState()
     var selected by remember { mutableIntStateOf(0) }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)

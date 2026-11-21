@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -112,7 +114,7 @@ class ClipboardOffloadHandler(private val context: Context) : NativeOffloadHandl
         if (!isAppForeground() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             return backgroundError(args)
         }
-        val label = args.get("label") ?: "Nicholasx"
+        val label = args.get("label") ?: context.getString(com.openminis.app.R.string.app_name)
         cm.setPrimaryClip(ClipData.newPlainText(label, text))
         return NativeOffloadResult(
             0,
@@ -199,7 +201,7 @@ class ClipboardOffloadHandler(private val context: Context) : NativeOffloadHandl
         1,
         OffloadOutput.formatBody(
             JSONObject().put("error", "clipboard_requires_foreground")
-                .put("message", "Android 10+ blocks clipboard access when the app is not in the foreground. Ask the user to bring Nicholasx to the foreground and retry.")
+                .put("message", "Android 10+ blocks clipboard access when the app is not in the foreground. Ask the user to bring ${context.getString(com.openminis.app.R.string.app_name)} to the foreground and retry.")
                 .toString(),
             args,
         ) + "\n",
@@ -227,7 +229,7 @@ COMMANDS:
 
 OPTIONS:
   --text <value>       Text to write (for `set`)
-  --label <name>       Optional ClipData label (default: Nicholasx)
+  --label <name>       Optional ClipData label (default: this app)
   --help, -h           Show this help message
   --compact            Minimize JSON output
   -q, --quiet          Output only data field

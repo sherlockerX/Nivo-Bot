@@ -998,7 +998,7 @@ struct ContentView: View {
     /// Soul name shown as the sidebar title. Sourced from SOUL.md, falls
     /// back to "nanoMuse". Refreshed whenever SoulStore posts .soulMdChanged.
     @State private var soulName: String = SoulStore.cachedMetadata.name.isEmpty
-        ? "nanoMuse" : SoulStore.cachedMetadata.name
+        ? NivoProduct.assistantName : SoulStore.cachedMetadata.name // nanoMuse: 空昵称使用角色名。
     /// Subtitle state shown under the "nanoMuse" sidebar title. nil hides the
     /// row; otherwise it renders as small capsules per type or a single
     /// status string. Refreshed by a 5s timer.
@@ -2757,7 +2757,7 @@ struct ContentView: View {
         // and can't drop a .soulMdChanged notification arriving during reconstruction.
         .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
             let n = SoulStore.cachedMetadata.name
-            soulName = n.isEmpty ? "nanoMuse" : n
+                soulName = n.isEmpty ? NivoProduct.assistantName : n // nanoMuse: 保留用户昵称。
         }
     }
 
@@ -5544,7 +5544,7 @@ struct ContentView: View {
                 done += 1
                 if msg.isToolResultOnly { continue }
 
-                let role = msg.role == .user ? "User" : "nanoMuse"
+            let role = msg.role == .user ? "User" : (SoulStore.cachedMetadata.name.isEmpty ? NivoProduct.assistantName : SoulStore.cachedMetadata.name) // nanoMuse: 导出沿用个人助手昵称。
                 let time = timeFmt.string(from: msg.createdAt)
                 var parts: [String] = []
                 for part in msg.parts {

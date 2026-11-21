@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
+from itertools import product
 from pathlib import Path
 from unittest.mock import patch
 
@@ -96,6 +97,70 @@ class MobilePublishTest(unittest.TestCase):
         self.assertEqual(len(plan.artifacts), 3)
         self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), before)
 
+    def test_nelan_artifacts_preserve_historical_records(self) -> None:
+        """新品牌的APK、IPA和共享源码可发布，历史记录保持原样。"""
+        for row in self.catalogue["releases"]:
+            for field in ("downloadUrl", "sourceUrl"):
+                row[field] = row[field].replace("Nivo-Bot-", "Nelan-")
+        self.catalogue["releases"].append({"version": "2.0.0", "platform": "android"})
+        self.save_catalogue()
+        before = copy.deepcopy(self.catalogue)
+
+        plan = self.plan()
+
+        self.assertEqual(
+            [item.name for item in plan.artifacts],
+            [
+                "Nelan-v2.0.5-arm64.apk",
+                "Nelan-v2.0.5-unsigned.ipa",
+                "Nelan-v2.0.5-source.zip",
+            ],
+        )
+        self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), before)
+
+    def test_nelan_android_release_uses_exact_new_names_and_keeps_ios_history(self) -> None:
+        """2.0.9仅交付新名称的Android与源码，旧iOS记录不成为新附件。"""
+        self.tag = "v2.0.9"
+        self.catalogue["releases"][0].update(
+            version="2.0.9",
+            versionCode=60,
+            downloadUrl=publisher.ORIGIN + "Nelan-v2.0.9-arm64.apk",
+            sourceUrl=publisher.ORIGIN + "Nelan-v2.0.9-source.zip",
+        )
+        self.write("scripts/rebrand.py", 'VERSION_NAME = "2.0.9"\nVERSION_CODE = 60\n')
+        self.write("docs/releases/v2.0.9.md", "# 念步 2.0.9 · Renewal\n")
+        self.save_catalogue()
+        before = copy.deepcopy(self.catalogue)
+        plan = self.plan()
+        self.assertEqual(plan.code, 60)
+        with patch.object(publisher, "run") as command:
+            publisher.publish(plan, self.commit, self.root, None)
+        arguments = command.call_args.args[0]
+        self.assertEqual(
+            arguments[:6],
+            [
+                "gh",
+                "release",
+                "create",
+                "v2.0.9",
+                str(self.root / "Nelan-v2.0.9-arm64.apk"),
+                str(self.root / "Nelan-v2.0.9-source.zip"),
+            ],
+        )
+        self.assertEqual(arguments[arguments.index("--title") + 1], "念步 2.0.9 · Renewal")
+        self.assertEqual(arguments[arguments.index("--target") + 1], self.commit)
+        self.assertIn("--verify-tag", arguments)
+        self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), before)
+
+        release = self.release()
+        release["assets"][0]["name"] = "Nivo-Bot-v2.0.9-arm64.apk"
+        with (
+            patch.object(publisher, "run") as command,
+            self.assertRaisesRegex(ValueError, "unexpected or duplicate assets"),
+        ):
+            publisher.publish(plan, self.commit, self.root, release)
+        command.assert_not_called()
+
     def test_wrong_tags_are_rejected(self):
         """标签必须是当前公共版本的完整v前缀版本号。"""
         for tag in ("v2.0.4", "2.0.5", "v2.0.5-beta", "v2.0.5/other"):
@@ -119,9 +184,7 @@ class MobilePublishTest(unittest.TestCase):
                     [item.name for item in plan.artifacts],
                     [f"Nivo-Bot-v2.0.5-{suffix}", "Nivo-Bot-v2.0.5-source.zip"],
                 )
-                self.assertEqual(
-                    json.loads((self.root / "site/releases.json").read_text()), before
-                )
+                self.assertEqual(json.loads((self.root / "site/releases.json").read_text()), before)
 
     def test_empty_duplicate_or_unknown_platform_is_rejected(self):
         """当前版本至少发布一个已知平台，空值、重复和未知平台均拒绝。"""
@@ -399,23 +462,36 @@ class MobilePublishTest(unittest.TestCase):
 
     def test_unsafe_urls_and_unexpected_names_are_rejected(self):
         """只接受正式域名的固定版本文件，不接受重定向来源或编码路径。"""
-        name = "Nivo-Bot-v2.0.5-arm64.apk"
-        for url in (
-            "http://nivo.8666886.xyz/downloads/" + name,
-            "https://evil.invalid/downloads/" + name,
-            "https://nivo.8666886.xyz.evil.invalid/downloads/" + name,
-            "https://user@nivo.8666886.xyz/downloads/" + name,
-            "https://nivo.8666886.xyz:443/downloads/" + name,
-            publisher.ORIGIN + name + "?token=secret",
-            publisher.ORIGIN + name + "#fragment",
-            publisher.ORIGIN + "../" + name,
-            publisher.ORIGIN + name.replace("Nivo", "%4Eivo"),
-            publisher.ORIGIN + "Nivo-Bot-v2.0.4-arm64.apk",
+        original = copy.deepcopy(self.catalogue)
+        for prefix, (index, field, suffix) in product(
+            ("Nelan", "Nivo-Bot"),
+            (
+                (0, "downloadUrl", "arm64.apk"),
+                (1, "downloadUrl", "unsigned.ipa"),
+                (0, "sourceUrl", "source.zip"),
+            ),
         ):
-            self.catalogue["releases"][0]["downloadUrl"] = url
-            self.save_catalogue()
-            with self.subTest(url=url), self.assertRaises(ValueError):
-                self.plan()
+            name = f"{prefix}-v2.0.5-{suffix}"
+            for url in (
+                "http://nivo.8666886.xyz/downloads/" + name,
+                "https://evil.invalid/downloads/" + name,
+                "https://nivo.8666886.xyz.evil.invalid/downloads/" + name,
+                "https://user@nivo.8666886.xyz/downloads/" + name,
+                "https://nivo.8666886.xyz:443/downloads/" + name,
+                publisher.ORIGIN + name + "?token=secret",
+                publisher.ORIGIN + name + "#fragment",
+                publisher.ORIGIN + "../" + name,
+                publisher.ORIGIN + name.replace("N", "%4E", 1),
+                publisher.ORIGIN + name.replace("2.0.5", "2.0.4"),
+                publisher.ORIGIN + name.replace(prefix, "Other", 1),
+                publisher.ORIGIN + name.lower(),
+                publisher.ORIGIN + name + ".bak",
+            ):
+                self.catalogue = copy.deepcopy(original)
+                self.catalogue["releases"][index][field] = url
+                self.save_catalogue()
+                with self.subTest(field=field, url=url), self.assertRaises(ValueError):
+                    self.plan()
 
     def test_platforms_cannot_disagree_on_source_archive(self):
         """双平台源码必须同时满足URL、校验和及字节大小一致。"""
@@ -424,6 +500,7 @@ class MobilePublishTest(unittest.TestCase):
             ("sourceSha256", "b" * 64),
             ("sourceSizeBytes", len(self.content) + 1),
             ("sourceUrl", publisher.ORIGIN + "Nivo-Bot-v2.0.4-source.zip"),
+            ("sourceUrl", publisher.ORIGIN + "Nelan-v2.0.5-source.zip"),
         ):
             self.catalogue = copy.deepcopy(original)
             self.catalogue["releases"][1][field] = value
@@ -433,9 +510,24 @@ class MobilePublishTest(unittest.TestCase):
 
     def test_wrong_release_notes_title_is_rejected(self):
         """发行说明必须对应当前版本，标题由文件确定。"""
-        self.write("docs/releases/v2.0.5.md", "# Nivo Bot 2.0.4 · Other\n")
-        with self.assertRaises(ValueError):
-            self.plan()
+        for brand, ending in product(
+            ("Nivo Bot", "念步", "Nelan"),
+            ("2.0.4 · Other", "2.0.5 · cadence", "2.0.5 · Cadence extra", "2.0.5"),
+        ):
+            self.write("docs/releases/v2.0.5.md", f"# {brand} {ending}\n")
+            with self.subTest(brand=brand, ending=ending), self.assertRaises(ValueError):
+                self.plan()
+        for brand in ("Other", "nelan", "Nelan-Bot", "念步Nelan"):
+            self.write("docs/releases/v2.0.5.md", f"# {brand} 2.0.5 · Cadence\n")
+            with self.subTest(brand=brand), self.assertRaises(ValueError):
+                self.plan()
+
+    def test_new_brand_titles_keep_exact_version_and_codename(self) -> None:
+        """中文与英文新品牌标题沿用精确版本及英文代号格式。"""
+        for title in ("念步 2.0.5 · Cadence", "Nelan 2.0.5 · Cadence"):
+            with self.subTest(title=title):
+                self.write("docs/releases/v2.0.5.md", f"# {title}\n")
+                self.assertEqual(self.plan().title, title)
 
     def test_download_verifies_hash_and_exact_size(self):
         """字节完整通过，损坏、截断和多余数据全部拒绝。"""

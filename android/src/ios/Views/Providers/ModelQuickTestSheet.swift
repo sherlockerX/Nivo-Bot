@@ -200,7 +200,7 @@ final class TestSession: ObservableObject {
             let provider = try await LLMProviderFactory.makeProvider(for: entry)
             let messages = [LLMMessage(
                 role: .user,
-                content: "Hi! I'm setting you up in nanoMuse. Say hello back in one short, friendly sentence.")]
+                content: "Hi! I'm setting you up in \(NivoProduct.englishName). Say hello back in one short, friendly sentence.")] // nanoMuse: 测试提示使用当前产品名。
             let resp = try await provider.sendMessage(
                 messages: messages, systemPrompt: nil, maxTokens: 128, temperature: nil)
             let text = resp.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -212,7 +212,7 @@ final class TestSession: ObservableObject {
                 throw QuickTestError.unsupported(AppLocalized("This model's provider doesn't support image generation via Quick Test."))
             }
             let resp = try await openAI.generateImage(
-                prompt: "A friendly cute mascot logo for an app called nanoMuse, minimalist, centered, soft colors",
+                prompt: "A friendly cute mascot logo for an app called \(NivoProduct.englishName), minimalist, centered, soft colors", // nanoMuse: 测试提示使用当前产品名。
                 n: 1, size: "1024x1024", quality: nil)
             guard let img = resp.mediaAttachments.first(where: { $0.type == .image }) else {
                 throw QuickTestError.noOutput(AppLocalized("No image was returned."))
@@ -241,7 +241,7 @@ final class TestSession: ObservableObject {
                 throw QuickTestError.unsupported(AppLocalized("This model can't be used for speech output."))
             }
             let req = VoiceOutputRequest(
-                input: "Hi! This is nanoMuse testing text to speech.",
+                input: "Hi! This is \(NivoProduct.englishName) testing text to speech.", // nanoMuse: 英文试音使用英文产品名。
                 model: entry.model.id, voice: entry.model.id, speed: nil, responseFormat: .mp3)
             let data = try await voice.synthesize(req)
             guard !data.isEmpty else { throw QuickTestError.noOutput(AppLocalized("No audio was returned.")) }
@@ -252,7 +252,7 @@ final class TestSession: ObservableObject {
                   let voice = VoiceProviderFactory.make(for: instance), voice.supportsVoiceInput else {
                 throw QuickTestError.unsupported(AppLocalized("This model can't be used for transcription."))
             }
-            let spoken = "Hello from nanoMuse, testing speech to text."
+            let spoken = "Hello from \(NivoProduct.englishName), testing speech to text." // nanoMuse: 保留英文识别测试语言。
             let wav = try await synthesizeTestWAV(spoken)
             // `resolvedModel` is what `VoiceProvider.transcribe` gates
             // chat-based ASR on (`if let model = request.resolvedModel`).

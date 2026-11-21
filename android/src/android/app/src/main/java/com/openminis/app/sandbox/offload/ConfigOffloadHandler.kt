@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 工具说明不再嵌入旧产品名称，命令与协议保持兼容。
+
 import com.openminis.app.config.ConfigBridge
 import com.openminis.app.logging.AppLogger
 import com.openminis.app.sandbox.NativeOffloadHandler
@@ -46,7 +48,7 @@ class ConfigOffloadHandler : NativeOffloadHandler {
         const val EXIT_PERMISSION_DENIED = 126
 
         const val HELP_TEXT =
-            "minis-config - read or change Nicholasx app settings (logged + revertable)\n" +
+            "minis-config - read or change app settings (logged + revertable)\n" +
                 "\n" +
                 "USAGE:\n" +
                 "  minis-config <subcommand> [args]\n" +

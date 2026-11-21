@@ -1,6 +1,6 @@
 # 产品网站维护
 
-Nivo Bot站点采用独立HTML页面，目录页支持浏览器搜索、后退和直接分享链接。源码位于`site/`，生成入口及内容源位于`scripts/site/`。
+念步/Nelan站点采用独立HTML页面，默认助手为十七/Shiqi。目录页支持浏览器搜索、后退和直接分享链接。源码位于`site/`，生成入口及内容源位于`scripts/site/`。域名、仓库地址、nanoMuse与OpenMinis上游致谢继续保留原标识。
 
 ## 内容组织
 
@@ -18,7 +18,7 @@ Nivo Bot站点采用独立HTML页面，目录页支持浏览器搜索、后退�
 
 官方来源存于每个服务商内容条目的`docs`与`console`字段。入口包括百炼、DeepSeek、Kimi、GLM、方舟、MiniMax、OpenAI、Claude、Gemini、xAI、Groq、Mistral，以及Ollama、LM Studio和vLLM文档；另外提供自定义服务教程。原厂商资料核对日期为2026-11-13，未使用个人Key逐一请求所有厂商。2026-11-19按本地模式要求移除了预设中转商推荐，手机目录和网站均依据`providers.json`的`is_relay`字段过滤展示；已有用户配置保留兼容。
 
-入门页说明首次启动可以暂时跳过模型配置，以及Nivo本地档案和模型厂商API认证的区别。隐私页说明移除原账号验证、项目中继、跨设备同步与iCloud Keychain同步后的数据流，并保留第三方API、MCP及联网工具的实际边界。维护分支的说明不能冒充已发布安装包的新行为，下载目录及历史包哈希保持真实。
+入门页说明首次启动可以暂时跳过模型配置，以及念步本地档案和模型厂商API认证的区别。隐私页说明移除原账号验证、项目中继、跨设备同步与iCloud Keychain同步后的数据流，并保留第三方API、MCP及联网工具的实际边界。维护分支的说明不能冒充已发布安装包的新行为，下载目录及历史包哈希保持真实。现有截图拍摄于品牌更新前，保留原始界面并明确标注，不作为新版品牌或实机运行的验收证据。
 
 信息结构参考[Linear](https://linear.app/features)的独立功能入口、[Raycast](https://www.raycast.com/)的产品图叙事和[Obsidian](https://obsidian.md/download)的平台下载分区；未复制其品牌图像或界面。
 
@@ -46,6 +46,7 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 |`platforms`|平台ID、名称、`available`或`unreleased`状态|
 |`releases[].id`|全站唯一发行记录ID|
 |`platform`|与平台列表中的ID对应|
+|`productName`|本条发行时的产品名称；新品牌填写`念步/Nelan`，未标注的既有记录沿用原品牌|
 |`version`、`versionCode`|展示版本和内部编号；按数字比较版本|
 |`channel`|`stable`或`beta`，下载页也可查看全部|
 |`distribution`|`apk`、`ipa`、`app-store`或`testflight`|
@@ -64,7 +65,9 @@ Bing Webmaster Tools采用`msvalidate.01`公开站点验证标签，随生成器
 
 新增版本时，先上传实际文件并核对大小、SHA256和证书，再添加记录；不要覆盖同名历史文件。源码归档从构建使用的固定commit导出，记录`sourceCommit`及归档实际大小、SHA256，不用未提交工作区或移动分支地址代替该安装包的对应源码。重新生成站点后，旧版说明不会随推荐版本改变。
 
-本轮发布Android2.0.7(58)Anchor，文件名为`Nivo-Bot-v2.0.7-arm64.apk`与`Nivo-Bot-v2.0.7-source.zip`。APK保持`io.github.nanomuse.app`与此前Nivo Bot正式版签名；本次未在Android真机上测试覆盖升级。iOS实际可下载版本仍为2.0.5(56)，不新增2.0.7的IPA或伪造同版发行记录。共用源码版本更新不等于各平台都发布新安装包。
+最新稳定版由清单按平台独立计算，Android与iOS可以保留不同版本。APK保持`io.github.nanomuse.app`与此前正式版签名；实际覆盖升级仍须真机验证。共用源码版本更新不等于各平台都发布新安装包，未核验的新版本不能提前加入下载目录。
+
+当前网站名称与历史安装包名称分别维护。`render_site.py`的`SITE_NAME`控制导航、页脚和WebSite信息；静态下载卡、动态下载卡及SoftwareApplication信息读取每条记录的`productName`。缺省名称只用于兼容未标注的历史记录，不根据版本号推测品牌。新品牌的真实发行须显式填写`productName: "念步/Nelan"`；版本说明、源代码URL、安装文件名和哈希保留各版真实身份。
 
 iOS实际提供发行文件后，将平台状态改为`available`，填写实际分发方式、最低系统、文件入口和对应源码。未签名IPA使用`distribution: "ipa"`和`signing: "unsigned"`，卡片、独立说明页与禁用JavaScript时的入口都会说明需自行签名，不能直接安装到iPhone。只有实际存在的TestFlight或App Store入口才使用对应分发类型。没有直链IPA时不编造文件大小或SHA256。
 

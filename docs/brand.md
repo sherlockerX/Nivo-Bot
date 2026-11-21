@@ -1,4 +1,33 @@
-# nanoMuse brand
+# Nelan brand
+
+## Mobile product names
+
+The Android and iOS apps use **念步** in Simplified and Traditional Chinese and **Nelan** in other languages. The bundled companion is **十七 / Shiqi**. Product labels and the companion's name are separate: a personal assistant name saved by the user is kept.
+
+The mobile display name appears on the launcher, in Settings, permission descriptions, notifications, sharing and file entry points. The iOS share extension, Files provider and activity widget each include their own localized `InfoPlist.strings`. Model-facing product descriptions use the same current name; commands and protocol identifiers keep their existing spelling.
+
+Default assistant templates are recognized by their complete contents. Android and iOS migrate only untouched historical default templates to Shiqi. The same rule applies to the bundled long-term memory: an unchanged old seed can be updated, while personal facts, custom names and edited text are kept. The default memory refers to SOUL.md for the assistant's identity and directs the assistant to the available record tools instead of claiming that life records cannot be read. The existing cloud-sync entry points remain disabled.
+
+The display rules are:
+
+- Ordinary pages, messages, notifications and the default assistant introduction use 念步 / Nelan and 十七 / Shiqi. Local storage descriptions do not advertise the removed account or cross-device sync service.
+- Advanced tools lead with their purpose, such as managing app settings. Details and the terminal retain real commands, paths and formats, including `minis-config`, `/var/minis` and `.minisbak`. A historical identifier in a command or file path is not another product name.
+- About names **nanoMuse** and **OpenMinis** as upstream projects. Their license notices and copyright attribution remain intact. Old conversations, imported documents and personally edited identity or memory files are not rewritten to remove historical names.
+
+Brand generation is separate from version generation:
+
+```sh
+python scripts/rebrand.py --android-brand-only
+python scripts/rebrand.py --ios-brand-only
+```
+
+These commands preserve version fields, installation identifiers, signing settings, app groups, Keychain access, database and file paths, URL schemes and the existing website address. The source namespace and asset names retain `nanomuse` for compatibility. Upstream attribution, licenses and references to disabled historical services retain their original names. This does not add a cloud service to the local mobile product.
+
+The Android changes are part of the `2.0.9 (60)` Companion release preparation. Final APK identity, corresponding source and public availability are still pending; the [release notes](releases/v2.0.9.md) record the current evidence. The iOS source has the matching brand and companion changes, but this round has no Xcode build or iPhone validation and publishes no new IPA. The retained iOS download is `2.0.8 (59)`, which does not contain these new source changes.
+
+Before phone acceptance, verify the launcher name, Settings and permission dialogs in both Chinese and English; verify sharing, Files and notifications on iPhone when a new iOS build is available; upgrade an existing installation using its original signing identity and check its records and custom assistant name. Windows portable tests and Swift syntax parsing cannot replace an Xcode build or phone verification.
+
+## Existing visual identity
 
 Decided 2026-09-24. The app icon and the in-app colour system are one decision: the palette
 is derived from the icon so the whole app matches the tile on the home screen.
@@ -23,10 +52,7 @@ pen. The mark is abstract on purpose: it is a gesture first and a letter second.
   sits on a home screen. This is the README hero and the picture to use wherever
   the app is shown as an app.
 
-The icon is **not** the mascot. The default face is the bundled **dragon** (`web/public/avatars/`,
-the Android app's `avatar/`); the other choices are an emoji on a colour and a face made in
-the avatar studio. The red panda of the early releases retired in 0.1.23. Never put the dragon
-(or the old red panda) on the launcher icon, and never put the N mark in the chat as a face.
+The icon is **not** the companion. The mobile apps bundle **Shiqi**, with the animation states described in [Avatar](avatar.md). Existing custom faces and clips remain selectable. The resource name `dragon` is retained for compatibility. Never put the companion on the launcher icon or use the N mark as the assistant's face.
 
 ## Colour
 
@@ -66,7 +92,7 @@ Rules: one accent hue only. Code blocks, thinking text and links that OpenMinis 
 iOS blue, orange and green become `primary` plus neutrals. The conversation itself is
 monochrome: your pill, the send button and the selected tab are the ink colour on the
 canvas, and the blue is left to links and the status line (`ChatColors.kt`, written by
-`scripts/rebrand.py`). The dragon's own colours stay inside the avatar; they are not UI
+`scripts/rebrand.py`). The companion's own colours stay inside the avatar; they are not UI
 colours.
 
 ## Android mapping (done in S1)

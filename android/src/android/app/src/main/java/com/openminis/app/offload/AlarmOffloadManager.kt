@@ -27,7 +27,6 @@ class AlarmOffloadManager(private val context: Context) {
         private const val PREFS_NAME = "minis_alarms_prefs"
         private const val KEY_ALARMS = "alarms_json"
         const val CHANNEL_ID = "minis_alarms"
-        private const val CHANNEL_NAME = "Nicholasx Alarms & Timers"
 
         const val EXTRA_ALARM_ID = "alarm_id"
         const val EXTRA_ALARM_LABEL = "alarm_label"
@@ -46,10 +45,12 @@ class AlarmOffloadManager(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                CHANNEL_NAME,
+                // nanoMuse: 只更新用户可见的通道名，保留通知通道ID。
+                context.getString(com.openminis.app.R.string.nm_brand_alarm_channel, context.getString(com.openminis.app.R.string.app_name)),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Alarms and timers scheduled by the Nicholasx agent"
+                // nanoMuse: 通道说明随产品名称和语言变化。
+                description = context.getString(com.openminis.app.R.string.nm_brand_alarm_description, context.getString(com.openminis.app.R.string.app_name))
                 enableVibration(true)
             }
             notificationManager.createNotificationChannel(channel)

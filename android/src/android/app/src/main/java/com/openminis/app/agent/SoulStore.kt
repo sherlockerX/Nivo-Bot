@@ -75,7 +75,7 @@ data class SoulMetadata(
         const val DISPLAY_EMOJI = "🐾"
 
         val DEFAULT = SoulMetadata(
-            name = "Nivo Bot", // Mosaic: the personal build's agent name
+            name = io.github.nanomuse.identity.AssistantIdentity.DEFAULT_NAME, // nanoMuse: 助手身份独立于产品名。
 
             // Default emoji is intentionally empty — UI uses the fixed
             // [displayEmoji] sparkle and [SoulMDParser.serialize] no longer
@@ -318,10 +318,9 @@ object SoulStore {
      * user's display language; users extend from there. Mirrors iOS
      * `SoulStore.defaultContent` byte-for-byte (74c0daf).
      */
-    // Mosaic: the personal build ships its persona here (Chinese, the owner's language), so a
-    // fresh install and "Restore default" both give it; nanoMuse's English default is replaced.
+    // nanoMuse: 新安装与恢复默认使用十七的身份，既有自定义内容不随品牌变化。
     val DEFAULT_CONTENT: String = """---
-name: "Nivo Bot"
+name: "Shiqi"
 style: ""
 lang: "zh"
 ---
@@ -505,9 +504,11 @@ object SystemPromptBuilder {
      */
     fun identitySection(context: Context): String {
         val file = SoulStore.load(context)
-        val name = (file?.metadata?.name ?: SoulMetadata.DEFAULT.name)
-            .trim()
-            .ifEmpty { SoulMetadata.DEFAULT.name } // Mosaic: the renamed default, not a literal
+        // nanoMuse: 模型使用与界面一致的默认身份，用户自定义昵称仍按原值使用。
+        val name = io.github.nanomuse.identity.AssistantIdentity.displayName(
+            file?.metadata?.name ?: SoulMetadata.DEFAULT.name,
+            context.getString(com.openminis.app.R.string.nm_pet_dragon),
+        )
 
         val style = (file?.metadata?.style ?: "").trim()
 

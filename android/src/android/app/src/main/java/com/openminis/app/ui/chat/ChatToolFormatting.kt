@@ -93,34 +93,19 @@ internal fun toolDisplayName(toolName: String): String = when (toolName) {
  * Full "nanoMuse is …" label shown in the tool detail sheet's bottom bar.
  * Mirrors iOS ToolLiveSheet.toolTitle so the wording matches per tool.
  */
-internal fun toolTitleLabel(toolName: String): String = when (toolName) {
-    "shell_execute" -> "Nivo Bot is using Shell"
-    "file_read" -> "Nivo Bot is reading File"
-    "file_write" -> "Nivo Bot is using Editor"
-    "file_edit" -> "Nivo Bot is editing File"
-    "browser_use" -> "Nivo Bot is using Browser"
-    "read_image" -> "Nivo Bot is reading Image"
-    "memory_write", "memory_get" -> "Nivo Bot is using Memory"
-    "web_search" -> "Nivo Bot is using Search"
-    else -> "Nivo Bot is using ${toolDisplayName(toolName)}"
-}
+// nanoMuse: 工具状态使用本地化句式与当前助手昵称。
+internal fun toolTitleLabel(context: android.content.Context, toolName: String): String =
+    context.getString(com.openminis.app.R.string.nm_brand_tool_using,
+        io.github.nanomuse.identity.NanoMuseIdentity.name(context), toolDisplayName(toolName))
 
 // nanoMuse: the same label once the step is over (issue #67 — the sheet's bottom bar
 // kept saying "is using" for a step that had finished long ago). Present tense while it
 // runs; what happened afterwards.
-internal fun toolTitleLabel(toolName: String, status: ToolBlockStatus?): String = when (status) {
-    null, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING, ToolBlockStatus.PENDING -> toolTitleLabel(toolName)
-    ToolBlockStatus.SUCCESS -> when (toolName) {
-        "shell_execute" -> "Nivo Bot used Shell"
-        "file_read" -> "Nivo Bot read File"
-        "file_write" -> "Nivo Bot used Editor"
-        "file_edit" -> "Nivo Bot edited File"
-        "browser_use" -> "Nivo Bot used Browser"
-        "read_image" -> "Nivo Bot read Image"
-        "memory_write", "memory_get" -> "Nivo Bot used Memory"
-        "web_search" -> "Nivo Bot used Search"
-        else -> "Nivo Bot used ${toolDisplayName(toolName)}"
-    }
+// nanoMuse: 完成态复用本地化过去式，不再固定显示旧产品名。
+internal fun toolTitleLabel(context: android.content.Context, toolName: String, status: ToolBlockStatus?): String = when (status) {
+    null, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING, ToolBlockStatus.PENDING -> toolTitleLabel(context, toolName)
+    ToolBlockStatus.SUCCESS -> context.getString(com.openminis.app.R.string.nm_brand_tool_used,
+        io.github.nanomuse.identity.NanoMuseIdentity.name(context), toolDisplayName(toolName))
     ToolBlockStatus.FAILED -> "${toolDisplayName(toolName).replaceFirstChar { it.uppercase() }} failed"
     ToolBlockStatus.CANCELLED -> "${toolDisplayName(toolName).replaceFirstChar { it.uppercase() }} stopped"
     ToolBlockStatus.TIMEOUT -> "${toolDisplayName(toolName).replaceFirstChar { it.uppercase() }} timed out"

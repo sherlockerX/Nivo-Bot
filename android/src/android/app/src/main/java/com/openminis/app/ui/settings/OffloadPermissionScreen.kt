@@ -91,13 +91,13 @@ fun OffloadPermissionScreen(
             }
         },
     ) {
-        // T-config: master switch for the minis-config CLI surface.
+        // nanoMuse: 权限入口先说明功能，详情保留真实命令与关闭后的影响。
         SettingsSection(
             header = stringResource(R.string.perm_section_config_tool),
-            footer = stringResource(R.string.perm_minis_config_desc),
+            footer = stringResource(R.string.nm_config_permission_detail),
         ) {
             SettingsSwitchRow(
-                title = stringResource(R.string.perm_allow_minis_config),
+                title = stringResource(R.string.nm_config_permission_title),
                 checked = configEnabled,
                 onCheckedChange = {
                     com.openminis.app.config.MinisConfigPermissionStore.setEnabled(it)

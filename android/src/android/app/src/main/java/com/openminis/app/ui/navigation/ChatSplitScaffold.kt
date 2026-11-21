@@ -790,9 +790,8 @@ private fun NoConversationSelected(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                text = soulMeta.name.ifBlank {
-                    com.openminis.app.agent.SoulMetadata.DEFAULT.name
-                },
+                // nanoMuse: 分屏空状态与聊天使用同一助手昵称。
+                text = io.github.nanomuse.identity.AssistantIdentity.displayName(soulMeta.name, stringResource(com.openminis.app.R.string.nm_pet_dragon)),
                 style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
             )

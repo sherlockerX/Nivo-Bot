@@ -209,7 +209,8 @@ class AgentForegroundService : Service() {
         if (com.openminis.app.crash.CrashFrequencyDetector.isSafeMode()) {
             try {
                 val stub = androidx.core.app.NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("Nicholasx")
+                    // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+                    .setContentTitle(getString(com.openminis.app.R.string.app_name))
                     .setSmallIcon(android.R.drawable.stat_sys_warning)
                     .setOngoing(false)
                     .build()
@@ -980,17 +981,9 @@ class AgentForegroundService : Service() {
      * to the raw tool name for unknowns rather than a generic string,
      * so the user still gets a hint about what's running.
      */
-    private fun toolDisplayLabel(toolName: String): String = when (toolName) {
-        "shell_execute" -> "Nicholasx is using Shell"
-        "file_read" -> "Nicholasx is reading File"
-        "file_write" -> "Nicholasx is using Editor"
-        "file_edit" -> "Nicholasx is editing File"
-        "browser_use" -> "Nicholasx is using Browser"
-        "read_image" -> "Nicholasx is reading Image"
-        "memory_write", "memory_get" -> "Nicholasx is using Memory"
-        "web_search" -> "Nicholasx is using Search"
-        else -> "Nicholasx is using $toolName"
-    }
+    // nanoMuse: 通知与聊天共用助手名称和本地化工具状态。
+    private fun toolDisplayLabel(toolName: String): String =
+        com.openminis.app.ui.chat.toolTitleLabel(this, toolName)
 
     /**
      * T-bg-overlay phase 1: pick a system small-icon hint per tool kind.

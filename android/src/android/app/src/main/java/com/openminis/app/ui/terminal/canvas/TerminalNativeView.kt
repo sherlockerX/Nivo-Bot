@@ -282,7 +282,8 @@ class TerminalNativeView @JvmOverloads constructor(
                             val text = em.getSelectedText(sel[0], sel[1], sel[2], sel[3])
                             if (text.isNotEmpty()) {
                                 val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                cb.setPrimaryClip(ClipData.newPlainText("Nivo Bot Shell", text))
+                                // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+                                cb.setPrimaryClip(ClipData.newPlainText(context.getString(com.openminis.app.R.string.app_name), text))
                             }
                         }
                         mode.finish()

@@ -15,6 +15,13 @@ SCREENSHOT_IDS = ("chat", "tasks", "focus", "fragments", "coach", "ideas")
 SCREENSHOT_LINK = "a.screenshot-link, a.app-screenshot"
 
 
+def capture_page(page: Page, target: Path, full_page: bool = False) -> None:
+    """等待实际可见图片完成解码后采集页面，避免留存空白图片占位的验收截图。"""
+    for image in page.locator("img:visible").all():
+        image.evaluate("async image => {await image.decode();}")
+    page.screenshot(path=str(target), full_page=full_page)
+
+
 def check_gallery_tab_scroll(page: Page) -> dict:
     """注入浏览器原生触摸，验证标签真正横向滚动且不切换功能面板。"""
     tabs = page.locator(".gallery-tabs")
@@ -251,6 +258,7 @@ def check_local_text_contrast(page: Page, selector: str) -> dict:
 
 def check_binary_card(card: Locator, release: dict) -> None:
     """对照发行清单核对所选安装包、十进制大小和该版本的校验文件。"""
+    expect(card.locator("h2")).to_contain_text(release.get("productName", "Nivo Bot"))
     expect(card.locator("a.button")).to_have_attribute("href", release["downloadUrl"])
     if release.get("sizeBytes"):
         megabytes = f"{release['sizeBytes'] / 1_000_000:.1f}MB"
@@ -278,9 +286,11 @@ def check_static_downloads(container: Locator, catalogue: dict) -> None:
                 release.get("versionCode", 0),
             ),
         )
-        card = container.locator(".release-card:visible").filter(
-            has=container.page.locator(f'a.button[href="{latest["downloadUrl"]}"]')
-        ).first
+        card = (
+            container.locator(".release-card:visible")
+            .filter(has=container.page.locator(f'a.button[href="{latest["downloadUrl"]}"]'))
+            .first
+        )
         check_binary_card(card, latest)
         if latest.get("signing") == "unsigned":
             expect(container).to_contain_text("不能下载后直接安装到iPhone")
@@ -435,12 +445,12 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         report["localTextContrast"].append(
             check_local_text_contrast(page, ".entry-grid p, [data-story-tab], .button.primary")
         )
-        page.screenshot(path=str(output / "home-desktop.png"), full_page=True)
+        capture_page(page, output / "home-desktop.png", full_page=True)
         page.get_by_role("navigation", name="主导航", exact=True).get_by_role(
             "link", name="功能画廊"
         ).click()
         expect(page).to_have_url(base + "features.html")
-        page.screenshot(path=str(output / "gallery-desktop.png"), full_page=True)
+        capture_page(page, output / "gallery-desktop.png", full_page=True)
         region = page.locator("[data-carousel]")
         expect(region.locator("[data-carousel-play]")).to_have_text("播放")
         region.scroll_into_view_if_needed()
@@ -531,7 +541,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
             page.locator("#configure").bounding_box()["y"]
             >= page.locator(".site-header").bounding_box()["height"]
         )
-        page.screenshot(path=str(output / "guide-scrolled-desktop.png"))
+        capture_page(page, output / "guide-scrolled-desktop.png")
         record("教程锚点跳转位于常驻导航下方")
         catalogue = context.request.get(base + "releases.json").json()
         android = sorted(
@@ -557,7 +567,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
                 page, "#release-content .release-summary, .release-facts span, .checksum > code"
             )
         )
-        page.screenshot(path=str(output / "downloads-desktop.png"), full_page=True)
+        capture_page(page, output / "downloads-desktop.png", full_page=True)
         page.get_by_role("navigation", name="当前栏目").get_by_role("link", name="版本历史").click()
         expect(page).to_have_url(base + "versions.html")
         expect(page.locator("#release-history")).to_contain_text(android[0]["version"])
@@ -597,9 +607,12 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         future = copy.deepcopy(catalogue)
         older = copy.deepcopy(android[0])
         older.pop("checksumsUrl", None)
+        older.pop("productName", None)
         newer = copy.deepcopy(older)
         older.update(id="android-2.9.0-fixture", version="2.9.0", versionCode=59)
-        newer.update(id="android-2.10.0-fixture", version="2.10.0", versionCode=60)
+        newer.update(
+            id="android-2.10.0-fixture", version="2.10.0", versionCode=60, productName="念步/Nelan"
+        )
         future["releases"].extend([older, newer])
         future["platforms"][1]["status"] = "available"
         ios = copy.deepcopy(newer)
@@ -616,13 +629,15 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         context.route("**/releases.json", lambda route: route.fulfill(json=future))
         page.goto(base + "downloads.html", wait_until="networkidle")
         expect(page.locator("#release-version")).to_have_value("android-2.10.0-fixture")
+        expect(page.locator("#release-content h2")).to_contain_text("念步/Nelan")
         page.locator("#release-version").select_option("android-2.9.0-fixture")
         expect(page.locator("#release-content")).to_contain_text("v2.9.0")
+        expect(page.locator("#release-content h2")).to_contain_text("Nivo Bot")
         page.get_by_role("tab", name="iOS").click()
         expect(page.locator("#release-content .chip")).to_have_text("App Store")
         expect(page.locator("#platform-ios")).to_contain_text("已发布")
         expect(page.locator("#release-content .checksum")).to_have_count(0)
-        record("未来多版本数字排序、旧版选择与iOS商店分发")
+        record("未来多版本数字排序、发行时品牌名称、旧版选择与iOS商店分发")
         context.unroute("**/releases.json")
         unsigned = copy.deepcopy(future)
         unsigned["releases"][-1].update(
@@ -709,7 +724,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
         )
         assert abs(phone.locator(".site-header").bounding_box()["y"]) <= 1
         expect(phone.get_by_role("navigation", name="页面切换")).to_be_visible()
-        phone.screenshot(path=str(output / "mobile-scrolled-navigation.png"))
+        capture_page(phone, output / "mobile-scrolled-navigation.png")
         phone.get_by_role("navigation", name="页面切换").get_by_role(
             "link", name="下载应用"
         ).click()
@@ -791,7 +806,7 @@ def run(base: str, output: Path, full: bool = False) -> dict:
             ("downloads.html?platform=ios", "ios-mobile.png"),
         ]:
             phone.goto(base + target, wait_until="networkidle")
-            phone.screenshot(path=str(output / name), full_page=True)
+            capture_page(phone, output / name, full_page=True)
         assert not report["pageErrors"], report["pageErrors"]
         report["passed"] = True
         browser.close()

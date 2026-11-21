@@ -44,7 +44,7 @@ enum PrintHelper {
         let controller = UIPrintInteractionController.shared
         let info = UIPrintInfo.printInfo()
         info.outputType = outputType
-        info.jobName = jobName.isEmpty ? "nanoMuse" : jobName
+        info.jobName = jobName.isEmpty ? NivoProduct.name : jobName // nanoMuse: 打印任务使用本地化产品名。
         controller.printInfo = info
         configure(controller)
         controller.present(animated: true) { _, completed, error in

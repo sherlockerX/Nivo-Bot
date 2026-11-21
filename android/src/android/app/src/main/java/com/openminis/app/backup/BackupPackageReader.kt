@@ -49,7 +49,8 @@ class BackupPackageReader(private val root: File) {
             "/" + manifest.format.substringAfter('/', "").substringBefore('.')
         if (major != BackupFormat.CURRENT) {
             throw BackupException(
-                "This backup was created by a newer version of Nicholasx (${manifest.format}). Please update the app."
+                // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+                "This backup was created by a newer app version (${manifest.format}). Please update the app."
             )
         }
         return manifest

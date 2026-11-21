@@ -1980,17 +1980,16 @@ struct ToolLiveSheet: View {
     }
 
     private var toolTitle: String {
+        // nanoMuse: 旧品牌文案保留为翻译键，界面使用当前语言译文。
         switch block.kind {
-        case .shellTool: return "nanoMuse is using Shell"
-        case .fileReadTool: return "nanoMuse is reading File"
-        case .fileWriteTool: return "nanoMuse is using Editor"
-        case .fileEditTool: return "nanoMuse is editing File"
-        case .browserTool: return "nanoMuse is using Browser"
-        case .readImageTool: return "nanoMuse is reading Image"
-        case .memoryTool: return "nanoMuse is using Memory"
-        case .info: return "nanoMuse"
-        case .text: return "nanoMuse"
-        case .thinking: return "nanoMuse"
+        case .shellTool: return AppLocalized("nanoMuse is using Shell")
+        case .fileReadTool: return AppLocalized("nanoMuse is reading File")
+        case .fileWriteTool: return AppLocalized("nanoMuse is using Editor")
+        case .fileEditTool: return AppLocalized("nanoMuse is editing File")
+        case .browserTool: return AppLocalized("nanoMuse is using Browser")
+        case .readImageTool: return AppLocalized("nanoMuse is reading Image")
+        case .memoryTool: return AppLocalized("nanoMuse is using Memory")
+        case .info, .text, .thinking: return NivoProduct.name
         }
     }
 

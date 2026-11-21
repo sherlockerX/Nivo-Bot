@@ -104,7 +104,7 @@ fun AgentProfileScreen(
 ) {
     val context = LocalContext.current
     val soul by SoulStore.cachedMetadata.collectAsState()
-    val name = soul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    val name = io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon))
     var pane by rememberSaveable { mutableIntStateOf(0) }
     var penMenu by remember { mutableStateOf(false) }
     var share by remember { mutableStateOf(false) }

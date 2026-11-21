@@ -643,7 +643,7 @@ struct MinisApp: App {
 
     private static let fileProviderDomain = NSFileProviderDomain(
         identifier: NSFileProviderDomainIdentifier("io.github.nanomuse.app.files"),
-        displayName: "nanoMuse"
+        displayName: NivoProduct.name // nanoMuse: 只修改文件域显示名，保留域标识和缓存。
     )
 
     /// Bumped when we need to force-rebuild the FileProvider domain on next launch

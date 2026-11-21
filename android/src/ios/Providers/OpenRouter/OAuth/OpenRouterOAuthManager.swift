@@ -142,7 +142,7 @@ final class OpenRouterOAuthManager: NSObject, ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://github.com/OpenMinis/OpenMinis", forHTTPHeaderField: "HTTP-Referer")
-        request.setValue("nanoMuse App", forHTTPHeaderField: "X-Title")
+        request.setValue(NivoProduct.englishName, forHTTPHeaderField: "X-Title") // nanoMuse: 授权页产品展示名。
 
         let jsonData = try JSONSerialization.data(withJSONObject: body)
         request.httpBody = jsonData

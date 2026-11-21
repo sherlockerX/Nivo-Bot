@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.content.Context
 import com.openminis.app.logging.AppLogger
 import com.openminis.app.offload.ShizukuManager
@@ -76,7 +78,7 @@ class ShizukuOffloadHandler(private val context: Context) : NativeOffloadHandler
             ShizukuManager.State.NOT_RUNNING ->
                 return errEnvelope("SERVICE_NOT_RUNNING", "Shizuku service is not running. Start it via adb or root, then retry.", args)
             ShizukuManager.State.NEED_PERMISSION ->
-                return errEnvelope("PERMISSION_DENIED", "Nicholasx is not authorized for Shizuku. Grant permission in Settings → Permissions → Shizuku.", args)
+                return errEnvelope("PERMISSION_DENIED", "${context.getString(com.openminis.app.R.string.app_name)} is not authorized for Shizuku. Grant permission in Settings → Permissions → Shizuku.", args)
             ShizukuManager.State.READY -> { /* fall through */ }
         }
 
