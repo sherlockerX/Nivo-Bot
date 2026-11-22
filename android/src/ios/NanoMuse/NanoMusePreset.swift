@@ -41,6 +41,8 @@ enum NanoMusePreset {
 
     /// USER.md, GLOBAL.md and the coach's steering sentence, once each and only into an empty file.
     static func ensureFiles() {
+        // nanoMuse: 已播种的完整旧GLOBAL也检查迁移，任何用户编辑都由全文匹配保留。
+        migrateUntouchedGlobal()
         let defaults = UserDefaults.standard
         var seeded = Set(defaults.stringArray(forKey: Keys.files) ?? [])
         let targets: [(String, URL)] = [
@@ -49,8 +51,8 @@ enum NanoMusePreset {
             ("feed-preferences.md", NanoMuseDirs.root.appendingPathComponent("feed-preferences.md")),
         ]
         for (path, target) in targets where !seeded.contains(path) {
-            // GLOBAL.md tells the agent which phone it runs on; the shared copy was written for Android.
-            guard let text = files[path].map({ $0.replacingOccurrences(of: "Android 手机", with: "iPhone") }) else { continue }
+            // nanoMuse: 新旧共享资源统一适配本机文案，播种与完整旧模板迁移保持一致。
+            guard let text = files[path].map(NivoPresetDefaults.contentForIPhone) else { continue }
             let existing: String
             do {
                 existing = try String(contentsOf: target, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -72,6 +74,14 @@ enum NanoMusePreset {
             seeded.insert(path)
         }
         defaults.set(Array(seeded), forKey: Keys.files)
+    }
+
+    /// 使用统一生成的预置资源升级完整旧模板，失败保留原文并在下次启动重试。
+    private static func migrateUntouchedGlobal() {
+        guard let bundled = files["memory/GLOBAL.md"] else { return }
+        let target = NanoMuseDirs.memory.appendingPathComponent("GLOBAL.md")
+        let replacement = NivoPresetDefaults.contentForIPhone(bundled)
+        _ = try? NivoPresetDefaults.migrateGlobalFile(at: target, replacement: replacement)
     }
 
     /// Each preset skill once, as an ordinary skill the owner can edit or delete, with its other files.

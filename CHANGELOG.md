@@ -4,6 +4,18 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.10] - 2026-11-21 · Glimmer
+
+- Changed the mobile app name to Nivo in every language. The companion remains Shiqi (十七). Android uses `io.github.nivo` and installs separately from both previous Android packages; iOS keeps its existing bundle identity.
+- Added three animated stars to Android chat while waiting for the model and during active reasoning. They stop when the answer starts and remain still when system animations are disabled.
+
+## [2.0.9] - 2026-11-21 · Companion
+
+- Built, verified and published Android 2.0.9 (60) under `io.github.sherlockerx.nelan`, replacing the obsolete old-ID candidate. The final APK retains the original release certificate and installs separately from `io.github.nanomuse.app`; it cannot update that installation in place or automatically inherit its data and permissions. Existing backup tools provide only partial transfer, described in the [migration guide](https://nivo.8666886.xyz/install.html#android-migration). The corresponding source archive is fixed to commit `905f9f23cba0017083a3fc50f3d443a7ade55f9b`; final verification documentation belongs to the subsequent publication commit. The [public release page](https://nivo.8666886.xyz/releases/android-2.0.9.html) is deployed. All 54 static-file HTTP checks passed with CDN additions recorded separately; complete downloads of the APK, source and checksum file match the verified local sizes and hashes. Browser and phone acceptance are separate and are not established by these checks. No new iOS IPA is built or published; the retained iOS download is 2.0.8 (59), and the new iOS source still lacks Xcode and iPhone validation. See the [detailed release notes](docs/releases/v2.0.9.md).
+- Removed old product names and obsolete account-sync instructions from reachable mobile settings and avatar pages. Led advanced settings with their purpose while preserving real commands and file formats, and identified nanoMuse and OpenMinis as upstream projects in About. Updated untouched default assistant and memory files without replacing personal edits; the default memory now directs the assistant to the available personal-record tools.
+- Renamed the Android and iOS product displays to 念步 in Chinese and Nelan in other languages, including settings, system permission descriptions, notifications, sharing and file entry points. Separated the Shiqi companion name from the product name and kept personal names when their files are present. Added localized iOS extension labels and made brand-only generation preserve installation identities and version fields; the separately authorized Android package change is described above. Matched complete historical and localized default identity templates without enabling cloud sync. Kept protocol names, relative data paths, signing settings, existing website URLs and upstream attribution; the new Android package has a separate sandbox.
+- Replaced the Android and iPhone source default pet with Shiqi (十七), using maintainer-supplied silent clips and matching first-frame covers. Added the built-in error clip, updated the wardrobe name and character description, and extended preview/completion timing to fit the supplied animations. Kept custom pets, imported clips and assistant names within their existing data container; the new Android package does not automatically inherit them.
+
 ## [2.0.8] - 2026-11-20 · Clarity
 
 - Replaced the locale-dependent alphabet symbol in iOS System files with a named sort menu. Empty editable files now have an Edit action, failed saves keep drafts, and file and fragment menus have spoken labels.

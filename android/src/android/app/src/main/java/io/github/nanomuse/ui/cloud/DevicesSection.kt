@@ -237,6 +237,6 @@ private fun OnlineDot(online: Boolean) {
 
 private fun copy(context: Context, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    cm.setPrimaryClip(ClipData.newPlainText("nanoMuse", text))
+    cm.setPrimaryClip(ClipData.newPlainText(context.getString(com.openminis.app.R.string.app_name), text))
     Toast.makeText(context, R.string.nm_devices_web_copied, Toast.LENGTH_SHORT).show()
 }

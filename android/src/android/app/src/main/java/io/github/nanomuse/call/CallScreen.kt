@@ -168,7 +168,7 @@ fun CallScreen(
             AgentAvatarDisc(mood = mood, discSize = 132.dp)
             Spacer(Modifier.height(14.dp))
             Text(
-                soul.name.trim().ifEmpty { stringResource(R.string.app_name) },
+                io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon)),
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,

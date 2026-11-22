@@ -401,7 +401,7 @@ internal sealed class FlatChatItem {
     }
 
     // nanoMuse: 一个折叠行保存过程，正式答复仍使用独立的 Markdown 行。
-    data class AssistantSteps(val messageId: String, val blocks: List<AssistantBlock>, val isStreaming: Boolean) : FlatChatItem() {
+    data class AssistantSteps(val messageId: String, val blocks: List<AssistantBlock>, val isStreaming: Boolean, val isThinking: Boolean = false) : FlatChatItem() {
         override val key = "steps:$messageId"
         override val contentType = "steps"
     }
@@ -425,7 +425,7 @@ internal sealed class FlatChatItem {
         val messageId: String,
         val block: AssistantBlock,
         val isLast: Boolean,
-        val messageIsStreaming: Boolean,
+        val isReceivingModelResponse: Boolean, // nanoMuse: 等待下一轮或工具执行时不再显示上轮推理动画。
         // T300: thinking level captured at the message's creation. Null
         // for assistant messages restored from DB (legacy / pre-T300) —
         // the renderer falls back to the chat's current level.
@@ -693,6 +693,11 @@ internal fun buildFlatChatItems(
 
         val blocks = message.toolBlocks
         val toolPillBlocks = blocks.filter { it.kind == "tool_use" }
+        // nanoMuse: 同一轮只展示一种反馈，工具执行和等待授权优先于模型动效。
+        val canShowModelFeedback = !isSystem && message.isStreaming && message.error == null && toolPillBlocks.none {
+            it.toolStatus == ToolBlockStatus.PENDING || it.toolStatus == ToolBlockStatus.RUNNING || it.toolStatus == ToolBlockStatus.STREAMING
+        }
+        val isReceivingModelResponse = canShowModelFeedback && !message.isAwaitingModelResponse
         val lastThinkingId = blocks.lastOrNull { it.kind == "thinking" }?.id
         // [T-android-thinking-auto-collapse] Id of the last block of ANY
         // kind — used to flip the trailing thinking block's auto-collapse
@@ -710,7 +715,11 @@ internal fun buildFlatChatItems(
         val processBlocks = if (foldSteps && !isSystem) blocks.filterIndexed { index, block ->
             block.kind == "thinking" || block.kind == "tool_use" || (block.kind == "text" && index < lastToolIndex)
         } else emptyList()
-        if (processBlocks.isNotEmpty()) out.add(dedupe(FlatChatItem.AssistantSteps(message.id, processBlocks, message.isStreaming)))
+        if (processBlocks.isNotEmpty()) { // nanoMuse: 只在当前轮次的最后一块仍在推理时点亮折叠标题。
+            val isThinking = isReceivingModelResponse &&
+                blocks.lastOrNull()?.let { it.kind == "thinking" && it.toolStatus != ToolBlockStatus.SUCCESS } == true
+            out.add(dedupe(FlatChatItem.AssistantSteps(message.id, processBlocks, message.isStreaming, isThinking)))
+        }
         val processIds = processBlocks.map { it.id }.toSet()
         blocks.forEachIndexed { index, block ->
             if (block.id in processIds) return@forEachIndexed
@@ -736,7 +745,7 @@ internal fun buildFlatChatItems(
                     messageId = message.id,
                     block = block,
                     isLast = block.id == lastThinkingId,
-                    messageIsStreaming = message.isStreaming,
+                    isReceivingModelResponse = isReceivingModelResponse, // nanoMuse: 展开推理时也遵循同一条反馈规则。
                     messageThinkingLevel = message.thinkingLevel,
                     isLastBlockOverall = block.id == lastBlockId,
                 )))
@@ -784,7 +793,8 @@ internal fun buildFlatChatItems(
                 else -> true // the app's own cards
             }
         }
-        if (message.isStreaming && (!hasVisibleContent || message.isAwaitingModelResponse)) {
+        // nanoMuse: 工具卡片已显示执行或授权状态；新一轮模型请求发出后才再次显示等待反馈。
+        if (canShowModelFeedback && (!hasVisibleContent || message.isAwaitingModelResponse)) {
             out.add(dedupe(FlatChatItem.AssistantTyping(message.id)))
         }
 

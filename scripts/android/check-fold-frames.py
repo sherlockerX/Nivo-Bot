@@ -67,7 +67,7 @@ def main() -> None:
     fixture = rpc("debug.uiFixture", count=options.count, tools=options.tools,
                   reasoning_repeats=options.reasoning_repeats)
     adb("shell", "am", "start", "-W", "-n",
-        "io.github.nanomuse.app.uitest/com.openminis.app.MainActivity",
+        "io.github.nivo.uitest/com.openminis.app.MainActivity",
         "-a", "android.intent.action.VIEW", "-d", f"minis://session/{fixture['session_id']}")
     time.sleep(3)
     center = header_center()

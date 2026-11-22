@@ -616,7 +616,7 @@ def collect_entries(
             continue
         if entry.path not in (PROOT_PATH, ISH_PATH):
             raise ValueError(f"Unreviewed submodule: {entry.path}")
-        if platform == "ios" and entry.path == ISH_PATH:
+        if platform in {"ios", "mobile"} and entry.path == ISH_PATH:
             nested_entries, nested_submodules = expand_submodule(root, entry, commit)
             entries.extend(nested_entries)
             submodules.extend(nested_submodules)
@@ -630,7 +630,7 @@ def collect_entries(
             entries.extend(tree_entries(repository, entry.oid, entry.path + "/"))
     if not any(item["path"] == PROOT_PATH for item in submodules):
         raise ValueError("Pinned proot submodule is required")
-    if platform == "ios" and not any(item["path"] == ISH_PATH for item in submodules):
+    if platform in {"ios", "mobile"} and not any(item["path"] == ISH_PATH for item in submodules):
         raise ValueError("Pinned iSH submodule is required")
     return sorted(entries, key=lambda entry: entry.path), submodules
 
@@ -723,7 +723,7 @@ def archive_source(
     root: Path, commit: str, output: Path, platform: str = "android"
 ) -> dict:
     """从不可变提交生成新ZIP；拒绝覆盖已有输出，不修改源仓库。"""
-    if platform not in {"android", "ios"}:
+    if platform not in {"android", "ios", "mobile"}:
         raise ValueError("Unsupported source platform")
     root = root.resolve()
     if not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", commit):
@@ -737,19 +737,21 @@ def archive_source(
         "schemaVersion": 1,
         "status": f"{platform}-release-source",
         "sourceCommit": commit,
-        "scope": "iOS corresponding source" if platform == "ios" else "Android corresponding source",
+        "scope": {"mobile": "Android and iOS corresponding source", "ios": "iOS corresponding source", "android": "Android corresponding source"}[platform],
         "submodules": submodules,
         "files": [],
         "limitations": [
             "External dependencies and Apple toolchains are required; byte-identical IPA reproduction is not verified.",
             "The archive contains committed source only, without signing identities or downloaded build dependencies.",
             "The optional Linux kernel remains pinned but unexpanded only when committed configuration excludes it from the iSH build.",
-        ] if platform == "ios" else [
+        ] if platform in {"ios", "mobile"} else [
             "iSH and its nested iOS submodules are not expanded.",
             "Pinned Termux loaders cannot be rebuilt completely from this tree.",
             "External dependencies and toolchains are required; byte-identical APK reproduction is not verified.",
         ],
     }
+    if platform == "mobile":
+        manifest["limitations"].append("Pinned Termux loaders cannot be rebuilt completely from this tree; byte-identical APK reproduction is not verified.")
     if output.exists():
         raise ValueError("Refusing to overwrite an existing archive")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -785,7 +787,7 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--platform", choices=("android", "ios"), default="android")
+    parser.add_argument("--platform", choices=("android", "ios", "mobile"), default="android")
     arguments = parser.parse_args()
     try:
         result = archive_source(

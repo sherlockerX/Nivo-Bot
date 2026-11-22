@@ -510,7 +510,7 @@ struct SoulMetadata: Equatable {
     var displayEmoji: String { "🐾" }
 
     static let `default` = SoulMetadata(
-        name: "Nivo Bot",
+        name: NivoProduct.assistantName, // nanoMuse: 新建助手使用独立角色名。
         // Default emoji is intentionally empty — the UI uses the fixed
         // `displayEmoji` sparkle and serialize() no longer writes the
         // `emoji:` line. Kept on the struct only so the parser can
@@ -753,21 +753,20 @@ enum SoulStore {
     /// agent runs with vanilla behaviour out of the box and users decide
     /// what voice / tone to add themselves. Only the frontmatter (name /
     /// style / lang) is seeded.
-    static let defaultContent: String = """
-    ---
-    name: "Nivo Bot"
-    style: ""
-    lang: "auto"
-    ---
+    // nanoMuse: 只为缺失的SOUL文件提供当前语言的默认助手名。
+    static var defaultContent: String {
+        NivoSoulDefaults.content(name: NivoProduct.assistantName)
+    }
 
-    """
-
-    /// Create SOUL.md with default content if it does not already exist.
-    /// Safe to call on every launch — never overwrites existing content.
+    /// 创建缺失的SOUL.md；已有文件只迁移全文未编辑的历史默认模板。
     static func ensureExists() {
         let url = fileURL
         let fm = FileManager.default
-        guard !fm.fileExists(atPath: url.path) else { return }
+        // nanoMuse: 昵称、正文或字段有任何自定义均保留；失败不记标记，下次启动重试。
+        if fm.fileExists(atPath: url.path) {
+            try? NivoSoulDefaults.migrateLegacyFile(at: url, assistantName: NivoProduct.assistantName)
+            return
+        }
         // Parent dir is created earlier by registerFileProviderDomain;
         // defensive createDirectory here in case ensureExists is invoked
         // from a code path that runs before that.
@@ -848,16 +847,10 @@ enum SoulStore {
            localText == markdown {
             return
         }
-        // Reject a remote default-seed payload when the local file is
-        // already customized. The matching buildSoul guard prevents
-        // healthy peers from pushing default seeds, but a record that
-        // landed in iCloud before the buildSoul guard existed (or that
-        // came from a downgraded device) would otherwise wipe out a
-        // customized local SOUL.md via LWW.
-        if markdown == defaultContent,
-           let data = try? Data(contentsOf: url),
+        // nanoMuse: 兼容旧版和其他语言的完整默认种子，不能让它们覆盖用户自定义身份。
+        if let data = try? Data(contentsOf: url),
            let localText = String(data: data, encoding: .utf8),
-           localText != defaultContent {
+           NivoSoulDefaults.shouldPreserveLocalContent(local: localText, remote: markdown) {
             return
         }
         try? fm.createDirectory(at: url.deletingLastPathComponent(),
@@ -925,7 +918,7 @@ enum SystemPromptBuilder {
         let name: String = {
             let n = (file?.metadata.name ?? SoulMetadata.default.name)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return n.isEmpty ? "Nivo Bot" : n
+            return n.isEmpty ? NivoProduct.assistantName : n // nanoMuse: 保留用户昵称。
         }()
         let style: String = (file?.metadata.style ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1029,12 +1022,12 @@ enum SystemPromptBuilder {
 @MainActor
 struct AssistantSoulName: View {
     @State private var name: String = SoulStore.cachedMetadata.name.isEmpty
-        ? "Nivo Bot" : SoulStore.cachedMetadata.name
+        ? NivoProduct.assistantName : SoulStore.cachedMetadata.name // nanoMuse: 空昵称使用角色名。
     var body: some View {
         Text(name)
             .onReceive(NotificationCenter.default.publisher(for: .soulMdChanged)) { _ in
                 let n = SoulStore.cachedMetadata.name
-                name = n.isEmpty ? "Nivo Bot" : n
+                name = n.isEmpty ? NivoProduct.assistantName : n // nanoMuse: 保留用户昵称。
             }
     }
 }

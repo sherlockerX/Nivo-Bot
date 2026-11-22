@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues
@@ -242,7 +244,7 @@ class PhotosOffloadHandler(private val context: Context) : NativeOffloadHandler 
                     OffloadPermissionManager.SettingsGateRequest(
                         id = "photos_media",
                         title = "Photos permission needed",
-                        message = "Nicholasx needs media permission to read your photo library. Open Settings to allow it.",
+                        message = "${context.getString(com.openminis.app.R.string.app_name)} needs media permission to read your photo library. Open Settings to allow it.",
                         settingsAction = android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         requiresPackageUri = true,
                         positiveLabel = "Open Settings",
@@ -305,7 +307,7 @@ class PhotosOffloadHandler(private val context: Context) : NativeOffloadHandler 
                     OffloadPermissionManager.SettingsGateRequest(
                         id = "ACCESS_MEDIA_LOCATION",
                         title = "Photo location needed",
-                        message = "Nicholasx needs photo-location permission to read GPS EXIF for the `near` query. Open Settings to allow it.",
+                        message = "${context.getString(com.openminis.app.R.string.app_name)} needs photo-location permission to read GPS EXIF for the `near` query. Open Settings to allow it.",
                         settingsAction = android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         requiresPackageUri = true,
                         positiveLabel = "Open Settings",

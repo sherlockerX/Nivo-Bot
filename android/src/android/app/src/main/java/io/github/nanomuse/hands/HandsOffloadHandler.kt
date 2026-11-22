@@ -79,7 +79,7 @@ class HandsOffloadHandler(private val context: Context) : NativeOffloadHandler {
             val missing = buildList {
                 if (!r.androidOk) add("Android 11 or newer is needed for screenshots")
                 if (!r.serviceOn) add("the accessibility service is off")
-                if (!r.overlayOk) add("Nicholasx may not draw over other apps")
+                if (!r.overlayOk) add("This app may not draw over other apps")
                 if (r.model == null) add("no model that can see pictures is configured")
             }
             return refused("not_ready", missing.joinToString("; ") + ".")

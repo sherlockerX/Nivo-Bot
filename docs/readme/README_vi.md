@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 **Trò chuyện AI, công việc, tập trung, ghi chép hằng ngày và huấn luyện phát triển trên Android và iOS.**
@@ -22,33 +22,33 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
 
-Nivo Bot là không gian AI cho cuộc sống hằng ngày. Bắt đầu bằng trò chuyện, chuyển bước tiếp theo thành công việc, dành thời gian tập trung và lưu trải nghiệm để xem lại.
+Nivo là không gian AI cho cuộc sống hằng ngày. Bắt đầu bằng trò chuyện, chuyển bước tiếp theo thành công việc, dành thời gian tập trung và lưu trải nghiệm để xem lại.
 
 Miễn phí, mã nguồn mở và phi lợi nhuận. Bạn chọn nhà cung cấp mô hình; yêu cầu có thể mất phí. TTS Android đọc phản hồi bằng máy giọng nói trên điện thoại.
 
 ## Khám phá Nivo
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 Giới thiệu bằng hình minh họa và nội dung mẫu. GIF trượt ngang qua sáu mô-đun; nhấn hình tĩnh để phóng to. Đây là hình giải thích, không phải ảnh chụp thiết bị.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -86,17 +86,15 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 | Tài nguyên | Liên kết |
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 trở lên, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| Mã nguồn tương ứng với APK | [Gói mã nguồn v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| Mã nguồn tương ứng với IPA iOS | [Gói mã nguồn iOS v2.0.8](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| Mã kiểm tra tải xuống iOS | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| Thông tin bản phát hành | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 trở lên, arm64 | [APK Nivo v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.10 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Mã nguồn Android và iOS | [Gói mã nguồn v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| Thông tin bản phát hành | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59) Clarity đã được biên dịch thành IPA chưa ký với cấu hình Release. CI phát hành đã thành công; IPA và gói mã nguồn tương ứng đã vượt qua kiểm tra cục bộ. Android giữ bản 2.0.7(58), cùng APK, gói mã nguồn, mã kiểm tra và danh tính chữ ký. Người dùng xác nhận không gặp vấn đề khi kiểm tra nhánh kiểm tra trên iPhone; phản hồi này không xác nhận tệp nhị phân Release 2.0.8 mới. Hãy dùng liên kết mã nguồn và mã kiểm tra phía trên phù hợp với nền tảng. Cần tự ký trước khi cài đặt. Fork này không có tài khoản Apple Developer Program nên không phân phối qua TestFlight hoặc App Store. Tập trung bắt buộc, lịch khóa lặp lại và danh sách ứng dụng được phép chỉ có trên Android; iOS cung cấp lời nhắc tập trung và hướng dẫn Truy cập được hướng dẫn, do người dùng tự bắt đầu và kết thúc trong iOS. Biên dịch CI không xác nhận hoạt động thực tế trên iPhone.
+Android và iOS cùng dùng phiên bản 2.0.10 (61). Android giữ chứng chỉ ký phát hành cũ. Bạn cần tự ký IPA iOS trước khi cài đặt; ứng dụng không được phân phối qua TestFlight hay App Store.
 
-ID ứng dụng vẫn là `io.github.nanomuse.app`, với cùng danh tính chữ ký như các bản phát hành chính thức trước của Nivo Bot. Bản này chưa được kiểm thử cập nhật đè lên bản đã cài trên điện thoại Android thật. Bản này thường không cập nhật đè được cài đặt ký bằng khóa Debug cũ hoặc khóa dự án gốc. Kiểm tra sao lưu và phục hồi trước khi gỡ; xem [hướng dẫn phiên bản và chữ ký](../android-development.md#nivo-bot的android版本与签名).
+Gói Android mới `io.github.nivo` được cài song song với phiên bản cũ. Hãy giữ ứng dụng cũ vì bản sao lưu chung không chuyển lịch sử tập trung, ghi chép hằng ngày và tiến độ luyện tập.
 
 Gói mã nguồn Android được xuất từ commit cố định dùng để biên dịch. Danh mục tải xuống ghi lại commit đó và mã kiểm tra của gói; hãy dùng mã nguồn đúng phiên bản đã cài khi kiểm tra hoặc biên dịch lại.
 
@@ -168,7 +166,7 @@ Giữ thông báo bản quyền và giấy phép gốc. Không đưa khóa API, 
 
 ## Người duy trì
 
-Fork Nivo Bot này do <a href="https://github.com/sherlockerX">sherlockerX</a> duy trì. Hãy báo vấn đề riêng của Nivo tại đây để người duy trì nhận được.
+Fork Nivo này do <a href="https://github.com/sherlockerX">sherlockerX</a> duy trì. Hãy báo vấn đề riêng của Nivo tại đây để người duy trì nhận được.
 
 ## Giấy phép
 
@@ -176,9 +174,9 @@ Fork Nivo Bot này do <a href="https://github.com/sherlockerX">sherlockerX</a> d
 
 ## Lời cảm ơn
 
-Nivo Bot dựa trên [nanoMuse](https://github.com/nano-muse/nanoMuse), có nền tảng tác nhân, tích hợp và kiến trúc giúp công việc này khả thi. Cảm ơn nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> và các cộng tác viên. Nền tảng điện thoại đến từ [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+Nivo dựa trên [nanoMuse](https://github.com/nano-muse/nanoMuse), có nền tảng tác nhân, tích hợp và kiến trúc giúp công việc này khả thi. Cảm ơn nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> và các cộng tác viên. Nền tảng điện thoại đến từ [OpenMinis](https://github.com/OpenMinis/OpenMinis).
 
-Danh sách ghi nhận đóng góp lịch sử nanoMuse. Lời cảm ơn và cột mốc nằm trong [hồ sơ nguồn gốc](../archive/upstream-readme-vi.md); điều khoản phụ thuộc ở [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot được duy trì độc lập.
+Danh sách ghi nhận đóng góp lịch sử nanoMuse. Lời cảm ơn và cột mốc nằm trong [hồ sơ nguồn gốc](../archive/upstream-readme-vi.md); điều khoản phụ thuộc ở [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo được duy trì độc lập.
 
 <details>
 <summary>Cộng tác viên và nguồn gốc</summary>

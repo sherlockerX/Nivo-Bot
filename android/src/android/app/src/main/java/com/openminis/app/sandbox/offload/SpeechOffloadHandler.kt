@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -265,7 +267,7 @@ class SpeechOffloadHandler(private val context: Context) : NativeOffloadHandler 
                     OffloadPermissionManager.SettingsGateRequest(
                         id = Manifest.permission.RECORD_AUDIO,
                         title = "Microphone permission needed",
-                        message = "Nicholasx needs microphone permission to transcribe speech. Open Settings to allow it.",
+                        message = "${context.getString(com.openminis.app.R.string.app_name)} needs microphone permission to transcribe speech. Open Settings to allow it.",
                         settingsAction = android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         requiresPackageUri = true,
                         positiveLabel = "Open Settings",

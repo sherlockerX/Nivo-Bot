@@ -89,7 +89,7 @@ internal fun NmReplyShareDialog(question: String?, answer: String, onDismiss: ()
     val layer = rememberGraphicsLayer()
     var working by remember { mutableStateOf(false) }
     val soul by SoulStore.cachedMetadata.collectAsState()
-    val name = soul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    val name = io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon))
     val face by AvatarStore.current.collectAsState()
     val date = remember { DateFormat.getDateInstance(DateFormat.LONG).format(Date()) }
 

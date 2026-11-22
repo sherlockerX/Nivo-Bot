@@ -78,7 +78,8 @@ class ScheduledNotificationReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: "unknown"
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "Nicholasx"
+        // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: context.getString(com.openminis.app.R.string.app_name)
         val body = intent.getStringExtra(EXTRA_BODY) ?: ""
         AppLogger.debug(TAG, "scheduled notification fired: id=$id title='$title'")
 

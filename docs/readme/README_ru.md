@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 **Чат с ИИ, задачи, фокус, ежедневные заметки и обучение на Android и iOS.**
@@ -22,33 +22,33 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
 </p>
 
-Nivo Bot, пространство ИИ для повседневной жизни. Начните с беседы, превратите следующий шаг в задачу, уделите ей время и сохраните опыт, к которому можно вернуться.
+Nivo, пространство ИИ для повседневной жизни. Начните с беседы, превратите следующий шаг в задачу, уделите ей время и сохраните опыт, к которому можно вернуться.
 
 Бесплатно, с открытым кодом, без коммерческой цели. Выберите поставщика моделей; запросы могут оплачиваться. Android TTS читает ответы голосовым движком телефона.
 
 ## Знакомство с Nivo
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 Иллюстрированный обзор с примерами. GIF горизонтально показывает шесть модулей; нажмите на статичную картинку для увеличения. Это поясняющие изображения, а не скриншоты устройства.
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -86,17 +86,15 @@ Nivo Bot, пространство ИИ для повседневной жизн
 | Ресурс | Ссылка |
 |---|---|
 | Сайт продукта | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 и новее, arm64 | [APK Nivo Bot v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA v2.0.8 (Release)](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| Исходный код, соответствующий APK | [Архив исходников v2.0.7](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| Исходники, соответствующие IPA для iOS | [Архив исходников iOS v2.0.8](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| Контрольные суммы | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| Контрольные суммы загрузок iOS | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| Сведения о выпуске | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 и новее, arm64 | [APK Nivo v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA v2.0.10 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Исходный код Android и iOS | [Архив исходников v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| Контрольные суммы | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| Сведения о выпуске | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59) Clarity собран как неподписанный IPA в конфигурации Release. CI выпуска завершён успешно; IPA и соответствующий архив исходников прошли локальную проверку. Загрузки Android остаются на версии 2.0.7(58), с теми же APK, архивом исходников, контрольными суммами и подписью. Пользователь сообщил об отсутствии проблем после проверки ветки аудита на iPhone; это не подтверждает проверку нового бинарного файла Release 2.0.8. Используйте ссылки на исходники и контрольные суммы для соответствующей платформы. Перед установкой требуется личная подпись. У этого форка нет учётной записи Apple Developer Program, распространение через TestFlight или App Store не предоставляется. Принудительный фокус, повторяющиеся планы блокировки и списки разрешённых приложений доступны только на Android; iOS предоставляет напоминания и инструкции по Гид-доступу, который пользователь запускает и завершает в iOS. Компиляция в CI не подтверждает работу на iPhone.
+Android и iOS получили версию 2.0.10 (61). Для Android сохранён прежний сертификат подписи. IPA для iOS нужно подписать самостоятельно перед установкой; публикации в TestFlight и App Store нет.
 
-ID приложения остаётся `io.github.nanomuse.app`; используется та же подпись, что и в предыдущих официальных выпусках Nivo Bot. Обновление поверх существующей установки на физическом телефоне Android для этого выпуска не проверялось. Обычно этот выпуск не может обновить установку со старой подписью Debug или исходного проекта. До удаления проверьте резервное копирование и восстановление; см. [руководство по версиям и подписи](../android-development.md#nivo-bot的android版本与签名).
+Пакет Android `io.github.nivo` устанавливается рядом со старой версией. Сохраните старое приложение: общая резервная копия не переносит историю концентрации, ежедневные записи и прогресс занятий с тренером.
 
 Архив исходников Android экспортируется из фиксированного коммита, использованного для сборки. Каталог загрузок содержит этот коммит и контрольную сумму архива; для проверки или повторной сборки выбирайте исходники установленной версии.
 
@@ -168,7 +166,7 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 
 ## Сопровождение
 
-Этот форк Nivo Bot сопровождает <a href="https://github.com/sherlockerX">sherlockerX</a>. Сообщайте о проблемах Nivo здесь, чтобы они дошли до сопровождающего форк.
+Этот форк Nivo сопровождает <a href="https://github.com/sherlockerX">sherlockerX</a>. Сообщайте о проблемах Nivo здесь, чтобы они дошли до сопровождающего форк.
 
 ## Лицензия
 
@@ -176,9 +174,9 @@ $env:ANDROID_HOME = 'C:\path\to\android-sdk'
 
 ## Благодарности
 
-Nivo Bot основан на [nanoMuse](https://github.com/nano-muse/nanoMuse), чьи основа агента, интеграции и архитектура сделали эту работу возможной. Спасибо nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> и участникам. Основа приложения для телефона взята из [OpenMinis](https://github.com/OpenMinis/OpenMinis).
+Nivo основан на [nanoMuse](https://github.com/nano-muse/nanoMuse), чьи основа агента, интеграции и архитектура сделали эту работу возможной. Спасибо nanoMuse, <a href="https://github.com/lgy0404">Guangyi Liu (lgy0404)</a> и участникам. Основа приложения для телефона взята из [OpenMinis](https://github.com/OpenMinis/OpenMinis).
 
-Список признаёт исторический вклад в nanoMuse. Благодарности и этапы находятся в [архиве происхождения](../archive/upstream-readme-ru.md); условия зависимостей остаются в [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo Bot сопровождается независимо.
+Список признаёт исторический вклад в nanoMuse. Благодарности и этапы находятся в [архиве происхождения](../archive/upstream-readme-ru.md); условия зависимостей остаются в [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Nivo сопровождается независимо.
 
 <details>
 <summary>Участники и происхождение</summary>

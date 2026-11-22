@@ -24,7 +24,7 @@ final class NivoModelUseDiagnosticsTests: XCTestCase {
 
     func testEmptyListHintExplainsSeparateAuthorizationAndSettingsEntry() {
         let hint = NivoModelUseDiagnostics.noModelsHint
-        XCTAssertTrue(hint.contains("Models nanoMuse Can Call at Runtime"))
+        XCTAssertTrue(hint.contains("Models \(NivoProduct.name) Can Call at Runtime"))
         XCTAssertTrue(hint.contains("Chat model selection is separate"))
         XCTAssertTrue(hint.contains("minis://settings/model-groups"))
     }

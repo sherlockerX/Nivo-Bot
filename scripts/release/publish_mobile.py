@@ -19,7 +19,11 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPOSITORY = "sherlockerX/Nivo-Bot"
 ORIGIN = "https://nivo.8666886.xyz/downloads/"
-PACKAGE_ID = "io.github.nanomuse.app"
+LEGACY_ANDROID_PACKAGE_ID = "io.github.nanomuse.app"
+NELAN_ANDROID_PACKAGE_ID = "io.github.sherlockerx.nelan"
+ANDROID_PACKAGE_ID = "io.github.nivo"
+NELAN_ANDROID_VERSION = (2, 0, 9)
+IOS_BUNDLE_ID = "io.github.nanomuse.app"
 MAX_SIZE = 2 * 1024 * 1024 * 1024
 
 
@@ -64,6 +68,15 @@ def artifact(name: str, url: object, digest: object, size: object) -> Artifact:
     return Artifact(name, str(url), digest.lower(), size)
 
 
+def mobile_artifact(tag: str, suffix: str, url: object, digest: object, size: object) -> Artifact:
+    """仅接受新旧品牌的完整固定地址，继续共用哈希与大小校验。"""
+    for prefix in ("Nivo", "Nelan", "Nivo-Bot"):
+        name = f"{prefix}-{tag}-{suffix}"
+        if url == ORIGIN + name:
+            return artifact(name, url, digest, size)
+    raise ValueError(f"Unexpected download URL for {tag}-{suffix}")
+
+
 def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifact, ...]:
     """当前实际发行的平台必须共享一份源码，并符合各自分发约束。"""
     artifacts = []
@@ -79,16 +92,18 @@ def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifa
             raise ValueError("Expected an explicitly unsigned iOS IPA")
         suffix = "arm64.apk" if platform == "android" else "unsigned.ipa"
         artifacts.append(
-            artifact(
-                f"Nivo-Bot-{tag}-{suffix}",
+            mobile_artifact(
+                tag,
+                suffix,
                 row.get("downloadUrl"),
                 row.get("sha256"),
                 row.get("sizeBytes"),
             )
         )
         sources.append(
-            artifact(
-                f"Nivo-Bot-{tag}-source.zip",
+            mobile_artifact(
+                tag,
+                "source.zip",
                 row.get("sourceUrl"),
                 row.get("sourceSha256"),
                 row.get("sourceSizeBytes"),
@@ -96,7 +111,15 @@ def release_artifacts(selected: list[dict], tag: str, code: int) -> tuple[Artifa
         )
     if any(source != sources[0] for source in sources[1:]):
         raise ValueError("Platform source archive identities disagree")
-    return tuple(artifacts + [sources[0]])
+    artifacts.append(sources[0])
+    if tuple(map(int, tag[1:].split("."))) >= (2, 0, 10):
+        name = f"SHA256SUMS-{tag}.txt"
+        if any(row.get("checksumsUrl") != ORIGIN + name for row in selected):
+            raise ValueError("Platform checksum URLs must match the release")
+        # 校验清单来自三方可复算的内容，不信任待下载的清单本身。
+        content = "".join(f"{item.sha256}  {item.name}\n" for item in artifacts).encode("ascii")
+        artifacts.append(artifact(name, ORIGIN + name, hashlib.sha256(content).hexdigest(), len(content)))
+    return tuple(artifacts)
 
 
 def load_plan(root: Path, tag: str) -> ReleasePlan:
@@ -123,7 +146,8 @@ def load_plan(root: Path, tag: str) -> ReleasePlan:
     notes = root / "docs/releases" / f"{tag}.md"
     lines = notes.read_text(encoding="utf-8").splitlines()
     title = lines[0].removeprefix("# ") if lines else ""
-    if not re.fullmatch(rf"Nivo Bot {re.escape(version)} · [A-Z][A-Za-z]+", title):
+    brands = "|".join(re.escape(name) for name in ("Nivo", "Nivo Bot", "念步", "Nelan"))
+    if not re.fullmatch(rf"(?:{brands}) {re.escape(version)} · [A-Z][A-Za-z]+", title):
         raise ValueError("Release notes heading does not match the tag")
     return ReleasePlan(tag, version, code, title, notes, artifacts)
 
@@ -185,7 +209,14 @@ def verify_apk(path: Path, plan: ReleasePlan, aapt: str) -> None:
     match = re.search(
         r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", output, re.M
     )
-    if not match or match.groups() != (PACKAGE_ID, str(plan.code), plan.version):
+    # 包名跟随已发行的版本边界，与下载文件的名字无关。
+    version_parts = tuple(int(part) for part in plan.version.split("."))
+    package_id = ANDROID_PACKAGE_ID
+    if version_parts == NELAN_ANDROID_VERSION:
+        package_id = NELAN_ANDROID_PACKAGE_ID
+    elif version_parts < NELAN_ANDROID_VERSION:
+        package_id = LEGACY_ANDROID_PACKAGE_ID
+    if not match or match.groups() != (package_id, str(plan.code), plan.version):
         raise ValueError("APK package, version or build code mismatch")
 
 
@@ -205,7 +236,7 @@ def verify_ipa(path: Path, plan: ReleasePlan) -> None:
         info.get("CFBundleShortVersionString"),
         info.get("CFBundleVersion"),
     )
-    if actual != (PACKAGE_ID, plan.version, str(plan.code)):
+    if actual != (IOS_BUNDLE_ID, plan.version, str(plan.code)):
         raise ValueError("IPA bundle, version or build code mismatch")
 
 
@@ -215,8 +246,7 @@ def verify_packages(folder: Path, plan: ReleasePlan) -> None:
         if item.name.endswith(".apk"):
             android_home = os.environ.get("ANDROID_HOME")
             tools = (
-                sorted((Path(android_home) / "build-tools").glob("*/aapt"))
-                if android_home else []
+                sorted((Path(android_home) / "build-tools").glob("*/aapt")) if android_home else []
             )
             if not tools:
                 raise ValueError("Android SDK aapt is required to verify the APK")

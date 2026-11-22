@@ -245,7 +245,7 @@ final class BrowserUseManager: NSObject, ObservableObject {
         let printController = UIPrintInteractionController.shared
         let printInfo = UIPrintInfo.printInfo()
         printInfo.outputType = .general
-        printInfo.jobName = pageTitle.isEmpty ? "nanoMuse" : pageTitle
+        printInfo.jobName = pageTitle.isEmpty ? NivoProduct.name : pageTitle // nanoMuse: 打印任务使用本地化产品名。
         printController.printInfo = printInfo
         printController.printFormatter = webView.viewPrintFormatter()
         printController.present(animated: true) { _, completed, error in

@@ -1,7 +1,24 @@
 # The avatar studio
 
-The agent's face is the bundled dragon until you ask for another; inspiration cards do
-not change that default. On the phone since
+Nivo Bot on Android and iPhone starts with **Shiqi (十七)**, a blue caterpillar explorer.
+The bundled silent videos and matching first-frame covers work offline, without an image
+or video provider. The avatar studio's **Your pets → Shiqi** entry selects this built-in
+character; an existing custom face or imported clip keeps its priority after an update.
+To remove a previously imported clip, use the studio's **Default face** action as well.
+The assistant name in chat is a separate personal setting; replacing the pet does not
+rewrite that name or any conversations.
+
+The phone resources keep their historical `nm_avatar_*`, `nm_motion_*` and `dragon-*`
+filenames, and the built-in wardrobe ID remains `dragon`, so saved selections keep working.
+See the [asset manifest](../assets/avatar-shiqi/source.json) for source hashes, output
+hashes and media preparation. The clips are 640×640 H.264 at 24fps, about five seconds,
+with no audio track; each platform includes the same media. The Android preview cycle and
+both phones' completion/error indications allow 5.5 seconds before returning to another
+state; a new task or an approval request still takes priority. Decoder startup and
+background transitions require device testing.
+
+The web console and desktop retain their existing built-in character. Inspiration cards do
+not change the selected face. On the phone since
 0.1.20 and, from 0.1.23, on the web app and the desktop through the runtime
 (`nanomuse/avatar/studio.py`), the studio draws one from a description, in the chat:
 

@@ -420,7 +420,7 @@ struct NanoMuseHomeView: View {
     /// The agent's name from SOUL.md, "nanoMuse" until it has one.
     static func currentAgentName() -> String {
         let n = SoulStore.cachedMetadata.name
-        return n.isEmpty ? "nanoMuse" : n
+        return n.isEmpty ? NivoProduct.assistantName : n
     }
 
     /// Hidden while the keyboard is up (Android's IME) and while the chat's voice panel is

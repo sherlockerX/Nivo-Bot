@@ -109,7 +109,7 @@ class FirstConversation(
 
     /** The three opening paragraphs, in the device language. */
     fun intro(): List<String> = listOf(
-        context.getString(R.string.nm_intro_hello),
+        context.getString(R.string.nm_intro_hello, io.github.nanomuse.identity.NanoMuseIdentity.name(context)),
         context.getString(R.string.nm_intro_how_i_work),
         context.getString(R.string.nm_intro_ask_name),
     )

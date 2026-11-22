@@ -137,7 +137,7 @@ final class NanoMuseAvatarStudioModel: ObservableObject {
     private var motionWatch: AnyCancellable?
 
     private init() {
-        description = AppLocalized("A chubby pale-yellow baby dragon with tiny orange horns and small folded wings")
+        description = AppLocalized("A round blue caterpillar explorer with a cream belly, a brown explorer hat and backpack, a blue scarf and a gold star pendant")
         motionWatch = NanoMuseAvatarMotion.shared.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
@@ -412,6 +412,7 @@ struct NanoMuseAvatarStudioView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var askCost = false
     @State private var confirmReset = false
+    @State private var previewMood: NanoMuseMood = .idle
 
     private var sourceNote: String {
         switch NanoMuseImageGen.route() {
@@ -511,20 +512,12 @@ struct NanoMuseAvatarStudioView: View {
             Button(own.clip == nil ? AppLocalized("Choose a clip") : AppLocalized("Replace the clip")) {
                 clipPicker.choose()
             }
-            if own.clip != nil {
+            if own.clip != nil || !own.moods.isEmpty {
                 Button(AppLocalized("Default face")) { own.clear() }
             }
             ForEach(NanoMuseMood.allCases, id: \.self) { mood in
                 HStack {
-                    Text({
-                        switch mood {
-                        case .idle: return AppLocalized("Idle")
-                        case .working: return AppLocalized("Working")
-                        case .waiting: return AppLocalized("Waiting")
-                        case .happy: return AppLocalized("Done")
-                        case .error: return AppLocalized("Error")
-                        }
-                    }())
+                    Text(moodTitle(mood))
                     Spacer()
                     Button(own.moods[mood] == nil ? AppLocalized("Choose a clip") : AppLocalized("Replace the clip")) {
                         clipPicker.choose(mood: mood)
@@ -552,14 +545,14 @@ struct NanoMuseAvatarStudioView: View {
         switch faces.source {
         case .drawn: return faces.meta.description
         case .emoji: return AppLocalized("An emoji set on another device")
-        case .dragon: return AppLocalized("The built-in dragon")
+        case .dragon: return AppLocalized("Shiqi")
         }
     }
 
     private var currentSection: some View {
         Section {
             HStack(spacing: 16) {
-                NanoMuseFaceView(mood: .idle, size: 72)
+                NanoMuseFaceView(mood: previewMood, size: 72)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(currentTitle)
                         .font(.body.weight(.semibold))
@@ -582,13 +575,10 @@ struct NanoMuseAvatarStudioView: View {
             } else if let note = motion.progress?.error {
                 Text(note).font(.footnote).foregroundStyle(.secondary)
             }
+            if faces.hasCustomFace || faces.source == .dragon {
+                moodPreviews
+            }
             if faces.hasCustomFace, !studio.isBusy {
-                HStack(spacing: 10) {
-                    ForEach(NanoMuseMood.allCases, id: \.self) { mood in
-                        NanoMuseFaceView(mood: mood, size: 40, showsRing: false)
-                            .opacity(faces.custom[mood] == nil ? 0.4 : 1)
-                    }
-                }
                 Button(AppLocalized("Redraw the moods")) { studio.redrawMoods() }
                     .disabled(studio.cannotDrawReason != nil)
                 if motion.progress == nil, NanoMuseMediaModels.videoEndpoint() != nil {
@@ -598,6 +588,51 @@ struct NanoMuseAvatarStudioView: View {
                 }
                 Button(AppLocalized("Back to the built-in face"), role: .destructive) { confirmReset = true }
             }
+        }
+    }
+
+    /// 五态选择只渲染静态封面，选中状态由上方唯一的主预览播放。
+    private var moodPreviews: some View {
+        HStack(spacing: 10) {
+            ForEach(NanoMuseMood.allCases, id: \.self) { mood in
+                Button { previewMood = mood } label: {
+                    Group {
+                        if let image = previewStill(mood) {
+                            Image(uiImage: image).resizable().scaledToFill()
+                        } else {
+                            Image(systemName: "face.smiling").resizable().scaledToFit()
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+                    .opacity(faces.hasCustomFace && faces.custom[mood] == nil ? 0.4 : 1)
+                    .frame(width: 44, height: 44)
+                    .overlay(Circle().stroke(previewMood == mood ? NanoMuseTones.action : Color.clear, lineWidth: 2))
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(moodTitle(mood)))
+                .accessibilityAddTraits(previewMood == mood ? .isSelected : [])
+            }
+        }
+    }
+
+    /// 封面沿用主预览的自选视频优先级，不创建额外播放器。
+    private func previewStill(_ mood: NanoMuseMood) -> UIImage? {
+        if !faces.hasCustomFace,
+           let poster = own.moodPosters[mood] ?? (own.clip != nil ? own.poster : nil) {
+            return poster
+        }
+        return faces.image(for: mood)
+    }
+
+    private func moodTitle(_ mood: NanoMuseMood) -> String {
+        switch mood {
+        case .idle: return AppLocalized("Idle")
+        case .working: return AppLocalized("Working")
+        case .waiting: return AppLocalized("Waiting")
+        case .happy: return AppLocalized("Done")
+        case .error: return AppLocalized("Error")
         }
     }
 

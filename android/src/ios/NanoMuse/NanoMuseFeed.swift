@@ -483,7 +483,8 @@ enum NanoMuseFeedFlow {
         guard isFeedSession(session) else { return nil }
         let store = NanoMuseFeedStore.shared
         let recent = store.posts.prefix(24).map(\.title)
-        var s = "## This conversation writes the user's training cards (Nicholasx)\n"
+        // nanoMuse: 学习提示描述任务本身，助手身份沿用SOUL中的当前设置。
+        var s = "## This conversation writes the user's training cards\n"
         s += "The Coach tab shows the training cards you write: today's on the page, earlier days in its calendar. The user's standing instruction for it (it steers what the cards draw on and stress, never what kind of card you write):\n"
         s += "> " + store.preferences.replacingOccurrences(of: "\n", with: "\n> ") + "\n\n"
         s += "What you know about them right now (from GLOBAL.md, the diary of the last seven days, USER.md and their goals):\n"

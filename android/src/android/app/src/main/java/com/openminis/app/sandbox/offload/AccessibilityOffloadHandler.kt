@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.Bitmap
@@ -54,7 +56,7 @@ Groups:
 Output: JSON envelope { ok, data | error: { code, message } }.
 Use --compact to emit on a single line; --quiet to strip the envelope.
 
-First-run: enable "Nicholasx" under Settings → Accessibility, then `service ping`.
+First-run: enable this app under Settings → Accessibility, then `service ping`.
 """
         private const val SERVICE_HELP = "service status | ping\n"
         private const val UI_HELP = """ui dump | find | info | node | screenshot
@@ -148,12 +150,12 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
                         "Android is blocking the accessibility toggle for this install " +
                             "(\"Restricted setting\" — applies to apps installed from a " +
                             "downloaded APK). Allow it via App info → ⋮ → Allow restricted " +
-                            "settings, then enable Nicholasx under Settings → Accessibility. " +
+                            "settings, then enable ${context.getString(com.openminis.app.R.string.app_name)} under Settings → Accessibility. " +
                             "Settings → Permissions → System Permissions has a one-tap fix " +
                             "when Shizuku is available."
                     } else {
                         "Accessibility permission was revoked (this happens after a force-stop). " +
-                            "Re-enable Nicholasx under Settings → Accessibility, or use Settings → " +
+                            "Re-enable ${context.getString(com.openminis.app.R.string.app_name)} under Settings → Accessibility, or use Settings → " +
                             "Permissions → Integrations to repair it with Shizuku."
                     },
                     exit = 77,
@@ -192,7 +194,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
             err(args, "focus_locked", context.getString(com.openminis.app.R.string.nm_lock_ai_blocked))
         } catch (e: NotRunning) {
             err(args, "SERVICE_NOT_RUNNING",
-                e.message ?: "Accessibility service is not running. Enable Nicholasx under Settings → Accessibility.",
+                e.message ?: "Accessibility service is not running. Enable ${context.getString(com.openminis.app.R.string.app_name)} under Settings → Accessibility.",
                 exit = 77)
         } catch (e: Throwable) {
             AppLogger.warning(TAG, "uncaught: ${e.javaClass.simpleName} ${e.message}")
@@ -233,7 +235,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
                             "Allow it via App info → ⋮ → Allow restricted settings first.\n",
                     )
                 else
-                    NativeOffloadResult(77, "✗ Accessibility service is not running — go to Settings → Accessibility → Nicholasx to enable\n")
+                    NativeOffloadResult(77, "✗ Accessibility service is not running — go to Settings → Accessibility → ${context.getString(com.openminis.app.R.string.app_name)} to enable\n")
             }
             else -> NativeOffloadResult(2, "$TOOL service: unknown action\n$SERVICE_HELP")
         }
@@ -1135,7 +1137,7 @@ First-run: enable "Nicholasx" under Settings → Accessibility, then `service pi
     private fun svcOrThrow(): MinisAccessibilityService {
         io.github.nanomuse.focus.lock.LockAutomation.requireAllowed(context) // nanoMuse: 每次取得操作服务前复核持久锁定。
         return MinisAccessibilityService.getInstance()
-            ?: throw NotRunning("Accessibility service is not running. Enable Nicholasx under Settings → Accessibility.")
+            ?: throw NotRunning("Accessibility service is not running. Enable ${context.getString(com.openminis.app.R.string.app_name)} under Settings → Accessibility.")
     }
 
     private fun ok(args: OffloadArgs, data: Any): NativeOffloadResult {

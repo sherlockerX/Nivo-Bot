@@ -63,17 +63,17 @@ enum NanoMuseStatus {
 
 // MARK: - Mood
 
-/// Derives the face's mood from what the chat is doing. Happy and error
-/// linger a few seconds after a turn ends, as on Android.
+/// 根据对话进度切换状态，完成和错误状态保留5.5秒供内置动画完整播放。
 @MainActor
 final class NanoMuseMoodModel: ObservableObject {
     @Published private(set) var afterglow: NanoMuseMood?
     private var afterglowTask: Task<Void, Never>?
 
+    /// 新结果覆盖上一次余韵，为约5秒的内置片段留出加载缓冲。
     func turnEnded(withError: Bool) {
         afterglowTask?.cancel()
         afterglow = withError ? .error : .happy
-        let seconds: Double = withError ? 4 : 3
+        let seconds: Double = 5.5
         afterglowTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled else { return }

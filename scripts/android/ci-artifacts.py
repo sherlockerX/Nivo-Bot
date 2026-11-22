@@ -38,6 +38,38 @@ def apk_identity(badging: str) -> dict[str, str | list[str]]:
     }
 
 
+def configured_identity(app: Path) -> dict[str, str]:
+    """只接受构建文件唯一声明的身份，不能以待验证APK反推预期值。"""
+    configuration = (app / "build.gradle.kts").read_text(encoding="utf-8")
+    expected = {}
+    for field, pattern in (
+        ("package", r'^\s*applicationId\s*=\s*"([^"\r\n]+)"\s*$'),
+        ("versionName", r'^\s*versionName\s*=\s*"([^"\r\n]+)"\s*$'),
+        ("versionCode", r"^\s*versionCode\s*=\s*(\d+)\s*$"),
+    ):
+        matches = re.findall(pattern, configuration, re.MULTILINE)
+        if len(matches) != 1:
+            raise ValueError(f"Expected one build identity declaration: {field}")
+        expected[field] = matches[0]
+    return expected
+
+
+def validate_identity(
+    identity: dict[str, str | list[str]], variant: str, configured: dict[str, str]
+) -> None:
+    """正式包与隔离验收包须逐项匹配本次源码，不能混入其他安装身份或旧版本。"""
+    if variant not in ("debug", "release"):
+        raise ValueError(f"Unknown APK variant: {variant}")
+    expected = {
+        **configured,
+        "package": configured["package"] + (".uitest" if variant == "debug" else ""),
+    }
+    if any(identity.get(field) != value for field, value in expected.items()):
+        raise ValueError(f"Unexpected APK identity: {identity}")
+    if identity["abis"] != ["arm64-v8a"]:
+        raise ValueError(f"Unexpected APK identity: {identity}")
+
+
 def has_signature(apk: Path) -> bool:
     """检查v1证书与v2/v3签名块，防止错误签名包被标为未签名。"""
     with zipfile.ZipFile(apk) as archive:
@@ -89,6 +121,7 @@ def test_counts(folder: Path) -> dict[str, int]:
 def main() -> None:
     """验证实际APK并生成不包含签名私钥的下载目录和任务摘要。"""
     app = ROOT / "android/src/android/app"
+    expected_identity = configured_identity(app)
     tools = Path(os.environ["ANDROID_HOME"]) / "build-tools" / os.environ["BUILD_TOOLS_VERSION"]
     output = ROOT / "build/ci-android"
     output.mkdir(parents=True, exist_ok=True)
@@ -103,9 +136,7 @@ def main() -> None:
         if result.returncode:
             raise ValueError(result.stderr)
         identity = apk_identity(result.stdout)
-        expected_package = "io.github.nanomuse.app" + (".uitest" if variant == "debug" else "")
-        if identity["package"] != expected_package or identity["abis"] != ["arm64-v8a"]:
-            raise ValueError(f"Unexpected APK identity: {identity}")
+        validate_identity(identity, variant, expected_identity)
         signature = verify_signature(source, tools / "apksigner", signed)
         signing = (
             "debug-signed" if variant == "debug" else "release-signed" if signed else "unsigned"

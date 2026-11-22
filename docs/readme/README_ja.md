@@ -1,7 +1,7 @@
-# Nivo Bot
+# Nivo
 
 <p align="center">
-  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo Bot: conversations, action and daily reflection"></a>
+  <a href="https://nivo.8666886.xyz/"><img src="../media/readme/hero.png" width="100%" alt="Nivo: conversations, action and daily reflection"></a>
 </p>
 
 <strong>AIチャット、タスク、集中、日々の記録と成長コーチをAndroidとiOSで。</strong>
@@ -22,33 +22,33 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.7.md"><img src="https://img.shields.io/badge/Android-v2.0.7-blue" alt="Android v2.0.7"></a>
+  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">製品サイト</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題報告</a> · <a href="../../OPEN_SOURCE.md">開発への参加</a>
 </p>
 
-Nivo Botは日常生活のためのAIワークスペースです。会話から始め、次の一歩をタスクにし、集中する時間を確保して、経験を振り返れる記録に残します。
+Nivoは日常生活のためのAIワークスペースです。会話から始め、次の一歩をタスクにし、集中する時間を確保して、経験を振り返れる記録に残します。
 
 無料・オープンソース・非営利。モデル提供元を自分で選び、リクエスト料金は提供元に従います。Android標準TTSで返信を読み上げます。
 
 ## Nivoを見てみる
 
 <p align="center">
-  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo Bot six-module horizontal feature tour"></a>
+  <a href="../media/readme/feature-tour.gif"><img src="../media/readme/feature-tour.gif" width="100%" alt="Nivo six-module horizontal feature tour"></a>
 </p>
 
 サンプル内容を使った機能説明図です。GIFが6つのモジュールを横に切り替えます。静止画はクリックして拡大できます。実機のスクリーンショットではありません。
 
 <table>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo Bot AI chat"></a><br><sub>AI chat</sub></td>
-<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Bot Tasks"></a><br><sub>Tasks</sub></td>
-<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Bot Focus"></a><br><sub>Focus</sub></td>
+<td width="33%" align="center"><a href="../media/readme/chat.png"><img src="../media/readme/chat.png" width="100%" alt="Nivo AI chat"></a><br><sub>AI chat</sub></td>
+<td width="33%" align="center"><a href="../media/readme/tasks.png"><img src="../media/readme/tasks.png" width="100%" alt="Nivo Tasks"></a><br><sub>Tasks</sub></td>
+<td width="33%" align="center"><a href="../media/readme/focus.png"><img src="../media/readme/focus.png" width="100%" alt="Nivo Focus"></a><br><sub>Focus</sub></td>
 </tr>
 <tr>
-<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Bot Daily fragments"></a><br><sub>Daily fragments</sub></td>
-<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Bot Coach"></a><br><sub>Coach</sub></td>
-<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Bot Daily ideas"></a><br><sub>Daily ideas</sub></td>
+<td width="33%" align="center"><a href="../media/readme/fragments.png"><img src="../media/readme/fragments.png" width="100%" alt="Nivo Daily fragments"></a><br><sub>Daily fragments</sub></td>
+<td width="33%" align="center"><a href="../media/readme/coach.png"><img src="../media/readme/coach.png" width="100%" alt="Nivo Coach"></a><br><sub>Coach</sub></td>
+<td width="33%" align="center"><a href="../media/readme/ideas.png"><img src="../media/readme/ideas.png" width="100%" alt="Nivo Daily ideas"></a><br><sub>Daily ideas</sub></td>
 </tr>
 </table>
 
@@ -86,17 +86,15 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 | リソース | リンク |
 |---|---|
 | 製品サイト | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android8.0以上、arm64 | [Nivo Bot v2.0.7 APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk) |
-| iOS16以上、個人署名が必要 | [未署名IPA v2.0.8（Release）](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa) |
-| APKに対応するソース | [v2.0.7ソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip) |
-| iOSのIPAに対応するソース | [v2.0.8のiOSソース一式](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip) |
-| ダウンロードのチェックサム | [SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt) |
-| iOSダウンロードのチェックサム | [SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt) |
-| リリース情報 | [Android2.0.7](../releases/v2.0.7.md) · [iOS2.0.8](../releases/v2.0.8.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android8.0以上、arm64 | [Nivo v2.0.10 APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
+| iOS16以上、個人署名が必要 | [未署名IPA v2.0.10（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
+| Android・iOS共通ソース | [v2.0.10ソース一式](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
+| ダウンロードのチェックサム | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
+| リリース情報 | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
 
-iOS2.0.8(59)ClarityはRelease構成の未署名IPAとしてビルドされました。リリースCIに成功し、IPAと対応するソースアーカイブのローカル検証も完了しました。Androidのダウンロードは2.0.7(58)のまま、APK、ソース、チェックサム、署名を維持します。ユーザーは監査ブランチをiPhoneで確認し、問題はないと報告しましたが、新しい2.0.8のReleaseバイナリを検証した結果ではありません。プラットフォームに対応する上記のソースとチェックサムを使用してください。インストール前に個人署名が必要です。このフォークにはApple Developer Programのアカウントがなく、TestFlightやApp Storeでの配布はありません。強制集中、繰り返しロック予定とアプリ許可リストはAndroid専用です。iOSには集中リマインダーとアクセスガイドの手順があり、ユーザーがiOSで開始・終了します。CIでのコンパイル成功はiPhone実機での動作確認を意味しません。
+AndroidとiOSはどちらも2.0.10（61）です。Androidは従来のリリース証明書で署名しています。iOSのIPAはインストール前にご自身で署名してください。TestFlightやApp Storeでの配布はありません。
 
-アプリIDは`io.github.nanomuse.app`のままで、以前のNivo Bot正式版と同じ署名を使用します。今回のリリースでは、Android実機で既存のインストールに上書き更新するテストは行っていません。古いDebug鍵や上流の鍵で署名したアプリは通常この版で上書き更新できません。削除前にバックアップと復元範囲を確認してください。[バージョンと署名ガイド](../android-development.md#nivo-bot的android版本与签名)を参照できます。
+Androidの新しいパッケージ名は`io.github.nivo`です。旧版とは別にインストールされます。集中履歴、日々の記録、コーチの進捗は通常のバックアップでは移行できないため、旧版を残してください。
 
 Androidのソースアーカイブは、ビルドに使用した固定コミットから書き出します。ダウンロード一覧にはそのコミットとアーカイブのチェックサムを記録します。確認や再ビルドには、インストールしたバージョンに対応するソースを使用してください。
 
@@ -168,7 +166,7 @@ Androidツリーは上流の構造、パッケージIDと出典表示を保ち�
 
 ## メンテナー
 
-Nivo Botのこのフォークは<a href="https://github.com/sherlockerX">sherlockerX</a>が管理しています。Nivo固有の問題はここで報告してください。
+Nivoのこのフォークは<a href="https://github.com/sherlockerX">sherlockerX</a>が管理しています。Nivo固有の問題はここで報告してください。
 
 ## ライセンス
 
@@ -176,9 +174,9 @@ Nivo Botのこのフォークは<a href="https://github.com/sherlockerX">sherloc
 
 ## 謝辞
 
-Nivo Botは[nanoMuse](https://github.com/nano-muse/nanoMuse)を基にしています。エージェント基盤、統合、アーキテクチャを提供したnanoMuse、<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>と貢献者の皆さんに感謝します。モバイル基盤は[OpenMinis](https://github.com/OpenMinis/OpenMinis)です。
+Nivoは[nanoMuse](https://github.com/nano-muse/nanoMuse)を基にしています。エージェント基盤、統合、アーキテクチャを提供したnanoMuse、<a href="https://github.com/lgy0404">Guangyi Liu（lgy0404）</a>と貢献者の皆さんに感謝します。モバイル基盤は[OpenMinis](https://github.com/OpenMinis/OpenMinis)です。
 
-下の名簿はnanoMuseの過去の貢献への謝辞です。全文と過去の節目は[出典アーカイブ](../archive/upstream-readme-ja.md)、依存関係の条件は[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)にあります。Nivo Botは独立して管理されています。
+下の名簿はnanoMuseの過去の貢献への謝辞です。全文と過去の節目は[出典アーカイブ](../archive/upstream-readme-ja.md)、依存関係の条件は[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)にあります。Nivoは独立して管理されています。
 
 <details>
 <summary>上流の貢献者と出典</summary>

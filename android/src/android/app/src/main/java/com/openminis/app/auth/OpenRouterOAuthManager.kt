@@ -160,7 +160,8 @@ object OpenRouterOAuthManager {
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .header("Content-Type", "application/json")
             .header("HTTP-Referer", "https://github.com/OpenMinis/OpenMinis")
-            .header("X-Title", "Nicholasx App")
+            // nanoMuse: 授权请求的展示名称使用当前产品名。
+            .header("X-Title", io.github.nanomuse.identity.MobileProduct.NAME)
             .build()
 
         val response = client.newCall(request).execute()

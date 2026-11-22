@@ -892,7 +892,7 @@ final class CrashReporter: NSObject, MXMetricManagerSubscriber {
         let foreign = Self.detectInjectedDylibs()
         if !foreign.isEmpty {
             report += "\n⚠️ Injected: \(foreign.joined(separator: ", "))"
-            report += "\n         (third-party tweak/hook libraries loaded in-process — crashes may originate there, not in nanoMuse)"
+            report += "\n         (third-party tweak/hook libraries loaded in-process — crashes may originate there, not in \(NivoProduct.englishName))" // nanoMuse: 诊断文案使用当前品牌。
         }
 
         if let phase = lastPhase {

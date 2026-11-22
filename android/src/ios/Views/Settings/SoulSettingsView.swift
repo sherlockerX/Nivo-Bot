@@ -48,7 +48,7 @@ struct SoulSettingsView: View {
 
             Section(AppLocalized("Identity")) {
                 LabeledContent(AppLocalized("Name")) {
-                    TextField("nanoMuse", text: $name)
+                    TextField(NivoProduct.assistantName, text: $name) // nanoMuse: 昵称占位使用角色名。
                         .multilineTextAlignment(.trailing)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
@@ -223,7 +223,7 @@ struct SoulSettingsView: View {
                 Text(AppLocalized("Images must have a transparent background (PNG). Photos without transparency can't be used."))
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(name.isEmpty ? "nanoMuse" : name)
+                Text(name.isEmpty ? NivoProduct.assistantName : name) // nanoMuse: 保留用户昵称。
                     .font(.title3.weight(.semibold))
                 if !style.trimmingCharacters(in: .whitespaces).isEmpty {
                     Text(style)

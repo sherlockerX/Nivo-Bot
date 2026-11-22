@@ -1,5 +1,7 @@
 package com.openminis.app.sandbox.offload
 
+// nanoMuse: 权限指引使用当前产品名称，既有命令、目录与协议字段保持兼容。
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -109,9 +111,9 @@ class ContactsOffloadHandler(private val context: Context) : NativeOffloadHandle
                         id = if (needsWrite) "CONTACTS_RW" else Manifest.permission.READ_CONTACTS,
                         title = "Contacts permission needed",
                         message = if (needsWrite) {
-                            "Nicholasx needs read + write contacts permission to delete entries. Open Settings to allow it."
+                            "${context.getString(com.openminis.app.R.string.app_name)} needs read + write contacts permission to delete entries. Open Settings to allow it."
                         } else {
-                            "Nicholasx needs contacts permission to read your address book. Open Settings to allow it."
+                            "${context.getString(com.openminis.app.R.string.app_name)} needs contacts permission to read your address book. Open Settings to allow it."
                         },
                         settingsAction = android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         requiresPackageUri = true,

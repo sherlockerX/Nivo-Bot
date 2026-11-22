@@ -750,7 +750,8 @@ class ToolOverlayController(private val context: Context) {
      * show the tool kind ("Shell", "Browser", …).
      */
     private fun toolDisplayLabel(toolName: String?): String = when (toolName) {
-        null -> "Nicholasx"
+        // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+        null -> context.getString(com.openminis.app.R.string.app_name)
         "shell_execute" -> "Shell"
         "file_read" -> "File"
         "file_write" -> "Editor"

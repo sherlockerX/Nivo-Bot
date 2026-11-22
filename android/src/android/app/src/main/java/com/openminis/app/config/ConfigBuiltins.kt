@@ -965,7 +965,8 @@ internal object ConfigBuiltins {
             ClosureField(
                 path = "soul.name",
                 displayName = "Soul name",
-                description = "The agent's name as shown in chat bubble headers and as the system-prompt identity. Trimmed; empty falls back to \"Nivo Bot\".",
+                // nanoMuse: 可见名称读取本地化品牌或助手身份，保留底层标识。
+                description = "The agent's name as shown in chat bubble headers and as the system-prompt identity. Trimmed; empty falls back to the default assistant name.",
                 valueSchema = ConfigSchema.Str(maxLength = 64),
                 risk = ConfigRisk.SENSITIVE,
                 revertable = true,

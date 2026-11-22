@@ -193,9 +193,10 @@ final class ConfigConfirmationGate: ObservableObject {
         if let caption, !caption.isEmpty {
             content.body = caption
         } else {
+            // nanoMuse: 使用整句翻译和产品名参数，后台通知保持同一品牌。
             content.body = change.items.count > 1
-                ? "\(change.items.count) changes need your review — open nanoMuse to approve or reject."
-                : "A change needs your review — open nanoMuse to approve or reject."
+                ? String(format: AppLocalized("%d changes need your review. Open %@ to approve or reject."), change.items.count, NivoProduct.name)
+                : String(format: AppLocalized("A change needs your review. Open %@ to approve or reject."), NivoProduct.name)
         }
         content.sound = .default
         content.categoryIdentifier = Self.notifyCategoryId

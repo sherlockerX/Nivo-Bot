@@ -1,42 +1,30 @@
 ---
 layout: home
-title: nanoMuse docs
+title: Nivo documentation
 hero:
-  text: An open-source personal agent for every device you own.
-  tagline: One agent on your phone, your computer and the web, one account across them. It does things instead of answering questions, keeps going when the app is closed, remembers you in files you can read, and asks before anything you could not undo. The whole set is one repository under GPL-3.0-or-later, and the same relay runs on a server of yours.
+  name: Nivo
+  text: Chat, tasks, focus and daily notes on your phone.
+  tagline: Choose your model provider and keep your personal records on your device.
   actions:
     - theme: brand
       text: Install
-      link: /android
+      link: https://nivo.8666886.xyz/downloads.html
     - theme: alt
-      text: Try it in the browser
-      link: https://demo.nanomuse.dev/
-    - theme: alt
-      text: Run it yourself
-      link: /self-hosting
+      text: Features
+      link: https://nivo.8666886.xyz/features.html
     - theme: alt
       text: GitHub
-      link: https://github.com/nano-muse/nanoMuse
-    - theme: alt
-      text: Paper
-      link: https://arxiv.org/abs/2610.08699
+      link: https://github.com/sherlockerX/Nivo-Bot
 ---
 
 ## Install
 
-| | |
+|Platform|Nivo 2.0.10 (61)|
 |---|---|
-| **Browser** | [demo.nanomuse.dev](https://demo.nanomuse.dev/): a nanoMuse on a simulated phone, after a sign-in, with lines to try beside it in English and in Chinese. A demo; the apps below are the real thing |
-| **Android** 8.0+, arm64 | [nanoMuse-1.0.6-arm64.apk](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-1.0.6-arm64.apk) · [how to install](/android) |
-| **iPhone / iPad** | [TestFlight](https://testflight.apple.com/join/ZHexbDqc): a beta that passed Apple's beta review; the link installs it · [iOS](/ios) |
-| **macOS** 12+ | [Apple Silicon](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-arm64.dmg) · [Intel](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-mac-x64.dmg) · [the desktop app](/desktop) |
-| **Windows** 10+ | [nanoMuse-Desktop-1.0.6-win-x64.exe](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-win-x64.exe) |
-| **Linux** x64 | [AppImage](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.AppImage) · [.deb](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.deb) · [tar.gz](https://github.com/nano-muse/nanoMuse/releases/download/v1.0.6/nanoMuse-Desktop-1.0.6-linux-x64.tar.gz) |
-| **Docker** | `bash scripts/self-host.sh --local` for your own relay; `docker compose up -d app` for the web app · [run it yourself](/self-hosting) |
+|Android 8.0+, arm64|[Release-signed APK](https://nivo.8666886.xyz/downloads.html?platform=android) · [Migration and installation](/android)|
+|iOS 16+, arm64|[Unsigned IPA for personal signing](https://nivo.8666886.xyz/downloads.html?platform=ios) · [iOS guide](/ios)|
 
-Every download is on the [latest release](https://github.com/nano-muse/nanoMuse/releases/latest); the same files are at [nanomuse.cn/dl](https://nanomuse.cn/dl/) when GitHub is slow where you are.
-
-[What changed in 1.0.6 Beacon](https://github.com/nano-muse/nanoMuse/releases/tag/v1.0.6) · [What each client can do](/parity) · [Where to start contributing](/roadmap) · [What the relay keeps](/privacy) · [What stays on a phone, and whose it is](/sync)
+The following sections preserve material from the upstream nanoMuse project.
 
 ## The film
 

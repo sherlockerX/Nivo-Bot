@@ -172,6 +172,10 @@ fun SystemFilesScreen(onBack: () -> Unit, onOpen: (SystemFiles) -> Unit, onImpor
                 color = ChatColors.secondaryText,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
+            io.github.nanomuse.ui.components.LocalStorageDetails(
+                path = "/var/minis/memory",
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -435,7 +439,7 @@ fun MemoryImportScreen(onBack: () -> Unit) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         Surface(
                             onClick = {
-                                clipboard.setPlainText("Nivo Bot", prompt)
+                                clipboard.setPlainText(context.getString(R.string.app_name), prompt)
                                 Toast.makeText(context, R.string.nm_sysfile_copied, Toast.LENGTH_SHORT).show()
                             },
                             shape = CircleShape,

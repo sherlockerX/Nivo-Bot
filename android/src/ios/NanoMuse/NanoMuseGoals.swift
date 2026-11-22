@@ -310,7 +310,7 @@ enum NanoMuseGoalFlow {
         guard let goal = NanoMuseGoalStore.shared.forSession(session) else { return nil }
         let cadence = goal.checkEveryHours > 0 ? "every \(goal.checkEveryHours) hour(s)" : "daily at \(NanoMuseDay.clock(hour: goal.checkHour, minute: goal.checkMinute))"
         let steps = goal.steps.isEmpty ? "(none yet)" : goal.steps.enumerated().map { "\($0.offset + 1). \($0.element.text)" }.joined(separator: "\n")
-        var s = "## This conversation tracks a goal (nanoMuse)\n"
+        var s = "## This conversation tracks a goal (\(NivoProduct.name))\n"
         s += "Goal: \(goal.title)\n"
         if !goal.why.isEmpty { s += "Why: \(goal.why)\n" }
         s += "Steps:\n\(steps)\n"

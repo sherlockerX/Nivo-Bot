@@ -308,7 +308,7 @@ object FeedFlow {
         val digest = digest(context)
         val recent = FeedStore.posts.value.take(24).map { it.title }
         return buildString {
-            appendLine("## This conversation writes the user's training cards (Nicholasx)")
+            appendLine("## This conversation writes the user's training cards")
             appendLine("The Coach tab shows the training cards you write: today's on the page, earlier days in its calendar. The user's standing instruction for it (it steers what the cards draw on and stress, never what kind of card you write):")
             appendLine("> " + FeedStore.preferences.value.replace("\n", "\n> "))
             appendLine()

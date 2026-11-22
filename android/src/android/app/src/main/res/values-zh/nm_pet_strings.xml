@@ -3,7 +3,7 @@
 <resources>
     <string name="nm_pet_title">我的宠物</string>
     <string name="nm_pet_hint">换下来的宠物会连同姿势和动作视频一起留在这里，点一下就能换回，不用重新生成。长按可以删除。</string>
-    <string name="nm_pet_dragon">小龙</string>
+    <string name="nm_pet_dragon">十七</string>
     <string name="nm_pet_unnamed">宠物</string>
     <string name="nm_pet_busy">这只宠物的姿势或动作视频还在生成，完成后再切换。</string>
     <string name="nm_pet_remove_title">删除这只宠物？</string>

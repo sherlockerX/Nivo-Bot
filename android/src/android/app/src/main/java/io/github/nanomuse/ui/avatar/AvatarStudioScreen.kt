@@ -123,7 +123,7 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
     val savedDescription by AvatarStudio.description.collectAsState()
     val savedStyle by AvatarStudio.style.collectAsState()
     val soul by SoulStore.cachedMetadata.collectAsState()
-    val name = soul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    val name = io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon))
 
     var description by remember(savedDescription) { mutableStateOf(savedDescription) }
     var style by remember(savedStyle) { mutableStateOf(savedStyle) }
@@ -132,6 +132,7 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
     // A clip of the person's own as the face (#324): picked here, previewed in a sheet.
     val ownClip by io.github.nanomuse.avatar.OwnClip.current.collectAsState()
     val ownMoods by io.github.nanomuse.avatar.OwnClip.moods.collectAsState()
+    val isBuiltInPet = current == null && ownClip == null && ownMoods.isEmpty()
     val clipChooser = rememberOwnClipChooser()
     OwnClipChooserHost(clipChooser)
     val generating = slots.any { it is AvatarStudio.Slot.Loading }
@@ -152,7 +153,7 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
         val order = listOf(AgentMood.IDLE, AgentMood.WORKING, AgentMood.WAITING, AgentMood.HAPPY, AgentMood.ERROR)
         var i = 0
         while (true) {
-            kotlinx.coroutines.delay(if (previewMood == AgentMood.IDLE) 2600L else 2000L)
+            kotlinx.coroutines.delay(AVATAR_MOOD_PREVIEW_MS)
             i = (i + 1) % order.size
             previewMood = order[i]
         }
@@ -173,7 +174,7 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
                         DropdownMenuItem(text = { Text(stringResource(R.string.nm_avatar_menu_soul)) }, onClick = { menu = false; onOpenSoul() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.nm_avatar_menu_model)) }, onClick = { menu = false; onOpenMediaModels() })
                         DropdownMenuItem(text = { Text(stringResource(R.string.nm_own_clip_menu)) }, onClick = { menu = false; clipChooser.choose() })
-                        if (ownClip != null) {
+                        if (ownClip != null || ownMoods.isNotEmpty()) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.nm_own_clip_default)) },
                                 onClick = { menu = false; io.github.nanomuse.avatar.OwnClip.clear() },
@@ -210,7 +211,12 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
                         AgentAvatar(mood = previewMood, size = 148.dp)
                     }
                     Spacer(Modifier.height(12.dp))
-                    Text(name, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        if (isBuiltInPet) stringResource(R.string.nm_pet_dragon) else name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Spacer(Modifier.height(4.dp))
                     val moodLabel = when (previewMood) {
                         AgentMood.IDLE -> R.string.nm_avatar_mood_idle
@@ -452,7 +458,7 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
                                 fontWeight = FontWeight.Medium,
                             )
                         }
-                        if (ownClip != null) {
+                        if (ownClip != null || ownMoods.isNotEmpty()) {
                             Button(
                                 onClick = { io.github.nanomuse.avatar.OwnClip.clear() },
                                 modifier = Modifier.weight(1f).height(44.dp),
@@ -501,6 +507,10 @@ fun AvatarStudioScreen(onBack: () -> Unit, onOpenSoul: () -> Unit, onOpenMediaMo
                     lineHeight = 17.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                )
+                io.github.nanomuse.ui.components.LocalStorageDetails(
+                    path = "minis-global/nanomuse/avatar",
+                    modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 12.dp),
                 )
             }
         }

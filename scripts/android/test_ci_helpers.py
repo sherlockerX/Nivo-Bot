@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import importlib.util
+import io
+import json
 import subprocess
 import tempfile
 import unittest
@@ -76,6 +78,31 @@ class SigningTests(unittest.TestCase):
 class ArtifactTests(unittest.TestCase):
     """拒绝缺少架构、损坏签名和缺失测试结果的产物。"""
 
+    def test_new_install_identity_is_required_for_each_variant(self) -> None:
+        """正式包与隔离包分别校验，旧身份不能混入新发行。"""
+        configured = {
+            "package": "io.github.nivo",
+            "versionName": "2.0.9",
+            "versionCode": "60",
+        }
+        for variant, suffix in (("release", ""), ("debug", ".uitest")):
+            identity = {
+                **configured,
+                "package": "io.github.nivo" + suffix,
+                "abis": ["arm64-v8a"],
+            }
+            artifacts.validate_identity(identity, variant, configured)
+            for rejected in (
+                "io.github.nanomuse.app" + suffix,
+                "unrelated.app",
+                "io.github.nivo" + ("" if suffix else ".uitest"),
+            ):
+                with self.subTest(variant=variant, rejected=rejected):
+                    with self.assertRaisesRegex(ValueError, "identity"):
+                        artifacts.validate_identity(
+                            {**identity, "package": rejected}, variant, configured
+                        )
+
     def test_reads_actual_package_version_and_abi(self) -> None:
         """APK身份来自aapt输出，版本号可随未来发行变化。"""
         result = artifacts.apk_identity(
@@ -124,6 +151,138 @@ class ArtifactTests(unittest.TestCase):
                 artifacts.test_counts(root)
             report.write_text('<testsuite tests="3" failures="0" errors="0" skipped="1"/>')
             self.assertEqual(artifacts.test_counts(root)["tests"], 3)
+
+
+class ArtifactBuildIdentityTests(unittest.TestCase):
+    """从实际CI入口核对产物与构建配置，不调用Android工具或读取签名密钥。"""
+
+    def setUp(self) -> None:
+        """准备新包名的独立源码、两种构建产物及通过的测试结果。"""
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.app = self.root / "android/src/android/app"
+        self.actual = {}
+        for variant in ("debug", "release"):
+            apk = self.app / f"build/outputs/apk/{variant}/app.apk"
+            apk.parent.mkdir(parents=True)
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr("AndroidManifest.xml", b"fixture")
+        reports = self.app / "build/test-results/testDebugUnitTest"
+        reports.mkdir(parents=True)
+        (reports / "TEST-fixture.xml").write_text(
+            '<testsuite tests="1" failures="0" errors="0" skipped="0"/>', encoding="utf-8"
+        )
+        self.configure_build("io.github.nivo", "2.0.9", "60")
+
+    def configure_build(self, package: str, version: str, code: str) -> None:
+        """将源码声明与默认模拟产物设为同一身份。"""
+        (self.app / "build.gradle.kts").write_text(
+            f'applicationId = "{package}"\nversionName = "{version}"\nversionCode = {code}\n',
+            encoding="utf-8",
+        )
+        self.actual = {
+            variant: {
+                "package": package + (".uitest" if variant == "debug" else ""),
+                "versionName": version,
+                "versionCode": code,
+            }
+            for variant in ("debug", "release")
+        }
+
+    def run_ci(self) -> None:
+        """仅替换外部工具返回值，执行真实校验与发布元数据生成。"""
+
+        def tool_result(command: list[str]) -> subprocess.CompletedProcess[str]:
+            """模拟aapt的逐包信息与成功验签结果。"""
+            if command[1] != "dump":
+                return subprocess.CompletedProcess(command, 0, "Verifies", "")
+            identity = self.actual[Path(command[-1]).parent.name]
+            output = (
+                f"package: name='{identity['package']}' "
+                f"versionCode='{identity['versionCode']}' "
+                f"versionName='{identity['versionName']}'\n"
+                "native-code: 'arm64-v8a'\n"
+            )
+            return subprocess.CompletedProcess(command, 0, output, "")
+
+        with (
+            patch.object(artifacts, "ROOT", self.root),
+            patch.object(artifacts, "run_tool", side_effect=tool_result),
+            patch.dict(
+                artifacts.os.environ,
+                {
+                    "ANDROID_HOME": str(self.root / "sdk"),
+                    "BUILD_TOOLS_VERSION": "36.1.0",
+                    "SIGNED_RELEASE": "true",
+                },
+                clear=True,
+            ),
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            artifacts.main()
+
+    def test_new_android_identity_is_recorded_from_both_build_variants(self) -> None:
+        """正式包严格使用新包名，Debug必须使用其独立uitest后缀。"""
+        self.run_ci()
+        metadata = json.loads((self.root / "build/ci-android/build-info.json").read_text())
+        self.assertEqual(
+            [package["package"] for package in metadata["packages"]],
+            ["io.github.nivo.uitest", "io.github.nivo"],
+        )
+
+    def test_historical_build_keeps_its_original_identity(self) -> None:
+        """旧版源码配置仍仅接受该版本的旧包名，避免破坏历史构建复查。"""
+        self.configure_build("io.github.nanomuse.app", "2.0.8", "59")
+        self.run_ci()
+        metadata = json.loads((self.root / "build/ci-android/build-info.json").read_text())
+        self.assertEqual(metadata["packages"][1]["package"], "io.github.nanomuse.app")
+
+    def test_historical_configuration_rejects_new_package_identity(self) -> None:
+        """旧版源码不能因为新包名已知而接受不同安装身份。"""
+        self.configure_build("io.github.nanomuse.app", "2.0.8", "59")
+        self.actual["debug"]["package"] = "io.github.nivo.uitest"
+        with self.assertRaisesRegex(ValueError, "APK identity"):
+            self.run_ci()
+        self.assertFalse((self.root / "build/ci-android/build-info.json").exists())
+
+    def test_matching_stale_variants_still_fail_source_version_check(self) -> None:
+        """两个APK版本相同也不够，均旧于本次源码时必须拒绝。"""
+        for identity in self.actual.values():
+            identity.update(versionName="2.0.8", versionCode="59")
+        with self.assertRaisesRegex(ValueError, "APK identity"):
+            self.run_ci()
+        self.assertFalse((self.root / "build/ci-android/build-info.json").exists())
+
+    def test_wrong_package_or_stale_version_cannot_produce_build_metadata(self) -> None:
+        """新构建不能混入旧包名、未隔离Debug、测试正式包或旧版本。"""
+        for variant, field, value in (
+            ("debug", "package", "io.github.nanomuse.app.uitest"),
+            ("release", "package", "io.github.nanomuse.app"),
+            ("debug", "package", "io.github.nivo"),
+            ("release", "package", "io.github.nivo.uitest"),
+            ("debug", "versionName", "2.0.8"),
+            ("release", "versionCode", "59"),
+        ):
+            self.configure_build("io.github.nivo", "2.0.9", "60")
+            self.actual[variant][field] = value
+            with self.subTest(variant=variant, field=field), self.assertRaises(ValueError):
+                self.run_ci()
+            self.assertFalse((self.root / "build/ci-android/build-info.json").exists())
+
+    def test_missing_or_ambiguous_source_identity_is_rejected_before_inspection(self) -> None:
+        """无法唯一读取构建声明时不从产物反推预期身份。"""
+        config = self.app / "build.gradle.kts"
+        original = config.read_text(encoding="utf-8")
+        for text in ("", original + 'applicationId = "other.app"\n'):
+            config.write_text(text, encoding="utf-8")
+            with (
+                patch.object(artifacts, "run_tool") as command,
+                patch.object(artifacts, "ROOT", self.root),
+                self.assertRaisesRegex(ValueError, "build identity"),
+            ):
+                artifacts.main()
+            command.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Nivo Bot产品网站
+# Nivo产品网站
 
 多页静态产品站，部署在`https://nivo.8666886.xyz/`。站点源码没有运行框架、远程字体、分析追踪器或模型请求。线上Cloudflare设置会向部分响应加入性能统计与防护脚本，详见隐私说明。
 
@@ -15,7 +15,9 @@
 
 ## 修改内容和预览
 
-HTML是生成文件，编辑`scripts/site/content.py`中的功能和教程内容，或`render_site.py`的页面结构，再重新生成。首页日常案例与线形图标在`presentation.py`维护。样式和交互直接修改`product.css`与`product.js`。应用图片位于`media/screenshots/`，来自最新维护源码重新构建后在独立Android模拟器中运行的完整App，使用人工建立的示例记录，不读取用户档案。图片保留原始界面与比例，并提供完整原图链接；不以CSS、SVG或生成图片代替App界面。拍摄信息见[截图来源记录](../docs/product-site-screenshots.md)。
+HTML是生成文件，编辑`scripts/site/content.py`中的功能和教程内容，或`render_site.py`的页面结构，再重新生成。首页日常案例与线形图标在`presentation.py`维护。样式和交互直接修改`product.css`与`product.js`。应用图片位于`media/screenshots/`，拍摄于本次品牌更新前，来自独立Android模拟器中运行的完整App，使用人工建立的示例记录，不读取用户档案。图片保留原始名称、界面与比例，并提供完整原图链接；不以CSS、SVG或生成图片代替App界面。拍摄信息见[截图来源记录](../docs/product-site-screenshots.md)。
+
+当前产品名为Nivo，默认助手为十七/Shiqi。站点域名、源码仓库地址、上游致谢和历史发行文件继续沿用原标识；网站换名不代表历史安装包已经更新。用户自定义的助手昵称由App保留。
 
 首页用阅读任务串起对话草稿、待办、专注和心得；访客主动切换，不自动播放、不创建数据。聊天截图未调用模型，不作为AI已创建任务的证据；专注截图只显示拍摄当时的真实计时状态。功能轮播集中在画廊，默认手动切换，可主动播放。全站常驻顶部导航，手机通过常驻页面标签切换栏目；教程默认收起服务商目录，目录与锚点预留导航高度。各个功能、教程、版本历史、安装说明均独立URL，不在首页重复叠加。
 
@@ -26,15 +28,21 @@ python -m http.server 8783 --bind 127.0.0.1 --directory site
 
 教程首先对照Android的`OwnKeyPresets.kt`、服务商配置页和模型槽位，再引用各厂商官方文档。每篇保留核对日期和官方入口；账户限制、价格和模型可用性仍以对应平台为准。网站不收集API Key，不代访客调用模型验证。
 
-本地模式维护取消原项目账号验证、设备中继与自动跨设备同步，首次启动允许暂时跳过模型配置。入门与隐私页面区分当前维护行为和历史安装包；Android2.0.7的修复不会改写Android或iOS2.0.5的发行记录，也不代表已发布新版iOS。官方服务之外的接口使用自定义教程，不展示中转商推荐。目录依据`providers.json`中的`is_relay`字段筛选，发布白名单不再包含原中转商教程。
+本地模式维护取消原项目账号验证、设备中继与自动跨设备同步，首次启动允许暂时跳过模型配置。入门与隐私页面区分当前维护行为和历史安装包；各平台的功能、品牌与发行状态以对应记录为准。官方服务之外的接口使用自定义教程，不展示中转商推荐。目录依据`providers.json`中的`is_relay`字段筛选，发布白名单不再包含原中转商教程。
 
 ## 加入后续版本
 
 `releases.json`采用版本2清单，字段说明见[产品站维护指南](../docs/product-site.md)。新增发行记录后重新生成页面即可扩展版本历史，不覆盖旧安装文件。`release.json`继续保留旧入口兼容。
 
-本轮目标为Android2.0.7(58)Anchor，文件为`Nivo-Bot-v2.0.7-arm64.apk`。iOS实际下载继续使用`Nivo-Bot-v2.0.5-unsigned.ipa`，版本为2.0.5(56)，本次不生成2.0.7的IPA。共用源码版本字段更新不等于两端同时发布。最终产物核验后，在`releases.json`填写真实大小、SHA256、最低系统与对应源码，并更新Android兼容入口`release.json`。Android2.0.0(51)、Android2.0.5(56)、iOS2.0.5(56)及其对应源码原文件继续保留，不能覆盖同名历史文件。
+最新可用版本从`releases.json`按平台分别读取，共用源码版本字段更新不等于两端同时发布。最终产物核验后，在清单填写真实大小、SHA256、最低系统与对应源码，并在发布Android时更新兼容入口`release.json`。历史安装包及对应源码保留原文件名与哈希，不能覆盖同名历史文件。
 
-Android保留包名`io.github.nanomuse.app`与原正式版签名身份；本次未在Android真机上测试覆盖升级。源码包`Nivo-Bot-v2.0.7-source.zip`从构建使用的固定commit导出，清单记录`sourceCommit`、`sourceSha256`与`sourceSizeBytes`，不以未提交工作区或移动分支代替对应源码。
+Nivo发行记录应显式设置`productName: "Nivo"`，用于静态与动态下载卡及SoftwareApplication结构化数据。顶层`product`是当前网站名称；历史记录保留发行时的产品名。
+
+Android2.0.10使用`io.github.nivo`，2.0.9使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。新包在清单中标注`packageId`与`migration: "backup-restore"`，提示用户保留旧版、导入支持的备份并重新授权。iOS2.0.10的Bundle ID未变，Release IPA需自行签名。
+
+部分数据需持续保留在旧版：通用`.minisbak`不含生活碎片与照片、教练进度、自定义宠物、定时例程和通用设置，待办有单独JSON；专注JSON导入只恢复停用的锁计划与白名单，不恢复专注历史。安装页列出这些范围，下载卡提供明确提示与链接。依据见[2.0.9迁移核验](../docs/releases/v2.0.9.md)。
+
+源码包从构建使用的固定commit导出，清单记录`sourceCommit`、`sourceSha256`与`sourceSizeBytes`，不以未提交工作区或移动分支代替对应源码。
 
 `scripts/release/publish_mobile.py`按当前标签内的真实发行记录支持Android单平台、iOS单平台或双平台发布。双平台同版须共享同一份源码归档；只有官网实际文件与清单校验通过后，`mobile-release.yml`才创建或补全GitHub发行。旧iOS包不会随Android版本更新而自动成为新版。
 

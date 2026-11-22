@@ -352,7 +352,7 @@ fun NanoMuseHome(
     val requestBrief = remember(homeMessages) { io.github.nanomuse.ui.header.requestBrief(homeMessages.lastOrNull { it.role == "user" }?.content) }
     val statusLine = rememberNanoMuseStatusLine(streaming, mood, replying = replying, request = requestBrief)
     val soul by SoulStore.cachedMetadata.collectAsState()
-    val agentName = soul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    val agentName = io.github.nanomuse.identity.AssistantIdentity.displayName(soul.name, stringResource(R.string.nm_pet_dragon))
 
     fun sendToMainChat(text: String) {
         val vm = mainVm ?: run {

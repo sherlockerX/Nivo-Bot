@@ -419,8 +419,10 @@ final class NanoMuseFirstConversation: ObservableObject {
 
     /// The three opening paragraphs, in the app's language.
     func intro() -> [String] {
-        [
-            AppLocalized("Hi, I'm nanoMuse, the assistant that lives on your phone. Let me take a few things off your plate."),
+        let nickname = SoulStore.cachedMetadata.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let assistantName = nickname.isEmpty ? NivoProduct.assistantName : nickname
+        return [
+            String(format: AppLocalized("Hi, I'm %@, the assistant that lives on your phone. Let me take a few things off your plate."), assistantName),
             AppLocalized("I can help with your files, tasks, focus and learning. Your chats and records are stored on this device. Model and connector requests send the necessary data to the services you choose."),
             AppLocalized("Before we start, what should I call you?"),
         ]

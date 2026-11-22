@@ -259,7 +259,7 @@ private struct BridgedAssistantHeaderV3: View {
                     endPoint: .bottomTrailing
                 )
             )
-            Text(soulMeta.name.isEmpty ? "nanoMuse" : soulMeta.name)
+            Text(soulMeta.name.isEmpty ? NivoProduct.assistantName : soulMeta.name) // nanoMuse: 空昵称使用角色名。
                 .font(.body.weight(.semibold))
                 .foregroundStyle(ChatColors.primaryText)
         }

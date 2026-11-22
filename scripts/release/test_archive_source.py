@@ -312,13 +312,13 @@ class ArchiveSourceTest(unittest.TestCase):
         """真实命令行必须传递平台选择，不能只有可导入函数支持iOS。"""
         commit, _, _, _ = self.ios_fixture()
         script = Path(__file__).with_name("archive_source.py")
-        for platform in ["ios", "android"]:
+        for platform in ["ios", "android", "mobile"]:
             output = self.folder / f"cli-{platform}.zip"
             arguments = [
                 sys.executable, str(script), "--root", str(self.root),
                 "--commit", commit, "--output", str(output),
             ]
-            if platform == "ios":
+            if platform != "android":
                 arguments.extend(["--platform", platform])
             result = subprocess.run(arguments, capture_output=True, env=self.environment)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
@@ -326,6 +326,9 @@ class ArchiveSourceTest(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 manifest = json.loads(archive.read("SOURCE_RELEASE.json"))
                 self.assertEqual(manifest["status"], f"{platform}-release-source")
+                if platform == "mobile":
+                    expanded = {item["path"] for item in manifest["submodules"] if item["expanded"]}
+                    self.assertTrue({"android/deps/ish", "android/deps/proot"} <= expanded)
 
     def test_ios_recursive_symlinks_keep_existing_escape_and_dangling_checks(self) -> None:
         """子模块文件也按最终归档命名空间核对链接，不能越界或指向缺失文件。"""

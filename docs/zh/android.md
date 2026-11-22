@@ -8,7 +8,11 @@ Debug与Release均可跳过首次引导，重启后继续保留该选择。应�
 
 内置服务商列表过滤目录中标记为`is_relay`的条目，包括OpenRouter、SiliconFlow、OpenCode、Standard Compute和CheaperInference。已有配置与OAuth凭据继续可用，也可自行填写兼容端点。旧额度消息只引导打开服务商设置，不再显示邀请、项目链接或中转站推荐。
 
-升级时保留当前本地数据归属、聊天、任务、文件和服务商配置。原内置Cloud服务商会被禁用，并从服务商设置中隐藏；它的ID、密钥、模型和分组绑定仍保留，旧记录不会因此被删除或重新分配。旧聊天仍指向Cloud模型时，需要先选择自己的服务商再发送。已有账号归档继续保存在原处，不会自动合并到当前工作区。全新安装使用本地归属。
+在已有应用数据容器内，本地模式保留当前数据归属、聊天、任务、文件和服务商配置。原内置Cloud服务商会被禁用，并从服务商设置中隐藏；它的ID、密钥、模型和分组绑定仍保留，旧记录不会因此被删除或重新分配。旧聊天仍指向Cloud模型时，需要先选择自己的服务商再发送。已有账号归档继续保存在原处，不会自动合并到当前工作区。全新安装使用本地归属。
+
+Nivo的Android2.0.10使用`io.github.nivo`。已发布的Android`2.0.9(60)`使用`io.github.sherlockerx.nelan`，更早的版本使用`io.github.nanomuse.app`。每个包名的私有存储、凭据与系统授权彼此独立。请保留旧安装，按[迁移说明](../releases/v2.0.9.md#moving-from-the-old-android-package)导出与导入已支持的内容。通用备份不迁移心得及照片、教练进度、专注历史或自定义宠物。
+
+聊天等待回复时会显示三颗交替闪动的星星，推理进行中也会出现在步骤标题旁。工具运行时显示工具自己的状态；正文开始后星星消失。关闭系统动画时，三颗星保持静止。
 
 应用通过`allowBackup="false"`关闭Android系统自动云备份，保留用户主动导出、导入和自行配置的备份目的地。重装后不会从原账号服务取回聊天，卸载前请保存手动备份。
 
@@ -46,13 +50,14 @@ Debug与Release均可跳过首次引导，重启后继续保留该选择。应�
 `android/` 是手机上的 nanoMuse：[OpenMinis](https://github.com/OpenMinis/OpenMinis)
 1.13（GPL-3.0）：一个原生 App，智能体**在手机上**运行，Linux shell、浏览器、MCP 服务器、
 技能和定时任务都装在 APK 里，再加上 nanoMuse 自己的身份、设计和功能。属于 nanoMuse 的一切
-都在 `io.github.nanomuse.*` 下；OpenMinis 文件里的改动用 `// nanoMuse:` 标出。应用 id 是
-`io.github.nanomuse.app`，系统认得这个 App 的 URL scheme 是 `nanomuse://`，这样同一部手机上也装了
-OpenMinis 时，不会有两个 App 抢同一个 scheme；App 内部的链接仍是 `minis://…`（上游的词汇，沙箱、
+都在 `io.github.nanomuse.*` 下；OpenMinis 文件里的改动用 `// nanoMuse:` 标出。应用ID为
+`io.github.nivo`，系统URL scheme保留`nanomuse://`，与OpenMinis区分。
+旧安装也可响应这个外部scheme；并装时系统可能询问用哪个应用打开链接。
+App内部的链接仍是`minis://…`（上游的词汇，沙箱、
 系统提示词和模型都用它），从系统进来的 `nanomuse://` 链接按它的 `minis://` 形式读，App 自己打开
 自己的链接时一律按名字指向 `MainActivity`，不交给系统去解析
 （`io.github.nanomuse.deeplink.OwnScheme`）。沙箱的 offload 套接字（proot 和 App 之间通信的
-抽象套接字）也是 App 自己的：叫 `io.github.nanomuse.app.native-offload`，不用上游的
+抽象套接字）也是App自己的：叫`io.github.nivo.native-offload`，不用上游的
 `native-offload`，因为抽象套接字在整台设备上只有一个命名空间，两个 App 用同一个名字，后启动的那个
 会在启动时直接死掉；如果连这个名字都还被我们自己上一个进程占着，服务端就改绑一个带进程号的名字，
 并把它告诉 proot（`io.github.nanomuse.sandbox.OffloadSocketName`）。这个选择的来龙去脉
@@ -60,17 +65,13 @@ OpenMinis 时，不会有两个 App 抢同一个 scheme；App 内部的链接仍
 作为设计记录保留在 [archive/android-python-line.md](../archive/android-python-line.md)，不是你今天
 下载到的东西。
 
-一个 APK，一种架构：`nanoMuse-<version>-arm64.apk`（arm64-v8a，Android 8.0 / API 26 及以上，
-`targetSdk` 35）。每个版本都用同一把签名密钥，所以新 APK 直接覆盖旧的，数据保留。没有上架
-Play 商店：「设置 → 版本」把已安装的构建和最新版本并排显示（先查 `nanomuse.cn/dl/index.json`，
-再查这个仓库的 GitHub Releases：「最新 0.1.x，你用的就是它」/「0.1.x 已发布，点此更新」），
-并提供下载。
+正式包面向arm64-v8a、Android8.0／API26及以上，`targetSdk`为35。
+Android`2.0.10(61)`的文件与安装要求见[发行说明](../releases/v2.0.10.md)。新版与旧包名的应用并存。
 
 ## 安装 {#install}
 
-1. 从[最新版本](https://github.com/nano-muse/nanoMuse/releases/latest)下载
-   `nanoMuse-<version>-arm64.apk`。想核对的话，运行
-   `sha256sum -c nanoMuse-<version>-arm64.apk.sha256`。
+1. 从本分支[发行页面](https://github.com/sherlockerX/Nivo-Bot/releases)选择APK，并使用同版校验文件核对。
+   请先查看[跨包迁移指南](https://nivo.8666886.xyz/install.html#android-migration)，保留未能转移的旧数据。
 2. 打开它。Android 会问一次，是否允许从你的浏览器或文件管理器安装。
 3. **添加自己的模型。** 打开「设置→模型」，添加API key、兼容端点或受支持的服务商OAuth账号。按服务商能力设置「对话」「操作屏幕」「生成图片」「生成视频」。每组默认显示8个模型，点「还有N个」可展开，较长列表可按模型ID或名称搜索。对话模型选择用于主要聊天和新对话，已打开的旁聊保留原选择；其余三项支持「自动」。尚未配置可用服务商时，发送前会提示选择模型。
 
@@ -391,7 +392,7 @@ API密钥供应商和模型表单在写入失败时保留输入，确认保存�
 
 每日记录可选择已结束的专注时段，草稿保存选择，正式提交在同一事务保存日记与关联快照。只有关联、没有正文也能保存。删除专注记录后，已存日记快照仍保留。
 
-普通聊天，包括新建聊天，可通过`focus_query`和`todo_query`读取当前账号的专注与待办。主要聊天还提供`focus_command`及待办修改命令，沿用当前用户、账号隔离、版本校验和风险门禁。模型不能填写过去时间或虚构时长。专注提供JSON导出，本轮未提供JSON导入。
+普通聊天，包括新建聊天，可通过`focus_query`和`todo_query`读取当前账号的专注与待办。主要聊天还提供`focus_command`及待办修改命令，沿用当前用户、账号隔离、版本校验和风险门禁。模型不能填写过去时间或虚构时长。专注JSON导出包含历史，导入仅恢复停用的锁定计划和白名单，不恢复历史或活动计时。
 
 “待办→分组与标签→浏览与创建”现在可以删除分类。删除分组会保留任务并转为未分组；删除标签会解除当前任务关联。历史完成标签快照不会被改写。
 

@@ -47,7 +47,7 @@ struct NanoMuseAgentPage: View {
 
     private var name: String {
         let n = soulName.trimmingCharacters(in: .whitespaces)
-        return n.isEmpty ? "nanoMuse" : n
+        return n.isEmpty ? NivoProduct.assistantName : n
     }
 
     var body: some View {
@@ -109,7 +109,7 @@ struct NanoMuseAgentPage: View {
                     Button { showEditName = true } label: { Label(AppLocalized("Edit name"), systemImage: "pencil") }
                     // A clip of the person's own as the face (#324), and the way back.
                     Button { clipPicker.choose() } label: { Label(AppLocalized("Your own clip…"), systemImage: "film") }
-                    if own.clip != nil {
+                    if own.clip != nil || !own.moods.isEmpty {
                         Button { own.clear() } label: { Label(AppLocalized("Default face"), systemImage: "arrow.uturn.backward") }
                     }
                     // iOS 16的菜单里放NavigationLink经常不跳转，改为按钮加navigationDestination。
@@ -739,7 +739,7 @@ struct NanoMuseAvatarDoneCard: View {
         .padding(12)
         .background(NanoMuseTones.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .sheet(isPresented: $share) {
-            NanoMuseAvatarShareSheet(agentName: SoulStore.cachedMetadata.name.isEmpty ? "nanoMuse" : SoulStore.cachedMetadata.name)
+                NanoMuseAvatarShareSheet(agentName: SoulStore.cachedMetadata.name.isEmpty ? NivoProduct.assistantName : SoulStore.cachedMetadata.name)
         }
     }
 }

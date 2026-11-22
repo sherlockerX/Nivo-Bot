@@ -178,12 +178,22 @@
     return (b.versionCode || 0) - (a.versionCode || 0) || b.releasedAt.localeCompare(a.releasedAt);
   }
 
+  /** 校验Android发行身份及独立应用的备份恢复迁移方式。 */
+  function validateMigration(release) {
+    const hasValidPackage = typeof release.packageId === 'string' && /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(release.packageId);
+    const isAndroidApk = release.platform === 'android' && (release.distribution || 'apk') === 'apk';
+    if ('packageId' in release && (!hasValidPackage || !isAndroidApk)) throw new Error('Android包名必须对应有效APK发行');
+    if ('migration' in release && (release.migration !== 'backup-restore' || !hasValidPackage || !isAndroidApk)) throw new Error('备份恢复迁移必须标明Android APK包名');
+  }
+
   /** 拒绝错误、重复或不完整的发布记录，而不是生成失效下载按钮。 */
   function validateCatalogue(data) {
     if (data.schemaVersion !== 2 || !Array.isArray(data.platforms) || !Array.isArray(data.releases)) throw new Error('版本清单格式不正确');
     const ids = new Set(), platformIds = new Set(data.platforms.map(p => p.id));
     for (const release of data.releases) {
+      validateMigration(release);
       if (!release.id || ids.has(release.id) || !platformIds.has(release.platform)) throw new Error('版本ID或平台不正确');
+      if ('productName' in release && (typeof release.productName !== 'string' || !release.productName.trim())) throw new Error('发行产品名称不正确');
       if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(release.version) || !['stable', 'beta'].includes(release.channel)) throw new Error('版本信息不完整');
       const distribution = release.distribution || 'apk';
       if ('checksumsUrl' in release && (!['apk', 'ipa'].includes(distribution) || release.checksumsUrl !== `https://nivo.8666886.xyz/downloads/SHA256SUMS-v${release.version}.txt`)) throw new Error('校验清单与发行版本不符');
@@ -201,7 +211,7 @@
   function renderRelease(release) {
     const card = node('div', undefined, 'release-card');
     const heading = node('div', undefined, 'release-heading');
-    const title = node('div'); title.append(node('p', `${release.platform === 'android' ? 'Android' : 'iOS'} ${release.channel === 'stable' ? '稳定版' : '测试版'}`, 'eyebrow'), node('h2', `Nivo Bot v${release.version}`));
+    const title = node('div'); title.append(node('p', `${release.platform === 'android' ? 'Android' : 'iOS'} ${release.channel === 'stable' ? '稳定版' : '测试版'}`, 'eyebrow'), node('h2', `${release.productName || 'Nivo Bot'} v${release.version}`));
     const distribution = release.distribution || 'apk';
     const isUnsigned = release.signing === 'unsigned';
     const method = isUnsigned ? '未签名IPA' : {apk:'正式签名', ipa:'IPA', 'app-store':'App Store', testflight:'TestFlight'}[distribution];
@@ -213,6 +223,11 @@
       const installation = node('aside', undefined, 'callout');
       installation.append(node('h3', '安装前需要自行签名'), node('p', '这是未签名IPA，不能下载后直接安装到iPhone。需要使用自己的Apple开发签名与适用的安装工具重新签名；能否安装、签名有效期和可用权限取决于你的账户与签名方式。本文件没有TestFlight或App Store安装入口。'));
       installation.append(anchor('查看iOS安装说明', 'install.html', 'text-link', true)); card.append(installation);
+    }
+    if (release.platform === 'android' && release.migration === 'backup-restore') {
+      const installation = node('aside', undefined, 'callout');
+      installation.append(node('h3', '独立应用，先备份再迁移'), node('p', `此版Android使用包名${release.packageId}，作为独立应用安装，不能覆盖安装原包名应用，可与旧版并存。先在旧版导出备份，再安装新版并导入支持的内容。重新授权所需系统权限，模型凭证按实际恢复情况重新配置。部分数据需保留在旧版，查看迁移范围后再操作；请保留旧应用与原始备份。`));
+      installation.append(anchor('查看迁移范围', 'install.html#android-migration', 'text-link', true)); card.append(installation);
     }
     const actions = node('div', undefined, 'actions');
     const downloadLabel = {apk:'下载APK', ipa:`下载${method}`}[distribution] || '打开官方安装入口';

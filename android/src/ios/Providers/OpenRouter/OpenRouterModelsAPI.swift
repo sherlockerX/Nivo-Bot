@@ -18,7 +18,7 @@ enum OpenRouterModelsAPI {
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("https://github.com/OpenMinis/OpenMinis", forHTTPHeaderField: "HTTP-Referer")
-        request.setValue("nanoMuse App", forHTTPHeaderField: "X-Title")
+        request.setValue(NivoProduct.englishName, forHTTPHeaderField: "X-Title") // nanoMuse: 产品展示名独立于协议标识。
         logger.info("Fetching OpenRouter models")
 
         let (data, response) = try await URLSession.shared.data(for: request)

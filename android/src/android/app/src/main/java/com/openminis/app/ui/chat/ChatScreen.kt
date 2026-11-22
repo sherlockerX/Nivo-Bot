@@ -2769,7 +2769,8 @@ fun ChatScreen(
                             // Tap: Settings → Soul, same as the face above.
                             val topBarSoul by com.openminis.app.agent.SoulStore
                                 .cachedMetadata.collectAsState()
-                            val displayTitle = topBarSoul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+                            // nanoMuse: 聊天标题使用本地化助手身份。
+                            val displayTitle = io.github.nanomuse.identity.AssistantIdentity.displayName(topBarSoul.name, stringResource(R.string.nm_pet_dragon))
                             // nanoMuse: while the agent works or waits, the
                             // status line says what it is doing (Muse's
                             // "Generating options" / "正在等待批准").
@@ -4617,7 +4618,7 @@ fun ChatScreen(
                             } } // nanoMuse: bubble
                             // nanoMuse: 点击只切换展示行，下一次测量直接保持标题位置。
                             is FlatChatItem.AssistantSteps -> io.github.nanomuse.ui.chat.AgentStepsFold(
-                                row = item, isExpanded = item.messageId in nmStepFolds.expanded,
+                                row = item, isExpanded = item.messageId in nmStepFolds.expanded, isVisible = nmPresentationVisible, // nanoMuse: 隐藏页停止星形动画。
                                 onToggle = {
                                     // Mosaic: steps open in their own sheet; one still expanded in the chat folds back.
                                     if (item.messageId in nmStepFolds.expanded) {
@@ -4653,8 +4654,9 @@ fun ChatScreen(
                                     // ThinkingBlockView semantics.
                                     ThinkingBlock(
                                         block = item.block,
-                                        isStreaming = item.isLastBlockOverall && item.messageIsStreaming,
+                                        isStreaming = item.isLastBlockOverall && item.isReceivingModelResponse, // nanoMuse: 当前轮次仍在接收推理。
                                         isLast = item.isLast,
+                                        isVisible = nmPresentationVisible, // nanoMuse: 思考区跟随当前聊天的可见状态。
                                     )
                                 }
                             }
@@ -4772,7 +4774,7 @@ fun ChatScreen(
                                     onOpenSession = { onMoveToSession(it) },
                                 )
                             }
-                            is FlatChatItem.AssistantTyping -> TypingIndicator()
+                            is FlatChatItem.AssistantTyping -> TypingIndicator(nmPresentationVisible) // nanoMuse: 隐藏聊天不绘制动态帧。
                             // nanoMuse: a provider that could not be reached (or refused the
                             // region, or whose sign-in ran out) is a card, not the socket's text
                             is FlatChatItem.AssistantError -> io.github.nanomuse.ui.chat.NmProviderErrorOrBanner(
@@ -6561,7 +6563,8 @@ fun ChatScreen(
                                                 if (nmChoosingName) stringResource(R.string.nm_naming_placeholder)
                                                 // nanoMuse: Muse's pill says just "Message".
                                                 else if (nmPill) stringResource(R.string.nm_composer_placeholder)
-                                                else composerPlaceholderText(idx, soulName.name),
+                                                // nanoMuse: 输入提示与聊天标题共用本地化助手身份。
+                                                else composerPlaceholderText(idx, io.github.nanomuse.identity.AssistantIdentity.displayName(soulName.name, stringResource(R.string.nm_pet_dragon))),
                                                 color = if (nmPill) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                                                 fontSize = 16.5.sp * chatInputFontScale,

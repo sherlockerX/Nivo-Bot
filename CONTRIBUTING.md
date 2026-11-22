@@ -30,7 +30,7 @@ CI checks it. Not accepted, ever:
 
 Upstream is a mirror of a private tree, squashed roughly monthly, and does not take pull requests. We have to be able to `git subtree pull` each release, so:
 
-1. **Do not rename the Kotlin package** `com.openminis.app` or the Gradle `namespace`. Only the `applicationId` (`io.github.nanomuse.app`) is ours.
+1. **Do not rename the Kotlin package** `com.openminis.app` or the Gradle `namespace`. Nivo's current Android source uses `io.github.nivo`. The published 2.0.9 APK uses `io.github.sherlockerx.nelan`; earlier Android releases and the current iOS target use `io.github.nanomuse.app`. Changing the Android `applicationId` creates a separate installation.
 2. **Do not rename sandbox paths or CLI names** inside the root file system (`/var/minis`, `minis-global`, `minis-open`, `minis-mcp-cli`, `android-*`). They are upstream's contract with itself.
 3. **New code goes in new files**: package `io.github.nanomuse.*` or a new file next to the upstream one. When an upstream file must change, add a `// nanoMuse:` comment at the spot, and make one change per spot.
 4. **Rebranding is a script, not hand edits.** `scripts/rebrand.py` (names, ids, colours, links; Android and iOS), `scripts/gen-android-icons.py` and `scripts/gen-ios-icons.py` (icons) are idempotent; run them after every upstream pull. Do not fix a rebranding miss by hand; fix the script.

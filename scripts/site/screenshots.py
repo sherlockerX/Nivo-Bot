@@ -6,7 +6,7 @@ from html import escape
 
 SCREENSHOT_WIDTH = 1080
 SCREENSHOT_HEIGHT = 2400
-SCREENSHOT_NOTE = "当前维护版本的Android模拟器截图，内容为演示数据。"
+SCREENSHOT_NOTE = "品牌更新前的Android模拟器实拍，内容为演示数据。"
 SCREENSHOTS = {
     "chat": {
         "path": "media/screenshots/chat.png",

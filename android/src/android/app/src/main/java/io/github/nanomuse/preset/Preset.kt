@@ -1,8 +1,6 @@
 package io.github.nanomuse.preset
 
 import android.content.Context
-import com.openminis.app.agent.SoulMDParser
-import com.openminis.app.agent.SoulMetadata
 import com.openminis.app.agent.SoulStore
 import com.openminis.app.data.repository.SkillRepository
 import io.github.nanomuse.sysfiles.SystemFiles
@@ -16,9 +14,10 @@ import java.io.File
  * deleted. The persona itself is `SoulStore.DEFAULT_CONTENT`.
  */
 object Preset {
-    /** Before `SoulStore.ensureExists`: renames a soul left from nanoMuse, seeds USER / GLOBAL / feed preferences. */
+    /** 初始化前升级完整的旧默认身份和记忆，再补齐尚未播种的预置文件。 */
     fun ensureFiles(context: Context) {
         renameSoul(context)
+        migrateGlobalMemory(context)
         retireFeedSteer(context)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val seeded = prefs.getStringSet(KEY_SEEDED_FILES, emptySet()).orEmpty()
@@ -136,19 +135,25 @@ object Preset {
         target.writeText(text)
     }
 
-    /**
-     * An install from before the rename has a SOUL.md named "nanoMuse". Untouched, it becomes
-     * the new persona; edited, only the name changes and the owner's text stays.
-     */
+    /** 只有完整匹配旧默认模板时才迁移，用户编辑过的身份文件保持原样。 */
     private fun renameSoul(context: Context) {
         val file = SoulStore.fileLocation(context)
         if (!file.exists()) return
-        val soul = SoulMDParser.parse(file.readText())
-        if (soul.metadata.name != OLD_NAME) return
-        file.writeText(
-            if (OLD_DEFAULT_MARK in soul.body) SoulStore.DEFAULT_CONTENT
-            else SoulMDParser.serialize(soul.copy(metadata = soul.metadata.copy(name = SoulMetadata.DEFAULT.name))),
-        )
+        val source = file.readText()
+        val replacement = DefaultSoulMigration.replacement(source, SoulStore.DEFAULT_CONTENT) ?: return
+        DefaultFileMigration.replaceIfUnchanged(file, source, replacement)
+    }
+
+    /** 已播种文件也检查版本，但完整旧模板以外的任何内容均不改动。 */
+    private fun migrateGlobalMemory(context: Context) {
+        val file = SystemFiles.MEMORY.file(context)
+        if (!file.isFile) return
+        val defaultContent = context.assets.open("preset/memory/GLOBAL.md")
+            .bufferedReader().use { it.readText() }
+        val source = file.readText()
+        val replacement = DefaultGlobalMemoryMigration.replacement(source, defaultContent)
+            ?: return
+        DefaultFileMigration.replaceIfUnchanged(file, source, replacement)
     }
 
     /** `name` / `description` / `version` from a SKILL.md front matter (one line each), and the body after it. */
@@ -170,6 +175,4 @@ object Preset {
     private const val KEY_SKILL_AT = "preset_skill_at:" // Mosaic: when this installer last wrote a preset skill
     /** Mosaic: the news-feed steering file the previous builds seeded. */
     private const val OLD_FEED_STEER_SHA256 = "abdb09a6f03c885b9e7b743cf181ddad3f8678cd285101b2ebe92f83d586ac5c"
-    private const val OLD_NAME = "nanoMuse"
-    private const val OLD_DEFAULT_MARK = "**Don't perform"
 }

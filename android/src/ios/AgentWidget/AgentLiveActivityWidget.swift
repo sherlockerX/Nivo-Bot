@@ -16,8 +16,8 @@ struct AgentLiveActivityWidget: Widget {
                     HStack(spacing: 3) {
                         Image(systemName: "sparkles")
                             .font(.caption2)
-                        // nanoMuse: 未配置昵称时使用应用的公开名称。
-                        Text(context.state.soulName.isEmpty ? "Nivo Bot" : context.state.soulName)
+                        // nanoMuse: 扩展独立解析角色名，已有昵称原样显示。
+                        Text(context.state.soulName.isEmpty ? String(localized: "Shiqi") : context.state.soulName)
                             .font(.caption.bold())
                     }
                     .padding(.horizontal, 6)
@@ -222,8 +222,8 @@ struct AgentLockScreenView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "sparkles")
                         .font(.caption2)
-                    // nanoMuse: 锁屏与灵动岛使用同一公开名称。
-                    Text(state.soulName.isEmpty ? "Nivo Bot" : state.soulName)
+                    // nanoMuse: 锁屏与灵动岛使用同一角色名。
+                    Text(state.soulName.isEmpty ? String(localized: "Shiqi") : state.soulName)
                         .font(.caption.bold())
                 }
                 .padding(.horizontal, 6)

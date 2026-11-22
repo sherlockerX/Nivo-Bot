@@ -102,8 +102,13 @@ struct NivoAvatarWardrobeView: View {
         List {
             Button { wear("dragon") } label: {
                 HStack {
-                    Image(systemName: "sparkles").frame(width: 48, height: 48)
-                    Text(AppLocalized("Built-in face"))
+                    if let image = NanoMuseFaceStore.dragon(.idle) {
+                        Image(uiImage: image).resizable().scaledToFit().frame(width: 48, height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        Image(systemName: "sparkles").frame(width: 48, height: 48)
+                    }
+                    Text(AppLocalized("Shiqi"))
                     Spacer()
                     if faces.source == .dragon { Image(systemName: "checkmark") }
                 }

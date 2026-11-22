@@ -480,7 +480,8 @@ internal suspend fun performTest(
                         // speaks in THAT voice, not the vendor default.
                         val data = voice.synthesize(
                             com.openminis.app.provider.voice.VoiceOutputRequest(
-                                input = "Hi! This is Nivo Bot testing text to speech.",
+                                // nanoMuse: 测试语音使用本地化产品名称。
+                                input = context.getString(R.string.nm_brand_quicktest_tts, context.getString(R.string.app_name)),
                                 model = entry.model.id,
                                 voice = entry.model.id,
                             ),
@@ -497,7 +498,9 @@ internal suspend fun performTest(
                 if (!voice.supportsVoiceInput) {
                     failure(context.getString(R.string.quicktest_voice_unsupported))
                 } else {
-                    val spoken = "Hello from Nivo Bot, testing speech to text."
+                    // nanoMuse: 语音识别使用固定英语测试音频，避免受界面语言影响。
+                    val englishContext = context.createConfigurationContext(android.content.res.Configuration(context.resources.configuration).apply { setLocale(java.util.Locale.ENGLISH) })
+                    val spoken = englishContext.getString(R.string.nm_brand_quicktest_stt, englishContext.getString(R.string.app_name))
                     val clip = synthesizeTestClip(context, spoken)
                         ?: return@withContext failure(context.getString(R.string.quicktest_clip_failed))
                     runCatching {
@@ -530,7 +533,8 @@ internal suspend fun performTest(
                     messages = listOf(
                         LLMMessage(
                             role = LLMMessage.Role.USER,
-                            content = "Hi! I'm setting you up in Nivo Bot. Say hello back in one short, friendly sentence.",
+                            // nanoMuse: 快速测试按当前语言介绍产品。
+                            content = context.getString(R.string.nm_brand_quicktest_chat, context.getString(R.string.app_name)),
                         ),
                     ),
                     systemPrompt = null,
@@ -549,7 +553,8 @@ internal suspend fun performTest(
                 ?: return@withContext failure(context.getString(R.string.quicktest_image_unsupported))
             runCatching {
                 val resp = openAI.generateImage(
-                    prompt = "A friendly cute mascot logo for an app called Nivo Bot, minimalist, centered, soft colors",
+                    // nanoMuse: 图片测试不再要求生成旧品牌标记。
+                    prompt = context.getString(R.string.nm_brand_quicktest_image, context.getString(R.string.app_name)),
                     n = 1,
                     size = "1024x1024",
                     quality = null,
