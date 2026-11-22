@@ -738,6 +738,7 @@ final class ThinkingHitchMonitor {
 struct ThinkingBlockView: View {
     @ObservedObject var block: AssistantBlock
     let isStreaming: Bool
+    @Environment(\.colorScheme) private var processColorScheme // nanoMuse: 思考区域跟随应用主题。
 
     // [T-thinking-scroll-followback GH#125] Per-view follow state. Reset on
     // cell reuse / re-entry is fine — a fresh view simply follows again.
@@ -765,34 +766,37 @@ struct ThinkingBlockView: View {
     }
 
     var body: some View {
+        let processColors = NivoProcessPalette(processColorScheme) // nanoMuse: 浅蓝背景共用高对比度前景色。
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack(spacing: 6) {
                 Image("ThinkingIcon")
                     .resizable()
                     .frame(width: 14, height: 14)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(processColors.foreground) // nanoMuse: 配合蓝色背景。
                 Text(AppLocalized("Deep Thinking"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.blue)
+                    .font(.footnote.weight(.semibold)) // nanoMuse: 支持系统字体放大。
+                    .foregroundStyle(processColors.foreground)
                 if isStreaming {
                     ProgressView()
                         .controlSize(.mini)
-                        .tint(.blue)
+                        .tint(processColors.foreground) // nanoMuse: 状态与标题配色一致。
                 }
                 if block.content.count > 0 || block.thinkingContentBuffer.count > 0 {
                     let charCount = max(block.content.count, block.thinkingContentBuffer.count)
                     Text(charCount > 1000 ? "\(charCount / 1000)K" : "\(charCount)")
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.blue.opacity(0.6))
+                        .foregroundStyle(processColors.foreground) // nanoMuse: 小字号计数保持对比度。
                 }
                 Spacer()
                 Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.blue.opacity(0.5))
+                    .foregroundStyle(processColors.foreground) // nanoMuse: 折叠入口保持可见。
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            // nanoMuse: 胶囊左右留白并保证可点击高度，不改变原有折叠状态。
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
             .onTapGesture {
                 // Mark before flipping so any concurrent stream-end collapse
@@ -854,8 +858,8 @@ struct ThinkingBlockView: View {
                             // moving is useless anyway — enable it only once
                             // streaming finished.
                             let thinkingText = Text(displayContent)
-                                .font(.system(size: 13))
-                                .foregroundStyle(ChatColors.tertiaryText)
+                                .font(.footnote) // nanoMuse: 思考正文支持字体放大且保持清晰。
+                                .foregroundStyle(processColors.foreground)
                                 .lineSpacing(3)
                             Group {
                                 if isStreaming {
@@ -865,8 +869,8 @@ struct ThinkingBlockView: View {
                                 }
                             }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 10)
+                                .padding(.horizontal, 16) // nanoMuse: 正文避开容器圆角。
+                                .padding(.bottom, 12)
                                 .id("thinkingBottom")
                         }
                     }
@@ -952,12 +956,7 @@ struct ThinkingBlockView: View {
         .onDisappear {
             ThinkingHitchMonitor.shared.stop(owner: block.id)
         }
-        .background(Color.blue.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.blue.opacity(0.15), lineWidth: 0.5)
-        )
+        .modifier(NivoProcessSurface(isExpanded: isExpanded.wrappedValue)) // nanoMuse: 短状态为胶囊，展开详情为大圆角。
         .task(id: block.id) {
             // One-shot per-block auto-expand. Runs when this cell first hosts
             // a given thinking block (block.id is stable across content
@@ -1052,7 +1051,10 @@ struct TypingIndicator: View {
             soulName = n.isEmpty ? NivoProduct.assistantName : n // nanoMuse: 保留用户昵称。
         }
         .font(.system(size: 15, weight: .medium))
-        .foregroundStyle(ChatColors.tertiaryText)
+        // nanoMuse: 等待回复时同样使用浅蓝胶囊，保留原有状态动画。
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .modifier(NivoProcessSurface())
         .padding(.top, 0)
         .onAppear {
             for i in 0..<3 {

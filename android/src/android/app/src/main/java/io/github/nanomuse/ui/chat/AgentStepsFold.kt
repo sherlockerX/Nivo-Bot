@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.openminis.app.BuildConfig
 import com.openminis.app.ui.chat.FlatChatItem
@@ -21,22 +22,24 @@ internal fun AgentStepsFold(
     row: FlatChatItem.AssistantSteps, isExpanded: Boolean, isVisible: Boolean, onToggle: () -> Unit,
 ) {
     val current = if (row.isStreaming) currentStep(row) else null
+    val colors = nivoProcessColors()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
-            .then(foldTraceModifier(row.key)).clickable {
+            .then(foldTraceModifier(row.key)).nivoProcessSurface(colors).clickable(role = Role.Button) {
                 io.github.nanomuse.chat.DebugFoldTrace.toggled(row.key)
                 onToggle()
-            }.padding(vertical = 10.dp),
+            }.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         if (row.isThinking) {
-            NivoThinkingStars(MaterialTheme.colorScheme.onSurfaceVariant, isVisible, Modifier.size(16.dp))
+            NivoThinkingStars(colors.foreground, isVisible, Modifier.size(16.dp))
             Spacer(Modifier.width(5.dp))
         }
         Text(
             text = "${if (isExpanded) "▾" else "▸"} " + stepsLabel(row) + (current?.let { " · $it" } ?: ""),
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = colors.foreground,
+            modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
@@ -73,6 +76,6 @@ internal fun AgentStepPart(
         if (part.block.kind == "tool_use") ToolCallPill(
             block = part.block, allToolBlocks = part.tools,
             onStop = if (part.isStreaming) onStop else null, onOpenDetail = onDetail,
-        ) else Text(text = part.text, style = MaterialTheme.typography.bodySmall)
+        ) else Text(text = part.text, style = MaterialTheme.typography.bodySmall, color = nivoProcessColors().foreground)
     }
 }

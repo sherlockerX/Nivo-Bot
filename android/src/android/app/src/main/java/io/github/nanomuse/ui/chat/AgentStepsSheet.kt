@@ -90,7 +90,10 @@ internal fun AgentStepsSheet(
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .nivoProcessSurface(nivoProcessColors(), isExpanded = true),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
         ) {
             itemsIndexed(parts, key = { _, part -> part.key }, contentType = { _, part -> part.contentType }) { _, part ->
                 AgentStepPart(part = part, onDetail = onDetail, onStop = onStop)

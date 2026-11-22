@@ -14,6 +14,8 @@ Later implementation notes retain upstream development history, including earlie
 TestFlight work. Those historical services and distribution claims do not apply to this fork.
 Build success verifies compilation; iPhone startup and interaction require device testing.
 
+Thinking and execution summaries and waiting indicators use pale-blue capsules with blue-grey text. Tapping a process summary opens its rounded blue detail panel, preserving tool details, Stop and the first/latest-step controls. Expanded thinking uses the same rounded style. Dark mode uses a subdued dark-blue background.
+
 The [iOS tool audit and phone checks](zh/ios-tool-self-audit.md) document configuration paths,
 runtime model authorization, personal-record recovery, map commands and CLI response fixes.
 The audit distinguishes confirmed code defects from observations that still need the original

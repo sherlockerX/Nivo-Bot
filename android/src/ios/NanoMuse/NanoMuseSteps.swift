@@ -88,6 +88,7 @@ struct NanoMuseStepsSection: View {
 /// execution (3 tools)". A tap opens them in the steps sheet.
 struct NanoMuseStepsFold: View {
     @ObservedObject var message: ChatMessage
+    @Environment(\.colorScheme) private var colorScheme
     var active = false
 
     var body: some View {
@@ -101,7 +102,7 @@ struct NanoMuseStepsFold: View {
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    if active { ProgressView().controlSize(.mini) }
+                    if active { ProgressView().controlSize(.mini).tint(NivoProcessPalette(colorScheme).foreground) }
                     else { Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }
                     Text(String(format: AppLocalized("Thinking and execution (%d tools)"), tools))
                         .font(.footnote)
@@ -112,8 +113,10 @@ struct NanoMuseStepsFold: View {
                     NanoMuseCurrentStepLine(block: latest)
                 }
             }
-            .foregroundStyle(.secondary)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .frame(minHeight: 48)
+            .modifier(NivoProcessSurface())
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -126,7 +129,7 @@ private struct NanoMuseCurrentStepLine: View {
 
     var body: some View {
         if let line = NanoMuseSteps.currentStep(block) {
-            Text(line).font(.caption).lineLimit(1).foregroundStyle(.secondary)
+            Text(line).font(.caption).lineLimit(1)
         }
     }
 }
@@ -165,6 +168,10 @@ struct NanoMuseStepsSheet: View {
                             .id(block.id)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .modifier(NivoProcessSurface(isExpanded: true))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                 }

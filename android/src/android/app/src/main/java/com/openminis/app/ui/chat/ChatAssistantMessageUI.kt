@@ -1,5 +1,7 @@
 package com.openminis.app.ui.chat
 
+import io.github.nanomuse.ui.chat.nivoProcessSurface // nanoMuse: 思考详情与过程摘要使用同一蓝色容器。
+
 // [T-android-split-chat] Assistant-message + tool-pill + thinking rendering
 // extracted verbatim from ChatScreen.kt: AssistantHeader, AssistantMessageView,
 // BoundsTrackedBlock, InlineErrorBanner, ToolStopButton,
@@ -869,7 +871,9 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
         // if the user hasn't taken control of its state yet.
         if (!isStreaming && !userTouched) expanded = false
     }
-    val thinkingBlue = Color(0xFF015CFB)
+    // nanoMuse: 思考文字随应用主题保持足够对比度。
+    val processColors = io.github.nanomuse.ui.chat.nivoProcessColors()
+    val thinkingBlue = processColors.foreground
     val charCount = block.content.length
     val charLabel = when {
         charCount >= 1000 -> "${charCount / 1000}K"
@@ -893,10 +897,8 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .background(thinkingBlue.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
-            .border(0.5.dp, thinkingBlue.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            // nanoMuse: 收起为胶囊，展开为大圆角；只改变背景，不重建内容状态。
+            .nivoProcessSurface(processColors, isExpanded = expanded && !overHardCap),
     ) {
         // Header row — only the header reacts to taps. Mirrors iOS, where
         // .onTapGesture is on the header HStack, not the whole VStack. With
@@ -914,7 +916,8 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                     // the (never-shown) inline expansion.
                     if (overHardCap) showFullContent = true
                     else expanded = !expanded
-                },
+                }
+                .heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 10.dp), // nanoMuse: 标题整行可点击。
         ) {
             if (isStreaming && block.toolStatus != ToolBlockStatus.SUCCESS) {
                 // nanoMuse: 当前推理使用动态星形，历史推理保留下方的静态图标。
@@ -934,15 +937,19 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = thinkingBlue,
+                // nanoMuse: 大字号优先为计数和折叠按钮保留空间，标题可省略。
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(8.dp)) // nanoMuse: 标题自身分配剩余宽度。
             if (charCount > 0) {
                 Text(
                     text = charLabel,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     fontFamily = FontFamily.Monospace,
-                    color = thinkingBlue.copy(alpha = 0.6f),
+                    color = thinkingBlue, // nanoMuse: 蓝底上的小字号计数不再降低对比度。
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
@@ -1033,7 +1040,7 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
             }
             Column(
                 modifier = Modifier
-                    .padding(top = 6.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 6.dp) // nanoMuse: 展开正文与圆角留出间距。
                     .heightIn(max = 300.dp)
                     .verticalScroll(scrollState),
             ) {
@@ -1045,14 +1052,14 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                             charCount / 1000,
                         ),
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                        color = processColors.foreground, // nanoMuse: 截断提示保持可读。
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                 }
                 Text(
                     text = displayContent,
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    color = processColors.foreground, // nanoMuse: 思考正文使用蓝灰色而非低透明度文字。
                     lineHeight = 19.sp,
                 )
             }
