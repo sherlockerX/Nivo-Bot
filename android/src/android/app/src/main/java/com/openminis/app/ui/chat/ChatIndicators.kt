@@ -167,17 +167,16 @@ internal fun TypingIndicator(isVisible: Boolean = true) {
     val processColors = io.github.nanomuse.ui.chat.nivoProcessColors() // nanoMuse: 跟随应用明暗主题。
 
     Row(
-        // nanoMuse: 背景只包围状态内容，图标与流式更新保持原有生命周期。
-        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
-            .nivoProcessSurface(processColors).padding(horizontal = 16.dp, vertical = 12.dp),
+        // nanoMuse: 等待状态不再套胶囊底色，星形和文字与过程标题同一左边线。
+        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp).padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        io.github.nanomuse.ui.chat.NivoThinkingStars(processColors.foreground, isVisible) // nanoMuse: 蓝底上的状态前景色。
+        io.github.nanomuse.ui.chat.NivoThinkingStars(processColors.accent, isVisible, Modifier.size(18.dp)) // nanoMuse: 进行中的图标用强调色。
         Text(
             text = stringResource(R.string.chat_typing_indicator, soulName),
             fontSize = 15.sp,
-            color = processColors.foreground, // nanoMuse: 蓝灰文字提高对比度。
+            color = processColors.foreground, // nanoMuse: 弱化的主题文字色。
             maxLines = 1, // nanoMuse: 长昵称保持单行，避免胶囊圆角裁切多行文字。
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )

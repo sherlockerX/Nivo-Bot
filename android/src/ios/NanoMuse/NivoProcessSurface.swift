@@ -1,41 +1,34 @@
 import SwiftUI
 
-/// 思考和执行区域的明暗配色，与Android使用相同的色值。
+/// 思考和执行区域的配色。过程是回答的附属信息：弱化的系统次级文字和细描边，
+/// 只有进行中的图标用强调色，不再用整块浅蓝底和正文争夺注意力。与Android取色规则一致。
 struct NivoProcessPalette {
     let background: Color
     let foreground: Color
     let border: Color
+    let accent: Color
 
-    /// 跟随应用的配色环境，避免深色模式中出现刺眼的浅色底。
+    /// 使用系统语义色，深浅模式自动适配；参数保留给已有调用处。
     init(_ colorScheme: ColorScheme) {
-        if colorScheme == .dark {
-            background = Color(red: 27 / 255, green: 45 / 255, blue: 65 / 255)
-            foreground = Color(red: 193 / 255, green: 216 / 255, blue: 240 / 255)
-            border = Color(red: 52 / 255, green: 80 / 255, blue: 109 / 255)
-        } else {
-            background = Color(red: 237 / 255, green: 245 / 255, blue: 255 / 255)
-            foreground = Color(red: 50 / 255, green: 88 / 255, blue: 121 / 255)
-            border = Color(red: 213 / 255, green: 230 / 255, blue: 247 / 255)
-        }
+        background = .clear
+        foreground = Color(uiColor: .secondaryLabel)
+        border = Color(uiColor: .separator)
+        accent = .accentColor
     }
 }
 
-/// 摘要使用胶囊背景，长详情使用大圆角；修饰器不改变内容的结构身份。
+/// 过程标题使用内容宽度的细描边小卡片，与回答气泡同一左边线；修饰器不改变内容的结构身份。
 struct NivoProcessSurface: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 旧调用处仍会传入展开状态；新样式展开与收起使用同一圆角。
     var isExpanded = false
 
-    /// 背景与描边不接收手势，保留原有折叠、滚动及工具按钮操作。
+    /// 描边不接收手势，保留原有折叠、滚动及工具按钮操作。
     func body(content: Content) -> some View {
         let palette = NivoProcessPalette(colorScheme)
-        // 辅助功能大字号可能产生多行，避免椭圆两端裁掉行首文字。
-        let radius: CGFloat = isExpanded || dynamicTypeSize.isAccessibilitySize ? 20 : 1_000
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         content
-            .foregroundStyle(palette.foreground)
-            .background(shape.fill(palette.background))
-            .clipShape(shape)
+            .contentShape(shape)
             .overlay(shape.strokeBorder(palette.border, lineWidth: 1).allowsHitTesting(false))
     }
 }

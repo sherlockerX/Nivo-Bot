@@ -14,7 +14,7 @@ Later implementation notes retain upstream development history, including earlie
 TestFlight work. Those historical services and distribution claims do not apply to this fork.
 Build success verifies compilation; iPhone startup and interaction require device testing.
 
-Thinking and execution summaries and waiting indicators use pale-blue capsules with blue-grey text. Tapping a process summary opens its rounded blue detail panel, preserving tool details, Stop and the first/latest-step controls. Expanded thinking uses the same rounded style. Dark mode uses a subdued dark-blue background.
+The process summary sits above the answer, aligned with it on the left and only as wide as its text: a thin outlined card with an icon, the title (Thinking or Thought process when only thinking happened, Thinking and working or Thinking and execution when tools ran), the number of tools and an arrow; while it runs, a second line names the current step. Tapping it opens the steps as a timeline: each step has a node (a light bulb for thinking, a dot for notes, and for tools a spinner, a tick, a cross or a dash for running, done, failed or cancelled) joined by a thin line, and tool details, Stop and the first/latest-step controls remain. Expanded thinking has a plain left-aligned title and a thin rule beside its text, and the waiting indicator shows only the stars and its text. Text uses the theme's secondary colour and only running icons use the accent colour, in light and dark mode alike.
 
 The [iOS tool audit and phone checks](zh/ios-tool-self-audit.md) document configuration paths,
 runtime model authorization, personal-record recovery, map commands and CLI response fixes.

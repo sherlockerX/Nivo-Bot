@@ -234,6 +234,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Lightbulb as OutlinedLightbulb // nanoMuse: 思考标题图标。
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
@@ -896,9 +897,7 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            // nanoMuse: 收起为胶囊，展开为大圆角；只改变背景，不重建内容状态。
-            .nivoProcessSurface(processColors, isExpanded = expanded && !overHardCap),
+            .padding(vertical = 4.dp), // nanoMuse: 思考区不再整块铺底，标题左对齐，展开正文用左侧细线区分。
     ) {
         // Header row — only the header reacts to taps. Mirrors iOS, where
         // .onTapGesture is on the header HStack, not the whole VStack. With
@@ -907,7 +906,8 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxWidth()
+                // nanoMuse: 标题按内容宽度左对齐，点按区域保持48dp高。
+                .clip(RoundedCornerShape(12.dp))
                 .clickable {
                     userTouched = true
                     // [T-thinking-render-perf-android] Over the hard cap the
@@ -917,39 +917,38 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                     if (overHardCap) showFullContent = true
                     else expanded = !expanded
                 }
-                .heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 10.dp), // nanoMuse: 标题整行可点击。
+                .heightIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 10.dp), // nanoMuse: 标题按内容宽度可点击。
         ) {
             if (isStreaming && block.toolStatus != ToolBlockStatus.SUCCESS) {
-                // nanoMuse: 当前推理使用动态星形，历史推理保留下方的静态图标。
-                io.github.nanomuse.ui.chat.NivoThinkingStars(thinkingBlue, isVisible, Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
+                // nanoMuse: 当前推理使用强调色的动态星形，历史推理使用弱化的静态图标。
+                io.github.nanomuse.ui.chat.NivoThinkingStars(processColors.accent, isVisible, Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
             } else {
                 Icon(
-                    imageVector = Icons.Default.Psychology,
+                    imageVector = Icons.Outlined.OutlinedLightbulb, // nanoMuse: 与过程时间线的思考节点一致。
                     contentDescription = null,
                     tint = thinkingBlue,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(16.dp),
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
             }
             Text(
-                text = "Deep Thinking",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = thinkingBlue,
-                // nanoMuse: 大字号优先为计数和折叠按钮保留空间，标题可省略。
-                modifier = Modifier.weight(1f),
+                // nanoMuse: 标题本地化，进行中写"正在思考"，结束后写"深度思考"。
+                text = stringResource(if (isStreaming) R.string.nm_steps_title_thinking else R.string.nm_thinking_title),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
-            Spacer(modifier = Modifier.width(8.dp)) // nanoMuse: 标题自身分配剩余宽度。
             if (charCount > 0) {
                 Text(
-                    text = charLabel,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
-                    color = thinkingBlue, // nanoMuse: 蓝底上的小字号计数不再降低对比度。
+                    // nanoMuse: 字数跟在标题后面，弱化显示。
+                    text = " · " + stringResource(R.string.nm_thinking_chars, charLabel),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = thinkingBlue,
+                    maxLines = 1,
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
@@ -967,8 +966,8 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expanded) "Collapse" else "Expand",
-                    tint = thinkingBlue.copy(alpha = 0.5f),
-                    modifier = Modifier.size(14.dp),
+                    tint = thinkingBlue, // nanoMuse: 箭头与弱化文字同色。
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
@@ -1038,9 +1037,16 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                         scrollState.scrollTo(scrollState.maxValue)
                     }
             }
+            val ruleColor = processColors.border
             Column(
                 modifier = Modifier
-                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 6.dp) // nanoMuse: 展开正文与圆角留出间距。
+                    // nanoMuse: 展开正文左侧一条细线，与标题图标对齐，不再铺浅蓝底。
+                    .padding(start = 11.dp, end = 8.dp, bottom = 8.dp, top = 2.dp)
+                    .drawBehind {
+                        drawLine(ruleColor, androidx.compose.ui.geometry.Offset(0f, 0f),
+                            androidx.compose.ui.geometry.Offset(0f, size.height), 2.dp.toPx())
+                    }
+                    .padding(start = 14.dp)
                     .heightIn(max = 300.dp)
                     .verticalScroll(scrollState),
             ) {
@@ -1053,13 +1059,13 @@ internal fun ThinkingBlock(block: AssistantBlock, isStreaming: Boolean, isLast: 
                         ),
                         fontSize = 11.sp,
                         color = processColors.foreground, // nanoMuse: 截断提示保持可读。
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(vertical = 4.dp), // nanoMuse: 与正文同一左边线。
                     )
                 }
                 Text(
                     text = displayContent,
                     fontSize = 13.sp,
-                    color = processColors.foreground, // nanoMuse: 思考正文使用蓝灰色而非低透明度文字。
+                    color = processColors.foreground, // nanoMuse: 思考正文使用弱化的主题文字色。
                     lineHeight = 19.sp,
                 )
             }

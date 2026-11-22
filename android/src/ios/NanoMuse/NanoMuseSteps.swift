@@ -48,6 +48,29 @@ enum NanoMuseSteps {
         blocks.filter { hidden($0.kind, active: false, showSteps: false) }
     }
 
+    /// 步骤里的工具调用数（思考不计入）。
+    static func toolCount(_ steps: [AssistantBlock]) -> Int {
+        steps.filter { block in
+            if case .thinking = block.kind { return false }
+            return true
+        }.count
+    }
+
+    /// 过程标题：只有思考时写"正在思考 / 思考过程"，用过工具时写"思考与执行中 / 思考与执行过程"。
+    static func title(tools: Int, active: Bool) -> String {
+        switch (tools > 0, active) {
+        case (true, true): return AppLocalized("Thinking and working")
+        case (true, false): return AppLocalized("Thinking and execution")
+        case (false, true): return AppLocalized("Thinking now")
+        case (false, false): return AppLocalized("Thought process")
+        }
+    }
+
+    /// "1个工具 / N个工具"。
+    static func toolCountLabel(_ tools: Int) -> String {
+        tools == 1 ? AppLocalized("1 tool") : String(format: AppLocalized("%d tools"), tools)
+    }
+
     /// 仅取最后一个步骤的简短说明，不在聊天中重复整段工具输出。
     static func currentStep(_ block: AssistantBlock) -> String? {
         let source = block.kind == .thinking ? block.content : (block.toolSummary ?? block.toolDescription)
@@ -84,42 +107,60 @@ struct NanoMuseStepsSection: View {
     }
 }
 
-/// The fold line where a finished reply's steps were, as in the Android build: "Thinking and
-/// execution (3 tools)". A tap opens them in the steps sheet.
+/// 回答上方的过程摘要，与Android一致：与回答同一左边线、按内容宽度显示的细描边小卡片，
+/// 图标、标题、工具数和箭头；执行中第二行显示当前步骤。点按在步骤面板查看全部过程。
 struct NanoMuseStepsFold: View {
     @ObservedObject var message: ChatMessage
     @Environment(\.colorScheme) private var colorScheme
     var active = false
 
     var body: some View {
-        let tools = NanoMuseSteps.steps(of: message.blocks).filter { block in
-            if case .thinking = block.kind { return false }
-            return true
-        }.count
+        let palette = NivoProcessPalette(colorScheme)
+        let steps = NanoMuseSteps.steps(of: message.blocks)
+        let tools = NanoMuseSteps.toolCount(steps)
         Button {
             // The chat that holds this reply shows its steps (NanoMuseChatHooks); a cell has no view model to ask.
             NanoMuseChatSheets.shared.openSteps(message.id)
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    if active { ProgressView().controlSize(.mini).tint(NivoProcessPalette(colorScheme).foreground) }
-                    else { Image(systemName: "chevron.right").font(.caption.weight(.semibold)) }
-                    Text(String(format: AppLocalized("Thinking and execution (%d tools)"), tools))
-                        .font(.footnote)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    if active { ProgressView().controlSize(.mini).tint(palette.accent) }
+                    else {
+                        Image(systemName: tools > 0 ? "checklist" : "lightbulb")
+                            .font(.footnote)
+                            .foregroundStyle(palette.foreground)
+                    }
+                    // 大字号时标题可换成两行，工具数保持完整。
+                    Text(NanoMuseSteps.title(tools: tools, active: active))
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if tools > 0 {
+                        Text("· " + NanoMuseSteps.toolCountLabel(tools))
+                            .font(.footnote)
+                            .foregroundStyle(palette.foreground)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(palette.foreground)
                 }
-                if active, let latest = NanoMuseSteps.steps(of: message.blocks).last {
+                if active, let latest = steps.last {
                     NanoMuseCurrentStepLine(block: latest)
+                        .foregroundStyle(palette.foreground)
+                        .padding(.leading, 22)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .frame(minHeight: 48)
+            .padding(.leading, 12)
+            .padding(.trailing, 10)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
             .modifier(NivoProcessSurface())
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityHint(Text(AppLocalized("Show all steps")))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -146,34 +187,33 @@ struct NanoMuseStepsSheet: View {
 
     var body: some View {
         let steps = NanoMuseSteps.steps(of: message.blocks)
-        let tools = steps.filter { block in
-            if case .thinking = block.kind { return false }
-            return true
-        }.count
+        let tools = NanoMuseSteps.toolCount(steps)
+        let isActive = vm.isProcessing && vm.messages.last?.id == message.id
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        ForEach(steps) { block in
-                            AssistantBlockView(
-                                block: block,
-                                message: message,
-                                isActiveMessage: vm.isProcessing && vm.messages.last?.id == message.id,
-                                onStop: { vm.cancel() },
-                                browserPool: vm.browserTabPool,
-                                toolSnapshots: vm.toolSnapshots,
-                                highlightedBlockId: $highlighted,
-                                detailBlock: $detail
-                            )
+                    // 时间线：每一步左侧一个节点，节点之间用细线相连，不再套整块浅蓝底。
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(steps.enumerated()), id: \.element.id) { index, block in
+                            NanoMuseStepRow(block: block, isFirst: index == 0, isLast: index == steps.count - 1,
+                                            isActive: isActive) {
+                                AssistantBlockView(
+                                    block: block,
+                                    message: message,
+                                    isActiveMessage: isActive,
+                                    onStop: { vm.cancel() },
+                                    browserPool: vm.browserTabPool,
+                                    toolSnapshots: vm.toolSnapshots,
+                                    highlightedBlockId: $highlighted,
+                                    detailBlock: $detail
+                                )
+                            }
                             .id(block.id)
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .modifier(NivoProcessSurface(isExpanded: true))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
                 }
                 .environment(\.nmStepsUnfolded, true)
                 .toolbar {
@@ -192,7 +232,7 @@ struct NanoMuseStepsSheet: View {
                     }
                 }
             }
-            .navigationTitle(String(format: AppLocalized("Thinking and execution (%d tools)"), tools))
+            .navigationTitle(NanoMuseSteps.title(tools: tools, active: isActive))
             .navigationBarTitleDisplayMode(.inline)
         }
         .environmentObject(vm)
@@ -209,6 +249,72 @@ struct NanoMuseStepsSheet: View {
                 toolSnapshots: vm.toolSnapshots,
                 browserPool: vm.browserTabPool
             )
+        }
+    }
+}
+
+/// 时间线上的一步：左侧节点（思考是灯泡，说明是小圆点，工具按状态显示进行中、完成、失败或取消），
+/// 节点上下各一段细线连到相邻步骤；第一步不画上段，最后一步不画下段。
+private struct NanoMuseStepRow<Content: View>: View {
+    @ObservedObject var block: AssistantBlock
+    let isFirst: Bool
+    let isLast: Bool
+    let isActive: Bool
+    @ViewBuilder var content: () -> Content
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let palette = NivoProcessPalette(colorScheme)
+        HStack(alignment: .top, spacing: 8) {
+            node(palette)
+                .frame(width: 24, height: 20)
+                .padding(.top, 6)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 10)
+        }
+        .background(alignment: .topLeading) {
+            GeometryReader { geometry in
+                Path { path in
+                    if !isFirst {
+                        path.move(to: CGPoint(x: 12, y: 0))
+                        path.addLine(to: CGPoint(x: 12, y: 6))
+                    }
+                    if !isLast {
+                        path.move(to: CGPoint(x: 12, y: 26))
+                        path.addLine(to: CGPoint(x: 12, y: geometry.size.height))
+                    }
+                }
+                .stroke(palette.border, lineWidth: 1.5)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private func node(_ palette: NivoProcessPalette) -> some View {
+        switch block.kind {
+        case .thinking:
+            Image(systemName: "lightbulb").font(.footnote).foregroundStyle(palette.foreground)
+        case .text, .info:
+            Circle().fill(palette.foreground).frame(width: 7, height: 7)
+        default:
+            switch block.toolStatus {
+            case .running?, .streaming?:
+                if isActive { ProgressView().controlSize(.mini).tint(palette.accent) }
+                else { Circle().fill(palette.foreground).frame(width: 7, height: 7) }
+            case .success?:
+                Image(systemName: "checkmark").font(.caption.weight(.bold)).foregroundStyle(.green)
+                    .accessibilityLabel(Text(AppLocalized("Step done")))
+            case .failed?:
+                Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(.red)
+                    .accessibilityLabel(Text(AppLocalized("Step failed")))
+            case .cancelled?:
+                Image(systemName: "minus").font(.caption.weight(.bold)).foregroundStyle(.yellow)
+                    .accessibilityLabel(Text(AppLocalized("Step cancelled")))
+            case nil:
+                Circle().fill(palette.foreground).frame(width: 7, height: 7)
+            }
         }
     }
 }

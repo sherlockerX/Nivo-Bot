@@ -766,37 +766,38 @@ struct ThinkingBlockView: View {
     }
 
     var body: some View {
-        let processColors = NivoProcessPalette(processColorScheme) // nanoMuse: 浅蓝背景共用高对比度前景色。
+        let processColors = NivoProcessPalette(processColorScheme) // nanoMuse: 过程区共用弱化前景色和细线色。
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack(spacing: 6) {
                 Image("ThinkingIcon")
                     .resizable()
                     .frame(width: 14, height: 14)
-                    .foregroundStyle(processColors.foreground) // nanoMuse: 配合蓝色背景。
-                Text(AppLocalized("Deep Thinking"))
-                    .font(.footnote.weight(.semibold)) // nanoMuse: 支持系统字体放大。
-                    .foregroundStyle(processColors.foreground)
+                    .foregroundStyle(processColors.foreground) // nanoMuse: 弱化图标。
+                // nanoMuse: 进行中写"正在思考"，结束后写"深度思考"；标题用正文色，其余弱化。
+                Text(isStreaming ? AppLocalized("Thinking now") : AppLocalized("Deep Thinking"))
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.primary)
                 if isStreaming {
                     ProgressView()
                         .controlSize(.mini)
-                        .tint(processColors.foreground) // nanoMuse: 状态与标题配色一致。
+                        .tint(processColors.accent) // nanoMuse: 进行中用强调色。
                 }
                 if block.content.count > 0 || block.thinkingContentBuffer.count > 0 {
                     let charCount = max(block.content.count, block.thinkingContentBuffer.count)
-                    Text(charCount > 1000 ? "\(charCount / 1000)K" : "\(charCount)")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(processColors.foreground) // nanoMuse: 小字号计数保持对比度。
+                    // nanoMuse: 字数跟在标题后面，弱化显示。
+                    Text("· " + (charCount > 1000 ? "\(charCount / 1000)K" : "\(charCount)"))
+                        .font(.footnote)
+                        .foregroundStyle(processColors.foreground)
                 }
-                Spacer()
                 Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(processColors.foreground) // nanoMuse: 折叠入口保持可见。
+                    .foregroundStyle(processColors.foreground) // nanoMuse: 折叠入口跟在标题后。
             }
-            // nanoMuse: 胶囊左右留白并保证可点击高度，不改变原有折叠状态。
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .frame(minHeight: 48)
+            // nanoMuse: 标题按内容宽度左对齐，保证可点击高度，不改变原有折叠状态。
+            .padding(.horizontal, 4)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
             .onTapGesture {
                 // Mark before flipping so any concurrent stream-end collapse
@@ -869,7 +870,12 @@ struct ThinkingBlockView: View {
                                 }
                             }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 16) // nanoMuse: 正文避开容器圆角。
+                                .padding(.leading, 22) // nanoMuse: 正文与左侧细线留出间距。
+                                .padding(.trailing, 8)
+                                // nanoMuse: 展开正文左侧一条细线，对齐标题图标中线，不再铺浅蓝底。
+                                .overlay(alignment: .leading) {
+                                    Rectangle().fill(processColors.border).frame(width: 2).padding(.leading, 10)
+                                }
                                 .padding(.bottom, 12)
                                 .id("thinkingBottom")
                         }
@@ -956,7 +962,7 @@ struct ThinkingBlockView: View {
         .onDisappear {
             ThinkingHitchMonitor.shared.stop(owner: block.id)
         }
-        .modifier(NivoProcessSurface(isExpanded: isExpanded.wrappedValue)) // nanoMuse: 短状态为胶囊，展开详情为大圆角。
+        .frame(maxWidth: .infinity, alignment: .leading) // nanoMuse: 思考区不再整块铺底，标题左对齐。
         .task(id: block.id) {
             // One-shot per-block auto-expand. Runs when this cell first hosts
             // a given thinking block (block.id is stable across content
@@ -1051,10 +1057,10 @@ struct TypingIndicator: View {
             soulName = n.isEmpty ? NivoProduct.assistantName : n // nanoMuse: 保留用户昵称。
         }
         .font(.system(size: 15, weight: .medium))
-        // nanoMuse: 等待回复时同样使用浅蓝胶囊，保留原有状态动画。
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .modifier(NivoProcessSurface())
+        // nanoMuse: 等待回复时只显示弱化文字，不再套胶囊底色，保留原有状态动画。
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 10)
         .padding(.top, 0)
         .onAppear {
             for i in 0..<3 {

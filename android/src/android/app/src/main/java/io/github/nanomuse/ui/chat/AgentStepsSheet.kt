@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.openminis.app.R
@@ -75,11 +76,12 @@ internal fun AgentStepsSheet(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                stepsLabel(row),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f),
-            )
+            // 标题概括整个过程，下面一行写工具数和步数，展开的列表按时间线逐步排列。
+            androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                Text(stepsTitle(row), style = MaterialTheme.typography.titleMedium)
+                Text(stepsSummary(row), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             IconButton(onClick = { scope.launch { follow = false; listState.scrollToItem(0) } }, enabled = parts.isNotEmpty()) {
                 Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.nm_steps_jump_first))
             }
@@ -90,24 +92,36 @@ internal fun AgentStepsSheet(
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .nivoProcessSurface(nivoProcessColors(), isExpanded = true),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         ) {
-            itemsIndexed(parts, key = { _, part -> part.key }, contentType = { _, part -> part.contentType }) { _, part ->
-                AgentStepPart(part = part, onDetail = onDetail, onStop = onStop)
+            itemsIndexed(parts, key = { _, part -> part.key }, contentType = { _, part -> part.contentType }) { index, part ->
+                AgentStepPart(part = part, onDetail = onDetail, onStop = onStop,
+                    isFirst = index == 0, isLast = index == parts.lastIndex)
             }
         }
     }
 }
 
-/** "Thinking and execution (N tools)", running or finished. */
+/** 过程标题：只有思考时写"正在思考 / 思考过程"，用过工具时写"思考与执行中 / 思考与执行过程"。 */
 @Composable
-internal fun stepsLabel(row: FlatChatItem.AssistantSteps): String = stringResource(
-    if (row.isStreaming) R.string.nm_steps_running else R.string.nm_steps_finished,
-    row.blocks.count { it.kind == "tool_use" },
-)
+internal fun stepsTitle(row: FlatChatItem.AssistantSteps): String {
+    val hasTools = row.blocks.any { it.kind == "tool_use" }
+    return stringResource(when {
+        hasTools && row.isStreaming -> R.string.nm_steps_title_running
+        hasTools -> R.string.nm_steps_title_done
+        row.isStreaming -> R.string.nm_steps_title_thinking
+        else -> R.string.nm_steps_title_thought
+    })
+}
+
+/** 面板副标题：工具数和总步数。 */
+@Composable
+internal fun stepsSummary(row: FlatChatItem.AssistantSteps): String {
+    val tools = row.blocks.count { it.kind == "tool_use" }
+    val steps = pluralStringResource(R.plurals.nm_steps_step_count, row.blocks.size, row.blocks.size)
+    return if (tools == 0) steps else pluralStringResource(R.plurals.nm_steps_tool_count, tools, tools) + " · " + steps
+}
 
 /** One line on what the process is doing now: the latest tool, or the last line of its thinking. */
 internal fun currentStep(row: FlatChatItem.AssistantSteps): String? {
