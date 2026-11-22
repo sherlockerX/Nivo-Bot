@@ -1,19 +1,19 @@
 # Nivo开源入口
 
-Nivo是基于nanoMuse与OpenMinis持续开发的Android与iOS应用，内置伙伴为十七／Shiqi。此分支聚焦AI聊天、教练训练、待办、专注与生活碎片，保留GPL许可和上游归属。Android2.0.10的包名为`io.github.nivo`，iOS安装身份不变。以下下载记录保留各版本发布时的名称与文件。
+Nivo是基于nanoMuse与OpenMinis持续开发的Android与iOS应用，内置伙伴为十七／Shiqi。此分支聚焦AI聊天、教练训练、待办、专注与生活碎片，保留GPL许可和上游归属。Android2.0.11沿用2.0.10的`io.github.nivo`包名与正式证书，支持覆盖该正式版本；iOS安装身份不变。以下下载记录保留各版本发布时的名称与文件。
 
 **历史记录：**Android2.0.9(60)Companion使用包名`io.github.sherlockerx.nelan`，与旧包`io.github.nanomuse.app`并存，不能覆盖更新。新应用有独立私有目录、Keystore及系统权限，同一签名不会自动转移旧数据。新包名下1660项JVM测试完成，1658通过、2跳过、0失败或错误，Debug与正式Release构建通过。最终APK、源码归档及校验文件已完成本地核验，正式证书与原版本一致，旧包名候选已作废。[公网发行页](https://nivo.8666886.xyz/releases/android-2.0.9.html)已部署，3份完整下载的大小与SHA256核验通过。双应用安装和迁移仍需真机验收；原Android2.0.7(58)产物保留为历史记录。
 
 旧应用应继续保留。现有`.minisbak`可导入聊天及选择的文件、技能、记忆、MCP配置、服务商／模型、所选凭据和环境变量；待办使用独立JSON导入。专注只能导入停用状态的锁定计划和白名单，不能恢复专注历史。心得及照片、教练进度、自定义宠物、周期任务和通用偏好不在通用备份范围内，不能承诺完整迁移。操作入口见[迁移指南](https://nivo.8666886.xyz/install.html#android-migration)，代码范围与手机验收步骤见[详细迁移说明](docs/releases/v2.0.9.md#moving-from-the-old-android-package)。系统权限与Device Owner不会随备份转移。
 
-iOS2.0.10(61)使用原Bundle ID提供未签名Release IPA。历史iOS2.0.8(59)的安装包、源码和校验文件仍按原名提供。
+iOS2.0.11(62)使用原Bundle ID提供未签名Release IPA。历史iOS2.0.8(59)的安装包、源码和校验文件仍按原名提供。
 
 本分支没有Apple Developer Program账号，不提供TestFlight或App Store分发；Release配置不带来Apple签名，iOS安装前仍需自行签名。CI测试与编译结果仅适用于对应提交和构建配置，不能替代iPhone真机验收。强制专注、周期锁定计划与应用白名单仅限Android；iOS提供专注提醒和引导式访问说明，由用户在系统中手动开启和结束。
 
 |平台|安装包|对应源码|校验文件|
 |---|---|---|---|
-|Android2.0.10(61)，正式签名|[APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk)|[双端源码](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip)|[校验清单](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt)|
-|iOS2.0.10(61)，需自行签名|[IPA](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa)|[双端源码](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip)|[校验清单](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt)|
+|Android2.0.11(62)，正式签名|[APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk)|[双端源码](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip)|[校验清单](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt)|
+|iOS2.0.11(62)，需自行签名|[IPA](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa)|[双端源码](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip)|[校验清单](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt)|
 |Android2.0.9(60)，历史版本|[APK](https://nivo.8666886.xyz/downloads/Nelan-v2.0.9-arm64.apk)|[源码](https://nivo.8666886.xyz/downloads/Nelan-v2.0.9-source.zip)|[校验清单](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.9.txt)|
 |Android2.0.7(58)，历史文件|[APK](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-arm64.apk)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.7-source.zip)|[SHA256SUMS-v2.0.7.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.7.txt)|
 |iOS2.0.8(59)，未签名Release|[未签名ReleaseIPA](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-unsigned.ipa)|[源码](https://nivo.8666886.xyz/downloads/Nivo-Bot-v2.0.8-source.zip)|[SHA256SUMS-v2.0.8.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.8.txt)|

@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.10.md"><img src="https://img.shields.io/badge/Android-v2.0.10-blue" alt="Android v2.0.10"></a>
+  <a href="../releases/v2.0.11.md"><img src="https://img.shields.io/badge/Android-v2.0.11-blue" alt="Android v2.0.11"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Trang web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Báo lỗi</a> · <a href="../../OPEN_SOURCE.md">Đóng góp</a>
 </p>
@@ -86,15 +86,15 @@ Học tập, công việc, tập trung và ghi chép dùng lưu trữ cục bộ
 | Tài nguyên | Liên kết |
 |---|---|
 | Trang sản phẩm | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 trở lên, arm64 | [APK Nivo v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-arm64.apk) |
-| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.10 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-unsigned.ipa) |
-| Mã nguồn Android và iOS | [Gói mã nguồn v2.0.10](https://nivo.8666886.xyz/downloads/Nivo-v2.0.10-source.zip) |
-| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.10.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.10.txt) |
-| Thông tin bản phát hành | [Android2.0.10](../releases/v2.0.10.md) · [iOS2.0.10](../releases/v2.0.10.md) · [Android CI](https://github.com/sherlockerX/Nivo/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo/actions/workflows/ios-check.yml) |
+| Android 8.0 trở lên, arm64 | [APK Nivo v2.0.11](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk) |
+| iOS 16 trở lên, cần tự ký | [IPA chưa ký v2.0.11 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa) |
+| Mã nguồn Android và iOS | [Gói mã nguồn v2.0.11](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip) |
+| Mã kiểm tra tải xuống | [SHA256SUMS-v2.0.11.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt) |
+| Thông tin bản phát hành | [Android2.0.11](../releases/v2.0.11.md) · [iOS2.0.11](../releases/v2.0.11.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Android và iOS cùng dùng phiên bản 2.0.10 (61). Android giữ chứng chỉ ký phát hành cũ. Bạn cần tự ký IPA iOS trước khi cài đặt; ứng dụng không được phân phối qua TestFlight hay App Store.
+Android và iOS cùng dùng phiên bản 2.0.11 (62). Android giữ chứng chỉ ký phát hành cũ. Bạn cần tự ký IPA iOS trước khi cài đặt; ứng dụng không được phân phối qua TestFlight hay App Store.
 
-Gói Android mới `io.github.nivo` được cài song song với phiên bản cũ. Hãy giữ ứng dụng cũ vì bản sao lưu chung không chuyển lịch sử tập trung, ghi chép hằng ngày và tiến độ luyện tập.
+Android giữ ID gói `io.github.nivo` và chứng chỉ của phiên bản 2.0.10 nên có thể cập nhật trực tiếp bản phát hành chính thức đó. Các phiên bản có ID gói cũ hơn vẫn là ứng dụng riêng. Hãy giữ chúng vì bản sao lưu chung không chuyển lịch sử tập trung, ghi chép hằng ngày và tiến độ luyện tập.
 
 Gói mã nguồn Android được xuất từ commit cố định dùng để biên dịch. Danh mục tải xuống ghi lại commit đó và mã kiểm tra của gói; hãy dùng mã nguồn đúng phiên bản đã cài khi kiểm tra hoặc biên dịch lại.
 

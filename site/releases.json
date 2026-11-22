@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "product": "Nivo",
-  "updatedAt": "2026-11-21",
+  "updatedAt": "2026-11-22",
   "platforms": [
     {
       "id": "android",
@@ -13,10 +13,70 @@
       "name": "iOS",
       "status": "available",
       "message": "提供需要自行签名的未签名IPA。没有TestFlight或App Store入口。",
-      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44944710859"
+      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44997376530"
     }
   ],
   "releases": [
+    {
+      "productName": "Nivo",
+      "version": "2.0.11",
+      "versionCode": 62,
+      "channel": "stable",
+      "releasedAt": "2026-11-22",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip",
+      "sourceSha256": "1a64df87e082d0db6d737635499e23b6ff393569b619b12de272e86ef301c5b7",
+      "sourceSizeBytes": 78650654,
+      "sourceCommit": "b7cd24c888bc8b46bc2740ec73d74453b8a9324c",
+      "id": "android-2.0.11-62-arm64",
+      "platform": "android",
+      "distribution": "apk",
+      "packageId": "io.github.nivo",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 42014491,
+      "sha256": "143666ac96cb04312e24e5e1498f47f19099bfa75fce48157133282872354727",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk",
+      "notesUrl": "releases/android-2.0.11.html",
+      "summary": "思考与执行过程采用浅蓝胶囊，展开详情和深色模式使用统一配色。",
+      "notes": [
+        "等待回复与过程摘要使用浅蓝胶囊，展开后以大圆角容纳长内容。",
+        "蓝灰文字与细描边提升可读性，适配深色主题和较大字号；保留三颗星动画、首尾跳转及工具详情。",
+        "沿用2.0.10的io.github.nivo包名与正式证书，可在该正式版本上覆盖升级，请勿先卸载；本版手机安装仍待实测。",
+        "更早的两个包名仍为独立应用，跨包迁移前请备份并保留旧应用，部分记录不在通用备份范围内。"
+      ]
+    },
+    {
+      "productName": "Nivo",
+      "version": "2.0.11",
+      "versionCode": 62,
+      "channel": "stable",
+      "releasedAt": "2026-11-22",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip",
+      "sourceSha256": "1a64df87e082d0db6d737635499e23b6ff393569b619b12de272e86ef301c5b7",
+      "sourceSizeBytes": 78650654,
+      "sourceCommit": "b7cd24c888bc8b46bc2740ec73d74453b8a9324c",
+      "id": "ios-2.0.11-62-arm64",
+      "platform": "ios",
+      "distribution": "ipa",
+      "signing": "unsigned",
+      "minimumOs": "16.0",
+      "architecture": "arm64",
+      "sizeBytes": 71115684,
+      "sha256": "5377869bbbf84d0c26a7c27ed144e759656bcaa9ed81f5da906ffc260063e3c2",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa",
+      "notesUrl": "releases/ios-2.0.11.html",
+      "buildUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44997376530",
+      "summary": "思考与执行摘要采用浅蓝胶囊，详情、深色主题和辅助功能字号同步适配。",
+      "notes": [
+        "等待回复、过程摘要与展开详情共用蓝色视觉样式，保留原有动画、折叠和工具入口。",
+        "深色模式使用深蓝底与浅蓝文字；辅助功能大字号采用大圆角，避免胶囊两端裁切文字。",
+        "保留原Bundle ID和App Group，由GitHub的macOS机器使用Release配置构建。",
+        "IPA未签名，安装前需自行签名，未通过TestFlight或App Store分发；本版iPhone安装和运行待真机验证。"
+      ]
+    },
     {
       "productName": "Nivo",
       "version": "2.0.10",
