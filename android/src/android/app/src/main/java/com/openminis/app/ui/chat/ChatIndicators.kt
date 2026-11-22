@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openminis.app.R
 import com.openminis.app.ui.theme.ChatColors
+import io.github.nanomuse.ui.chat.nivoProcessSurface // nanoMuse: 等待状态共用浅蓝色胶囊背景。
 
 // [T-android-split-chat] Self-contained "thinking / streaming" dot indicators
 // extracted verbatim from ChatScreen.kt. `internal` so the chat package can
@@ -163,17 +164,22 @@ internal fun TypingIndicator(isVisible: Boolean = true) {
     val soulMeta by com.openminis.app.agent.SoulStore.cachedMetadata.collectAsState()
     // nanoMuse: 默认助手名称本地化，保留用户自定义昵称。
     val soulName = io.github.nanomuse.identity.AssistantIdentity.displayName(soulMeta.name, stringResource(R.string.nm_pet_dragon))
+    val processColors = io.github.nanomuse.ui.chat.nivoProcessColors() // nanoMuse: 跟随应用明暗主题。
 
     Row(
-        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+        // nanoMuse: 背景只包围状态内容，图标与流式更新保持原有生命周期。
+        modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+            .nivoProcessSurface(processColors).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        io.github.nanomuse.ui.chat.NivoThinkingStars(ChatColors.tertiaryText, isVisible)
+        io.github.nanomuse.ui.chat.NivoThinkingStars(processColors.foreground, isVisible) // nanoMuse: 蓝底上的状态前景色。
         Text(
             text = stringResource(R.string.chat_typing_indicator, soulName),
             fontSize = 15.sp,
-            color = ChatColors.tertiaryText,
+            color = processColors.foreground, // nanoMuse: 蓝灰文字提高对比度。
+            maxLines = 1, // nanoMuse: 长昵称保持单行，避免胶囊圆角裁切多行文字。
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
     }
 }

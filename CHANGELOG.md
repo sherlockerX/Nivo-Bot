@@ -4,6 +4,10 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.11] - 2026-11-22 · Serene
+
+- Wrapped mobile thinking and execution summaries and waiting indicators in pale-blue capsules. Expanded process views use rounded blue containers with clearer text, matching dark-mode colors and the existing scrolling and tool controls.
+
 ## [2.0.10] - 2026-11-21 · Glimmer
 
 - Changed the mobile app name to Nivo in every language. The companion remains Shiqi (十七). Android uses `io.github.nivo` and installs separately from both previous Android packages; iOS keeps its existing bundle identity.

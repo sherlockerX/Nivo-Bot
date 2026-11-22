@@ -14,6 +14,8 @@ The current Nivo Android source uses `io.github.nivo`. Published Android `2.0.9 
 
 In chat, three stars pulse while waiting for a reply and beside active reasoning. A running tool has its own status. When the reply arrives the stars disappear; with system animations disabled they remain still.
 
+Thinking and execution summaries and waiting indicators use pale-blue capsules with blue-grey text. Tap the process summary to open its rounded blue detail panel; long records continue to load as you scroll, and tool details and Stop remain available. Expanded thinking uses the same rounded style. Dark mode uses a subdued dark-blue background.
+
 Android automatic cloud backup is disabled with `allowBackup="false"`. User-initiated export/import and user-configured backup destinations remain available. Reinstalling does not restore chats from the former account service; keep a manual backup before uninstalling.
 
 ## Personal tasks
