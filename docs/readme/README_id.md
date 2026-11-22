@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.11.md"><img src="https://img.shields.io/badge/Android-v2.0.11-blue" alt="Android v2.0.11"></a>
+  <a href="../releases/v2.0.12.md"><img src="https://img.shields.io/badge/Android-v2.0.12-blue" alt="Android v2.0.12"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Situs web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Laporan masalah</a> · <a href="../../OPEN_SOURCE.md">Berkontribusi</a>
 </p>
@@ -86,13 +86,13 @@ Pembelajaran, tugas, fokus dan catatan memakai penyimpanan lokal dengan aturan a
 | Sumber | Tautan |
 |---|---|
 | Situs produk | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 ke atas, arm64 | [APK Nivo v2.0.11](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk) |
-| iOS 16 ke atas, perlu penandatanganan pribadi | [IPA tanpa tanda tangan v2.0.11 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa) |
-| Kode sumber Android dan iOS | [Paket sumber v2.0.11](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip) |
-| Checksum unduhan | [SHA256SUMS-v2.0.11.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt) |
-| Detail rilis | [Android2.0.11](../releases/v2.0.11.md) · [iOS2.0.11](../releases/v2.0.11.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 ke atas, arm64 | [APK Nivo v2.0.12](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk) |
+| iOS 16 ke atas, perlu penandatanganan pribadi | [IPA tanpa tanda tangan v2.0.12 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa) |
+| Kode sumber Android dan iOS | [Paket sumber v2.0.12](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip) |
+| Checksum unduhan | [SHA256SUMS-v2.0.12.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt) |
+| Detail rilis | [Android2.0.12](../releases/v2.0.12.md) · [iOS2.0.12](../releases/v2.0.12.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Android dan iOS menggunakan versi 2.0.11 (62). Android tetap memakai sertifikat rilis lama. IPA iOS harus ditandatangani sendiri sebelum dipasang; aplikasi tidak tersedia melalui TestFlight atau App Store.
+Android dan iOS menggunakan versi 2.0.12 (63). Android tetap memakai sertifikat rilis lama. IPA iOS harus ditandatangani sendiri sebelum dipasang; aplikasi tidak tersedia melalui TestFlight atau App Store.
 
 Android mempertahankan ID `io.github.nivo` dan sertifikat versi 2.0.10 sehingga rilis resmi tersebut dapat diperbarui langsung. Versi dengan ID paket sebelumnya tetap merupakan aplikasi terpisah. Simpan aplikasi tersebut karena cadangan umum tidak memindahkan riwayat fokus, catatan harian, atau kemajuan latihan.
 

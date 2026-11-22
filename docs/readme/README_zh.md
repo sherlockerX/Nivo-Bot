@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.11.md"><img src="https://img.shields.io/badge/Android-v2.0.11-blue" alt="Android v2.0.11"></a>
+  <a href="../releases/v2.0.12.md"><img src="https://img.shields.io/badge/Android-v2.0.12-blue" alt="Android v2.0.12"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">产品网站</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">问题反馈</a> · <a href="../../OPEN_SOURCE.md">参与贡献</a>
 </p>
@@ -86,13 +86,13 @@ AI通过应用工具保存任务变更，聊天里说“建好了”不等于任
 |资源|链接|
 |---|---|
 |产品网站|[nivo.8666886.xyz](https://nivo.8666886.xyz/)|
-|Android8.0及以上，arm64|[Nivo v2.0.11安装包](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk)|
-|iOS16及以上，需自行签名|[v2.0.11未签名IPA（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa)|
-| 双端对应源码 |[v2.0.11源码包](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip)|
-|下载校验和|[SHA256SUMS-v2.0.11.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt)|
-|发行详情|[Android2.0.11](../releases/v2.0.11.md)·[iOS2.0.11](../releases/v2.0.11.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)|
+|Android8.0及以上，arm64|[Nivo v2.0.12安装包](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk)|
+|iOS16及以上，需自行签名|[v2.0.12未签名IPA（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa)|
+| 双端对应源码 |[v2.0.12源码包](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip)|
+|下载校验和|[SHA256SUMS-v2.0.12.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt)|
+|发行详情|[Android2.0.12](../releases/v2.0.12.md)·[iOS2.0.12](../releases/v2.0.12.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml)|
 
-Android与iOS均为2.0.11(62)。Android沿用原正式证书；iOS提供需自行签名的Release IPA，不通过TestFlight或App Store分发。
+Android与iOS均为2.0.12(63)。Android沿用原正式证书；iOS提供需自行签名的Release IPA，不通过TestFlight或App Store分发。
 
 Android沿用2.0.10的`io.github.nivo`包名和证书，可在该正式版本上覆盖升级。更早的包名仍为独立应用，请保留这些旧应用：通用备份不能迁移专注历史、生活碎片和教练进度。
 

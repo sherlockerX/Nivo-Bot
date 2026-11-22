@@ -19,7 +19,7 @@ hero:
 
 ## Install
 
-|Platform|Nivo 2.0.11 (62)|
+|Platform|Nivo 2.0.12 (63)|
 |---|---|
 |Android 8.0+, arm64|[Release-signed APK](https://nivo.8666886.xyz/downloads.html?platform=android) · [Migration and installation](/android)|
 |iOS 16+, arm64|[Unsigned IPA for personal signing](https://nivo.8666886.xyz/downloads.html?platform=ios) · [iOS guide](/ios)|

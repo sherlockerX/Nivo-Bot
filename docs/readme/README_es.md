@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.11.md"><img src="https://img.shields.io/badge/Android-v2.0.11-blue" alt="Android v2.0.11"></a>
+  <a href="../releases/v2.0.12.md"><img src="https://img.shields.io/badge/Android-v2.0.12-blue" alt="Android v2.0.12"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Sitio web</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Problemas</a> · <a href="../../OPEN_SOURCE.md">Contribuir</a>
 </p>
@@ -86,13 +86,13 @@ El aprendizaje, las tareas, la concentración y las notas usan almacenamiento lo
 | Recurso | Enlace |
 |---|---|
 | Sitio del producto | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 o posterior, arm64 | [APK de Nivo v2.0.11](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk) |
-| iOS 16 o posterior, requiere firma personal | [IPA sin firmar v2.0.11 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa) |
-| Código fuente de Android e iOS | [Paquete de código v2.0.11](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip) |
-| Sumas de verificación | [SHA256SUMS-v2.0.11.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt) |
-| Detalles de la versión | [Android2.0.11](../releases/v2.0.11.md) · [iOS2.0.11](../releases/v2.0.11.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 o posterior, arm64 | [APK de Nivo v2.0.12](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk) |
+| iOS 16 o posterior, requiere firma personal | [IPA sin firmar v2.0.12 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa) |
+| Código fuente de Android e iOS | [Paquete de código v2.0.12](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip) |
+| Sumas de verificación | [SHA256SUMS-v2.0.12.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt) |
+| Detalles de la versión | [Android2.0.12](../releases/v2.0.12.md) · [iOS2.0.12](../releases/v2.0.12.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Android e iOS comparten la versión 2.0.11 (62). Android conserva el certificado de firma original. Debes firmar el IPA de iOS antes de instalarlo; no se distribuye por TestFlight ni por el App Store.
+Android e iOS comparten la versión 2.0.12 (63). Android conserva el certificado de firma original. Debes firmar el IPA de iOS antes de instalarlo; no se distribuye por TestFlight ni por el App Store.
 
 Android conserva el identificador `io.github.nivo` y el certificado de 2.0.10, por lo que esa versión firmada se puede actualizar directamente. Las versiones con identificadores anteriores siguen siendo aplicaciones independientes. Consérvalas: la copia de seguridad general no transfiere el historial de concentración, los fragmentos diarios ni el progreso con el entrenador.
 
