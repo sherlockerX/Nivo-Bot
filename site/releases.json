@@ -13,10 +13,72 @@
       "name": "iOS",
       "status": "available",
       "message": "提供需要自行签名的未签名IPA。没有TestFlight或App Store入口。",
-      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/44997376530"
+      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/45028301599"
     }
   ],
   "releases": [
+    {
+      "productName": "Nivo",
+      "version": "2.0.12",
+      "versionCode": 63,
+      "channel": "stable",
+      "releasedAt": "2026-11-22",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip",
+      "sourceSha256": "e2ccb4256ffa3349be1f5a79d8d349c09627ead767b07687dd37a2505821f764",
+      "sourceSizeBytes": 78671363,
+      "sourceCommit": "d8e82cd1a7252ad3f6c9d2692032f0d2cdb3a04b",
+      "id": "android-2.0.12-63-arm64",
+      "platform": "android",
+      "distribution": "apk",
+      "packageId": "io.github.nivo",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 42024207,
+      "sha256": "a9007f8e6db985b15560dead78470a522756057a5d0646884719792ce1b2c547",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk",
+      "notesUrl": "releases/android-2.0.12.html",
+      "summary": "思考与执行摘要左对齐，展开后显示状态时间线，长思考支持折叠。",
+      "notes": [
+        "过程摘要按内容宽度显示细描边卡片，运行时显示当前步骤，并与回答左侧对齐。",
+        "思考、工具运行、完成、失败和取消状态按时间线排列；已完成的长思考默认显示前三行，可展开与收起。",
+        "保留三颗星动画、首尾跳转、停止与工具详情，适配深浅主题及较大字号。",
+        "沿用2.0.10和2.0.11的io.github.nivo包名与正式证书，可覆盖同身份的正式版本，请勿先卸载；本版手机安装仍待实测。",
+        "更早的两个包名仍为独立应用，跨包迁移前请备份并保留旧应用，部分记录不在通用备份范围内。"
+      ]
+    },
+    {
+      "productName": "Nivo",
+      "version": "2.0.12",
+      "versionCode": 63,
+      "channel": "stable",
+      "releasedAt": "2026-11-22",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip",
+      "sourceSha256": "e2ccb4256ffa3349be1f5a79d8d349c09627ead767b07687dd37a2505821f764",
+      "sourceSizeBytes": 78671363,
+      "sourceCommit": "d8e82cd1a7252ad3f6c9d2692032f0d2cdb3a04b",
+      "id": "ios-2.0.12-63-arm64",
+      "platform": "ios",
+      "distribution": "ipa",
+      "signing": "unsigned",
+      "minimumOs": "16.0",
+      "architecture": "arm64",
+      "sizeBytes": 71141817,
+      "sha256": "2b22ab7154eb7bd3a921dbb40017679071bc2e0885b54bc8b4e7446260bddf31",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa",
+      "notesUrl": "releases/ios-2.0.12.html",
+      "buildUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/45028301599",
+      "summary": "过程摘要与回答左对齐，步骤面板显示状态时间线和折叠的思考预览。",
+      "notes": [
+        "紧凑的描边摘要显示思考状态与工具数，执行中同步显示当前步骤。",
+        "展开后按时间线查看工具状态；收起的思考显示前三行，点击可展开查看，较长正文沿用原有窗口显示。",
+        "使用主题的文字和边框颜色，保留停止、工具详情、长按菜单和首尾跳转。",
+        "保留原Bundle ID和App Group，由GitHub的macOS机器使用Release配置构建。",
+        "IPA未签名，安装前需自行签名，未通过TestFlight或App Store分发；本版iPhone安装和运行待真机验证。"
+      ]
+    },
     {
       "productName": "Nivo",
       "version": "2.0.11",
