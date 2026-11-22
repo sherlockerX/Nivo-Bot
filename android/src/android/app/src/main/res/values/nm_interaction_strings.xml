@@ -26,4 +26,6 @@
         <item quantity="one">%1$d&#160;step</item>
         <item quantity="other">%1$d&#160;steps</item>
     </plurals>
+    <string name="nm_steps_show_more">Show all</string>
+    <string name="nm_steps_show_less">Show less</string>
 </resources>

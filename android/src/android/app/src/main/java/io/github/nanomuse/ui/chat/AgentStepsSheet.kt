@@ -21,6 +21,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +54,12 @@ internal fun AgentStepsSheet(
 ) {
     val cache = remember { AgentStepRowsCache() }
     val parts = remember(row) { cache.partsFor(row) }
+    // 每段思考的折叠状态由用户点按决定；没点过时，正在输出的那段展开，其余收起。
+    val toggles = remember(row.messageId) { mutableStateMapOf<String, Boolean>() }
+    val liveKeyPrefix = if (row.isStreaming) row.blocks.lastOrNull()?.id?.let { "$it:" } else null
+    val visible = io.github.nanomuse.chat.visibleStepParts(parts) { key ->
+        toggles[key] ?: (liveKeyPrefix != null && key.startsWith(liveKeyPrefix))
+    }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     // Follows the newest step while streaming; scrolling away from the end stops following.
@@ -62,8 +69,8 @@ internal fun AgentStepsSheet(
         snapshotFlow { listState.isScrollInProgress }.drop(1)
             .collect { scrolling -> if (!scrolling) follow = !listState.canScrollForward }
     }
-    LaunchedEffect(parts.size, row.isStreaming) {
-        if (follow && parts.isNotEmpty()) listState.scrollToItem(parts.lastIndex)
+    LaunchedEffect(visible.size, row.isStreaming) {
+        if (follow && visible.isNotEmpty()) listState.scrollToItem(visible.lastIndex)
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -85,8 +92,8 @@ internal fun AgentStepsSheet(
             IconButton(onClick = { scope.launch { follow = false; listState.scrollToItem(0) } }, enabled = parts.isNotEmpty()) {
                 Icon(Icons.Filled.KeyboardArrowUp, contentDescription = stringResource(R.string.nm_steps_jump_first))
             }
-            IconButton(onClick = { scope.launch { follow = row.isStreaming; if (parts.isNotEmpty()) listState.scrollToItem(parts.lastIndex) } },
-                enabled = parts.isNotEmpty()) {
+            IconButton(onClick = { scope.launch { follow = row.isStreaming; if (visible.isNotEmpty()) listState.scrollToItem(visible.lastIndex) } },
+                enabled = visible.isNotEmpty()) {
                 Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.nm_steps_jump_latest))
             }
         }
@@ -95,9 +102,14 @@ internal fun AgentStepsSheet(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 8.dp),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
         ) {
-            itemsIndexed(parts, key = { _, part -> part.key }, contentType = { _, part -> part.contentType }) { index, part ->
+            itemsIndexed(visible, key = { _, item -> item.first.key }, contentType = { _, item -> item.first.contentType }) { index, item ->
+                val (part, fold) = item
                 AgentStepPart(part = part, onDetail = onDetail, onStop = onStop,
-                    isFirst = index == 0, isLast = index == parts.lastIndex)
+                    isFirst = index == 0, isLast = index == visible.lastIndex, fold = fold,
+                    onToggleFold = {
+                        val key = io.github.nanomuse.chat.stepFoldKey(part)
+                        toggles[key] = fold?.isCollapsed == true
+                    })
             }
         }
     }

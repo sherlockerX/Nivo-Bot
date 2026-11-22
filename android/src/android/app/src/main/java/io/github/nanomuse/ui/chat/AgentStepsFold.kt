@@ -140,6 +140,7 @@ internal fun Modifier.traceStepDrawing(): Modifier {
 internal fun AgentStepPart(
     part: FlatChatItem.AssistantStepPart, onDetail: (String) -> Unit, onStop: () -> Unit,
     isFirst: Boolean = false, isLast: Boolean = false,
+    fold: io.github.nanomuse.chat.StepFold? = null, onToggleFold: () -> Unit = {},
 ) {
     val colors = nivoProcessColors()
     val isTool = part.block.kind == "tool_use"
@@ -166,14 +167,49 @@ internal fun AgentStepPart(
             if (isTool) ToolCallPill(
                 block = part.block, allToolBlocks = part.tools,
                 onStop = if (part.isStreaming) onStop else null, onOpenDetail = onDetail,
-            ) else Text(
-                text = part.text,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (part.block.kind == "thinking") colors.foreground else MaterialTheme.colorScheme.onSurface,
+            ) else StepText(part, fold, onToggleFold, colors)
+        }
+    }
+}
+
+/**
+ * 过程文字。思考收起时最多显示三行，下面是"展开全部"；展开后在这段思考的最后一个片段下显示"收起"。
+ * 文字本身也可以点按切换，短思考没有折叠入口。
+ */
+@Composable
+private fun StepText(
+    part: FlatChatItem.AssistantStepPart, fold: io.github.nanomuse.chat.StepFold?, onToggleFold: () -> Unit,
+    colors: NivoProcessColors,
+) {
+    val isCollapsed = fold?.isCollapsed == true
+    var overflows by remember(part.key) { mutableStateOf(false) }
+    val canToggle = fold != null && ((isCollapsed && (overflows || fold.hasMore)) || fold.showCollapse)
+    val toggleLabel = stringResource(if (isCollapsed) R.string.nm_steps_show_more else R.string.nm_steps_show_less)
+    Column {
+        Text(
+            text = part.text,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (part.block.kind == "thinking") colors.foreground else MaterialTheme.colorScheme.onSurface,
+            maxLines = if (isCollapsed) COLLAPSED_THINKING_LINES else Int.MAX_VALUE,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (isCollapsed) overflows = it.hasVisualOverflow },
+            modifier = if (canToggle) Modifier.clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggleFold)
+                else Modifier,
+        )
+        if (canToggle) {
+            Text(
+                text = toggleLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.accent,
+                modifier = Modifier.clickable(role = Role.Button, onClick = onToggleFold)
+                    .heightIn(min = 32.dp).padding(top = 6.dp, end = 12.dp),
             )
         }
     }
 }
+
+/** 收起的思考在面板里保留的行数。 */
+private const val COLLAPSED_THINKING_LINES = 3
 
 /** 节点：思考是灯泡，说明文字是小圆点，工具按状态显示进行中、完成、失败或取消。 */
 @Composable

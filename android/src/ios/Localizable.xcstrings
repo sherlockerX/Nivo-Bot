@@ -199062,6 +199062,23 @@
           }
         }
       }
+    },
+    "Show all" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show all"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开全部"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

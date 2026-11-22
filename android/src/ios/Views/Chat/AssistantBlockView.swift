@@ -739,6 +739,7 @@ struct ThinkingBlockView: View {
     @ObservedObject var block: AssistantBlock
     let isStreaming: Bool
     @Environment(\.colorScheme) private var processColorScheme // nanoMuse: 思考区域跟随应用主题。
+    @Environment(\.nmStepsUnfolded) private var isInStepsSheet // nanoMuse: 步骤面板里收起时显示开头预览。
 
     // [T-thinking-scroll-followback GH#125] Per-view follow state. Reset on
     // cell reuse / re-entry is fine — a fresh view simply follows again.
@@ -812,6 +813,29 @@ struct ThinkingBlockView: View {
                     block.flushThinkingBuffer()
                 }
                 isExpanded.wrappedValue.toggle()
+            }
+
+            // nanoMuse: 步骤面板里收起的思考显示开头三行，点按展开全部；聊天中的折叠样式不变。
+            if isInStepsSheet, !isExpanded.wrappedValue, !block.content.isEmpty {
+                Text(String(block.content.prefix(400)))
+                    .font(.footnote)
+                    .foregroundStyle(processColors.foreground)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 22)
+                    .padding(.trailing, 8)
+                    .overlay(alignment: .leading) {
+                        Rectangle().fill(processColors.border).frame(width: 2).padding(.leading, 10)
+                    }
+                    .padding(.bottom, 8)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        block.thinkingUserToggled = true
+                        block.flushThinkingBuffer()
+                        isExpanded.wrappedValue = true
+                    }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(Text(AppLocalized("Show all")))
             }
 
             // Content — only visible when expanded, windowed to the tail

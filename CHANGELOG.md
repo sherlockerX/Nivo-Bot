@@ -4,6 +4,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Folded long thinking steps in the Android and iOS steps panel to their first three lines, with Show all to read the rest; the thinking still being written stays open.
 - Redesigned how Android and iOS show thinking and tool steps: a left-aligned, content-width summary above the answer instead of a centred pale-blue bar, a timeline with a status node for each step when it is opened, and a thin rule beside expanded thinking. The thinking title is now translated.
 ## [2.0.11] - 2026-11-22 · Serene
 

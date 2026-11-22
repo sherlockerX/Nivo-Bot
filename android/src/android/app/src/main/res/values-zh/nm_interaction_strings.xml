@@ -24,4 +24,6 @@
     <plurals name="nm_steps_step_count">
         <item quantity="other">%1$d步</item>
     </plurals>
+    <string name="nm_steps_show_more">展开全部</string>
+    <string name="nm_steps_show_less">收起</string>
 </resources>
