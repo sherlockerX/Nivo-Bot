@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.11.md"><img src="https://img.shields.io/badge/Android-v2.0.11-blue" alt="Android v2.0.11"></a>
+  <a href="../releases/v2.0.12.md"><img src="https://img.shields.io/badge/Android-v2.0.12-blue" alt="Android v2.0.12"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">製品サイト</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題報告</a> · <a href="../../OPEN_SOURCE.md">開発への参加</a>
 </p>
@@ -86,13 +86,13 @@ AIはアプリのツールを通じてタスクの変更を保存します。会
 | リソース | リンク |
 |---|---|
 | 製品サイト | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android8.0以上、arm64 | [Nivo v2.0.11 APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-arm64.apk) |
-| iOS16以上、個人署名が必要 | [未署名IPA v2.0.11（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-unsigned.ipa) |
-| Android・iOS共通ソース | [v2.0.11ソース一式](https://nivo.8666886.xyz/downloads/Nivo-v2.0.11-source.zip) |
-| ダウンロードのチェックサム | [SHA256SUMS-v2.0.11.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.11.txt) |
-| リリース情報 | [Android2.0.11](../releases/v2.0.11.md) · [iOS2.0.11](../releases/v2.0.11.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android8.0以上、arm64 | [Nivo v2.0.12 APK](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk) |
+| iOS16以上、個人署名が必要 | [未署名IPA v2.0.12（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa) |
+| Android・iOS共通ソース | [v2.0.12ソース一式](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip) |
+| ダウンロードのチェックサム | [SHA256SUMS-v2.0.12.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt) |
+| リリース情報 | [Android2.0.12](../releases/v2.0.12.md) · [iOS2.0.12](../releases/v2.0.12.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-AndroidとiOSはどちらも2.0.11（62）です。Androidは従来のリリース証明書で署名しています。iOSのIPAはインストール前にご自身で署名してください。TestFlightやApp Storeでの配布はありません。
+AndroidとiOSはどちらも2.0.12（63）です。Androidは従来のリリース証明書で署名しています。iOSのIPAはインストール前にご自身で署名してください。TestFlightやApp Storeでの配布はありません。
 
 Androidは2.0.10と同じ`io.github.nivo`のパッケージ名と証明書を使用するため、その正式版を上書き更新できます。それ以前のパッケージ名のアプリは別のままです。集中履歴、日々の記録、コーチの進捗は通常のバックアップでは移行できないため、これらの旧版を残してください。
 

@@ -8,4 +8,24 @@
     <string name="nm_steps_finished">Thinking and execution (%1$d tools)</string>
     <string name="nm_steps_jump_first">First step</string>
     <string name="nm_steps_jump_latest">Latest step</string>
+    <string name="nm_steps_title_running">Thinking and working</string>
+    <string name="nm_steps_title_done">Thinking and execution</string>
+    <string name="nm_steps_title_thinking">Thinking</string>
+    <string name="nm_steps_title_thought">Thought process</string>
+    <string name="nm_steps_open">Show all steps</string>
+    <string name="nm_steps_status_done">Done</string>
+    <string name="nm_steps_status_failed">Failed</string>
+    <string name="nm_steps_status_cancelled">Cancelled</string>
+    <string name="nm_thinking_title">Deep thinking</string>
+    <string name="nm_thinking_chars">%1$s chars</string>
+    <plurals name="nm_steps_tool_count">
+        <item quantity="one">%1$d&#160;tool</item>
+        <item quantity="other">%1$d&#160;tools</item>
+    </plurals>
+    <plurals name="nm_steps_step_count">
+        <item quantity="one">%1$d&#160;step</item>
+        <item quantity="other">%1$d&#160;steps</item>
+    </plurals>
+    <string name="nm_steps_show_more">Show all</string>
+    <string name="nm_steps_show_less">Show less</string>
 </resources>

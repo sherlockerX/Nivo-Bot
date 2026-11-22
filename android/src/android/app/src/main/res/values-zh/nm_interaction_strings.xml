@@ -8,4 +8,22 @@
     <string name="nm_steps_finished">思考与执行过程（%1$d 个工具）</string>
     <string name="nm_steps_jump_first">第一步</string>
     <string name="nm_steps_jump_latest">最新一步</string>
+    <string name="nm_steps_title_running">思考与执行中</string>
+    <string name="nm_steps_title_done">思考与执行过程</string>
+    <string name="nm_steps_title_thinking">正在思考</string>
+    <string name="nm_steps_title_thought">思考过程</string>
+    <string name="nm_steps_open">查看全部步骤</string>
+    <string name="nm_steps_status_done">已完成</string>
+    <string name="nm_steps_status_failed">失败</string>
+    <string name="nm_steps_status_cancelled">已取消</string>
+    <string name="nm_thinking_title">深度思考</string>
+    <string name="nm_thinking_chars">%1$s字</string>
+    <plurals name="nm_steps_tool_count">
+        <item quantity="other">%1$d个工具</item>
+    </plurals>
+    <plurals name="nm_steps_step_count">
+        <item quantity="other">%1$d步</item>
+    </plurals>
+    <string name="nm_steps_show_more">展开全部</string>
+    <string name="nm_steps_show_less">收起</string>
 </resources>

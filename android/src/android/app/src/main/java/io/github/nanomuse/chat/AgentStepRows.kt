@@ -56,3 +56,35 @@ private fun stepParts(row: FlatChatItem.AssistantSteps): List<FlatChatItem.Assis
         }
     }
 }
+
+/** 面板里一段思考的折叠状态：收起时只显示开头几行；展开后在最后一个片段下提供收起。 */
+internal data class StepFold(val isCollapsed: Boolean, val hasMore: Boolean, val showCollapse: Boolean)
+
+/** 一段思考在面板中的身份：同一块在一次回复里可能出现多次。 */
+internal fun stepFoldKey(part: FlatChatItem.AssistantStepPart): String = "${part.block.id}:${part.occurrence}"
+
+/** 展开后至少这么长的思考才提供"收起"，短思考没有折叠入口。 */
+internal const val STEP_FOLD_MIN_CHARS = 120
+
+/**
+ * 按折叠状态挑出面板要显示的片段。思考收起时只保留第一个片段，由界面限制为几行；
+ * 展开时保留全部片段。工具和说明文字不折叠，折叠信息为空。
+ */
+internal fun visibleStepParts(
+    parts: List<FlatChatItem.AssistantStepPart>, isOpen: (String) -> Boolean,
+): List<Pair<FlatChatItem.AssistantStepPart, StepFold?>> {
+    val thinking = parts.filter { it.block.kind == "thinking" }.groupBy(::stepFoldKey)
+    return parts.mapNotNull { part ->
+        if (part.block.kind != "thinking") return@mapNotNull part to null
+        val key = stepFoldKey(part)
+        val group = thinking.getValue(key)
+        val isLastPart = part.partIndex == group.maxOf { it.partIndex }
+        val isLong = group.size > 1 || group.sumOf { it.text.length } > STEP_FOLD_MIN_CHARS
+        when {
+            isOpen(key) -> part to StepFold(isCollapsed = false, hasMore = false, showCollapse = isLastPart && isLong)
+            part.partIndex == 0 -> part to StepFold(isCollapsed = true, hasMore = group.size > 1, showCollapse = false)
+            else -> null
+        }
+    }
+}
+

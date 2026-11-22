@@ -67,8 +67,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // nanoMuse：Nicholasx的Android独立发行版本，内部编号保持递增。
-        versionCode = 62
-        versionName = "2.0.11"
+        versionCode = 63
+        versionName = "2.0.12"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
