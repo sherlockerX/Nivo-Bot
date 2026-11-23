@@ -19,7 +19,7 @@ hero:
 
 ## 安装 {#install}
 
-|平台|Nivo2.0.12(63)|
+|平台|Nivo2.0.13(64)|
 |---|---|
 |Android8.0及以上，arm64|[正式签名APK](https://nivo.8666886.xyz/downloads.html?platform=android)·[迁移与安装](/zh/android)|
 |iOS16及以上，arm64|[未签名IPA，需自行签名](https://nivo.8666886.xyz/downloads.html?platform=ios)·[iOS说明](/zh/ios)|

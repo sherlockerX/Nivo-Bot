@@ -13,10 +13,72 @@
       "name": "iOS",
       "status": "available",
       "message": "提供需要自行签名的未签名IPA。没有TestFlight或App Store入口。",
-      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/45028301599"
+      "progressUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/45120655897"
     }
   ],
   "releases": [
+    {
+      "productName": "Nivo",
+      "version": "2.0.13",
+      "versionCode": 64,
+      "channel": "stable",
+      "releasedAt": "2026-11-22",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.13.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-source.zip",
+      "sourceSha256": "673333bc0def95a72a23f9cb912d0255a66f522051714f34e1e135a9c55ed776",
+      "sourceSizeBytes": 78721093,
+      "sourceCommit": "9707b0ac16e6dc8120c17ac66688b811ecf5f34d",
+      "id": "android-2.0.13-64-arm64",
+      "platform": "android",
+      "distribution": "apk",
+      "packageId": "io.github.nivo",
+      "minimumOs": "8.0",
+      "architecture": "arm64-v8a",
+      "sizeBytes": 42041631,
+      "sha256": "d0f938aa685d51bc84dcd0ef3851d7a3e8f9a5341cb902dc264424c3416c7fa6",
+      "certificateSha256": "9513428b8daaf23fe211b8b63d7830737d0468aaea360b49acaf88bb6de1d6a3",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-arm64.apk",
+      "notesUrl": "releases/android-2.0.13.html",
+      "summary": "修复聊天卡死、附件读取、后台服务和流式回复问题，改善长对话加载。",
+      "notes": [
+        "修复#tag、#include和#!/bin/sh等文本引发的Markdown卡死，以及前台服务启动与停止的竞态。",
+        "附件流式写入并检查大小，历史图片按发送尺寸读取；已压缩长对话优先加载近期消息，旧记录可按需展开。",
+        "缺少完成标记的流式回复最多自动重试两次；Responses请求整理工具调用编号及结果配对。",
+        "模型容量优先使用当前端点报告值，配置路径支持带点号的模型名；技能导入和编辑保留原有元数据。",
+        "沿用io.github.nivo及原正式证书，同身份正式版可覆盖安装，请勿先卸载；本版手机升级与真实模型服务仍待实测。"
+      ]
+    },
+    {
+      "productName": "Nivo",
+      "version": "2.0.13",
+      "versionCode": 64,
+      "channel": "stable",
+      "releasedAt": "2026-11-22",
+      "checksumsUrl": "https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.13.txt",
+      "sourceUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-source.zip",
+      "sourceSha256": "673333bc0def95a72a23f9cb912d0255a66f522051714f34e1e135a9c55ed776",
+      "sourceSizeBytes": 78721093,
+      "sourceCommit": "9707b0ac16e6dc8120c17ac66688b811ecf5f34d",
+      "id": "ios-2.0.13-64-arm64",
+      "platform": "ios",
+      "distribution": "ipa",
+      "signing": "unsigned",
+      "minimumOs": "16.0",
+      "architecture": "arm64",
+      "sizeBytes": 71174266,
+      "sha256": "cc07addf9a077e27afb5070b27a0886097423677111a2bc1fe922afc81861934",
+      "downloadUrl": "https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-unsigned.ipa",
+      "notesUrl": "releases/ios-2.0.13.html",
+      "buildUrl": "https://github.com/sherlockerX/Nivo-Bot/actions/runs/45120655897",
+      "summary": "修复历史图片过大、重复思考、讯飞语音和特殊文件名，显示模型容量来源。",
+      "notes": [
+        "重新打开聊天时按发送限制读取历史图片与截图，每次请求再次检查像素和字节大小。",
+        "修复多个思考字段导致的重复展示，以及附件文件名包含#、?、空格或引号时的地址和标记转义。",
+        "讯飞语音合成使用正确的WebSocket地址；模型容量优先采用端点报告值并显示来源。",
+        "保留原Bundle ID和App Group，由GitHub macOS使用Release配置构建。",
+        "IPA未签名，需自行签名后安装；本版iPhone安装、升级和真实模型调用仍待真机验证。"
+      ]
+    },
     {
       "productName": "Nivo",
       "version": "2.0.12",

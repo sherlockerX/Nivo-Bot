@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.12.md"><img src="https://img.shields.io/badge/Android-v2.0.12-blue" alt="Android v2.0.12"></a>
+  <a href="../releases/v2.0.13.md"><img src="https://img.shields.io/badge/Android-v2.0.13-blue" alt="Android v2.0.13"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">Сайт</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">Проблемы</a> · <a href="../../OPEN_SOURCE.md">Участие</a>
 </p>
@@ -86,13 +86,13 @@ Nivo, пространство ИИ для повседневной жизни. 
 | Ресурс | Ссылка |
 |---|---|
 | Сайт продукта | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android 8.0 и новее, arm64 | [APK Nivo v2.0.12](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk) |
-| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA v2.0.12 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa) |
-| Исходный код Android и iOS | [Архив исходников v2.0.12](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip) |
-| Контрольные суммы | [SHA256SUMS-v2.0.12.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt) |
-| Сведения о выпуске | [Android2.0.12](../releases/v2.0.12.md) · [iOS2.0.12](../releases/v2.0.12.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android 8.0 и новее, arm64 | [APK Nivo v2.0.13](https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-arm64.apk) |
+| iOS 16 и новее, требуется личная подпись | [Неподписанный IPA v2.0.13 (Release)](https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-unsigned.ipa) |
+| Исходный код Android и iOS | [Архив исходников v2.0.13](https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-source.zip) |
+| Контрольные суммы | [SHA256SUMS-v2.0.13.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.13.txt) |
+| Сведения о выпуске | [Android2.0.13](../releases/v2.0.13.md) · [iOS2.0.13](../releases/v2.0.13.md) · [Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml) · [iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Android и iOS получили версию 2.0.12 (63). Для Android сохранён прежний сертификат подписи. IPA для iOS нужно подписать самостоятельно перед установкой; публикации в TestFlight и App Store нет.
+Android и iOS получили версию 2.0.13 (64). Для Android сохранён прежний сертификат подписи. IPA для iOS нужно подписать самостоятельно перед установкой; публикации в TestFlight и App Store нет.
 
 Android сохраняет идентификатор `io.github.nivo` и сертификат версии 2.0.10, поэтому этот подписанный выпуск можно обновить поверх установленного. Версии с прежними идентификаторами остаются отдельными приложениями. Сохраните их: общая резервная копия не переносит историю концентрации, ежедневные записи и прогресс занятий с тренером.
 

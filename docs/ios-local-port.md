@@ -36,7 +36,7 @@ iFlytek speech synthesis connects with `wss://`; recognition keeps `https://`. T
 
 When a provider sends the same reasoning text in more than one field, each chunk is shown once. An empty field still counts as present.
 
-The context window of a model is your own value first, then the one the provider reports in its model list, then the model catalogue, then an estimate. The model page shows the value in use and where it comes from. These changes have not been compiled on a Mac yet.
+The context window of a model is your own value first, then the one the provider reports in its model list, then the model catalogue, then an estimate. The model page shows the value in use and where it comes from. These changes compiled in the 2.0.13 Release workflow; real-provider calls and iPhone runtime behavior still require device checks.
 
 ## Navigation and daily work
 

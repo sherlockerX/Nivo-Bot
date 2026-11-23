@@ -22,7 +22,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-green" alt="Android 8.0 or later">
-  <a href="../releases/v2.0.12.md"><img src="https://img.shields.io/badge/Android-v2.0.12-blue" alt="Android v2.0.12"></a>
+  <a href="../releases/v2.0.13.md"><img src="https://img.shields.io/badge/Android-v2.0.13-blue" alt="Android v2.0.13"></a>
   <br>
   <a href="https://nivo.8666886.xyz/">產品網站</a> · <a href="https://github.com/sherlockerX/Nivo-Bot/issues">問題回報</a> · <a href="../../OPEN_SOURCE.md">參與貢獻</a>
 </p>
@@ -86,13 +86,13 @@ AI透過應用程式工具儲存任務變更，聊天裡說「建好了」不等
 | 資源 | 連結 |
 |---|---|
 | 產品網站 | [nivo.8666886.xyz](https://nivo.8666886.xyz/) |
-| Android8.0及以上，arm64 | [Nivo v2.0.12安裝檔](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-arm64.apk) |
-| iOS16及以上，需自行簽章 | [v2.0.12未簽章IPA（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-unsigned.ipa) |
-| 雙平台對應原始碼 | [v2.0.12原始碼套件](https://nivo.8666886.xyz/downloads/Nivo-v2.0.12-source.zip) |
-| 下載校驗碼 | [SHA256SUMS-v2.0.12.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.12.txt) |
-| 發行詳情 | [Android2.0.12](../releases/v2.0.12.md)·[iOS2.0.12](../releases/v2.0.12.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
+| Android8.0及以上，arm64 | [Nivo v2.0.13安裝檔](https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-arm64.apk) |
+| iOS16及以上，需自行簽章 | [v2.0.13未簽章IPA（Release）](https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-unsigned.ipa) |
+| 雙平台對應原始碼 | [v2.0.13原始碼套件](https://nivo.8666886.xyz/downloads/Nivo-v2.0.13-source.zip) |
+| 下載校驗碼 | [SHA256SUMS-v2.0.13.txt](https://nivo.8666886.xyz/downloads/SHA256SUMS-v2.0.13.txt) |
+| 發行詳情 | [Android2.0.13](../releases/v2.0.13.md)·[iOS2.0.13](../releases/v2.0.13.md)·[Android CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/android.yml)·[iOS CI](https://github.com/sherlockerX/Nivo-Bot/actions/workflows/ios-check.yml) |
 
-Android與iOS皆為2.0.12(63)。Android沿用原發行憑證；iOS的Release IPA需自行簽章，未透過TestFlight或App Store發佈。
+Android與iOS皆為2.0.13(64)。Android沿用原發行憑證；iOS的Release IPA需自行簽章，未透過TestFlight或App Store發佈。
 
 Android沿用2.0.10的`io.github.nivo`套件名稱與憑證，可直接更新該正式版本。更早的套件名稱仍屬獨立應用程式，請保留這些舊版：一般備份無法移轉專注紀錄、生活片段和教練進度。
 
