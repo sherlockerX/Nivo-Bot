@@ -4,6 +4,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+## [2.0.13] - 2026-11-22 · Continuity
+
 - Fixed the Android chat freezing on a line such as `#tag`, `#include` or `#!/bin/sh`.
 - Bounded the memory Android attachments use: sizes are checked before and while reading, images are decoded at the size the model needs, reopening a chat loads images under the same limits, and files of a cancelled or rejected message are deleted.
 - Fixed an Android crash when the chat service was stopped between its start and its promotion to the foreground.
