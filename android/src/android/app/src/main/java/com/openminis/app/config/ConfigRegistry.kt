@@ -39,6 +39,15 @@ class ConfigRegistry private constructor() {
      */
     fun resolveField(path: String): ConfigField? {
         fields[path]?.let { return it }
+        // nanoMuse: 子项ID可能含点号或斜杠（如provider/deepseek-v4.1-flash），先按已登记的ID匹配，
+        // 较长的优先，再核对完整字段路径；与iOS一致。
+        val base = path.substringBefore('.')
+        collections[base]?.let { coll ->
+            coll.childIds()
+                .filter { it.isNotEmpty() && path.startsWith("$base.$it.") }
+                .sortedByDescending { it.length }
+                .forEach { id -> coll.fields(forId = id).firstOrNull { it.path == path }?.let { return it } }
+        }
         // Collection child lookup: split into [base, id, leaf]. The leaf
         // may itself contain dots (e.g. `models.<uuid>.modality.video`),
         // so cap maxSplits at 2.

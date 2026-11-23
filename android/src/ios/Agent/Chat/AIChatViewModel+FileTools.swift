@@ -96,11 +96,8 @@ extension AIChatViewModel {
         let prefix = "/var/minis/"
         guard path.hasPrefix(prefix) else { return nil }
         let rest = String(path.dropFirst(prefix.count))  // "attachments/foo.png"
-        guard let slashIdx = rest.firstIndex(of: "/") else { return nil }
-        let namespace = String(rest[rest.startIndex..<slashIdx])
-        let filename = String(rest[rest.index(after: slashIdx)...])  // "foo.png"
-        let encoded = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? filename
-        return "minis://\(namespace)/\(encoded)"
+        guard rest.contains("/") else { return nil }
+        return NivoAttachmentMarkup.minisURL(forLinuxPath: path) // nanoMuse: 与附件使用同一套编码
     }
 
     /// Resolve a Linux path for direct file reads (read_image, file_read, file_write).

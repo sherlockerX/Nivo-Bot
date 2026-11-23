@@ -75,6 +75,10 @@ class AgentForegroundService : Service() {
         private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
         private const val ACTION_STOP = "com.openminis.app.STOP_AGENT_SERVICE"
 
+        // nanoMuse: 启动、提升和停止统一登记，停止不会抢在startForeground之前。
+        private const val EXTRA_START_SEQUENCE = "nm_start_sequence"
+        private val gate = io.github.nanomuse.chat.ForegroundServiceGate()
+
         /**
          * Starts or updates the foreground service with current status.
          */
@@ -84,21 +88,25 @@ class AgentForegroundService : Service() {
                 putExtra(EXTRA_TOOL_STATUS, toolStatus)
             }
             // nanoMuse: Android限制后台启动时明确失败，不让异常终止整个应用。
-            return io.github.nanomuse.chat.tryForegroundStart(start = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-            }, onRejected = { Log.w(TAG, "Foreground service start was denied", it) })
+            return gate.start { sequence ->
+                intent.putExtra(EXTRA_START_SEQUENCE, sequence)
+                io.github.nanomuse.chat.tryForegroundStart(start = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                }, onRejected = { Log.w(TAG, "Foreground service start was denied", it) })
+            }
         }
 
         /**
          * Stops the foreground service.
+         * nanoMuse: 还有启动没有完成提升时只登记，由服务提升后自行停止。
          */
         fun stopService(context: Context) {
             val intent = Intent(context, AgentForegroundService::class.java)
-            context.stopService(intent)
+            gate.stop { context.stopService(intent) }
         }
     }
 
@@ -232,7 +240,8 @@ class AgentForegroundService : Service() {
             } catch (t: Throwable) {
                 Log.w(TAG, "safe-mode stub startForeground failed: ${t.message}")
             }
-            stopSelf()
+            startHandled(intent, startId) // nanoMuse
+            stopSelf(startId) // nanoMuse: 只在没有更新的启动时停止，新的启动由它自己的回调收尾。
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_STOP) {
@@ -244,7 +253,7 @@ class AgentForegroundService : Service() {
             // the per-session cancel callbacks registered by each VM at
             // streamJob start.
             SessionActivityTracker.cancelAllActiveStreams()
-            stopSelf()
+            stopService(this) // nanoMuse: 与其他停止请求走同一处，等待中的启动先完成提升。
             return START_NOT_STICKY
         }
 
@@ -254,15 +263,21 @@ class AgentForegroundService : Service() {
         val notification = buildNotification(sessionCount, toolStatus)
 
         // nanoMuse: 开机广播等来源可能获准创建服务，却在提升前台时被系统拒绝。
-        if (!promoteToForeground(notification)) return START_NOT_STICKY
+        val isPromoted = promoteToForeground(notification, startId)
+        startHandled(intent, startId) // nanoMuse: 前台约定已履行，执行等待中的停止。
+        return if (isPromoted) START_STICKY else START_NOT_STICKY
+    }
 
-        return START_STICKY
+    /** nanoMuse: 交还这次启动的序号；系统重建服务时没有序号，按已履行处理。 */
+    private fun startHandled(intent: Intent?, startId: Int) {
+        val sequence = intent?.getLongExtra(EXTRA_START_SEQUENCE, 0L) ?: 0L
+        gate.promoted(sequence) { stopSelf(startId) }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     /** nanoMuse: 系统拒绝时停止本服务，不更换服务类型绕过系统限制。 */
-    private fun promoteToForeground(notification: Notification): Boolean =
+    private fun promoteToForeground(notification: Notification, startId: Int? = null): Boolean =
         io.github.nanomuse.chat.tryForegroundStart(start = {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -271,7 +286,8 @@ class AgentForegroundService : Service() {
             }
         }, onRejected = {
             Log.w(TAG, "Foreground promotion was denied; stopping service", it)
-            stopSelf()
+            // nanoMuse: 带启动编号时只停止这一次，不影响还没送达的新启动。
+            if (startId != null) stopSelf(startId) else stopService(this)
         })
 
     /**
@@ -305,7 +321,7 @@ class AgentForegroundService : Service() {
         SessionActivityTracker.clearPresence()
         if (SessionActivityTracker.activeSessions.value.isEmpty()) {
             Log.d(TAG, "onTaskRemoved with no active sessions, stopping self")
-            stopSelf()
+            stopService(this) // nanoMuse: 等待中的启动先完成提升。
             return
         }
         Log.d(TAG, "onTaskRemoved with ${SessionActivityTracker.activeSessions.value.size} active session(s) — keeping service alive")

@@ -302,11 +302,15 @@ private suspend fun importSkillFromCurrentUrl(
             return
         }
 
-        val parsed = parseSkillName(content)
-        if (parsed != null) {
+        val skillMd = skillRepository.parseSkillMdPublic(content) // nanoMuse: 与导入使用同一个解析
+        val parsed = skillMd?.name
+        if (skillMd != null && parsed != null) {
             val updated = skillRepository.update(
                 id = slugify(parsed),
-                body = extractBody(content),
+                name = skillMd.name, // nanoMuse
+                description = skillMd.description, // nanoMuse
+                body = skillMd.body,
+                original = content, // nanoMuse: 保留原文
             )
             if (updated) {
                 onStateChange(HudState.SUCCESS, context.getString(R.string.skills_browser_success_updated, parsed))
@@ -370,30 +374,6 @@ private fun toRawGitHubUrl(url: String): String {
             .replace("/tree/", "/")
     }
     return url
-}
-
-private fun parseSkillName(content: String): String? {
-    val trimmed = content.trimStart()
-    if (!trimmed.startsWith("---")) return null
-    val endIdx = trimmed.indexOf("---", 3)
-    if (endIdx < 0) return null
-    val frontmatter = trimmed.substring(3, endIdx)
-    for (line in frontmatter.lines()) {
-        val colonIdx = line.indexOf(':')
-        if (colonIdx < 0) continue
-        val key = line.substring(0, colonIdx).trim()
-        val value = line.substring(colonIdx + 1).trim()
-        if (key == "name") return value
-    }
-    return null
-}
-
-private fun extractBody(content: String): String {
-    val trimmed = content.trimStart()
-    if (!trimmed.startsWith("---")) return content
-    val endIdx = trimmed.indexOf("---", 3)
-    if (endIdx < 0) return content
-    return trimmed.substring(endIdx + 3).trimStart()
 }
 
 private fun slugify(name: String): String =

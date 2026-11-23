@@ -169,8 +169,10 @@ class GeminiProvider(
                 }
             }
             send(LLMStreamChunk.Finished(lastFinishReason)) // nanoMuse: 缺少结束原因保持未知，不能伪装正常完成。
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // nanoMuse: 收集方已取消，不当成传输错误
         } catch (e: Exception) {
-            cancel("Stream error", mapError(e))
+            close(mapError(e)) // nanoMuse: 直接交出原始错误，不包成取消
         } finally {
             reader.close()
             response.close()

@@ -285,24 +285,18 @@ final class OpenAIAgentProvider: AgentProvider {
                         // and round-tripping the empty value avoids fabricating placeholder
                         // text that the model would otherwise learn to imitate.
                         var sawReasoningField = false
-                        if let rc = delta["reasoning_content"] as? String {
-                            sawReasoningField = true
-                            reasoningContent += rc
-                            if thinkingLevel.isEnabled, !rc.isEmpty { continuation.yield(.thinkingDelta(rc)) }
-                        }
-                        if let rc = delta["reasoning"] as? String {
-                            sawReasoningField = true
-                            reasoningContent += rc
-                            if thinkingLevel.isEnabled, !rc.isEmpty { continuation.yield(.thinkingDelta(rc)) }
-                        }
+                        // nanoMuse: 有的服务把同一段思考同时放进几个字段，每个片段只取一份：
+                        // 优先第一个非空的；都是空字符串时也算出现过这个字段。
                         // Also check model-specific interleaved field (e.g. "reasoning_details")
-                        if thinkingLevel.isEnabled,
-                           let field = self.model.interleavedReasoningField,
-                           field != "reasoning_content",
-                           let rc = delta[field] as? String {
+                        var reasoningFields = ["reasoning_content", "reasoning"]
+                        if thinkingLevel.isEnabled, let field = self.model.interleavedReasoningField {
+                            reasoningFields.append(field)
+                        }
+                        let reasoningValues = reasoningFields.compactMap { delta[$0] as? String }
+                        if let rc = reasoningValues.first(where: { !$0.isEmpty }) ?? reasoningValues.first {
                             sawReasoningField = true
                             reasoningContent += rc
-                            if !rc.isEmpty { continuation.yield(.thinkingDelta(rc)) }
+                            if thinkingLevel.isEnabled, !rc.isEmpty { continuation.yield(.thinkingDelta(rc)) }
                         }
                         if sawReasoningField { sawReasoningFieldEver = true }
 

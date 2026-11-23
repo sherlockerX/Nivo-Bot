@@ -160,6 +160,9 @@ struct ModelEntry: Identifiable, Codable, Hashable {
             declaresNoEffortTiers: baseModel.declaresNoEffortTiers
         )
         effective.effortDeclarationIsAuthoritative = baseModel.effortDeclarationIsAuthoritative
+        // nanoMuse: 用户填写的容量也不能被之后的目录补全覆盖。
+        effective.isContextWindowFromEndpoint = overrides.contextWindow != nil ? true : baseModel.isContextWindowFromEndpoint
+        effective.isMaxOutputFromEndpoint = overrides.maxOutputTokens != nil ? true : baseModel.isMaxOutputFromEndpoint
         return effective
     }
 

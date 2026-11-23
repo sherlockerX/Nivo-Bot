@@ -199079,6 +199079,74 @@
           }
         }
       }
+    },
+    "In use: %d tokens, set by you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In use: %d tokens, set by you"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前使用%d tokens，由你设置"
+          }
+        }
+      }
+    },
+    "In use: %d tokens, reported by this provider" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In use: %d tokens, reported by this provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前使用%d tokens，由这个服务报告"
+          }
+        }
+      }
+    },
+    "In use: %d tokens, from the model catalog" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In use: %d tokens, from the model catalog"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前使用%d tokens，来自模型目录"
+          }
+        }
+      }
+    },
+    "In use: %d tokens, estimated from the model name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In use: %d tokens, estimated from the model name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前使用%d tokens，按模型名称估算"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

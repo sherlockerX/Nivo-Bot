@@ -16,29 +16,37 @@ suspend fun <T, P, R> commitPreparedQueue(
     commit: suspend (List<T>, P) -> R,
     onRollback: (List<T>) -> Unit,
     dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate,
+    discard: (P) -> Unit = {},
 ): R? {
     var batch = withContext(dispatcher) { readQueue() }
     while (batch.isNotEmpty()) {
         val prepared = prepare(batch) ?: return null
-        val outcome = withContext(dispatcher) {
-            currentCoroutineContext().ensureActive()
-            val currentIds = readQueue().map(id).toSet()
-            val surviving = batch.filter { id(it) in currentIds }
-            if (surviving.size != batch.size) {
-                QueueCommitStep<T, R>(surviving, null, false)
-            } else {
-                // 接管与取消边界在同一主线程；落盘后必须完成可见提交，避免半提交重发。
-                val result = withContext(NonCancellable) {
-                    onCommitting(batch)
-                    try {
-                        commit(batch, prepared)
-                    } catch (failure: Exception) {
-                        onRollback(batch)
-                        throw failure
+        var isTaken = false
+        val outcome = try {
+            withContext(dispatcher) {
+                currentCoroutineContext().ensureActive()
+                val currentIds = readQueue().map(id).toSet()
+                val surviving = batch.filter { id(it) in currentIds }
+                if (surviving.size != batch.size) {
+                    QueueCommitStep<T, R>(surviving, null, false)
+                } else {
+                    isTaken = true
+                    // 接管与取消边界在同一主线程；落盘后必须完成可见提交，避免半提交重发。
+                    val result = withContext(NonCancellable) {
+                        onCommitting(batch)
+                        try {
+                            commit(batch, prepared)
+                        } catch (failure: Exception) {
+                            onRollback(batch)
+                            throw failure
+                        }
                     }
+                    QueueCommitStep<T, R>(emptyList(), result, true)
                 }
-                QueueCommitStep<T, R>(emptyList(), result, true)
             }
+        } finally {
+            // 没有接管的准备结果不会再用到，例如撤回或取消。
+            if (!isTaken) discard(prepared)
         }
         currentCoroutineContext().ensureActive()
         if (outcome.isCommitted) return outcome.result

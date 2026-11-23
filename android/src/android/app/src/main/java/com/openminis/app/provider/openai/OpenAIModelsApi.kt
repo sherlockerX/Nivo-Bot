@@ -198,11 +198,16 @@ object OpenAIModelsApi {
                     idLower.startsWith("o4") ||
                     idLower.contains("codex")
 
+                val capacity = io.github.nanomuse.models.ModelCapacity.fromListing(obj) // nanoMuse: 端点报告的容量
                 parsed.add(
                     LLMModel(
                         id = id,
                         displayName = displayName,
                         provider = if (isCustomBase) "Custom" else "OpenAI",
+                        contextWindow = capacity.contextWindow,
+                        maxOutputTokens = capacity.maxOutputTokens,
+                        isContextWindowFromEndpoint = capacity.contextWindow != null,
+                        isMaxOutputFromEndpoint = capacity.maxOutputTokens != null,
                         inputModalities = inputModalities,
                         outputModalities = outputModalities,
                         supportsReasoning = if (knownReasoning) true else null,

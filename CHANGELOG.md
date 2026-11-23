@@ -4,6 +4,20 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+- Fixed the Android chat freezing on a line such as `#tag`, `#include` or `#!/bin/sh`.
+- Bounded the memory Android attachments use: sizes are checked before and while reading, images are decoded at the size the model needs, reopening a chat loads images under the same limits, and files of a cancelled or rejected message are deleted.
+- Fixed an Android crash when the chat service was stopped between its start and its promotion to the foreground.
+- Opened long compacted Android chats from their recent part, with older messages read from disk on request, and kept complete records on disk.
+- Retried Android replies that close without an end marker up to twice without running tools again, passed network errors on unchanged, and told a user's Stop apart from them.
+- Kept tool call ids, item ids and results consistent in Android Responses API requests, including replayed history with a single result.
+- Fixed Android configuration paths whose model id contains dots.
+- Kept the original `SKILL.md` and its unknown metadata when Android imports or edits a skill, read only top-level fields, and gave the model fuller skill descriptions within a total budget.
+- Used the context window a custom provider reports before the model catalogue on Android and iOS, and showed where the value comes from on the model page.
+- Fixed iFlytek speech synthesis on iOS, which opened its WebSocket with an `https` address.
+- Applied the sending limits to images restored from iOS chats and checked pixel sizes again before each request, so browser screenshots no longer return at full size after a restart.
+- Stopped iOS from showing reasoning twice when a provider sends it in two fields.
+- Encoded special characters in iOS attachment addresses and escaped file names in saved messages, so names with `#`, `?` or quotes still open after a restart.
+
 ## [2.0.12] - 2026-11-22 · Threadline
 
 - Folded finished thinking in the Android and iOS steps panel to a three-line preview. Tap to expand it; Android offers Show all and Show less, while iOS retains its existing windowed display for very long thinking. Active thinking stays open unless the user chooses otherwise.

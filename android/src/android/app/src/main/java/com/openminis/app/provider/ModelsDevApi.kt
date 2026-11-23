@@ -141,8 +141,11 @@ object ModelsDevApi {
 
     private fun applyDevData(model: LLMModel, devModel: ModelDevEntry): LLMModel {
         return model.copy(
-            contextWindow = devModel.contextWindow ?: model.contextWindow,
-            maxOutputTokens = devModel.maxOutputTokens ?: model.maxOutputTokens,
+            // nanoMuse: 端点报告的容量优先于目录，目录记录的是别处同名模型。
+            contextWindow = model.contextWindow.takeIf { model.isContextWindowFromEndpoint }
+                ?: devModel.contextWindow ?: model.contextWindow,
+            maxOutputTokens = model.maxOutputTokens.takeIf { model.isMaxOutputFromEndpoint }
+                ?: devModel.maxOutputTokens ?: model.maxOutputTokens,
             supportsReasoning = devModel.reasoning ?: model.supportsReasoning,
             interleavedReasoningField = devModel.interleavedField ?: model.interleavedReasoningField,
             // nanoMuse: the provider that serves the model knows what it takes

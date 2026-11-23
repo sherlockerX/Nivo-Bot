@@ -6,7 +6,8 @@ sealed class LLMStreamChunk {
     data object Started : LLMStreamChunk()
     data class Text(val text: String) : LLMStreamChunk()
     data class Usage(val usage: LLMUsage) : LLMStreamChunk()
-    data class Finished(val stopReason: String?) : LLMStreamChunk()
+    // nanoMuse: 有的服务只发送结束标记而不给原因；[isTerminated]区分这种正常结束与没有标记的断流。
+    data class Finished(val stopReason: String?, val isTerminated: Boolean = stopReason != null) : LLMStreamChunk()
 
     /** Thinking/reasoning streaming event */
     data class ThinkingDelta(val text: String) : LLMStreamChunk()

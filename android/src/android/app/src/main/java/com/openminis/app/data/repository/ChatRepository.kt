@@ -451,12 +451,16 @@ class ChatRepository(internal val dao: ChatDao, context: android.content.Context
             )
             return emptyList()
         }
-        val total = dao.messageCountForSession(sessionId)
-        if (total == 0) return emptyList()
-        val out = ArrayList<MessageEntity>(total)
-        var offset = 0
-        while (offset < total) {
-            val limit = LOAD_PAGE_SIZE
+        return loadMessageRange(sessionId, 0, dao.messageCountForSession(sessionId)) // nanoMuse: 分页读取抽成按行区间
+    }
+
+    /** nanoMuse: 读取[start]到[end]（不含）之间的行，每次查询不超过一页。 */
+    suspend fun loadMessageRange(sessionId: String, start: Int, end: Int): List<MessageEntity> {
+        if (end <= start) return emptyList()
+        val out = ArrayList<MessageEntity>(end - start)
+        var offset = start
+        while (offset < end) {
+            val limit = minOf(LOAD_PAGE_SIZE, end - offset)
             val page = try {
                 dao.loadMessagesPage(sessionId, offset, limit)
             } catch (e: SQLiteBlobTooBigException) {

@@ -1355,6 +1355,15 @@ private fun findDisplayMathClose(lines: List<String>, from: Int): Int? {
     return null
 }
 
+/**
+ * nanoMuse: 标题行的唯一判定（ATX：一串 # 后面是空白或行尾）。标题分支和段落分支必须用同一个条件，
+ * 否则 `#tag`、`#!/bin/sh`、`##` 这类行两边都不接收，游标停在原地形成死循环（OpenMinis#588）。
+ */
+internal fun isMarkdownHeadingLine(trimmed: String): Boolean {
+    val hashes = trimmed.takeWhile { it == '#' }.length
+    return hashes > 0 && (hashes == trimmed.length || trimmed[hashes] == ' ' || trimmed[hashes] == '	')
+}
+
 private suspend fun parseMarkdownBlocks(content: String): List<MdBlock> {
     val blocks = mutableListOf<MdBlock>()
     val lines = content.lines()
@@ -1468,7 +1477,7 @@ private suspend fun parseMarkdownBlocks(content: String): List<MdBlock> {
             }
 
             // Heading
-            trimmed.startsWith("#") && (trimmed.length == 1 || trimmed[trimmed.indexOfFirst { it != '#' }.coerceAtLeast(0)] == ' ') -> {
+            isMarkdownHeadingLine(trimmed) -> { // nanoMuse: 与段落分支共用标题判定。
                 val level = trimmed.takeWhile { it == '#' }.length.coerceAtMost(6)
                 val text = trimmed.drop(level).trimStart()
                 blocks.add(MdBlock.Heading(line, level, text))
@@ -1601,12 +1610,13 @@ private suspend fun parseMarkdownBlocks(content: String): List<MdBlock> {
                 while (i < lines.size) {
                     val l = lines[i]
                     val t = l.trimStart()
-                    if (t.isEmpty() || t.startsWith("#") || t.startsWith("```") ||
+                    // nanoMuse: 走到段落分支说明没有别的分支接收首行，首行无条件计入段落，保证每轮都前进。
+                    if (paraLines.isNotEmpty() && (t.isEmpty() || isMarkdownHeadingLine(t) || t.startsWith("```") ||
                         isBlockquoteLine(t) || t.matches(thematicBreakRegex) ||
                         t.matches(bulletListItemRegex) || t.matches(numberedListItemRegex) ||
                         t.matches(standaloneImageLineRegex) ||
                         (t.contains('|') && i + 1 < lines.size &&
-                            lines[i + 1].trim().matches(tableSeparatorRegex))
+                            lines[i + 1].trim().matches(tableSeparatorRegex)))
                     ) break
                     paraLines.add(l)
                     i++

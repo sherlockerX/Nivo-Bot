@@ -3,8 +3,6 @@ package com.openminis.app.ui.chat
 // nanoMuse: 工具说明不再嵌入旧产品名称，命令与协议保持兼容。
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -71,6 +69,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,8 +85,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 
 // [T-android-split-chat] StreamingDelta / ChatMessage / QueuedPrompt /
 // ToolBlockStatus / SlashCommand / AssistantBlock moved verbatim to ChatModels.kt.
@@ -505,6 +504,9 @@ class ChatViewModel(
 
     private val mediaStore = com.openminis.app.data.storage.MediaStore(context)
 
+    // nanoMuse: 推理图与原图分开；尺寸和字节都有上限，结果放在缓存目录。
+    private val nmInferenceImages = io.github.nanomuse.chat.InferenceImages(java.io.File(context.cacheDir, "inference-images"))
+
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
@@ -533,6 +535,60 @@ class ChatViewModel(
     // the older slice included.
     //
     // Reset on session load (different sessionId) is wired in loadSession.
+
+    // nanoMuse: 还留在磁盘上的更早行数。补读只影响界面，模型历史保持摘要和近期轮次。
+    private val nmUnloadedRows = MutableStateFlow(0)
+    private val nmTranscriptLock = kotlinx.coroutines.sync.Mutex()
+
+    /** nanoMuse: 上滑补读一页，返回补出的消息数。 */
+    private suspend fun nmLoadOlderPage(): Int = nmTranscriptLock.withLock {
+        val end = nmUnloadedRows.value
+        if (end == 0) return@withLock 0
+        val start = withContext(Dispatchers.IO) {
+            io.github.nanomuse.chat.TranscriptWindow.olderStart(chatRepository, activeSessionId, end)
+        }
+        nmPrependRows(start, end)
+    }
+
+    /** nanoMuse: 把一段更早的行放到界面最前面；它们都在压缩点之前。 */
+    private suspend fun nmPrependRows(start: Int, end: Int): Int {
+        val older = withContext(Dispatchers.IO) {
+            chatRepository.loadMessageRange(activeSessionId, start, end).toChatMessages()
+                .map { if (it.role == "system") it else it.copy(isCompactedHistory = true) }
+        }
+        return withContext(Dispatchers.Main.immediate) {
+            // 读取期间对话被清空或重新加载，这一页就不再有效。
+            if (nmUnloadedRows.value != end) return@withContext 0
+            _messages.value = older + _messages.value
+            nmUnloadedRows.value = start
+            older.size
+        }
+    }
+
+    /** nanoMuse: 补全界面上的整段对话。按整段计数或截断的操作都先走这里，它们随后从数据库重建模型历史。 */
+    suspend fun nmLoadAllMessages() {
+        nmTranscriptLock.withLock {
+            val end = nmUnloadedRows.value
+            if (end > 0) nmPrependRows(0, end)
+        }
+    }
+
+    /** nanoMuse: 记录不完整时先补全再执行[action]，返回真表示已改为稍后执行。 */
+    private fun nmDeferUntilComplete(action: () -> Unit): Boolean {
+        if (nmUnloadedRows.value == 0) return false
+        viewModelScope.launch {
+            try {
+                nmLoadAllMessages()
+            } catch (failure: Exception) {
+                if (failure is CancellationException) throw failure
+                AppLogger.warning(TAG, "loading the full transcript failed: ${failure.message}")
+                _error.value = failure.message ?: context.getString(R.string.nm_coach_failed)
+                return@launch
+            }
+            action()
+        }
+        return true
+    }
 
     private val _visibleMessageCap = MutableStateFlow(INITIAL_VISIBLE_MESSAGE_CAP)
     /**
@@ -615,8 +671,8 @@ class ChatViewModel(
      * pill on the LazyColumn.
      */
     val hasOlderMessages: StateFlow<Boolean> =
-        kotlinx.coroutines.flow.combine(_messages, _visibleMessageCap) { full, cap ->
-            full.size > LONG_SESSION_THRESHOLD && full.size > cap
+        kotlinx.coroutines.flow.combine(_messages, _visibleMessageCap, nmUnloadedRows) { full, cap, unloaded ->
+            (full.size > LONG_SESSION_THRESHOLD && full.size > cap) || unloaded > 0 // nanoMuse
         }.stateIn(
             viewModelScope,
             kotlinx.coroutines.flow.SharingStarted.Eagerly,
@@ -631,7 +687,8 @@ class ChatViewModel(
      * the windowed slice.
      */
     /** nanoMuse: 按持久化身份露出目标消息，仅扩大到需要的历史窗口。 */
-    fun revealAnchor(messageId: String): String? {
+    suspend fun revealAnchor(messageId: String): String? { // nanoMuse: 目标可能还在磁盘上
+        if (io.github.nanomuse.chat.findAnchorMessage(_messages.value, messageId) < 0) nmLoadAllMessages()
         val rows = _messages.value
         val index = io.github.nanomuse.chat.findAnchorMessage(rows, messageId)
         if (index < 0) return null
@@ -641,6 +698,14 @@ class ChatViewModel(
 
     fun loadOlderMessages() {
         val totalNow = _messages.value.size
+        // nanoMuse: 已读入的都显示了，再从磁盘补一页。
+        if (nmUnloadedRows.value > 0 && (totalNow <= LONG_SESSION_THRESHOLD || _visibleMessageCap.value >= totalNow)) {
+            viewModelScope.launch {
+                val added = nmLoadOlderPage()
+                _visibleMessageCap.value = maxOf(_visibleMessageCap.value, totalNow) + added
+            }
+            return
+        }
         if (totalNow <= LONG_SESSION_THRESHOLD) return
         val next = (_visibleMessageCap.value + VISIBLE_MESSAGE_CAP_STEP).coerceAtMost(totalNow)
         if (next != _visibleMessageCap.value) {
@@ -2048,6 +2113,7 @@ class ChatViewModel(
     suspend fun loadSessionTokenStats(): SessionTokenStats {
         val sid = realSessionId.ifEmpty { sessionId }
         if (sid.isEmpty()) return SessionTokenStats(0, 0, 0, 0, 0, 0)
+        nmLoadAllMessages() // nanoMuse: 统计整段对话
         val usages = chatRepository.sessionTokenUsages(sid)
         var input = 0L
         var output = 0L
@@ -2679,7 +2745,8 @@ class ChatViewModel(
                     _messages.value = cleaned
                     AppLogger.info(TAG, "[Compact] divider: $compactedUICount UI bubbles compacted (history entries: ${toCompact.size})")
                     appendSystemInfo(
-                        text = "$compactedUICount messages compacted",
+                        // nanoMuse: 更早的消息还在磁盘上时，数量不完整，不写数字。
+                        text = if (nmUnloadedRows.value > 0) "Earlier messages compacted" else "$compactedUICount messages compacted",
                         iconKind = "compact",
                         payload = summary,
                     )
@@ -2837,6 +2904,7 @@ class ChatViewModel(
      */
     private fun reloadSessionFromDb() {
         if (realSessionId.isEmpty() && sessionId.isEmpty()) return
+        agentHistory.clear() // nanoMuse: 重新读取会追加整段历史，先清空避免重复
         loadSession()
     }
 
@@ -4577,9 +4645,16 @@ class ChatViewModel(
                 val transformMs: Long,
             )
             com.openminis.app.diagnostics.PerfLongCtx.step(sessionId, "db.query.begin")
+            // nanoMuse: 先取压缩标记，据此决定从哪一行开始读。
+            val marker = runCatching { chatRepository.dao.latestCompactMarker(sessionId) }
+                .onFailure { Log.w(TAG, "latestCompactMarker failed: ${it.message}") }
+                .getOrNull()
+            var nmFirstRow = 0
             val loaded = withContext(Dispatchers.IO) {
                 val tIoBeforeLoad = System.currentTimeMillis()
-                val rows = chatRepository.loadMessages(sessionId)
+                nmFirstRow = io.github.nanomuse.chat.TranscriptWindow.start(chatRepository, sessionId, marker)
+                val rows = if (nmFirstRow == 0) chatRepository.loadMessages(sessionId)
+                    else chatRepository.loadMessageRange(sessionId, nmFirstRow, chatRepository.dao.messageCountForSession(sessionId))
                 val tIoAfterLoad = System.currentTimeMillis()
                 com.openminis.app.diagnostics.PerfLongCtx.step(
                     sessionId,
@@ -4599,12 +4674,8 @@ class ChatViewModel(
                 // bulk-append to `agentHistory` on Main below; loadSession
                 // runs once at init before any other writer touches
                 // agentHistory, so a bulk addAll is race-free.
-                val llm = ArrayList<LLMMessage>(rows.size)
-                var totalPartsChars = 0L
-                for (entity in rows) {
-                    totalPartsChars += entity.partsJson.length
-                    if (!entity.id.startsWith("nm_error_")) llm.add(entity.toLLMMessage()) // nanoMuse: 错误占位仅供界面显示。
-                }
+                val llm = nmHistoryFrom(rows) // nanoMuse: 错误占位仅供界面显示，图片有界读取。
+                val totalPartsChars = rows.sumOf { it.partsJson.length.toLong() }
                 com.openminis.app.diagnostics.PerfLongCtx.step(
                     sessionId,
                     "toLLMMessage.end",
@@ -4706,6 +4777,7 @@ class ChatViewModel(
             // bulk-addAll here because loadSession runs once at init before
             // any sender writes into agentHistory.
             agentHistory.addAll(loaded.llmHistory)
+            nmUnloadedRows.value = nmFirstRow // nanoMuse
             val tHangDiagAfterAgentHistory = System.currentTimeMillis()
             println(
                 "[T-HANG-DIAG] agentHistory rebuilt session=$sessionId tookMs=${tHangDiagAfterAgentHistory - tHangDiagAfterTransform}",
@@ -4716,9 +4788,6 @@ class ChatViewModel(
             // the folded-away context via [effectiveAgentHistory]. Also gray
             // out every UI message that falls before the marker's boundary —
             // mirrors iOS Phase 2.5 restore (AIChatViewModel.swift:3360+).
-            val marker = runCatching { chatRepository.dao.latestCompactMarker(sessionId) }
-                .onFailure { Log.w(TAG, "latestCompactMarker failed: ${it.message}") }
-                .getOrNull()
             _compactSummary.value = marker?.summary
             _cachedLatestMarker = marker
 
@@ -5062,7 +5131,8 @@ class ChatViewModel(
         // appear as their own UI bubble).
         val compactedUICount = (0 until insertIdx.coerceIn(0, grayed.size))
             .count { grayed[it].role != "system" }
-        val dividerLabel = "$compactedUICount messages compacted"
+        // nanoMuse: 更早的消息还在磁盘上时，数量不完整，不写数字。
+        val dividerLabel = if (nmUnloadedRows.value > 0) "Earlier messages compacted" else "$compactedUICount messages compacted"
         val markerForDivider = healedMarker ?: marker
         val dividerBlock = AssistantBlock(
             id = "compact-divider-${markerForDivider.id}",
@@ -5563,6 +5633,7 @@ class ChatViewModel(
         // Memory state — match iOS clearChat() field list one-for-one.
         _messages.value = emptyList()
         agentHistory.clear()
+        nmUnloadedRows.value = 0 // nanoMuse
         _error.value = null
         _cachedLatestMarker = null
         toolLoopDetector.reset()
@@ -5702,6 +5773,7 @@ class ChatViewModel(
     fun rerunFromToolBlock(assistantMessageId: String, blockId: String): Boolean {
         if (!nmConversationAvailable()) return false // nanoMuse: 不能覆盖脚本任务的独占状态。
         if (_isStreaming.value) return false
+        if (nmDeferUntilComplete { rerunFromToolBlock(assistantMessageId, blockId) }) return true // nanoMuse
         val messages = _messages.value
         val asstIdx = messages.indexOfFirst { it.id == assistantMessageId }
         if (asstIdx < 0) return false
@@ -5883,9 +5955,7 @@ class ChatViewModel(
                 // Rebuild agentHistory from the trimmed DB state.
                 agentHistory.clear()
                 toolLoopDetector.reset()
-                for (entity in chatRepository.loadMessages(sid)) {
-                    if (!entity.id.startsWith("nm_error_")) agentHistory.add(entity.toLLMMessage()) // nanoMuse: 不向模型发送空错误占位。
-                }
+                agentHistory.addAll(nmHistoryFrom(chatRepository.loadMessages(sid))) // nanoMuse: 不向模型发送空错误占位，图片有界读取。
 
                 streamLaunched = runRerunStreamTail(initialProvider, "rerunFromToolBlock", userOrigin)
             } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
@@ -5910,6 +5980,7 @@ class ChatViewModel(
     fun retryFromMessage(messageId: String) {
         if (!nmConversationAvailable()) return // nanoMuse
         if (_isStreaming.value) return
+        if (nmDeferUntilComplete { retryFromMessage(messageId) }) return // nanoMuse
         _canResume.value = false
         _nmContinueAsk.value = null // nanoMuse
         val messages = _messages.value
@@ -6021,9 +6092,7 @@ class ChatViewModel(
             agentHistory.clear()
             toolLoopDetector.reset()
             val remaining = chatRepository.loadMessages(sid)
-            for (entity in remaining) {
-                if (!entity.id.startsWith("nm_error_")) agentHistory.add(entity.toLLMMessage()) // nanoMuse: 不向模型发送空错误占位。
-            }
+            agentHistory.addAll(nmHistoryFrom(remaining)) // nanoMuse: 不向模型发送空错误占位，图片有界读取。
 
             streamLaunched = runRerunStreamTail(provider, "retryFromMessage", userOrigin)
             } catch (e: Exception) { // nanoMuse: 专题对话的来源撤销失败时不截断，提示而不让应用崩溃。
@@ -6065,6 +6134,7 @@ class ChatViewModel(
      */
     fun deleteFromMessage(messageId: String) {
         if (_isStreaming.value) return
+        if (nmDeferUntilComplete { deleteFromMessage(messageId) }) return // nanoMuse
         _canResume.value = false
         _nmContinueAsk.value = null // nanoMuse
         val messages = _messages.value
@@ -6117,9 +6187,7 @@ class ChatViewModel(
             agentHistory.clear()
             toolLoopDetector.reset()
             val remaining = chatRepository.loadMessages(sid)
-            for (entity in remaining) {
-                if (!entity.id.startsWith("nm_error_")) agentHistory.add(entity.toLLMMessage()) // nanoMuse: 不向模型发送空错误占位。
-            }
+            agentHistory.addAll(nmHistoryFrom(remaining)) // nanoMuse: 不向模型发送空错误占位，图片有界读取。
             // Refresh the session's last-message preview; otherwise the
             // session list keeps quoting a message that no longer exists.
             // An empty remainder clears it rather than leaving the stale text.
@@ -6445,6 +6513,7 @@ class ChatViewModel(
      * +1) — retry preserves the original turn, edit replaces it.
      */
     private suspend fun truncateBeforeEdit(messageId: String) {
+        nmLoadAllMessages() // nanoMuse: 按整段用户消息计数定位，先补全
         val messages = _messages.value
         val index = messages.indexOfFirst { it.id == messageId }
         if (index < 0) return
@@ -6516,9 +6585,7 @@ class ChatViewModel(
         agentHistory.clear()
         toolLoopDetector.reset()
         val remaining = chatRepository.loadMessages(sid)
-        for (entity in remaining) {
-            if (!entity.id.startsWith("nm_error_")) agentHistory.add(entity.toLLMMessage()) // nanoMuse: 不向模型发送空错误占位。
-        }
+        agentHistory.addAll(nmHistoryFrom(remaining)) // nanoMuse: 不向模型发送空错误占位，图片有界读取。
         AppLogger.info(
             TAG_STREAM,
             "✏️ truncateBeforeEdit cutoffSortOrder=$cutoffSortOrder remaining=${remaining.size}"
@@ -6593,6 +6660,7 @@ class ChatViewModel(
         readQueue = { _promptQueue.value },
         id = { it.id },
         prepare = { batch -> prepareUserAttachments(batch.flatMap { it.attachments }, sid) },
+        discard = { prepared -> prepared.intake.discard() },
         onCommitting = { batch ->
             nmCommittingPromptIds = batch.map { it.id }.toSet()
             _messages.value = _messages.value.map { message ->
@@ -7473,6 +7541,7 @@ class ChatViewModel(
             var nmSetupOwner = nmSendOwner
             var nmSetupAuthorization: io.github.nanomuse.coach.CoachTurnAuthorization? = null
             var streamLaunched = false
+            var nmUnsentFiles: io.github.nanomuse.chat.AttachmentIntake? = null // nanoMuse: 消息落盘前失败或取消时删除已写出的附件。
             var userRowShown = false // nanoMuse: set once the person's line is on screen; a Stop before that gives the composer its text back (#340)
             try {
             // Ensure session exists in DB (creates on first message for draft sessions)
@@ -7482,7 +7551,8 @@ class ChatViewModel(
                 truncateBeforeEdit(editingId)
             }
 
-            val prepared = prepareUserAttachments(currentAttachments, activeSessionId)
+            val prepared = prepareUserAttachments(currentAttachments, activeSessionId, rejectOversized = true)
+            nmUnsentFiles = prepared.intake // nanoMuse
 
             // [T-android-paste-mediaref] Fold `[Pasted#N]` markers out to disk
             // BEFORE persisting, so the stored message carries a mediaRef per
@@ -7499,6 +7569,7 @@ class ChatViewModel(
                 bodyPartsJson = pasted?.partsJson,
             )
             kotlinx.coroutines.currentCoroutineContext().let { if (!it.isActive) throw CancellationException() } // nanoMuse: 落盘接管前仍允许取消并恢复草稿。
+            nmUnsentFiles = null // nanoMuse: 从这里起文件归消息所有。
             val (persistedUser, userMsg) = withContext(NonCancellable) { // nanoMuse: 落盘与可见提交必须一起完成，避免Stop留下不可见的已存消息。
             val savedUser = chatRepository.appendMessage(activeSessionId, "user", userPartsJson,
                 coachArchiveText = if (nmTrustedCoachUser && nmIsCoachPractice()) trimmed.takeIf { it.isNotBlank() } else null) // nanoMuse
@@ -7713,6 +7784,7 @@ class ChatViewModel(
                 }
                 _error.value = failure.message ?: context.getString(R.string.nm_coach_failed)
             } finally {
+                nmUnsentFiles?.discard() // nanoMuse
                 if (!streamLaunched) {
                     nmFinishCoachRequest(nmSetupOwner, nmSetupAuthorization,
                         cancelled = !kotlinx.coroutines.currentCoroutineContext().isActive) // nanoMuse
@@ -8985,6 +9057,18 @@ class ChatViewModel(
                 dedupeCompleteCounts[raw] = n
                 return if (n == 1) raw else "$raw-$n"
             }
+            // nanoMuse: 是否收到结束标记，以及没有标记时已重试的次数。
+            var nmStreamEnded = false
+            var nmUnfinishedRetries = 0
+            // nanoMuse: 重试或换模型后，上一次尝试的编号、推理内容和结束状态都不再有效。
+            fun nmResetAttempt() {
+                dedupeStartCounts.clear()
+                dedupeCompleteCounts.clear()
+                inFlightRenamedId.clear()
+                turnReasoningBlob = null
+                turnFinishReason = null
+                nmStreamEnded = false
+            }
 
             // Stream the response — with auto-retry on transient errors, then fallback.
             // callbackFlow wraps throws into CancellationException(cause=LLMError),
@@ -9387,6 +9471,7 @@ class ChatViewModel(
                     is LLMStreamChunk.Finished -> {
                         // T321: stash for empty-turn diagnostic logging below.
                         turnFinishReason = chunk.stopReason
+                        if (chunk.isTerminated) nmStreamEnded = true // nanoMuse
                     }
                     is LLMStreamChunk.Started -> { /* no-op */ }
                     is LLMStreamChunk.MediaAttachment -> {
@@ -9421,6 +9506,18 @@ class ChatViewModel(
                     lastUiUpdateMs = 0L
                     lastFileToolInputMs = 0L
                     lastOtherToolInputMs = 0L
+                    // nanoMuse: 连接正常关闭但没有结束标记，按中断处理：有限次重试。
+                    // 本轮工具还没有执行，重试不会重复执行；次数用完保留已有内容，走下面的提示。
+                    val nmStreamKey = "${currentProvider.name}/${currentProvider.model.id}"
+                    if (nmStreamEnded) {
+                        io.github.nanomuse.chat.UnfinishedStreams.ended(nmStreamKey)
+                    } else if (retryAttempt < AUTO_RETRY_DELAYS_SEC.size &&
+                        io.github.nanomuse.chat.UnfinishedStreams.shouldRetry(nmStreamKey, nmUnfinishedRetries)) {
+                        nmUnfinishedRetries += 1
+                        throw com.openminis.app.data.model.LLMError.TransientError(
+                            context.getString(R.string.nm_stream_unfinished),
+                        )
+                    }
                     collectDone = true
                     // Stream completed without error — clear any lingering retry UI state.
                     if (_autoRetryAttempt.value != 0 || _autoRetryCountdown.value != 0) {
@@ -9440,8 +9537,10 @@ class ChatViewModel(
                         }
                     }
                 } catch (e: Exception) {
-                    if (e is CancellationException && e.cause == null) throw e  // real job cancellation
+                    // nanoMuse: 本任务已取消就是用户停止，不论读取端抛出的是什么；剩下的才是传输或服务错误。
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     val actual = unwrapFlowException(e)
+                    if (actual is CancellationException) throw e
                     val isRateLimit = actual is com.openminis.app.data.model.LLMError.RateLimited
                     val is5xx = actual is com.openminis.app.data.model.LLMError.ProviderError &&
                         actual.detail.contains(Regex("[5][0-9]{2}"))
@@ -9504,6 +9603,7 @@ class ChatViewModel(
                         turnThinking.clear()
                         toolCalls.clear()
                         toolCallSignatures.clear()  // [T-android-gemini3-thoughtsig / #179]
+                        nmResetAttempt() // nanoMuse
                         // T94 fix 2 + T256: throttle bookkeeping is per-stream
                         // attempt; reset alongside the partial-block rollback so
                         // the next attempt's first delta fires through immediately
@@ -9625,6 +9725,8 @@ class ChatViewModel(
                         turnThinking.clear()
                         toolCalls.clear()
                         toolCallSignatures.clear()  // [T-android-gemini3-thoughtsig / #179]
+                        nmResetAttempt() // nanoMuse
+                        nmUnfinishedRetries = 0 // nanoMuse
                         // loop continues — will retry collect with currentProvider
                     } else {
                         // All fallbacks exhausted. Surface the trail of tried
@@ -11759,42 +11861,6 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
     // ─── Misc Helpers ────────────────────────────────────────────────────
 
     /**
-     * T209: resize image bytes for the LLM inference payload only — the
-     * full-resolution original is preserved on disk (mediaStore + uploads
-     * dir) so chat history fullscreen view, agent shell `cat`, and
-     * `read_image` all see the user's original picture, matching iOS.
-     *
-     * Returns null when the source already fits within [maxEdge] (caller
-     * should fall back to [rawBytes]) or on any decode/compress failure.
-     */
-    private fun resizeImageBytes(
-        rawBytes: ByteArray,
-        mimeType: String,
-        maxEdge: Int = 2000,
-    ): ByteArray? {
-        return try {
-            val original = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size) ?: return null
-            if (original.width <= maxEdge && original.height <= maxEdge) {
-                original.recycle()
-                return null
-            }
-            val scale = maxEdge.toFloat() / maxOf(original.width, original.height)
-            val w = (original.width * scale).toInt()
-            val h = (original.height * scale).toInt()
-            val scaled = Bitmap.createScaledBitmap(original, w, h, true)
-            val out = ByteArrayOutputStream()
-            val format = if (mimeType.contains("png")) Bitmap.CompressFormat.PNG
-            else Bitmap.CompressFormat.JPEG
-            scaled.compress(format, 85, out)
-            if (scaled !== original) scaled.recycle()
-            original.recycle()
-            out.toByteArray()
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /**
      * Bundle of everything derived from a user-message's input attachments:
      * the resized in-memory image bytes for the LLM, file:// URIs of the
      * persisted copies (for stable rendering across app restarts), the
@@ -11822,6 +11888,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         // ChatMessage so the user-bubble file chip can route a tap directly
         // to FilePreviewScreen without re-resolving by filename.
         val nonImageUris: List<Uri>,
+        // nanoMuse: 这批附件写出的文件；消息没有落盘时由它删除。
+        val intake: io.github.nanomuse.chat.AttachmentIntake,
     )
 
     /**
@@ -11837,6 +11905,65 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
     private suspend fun prepareUserAttachments(
         attachments: List<InputAttachment>,
         sessionId: String,
+        rejectOversized: Boolean = false, // nanoMuse: 直接发送时超限即中止并恢复草稿；队列里跳过该附件，避免整队卡住。
+    ): PreparedAttachments {
+        // nanoMuse: 取消可能发生在withContext返回时，所以清理放在它外面。
+        val job = kotlinx.coroutines.currentCoroutineContext()[Job]
+        val intake = io.github.nanomuse.chat.AttachmentIntake(context) { job?.isActive != false }
+        return try {
+            nmPrepareAttachments(attachments, sessionId, intake, rejectOversized)
+        } catch (failure: Throwable) {
+            withContext(NonCancellable + Dispatchers.IO) { intake.discard() }
+            throw failure
+        }
+    }
+
+    /**
+     * nanoMuse: 把一个附件流式写进媒体目录。读取前看大小，读取中按上限截止，失败不留半成品。
+     * 返回空表示这个附件没有附上；[rejectOversized]为真时超限直接抛出，消息不发送。
+     */
+    private fun nmStoreAttachment(
+        attachment: InputAttachment,
+        sessionId: String,
+        intake: io.github.nanomuse.chat.AttachmentIntake,
+        rejectOversized: Boolean,
+    ): Pair<com.openminis.app.data.model.MediaRef, java.io.File>? {
+        var failure: Exception? = null
+        val ref = try {
+            intake.open(attachment.uri, attachment.isImage).use { input ->
+                mediaStore.saveMediaStreamed(
+                    source = input,
+                    mimeType = attachment.mimeType,
+                    sessionId = sessionId,
+                    originalFileName = attachment.fileName,
+                ).also { failure = input.failure }
+            }
+        } catch (e: Exception) {
+            failure = e
+            null
+        }
+        if (ref == null) {
+            Log.w(TAG, "attachment not stored: ${failure?.javaClass?.simpleName}")
+            val tooLarge = failure as? io.github.nanomuse.chat.AttachmentTooLargeException ?: return null
+            val notice = context.getString(
+                if (tooLarge.isBatch) R.string.nm_attachments_too_large else R.string.nm_attachment_too_large,
+                attachment.fileName,
+                android.text.format.Formatter.formatShortFileSize(context, tooLarge.limitBytes),
+            )
+            if (rejectOversized) throw java.io.IOException(notice)
+            _error.value = notice
+            return null
+        }
+        val file = java.io.File(mediaStore.mediaBaseDir, ref.relativePath)
+        intake.accept(file)
+        return ref to file
+    }
+
+    private suspend fun nmPrepareAttachments(
+        attachments: List<InputAttachment>,
+        sessionId: String,
+        intake: io.github.nanomuse.chat.AttachmentIntake,
+        rejectOversized: Boolean,
     ): PreparedAttachments = withContext(Dispatchers.IO) { // nanoMuse: 文件读取、图片处理和复制都不占用界面线程。
         // nanoMuse: 任意发送/排队路径都等待完整文件，失败交由现有草稿恢复处理。
         attachments.forEach { it.pendingPaste?.awaitReady() }
@@ -11873,156 +12000,80 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         ).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
         val nowStr = isoFormatter.format(java.util.Date(nowMs))
 
+        // nanoMuse: 推理图边读边累计，到上限后不再解码后面的图片。
+        var inlineBytes = 0L
+        var recompressed = 0
+        var dropped = 0
+
         for (attachment in attachments) {
-            if (attachment.isImage) {
-                // T209: read the original image bytes once and reuse them
-                // for storage + uploads dir; only the LLM inference payload
-                // gets the resized copy. Pre-T209 the resized JPEG was used
-                // for all three, so chat history fullscreen view and agent
-                // shell tools (read_image / cat) saw a 1024px JPEG instead
-                // of the user's original picture. Matches iOS canonical
-                // (AIChatViewModel.swift L1595-1617).
-                val rawBytes = try {
-                    context.contentResolver.openInputStream(attachment.uri)?.use { it.readBytes() }
-                } catch (e: Exception) {
-                    Log.w(TAG, "image read failed for ${attachment.fileName}: ${e.message}")
-                    null
-                } ?: continue
-                val ref = try {
-                    mediaStore.saveMedia(
-                        data = rawBytes,
-                        mimeType = attachment.mimeType,
-                        sessionId = sessionId,
-                        originalFileName = attachment.fileName,
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to persist image attachment ${attachment.fileName}", e)
-                    continue
-                }
-                // Resize only for the LLM payload — token-efficient and a
-                // close-enough sketch of the picture for the model. Falls
-                // back to raw bytes if the source is already small or the
-                // decode/compress step fails.
-                val inferenceBytes = resizeImageBytes(rawBytes, attachment.mimeType, maxEdge = 2000)
-                    ?: rawBytes
+            kotlinx.coroutines.currentCoroutineContext().ensureActive() // nanoMuse
+            // nanoMuse: 图片和文件走同一条流式路径，原图不再整张读进内存。
+            val (ref, savedFile) = nmStoreAttachment(attachment, sessionId, intake, rejectOversized) ?: continue
+            kotlinx.coroutines.currentCoroutineContext().ensureActive() // nanoMuse
 
-                // Mirror ORIGINAL bytes into the iSH uploads dir under a
-                // unique safe name so agent shell tools see the full-res
-                // image. Don't fail the send if this write fails —
-                // image_url in the request still carries (resized) bytes;
-                // the model just won't be able to ask the agent to re-read
-                // the same file from shell.
-                //
-                // Done BEFORE ImagePart construction so the linuxPath is
-                // attached to the part — request-level image budgeting
-                // uses it to emit a re-fetchable text placeholder when
-                // the cumulative payload would exceed the per-request cap.
-                val safeName = uniqueUploadFileName(uploadsHostDir, attachment.fileName)
-                val dest = java.io.File(uploadsHostDir, safeName)
-                val uploadOk = try { dest.writeBytes(rawBytes); true } catch (e: Exception) {
-                    Log.w(TAG, "uploads write failed for ${attachment.fileName}: ${e.message}")
-                    false
-                }
-                val linuxPath = if (uploadOk) "/var/minis/attachments/uploads/$safeName" else null
-                if (linuxPath != null) {
-                    imageUploadPaths.add(linuxPath)
-                    metas.add(UploadMeta(linuxPath = linuxPath, size = rawBytes.size.toLong(), modifiedIso = nowStr))
-                }
-
-                imageParts.add(LLMMessage.ImagePart(inferenceBytes, attachment.mimeType, linuxPath = linuxPath))
-                val savedFile = java.io.File(mediaStore.mediaBaseDir, ref.relativePath)
-                imageUris.add(Uri.fromFile(savedFile))
-                imageNames.add(attachment.fileName)
-                imageMediaRefPartsJson.add(buildMediaRefPartJson(ref, linuxPath = linuxPath))
-                continue
-            }
-
-            // T150: non-image attachment — stream-copy to disk (no
-            // resize), persist a mediaRef so the chip survives session
-            // reload (T151), and put a copy in the iSH uploads dir so
-            // the agent can `cat` it via shell tools. iOS parity: the
-            // file content is NOT inlined into the LLM payload — it
-            // only appears in <user-attached-files> XML metadata, the
-            // model fetches content on demand.
-            //
-            // CRITICAL: we deliberately do NOT `readBytes()` the
-            // attachment here. A 400MB APK shared in by the user would
-            // OOM on a low-RAM device (heap growth limit ~500MB on
-            // Pixel 4a); the file's not even going into the LLM
-            // payload, so loading the full byte array is pointless.
-            // Stream-copy to the uploads dest first, then hand that
-            // file to MediaStore.saveMediaStreamed so a second
-            // streaming pass produces the durable mediaRef.
-            nonImageNames.add(attachment.fileName)
+            // Mirror the ORIGINAL file into the iSH uploads dir under a unique
+            // safe name so agent shell tools see the full-res image. A failed
+            // image mirror doesn't fail the send: the request still carries
+            // the (resized) bytes, the model just can't re-read the file.
             val safeName = uniqueUploadFileName(uploadsHostDir, attachment.fileName)
-            val dest = java.io.File(uploadsHostDir, safeName)
             val uploadOk = try {
-                context.contentResolver.openInputStream(attachment.uri)?.use { input ->
-                    dest.outputStream().use { output -> input.copyTo(output) }
-                } != null
-            } catch (e: Exception) {
-                Log.w(TAG, "non-image upload write failed for ${attachment.fileName}: ${e.message}")
-                runCatching { dest.delete() }
+                intake.mirror(savedFile, java.io.File(uploadsHostDir, safeName))
+                true
+            } catch (e: java.io.IOException) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive() // nanoMuse
+                Log.w(TAG, "uploads write failed for ${attachment.fileName}: ${e.message}")
                 false
             }
-            if (!uploadOk) continue
+            val linuxPath = if (uploadOk) "/var/minis/attachments/uploads/$safeName" else null
+            if (linuxPath != null) {
+                metas.add(UploadMeta(linuxPath = linuxPath, size = savedFile.length(), modifiedIso = nowStr))
+            }
 
-            val ref = try {
-                dest.inputStream().use { input ->
-                    mediaStore.saveMediaStreamed(
-                        source = input,
-                        mimeType = attachment.mimeType,
-                        sessionId = sessionId,
-                        originalFileName = attachment.fileName,
-                    )
+            if (attachment.isImage) {
+                // nanoMuse: 累计已满就不再解码；解不开又过大的图片按普通文件附上，模型仍可按路径读取。
+                val isFull = inlineBytes >= ImageBudget.MAX_TOTAL_BYTES
+                val inference = if (isFull) null else nmInferenceImages.load(savedFile, attachment.mimeType)
+                if (isFull || (inference != null && inlineBytes + inference.bytes.size > ImageBudget.MAX_TOTAL_BYTES)) {
+                    dropped += 1
+                    runCatching { savedFile.delete() }
+                    continue
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to persist non-image attachment ${attachment.fileName}", e)
-                null
-            }
-            if (ref != null) {
-                nonImageMediaRefPartsJson.add(buildMediaRefPartJson(ref))
-                nonImageUris.add(Uri.fromFile(java.io.File(mediaStore.mediaBaseDir, ref.relativePath)))
+                if (inference != null) {
+                    inlineBytes += inference.bytes.size
+                    if (inference.isRecompressed) recompressed += 1
+                    if (linuxPath != null) imageUploadPaths.add(linuxPath)
+                    imageParts.add(LLMMessage.ImagePart(inference.bytes, inference.mimeType, linuxPath = linuxPath))
+                    imageUris.add(Uri.fromFile(savedFile))
+                    imageNames.add(attachment.fileName)
+                    imageMediaRefPartsJson.add(buildMediaRefPartJson(ref, linuxPath = linuxPath))
+                    continue
+                }
             }
 
-            val linuxPath = "/var/minis/attachments/uploads/$safeName"
-            metas.add(UploadMeta(linuxPath = linuxPath, size = dest.length(), modifiedIso = nowStr))
+            // T150: non-image attachment — persist a mediaRef so the chip
+            // survives session reload (T151), and keep a copy in the iSH
+            // uploads dir so the agent can `cat` it via shell tools. iOS
+            // parity: the file content is NOT inlined into the LLM payload —
+            // it only appears in <user-attached-files> XML metadata, the
+            // model fetches content on demand.
+            if (linuxPath == null) {
+                runCatching { savedFile.delete() }
+                continue
+            }
+            nonImageNames.add(attachment.fileName)
+            nonImageMediaRefPartsJson.add(buildMediaRefPartJson(ref))
+            nonImageUris.add(Uri.fromFile(savedFile))
         }
 
-        // T-imgsize: byte-level budget enforcement. The resizeImageBytes pass
-        // above caps *resolution* at 2000px but does nothing for the JPEG byte
-        // size when the source is a 12-megapixel photo — Anthropic 413s once
-        // cumulative inline image payload crosses ~30MB. ImageBudget walks
-        // every image part, re-encodes oversize ones via the quality ladder,
-        // and drops the tail when cumulative bytes would exceed 20MB. Result
-        // is surfaced to the UI through _imageBudgetEvent so the Snackbar can
-        // tell the user we touched their attachments.
-        if (imageParts.isNotEmpty()) {
-            val budgetResult = ImageBudget.applyMessageBudget(imageParts.map { it.data })
-            // budgetResult.keptBytes.size <= imageParts.size; tail-drop the
-            // parallel image-only lists symmetrically. Re-encoded bytes always
-            // come out as JPEG so flip the mimeType on any part whose bytes
-            // changed size (cheap proxy — never a false positive that hurts
-            // semantics because the byte stream itself is the JPEG header).
-            val newImageParts = budgetResult.keptBytes.mapIndexed { idx, kept ->
-                val orig = imageParts[idx]
-                if (kept === orig.data) orig
-                else LLMMessage.ImagePart(kept, "image/jpeg", linuxPath = orig.linuxPath)
-            }
-            val newSize = newImageParts.size
-            imageParts.clear()
-            imageParts.addAll(newImageParts)
-            while (imageUris.size > newSize) imageUris.removeAt(imageUris.size - 1)
-            while (imageNames.size > newSize) imageNames.removeAt(imageNames.size - 1)
-            while (imageMediaRefPartsJson.size > newSize) imageMediaRefPartsJson.removeAt(imageMediaRefPartsJson.size - 1)
-            while (imageUploadPaths.size > newSize) imageUploadPaths.removeAt(imageUploadPaths.size - 1)
-            if (budgetResult.mutated) {
-                AppLogger.info(
-                    TAG,
-                    "[ImageBudget] compose: in=${budgetResult.keptBytes.size + budgetResult.droppedCount} kept=${budgetResult.keptBytes.size} compressed=${budgetResult.compressedCount} dropped=${budgetResult.droppedCount} totalBytes=${budgetResult.totalBytes}",
-                )
-                _imageBudgetEvent.tryEmit(budgetResult)
-            }
+        // T-imgsize: per-image and cumulative caps were enforced while reading;
+        // surface what happened so the Snackbar can tell the user we touched
+        // their attachments.
+        if (recompressed > 0 || dropped > 0) {
+            AppLogger.info(
+                TAG,
+                "[ImageBudget] compose: kept=${imageParts.size} compressed=$recompressed dropped=$dropped totalBytes=$inlineBytes",
+            )
+            _imageBudgetEvent.tryEmit(ImageBudget.BudgetResult(imageParts.map { it.data }, recompressed, dropped, inlineBytes))
         }
 
         // Build the <user-attached-files> XML block (iOS parity). One <file>
@@ -12055,6 +12106,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
             imageUploadPaths = imageUploadPaths,
             attachedFilesXml = xml,
             nonImageUris = nonImageUris,
+            intake = intake,
         )
     }
 
@@ -13587,7 +13639,30 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
 
     private data class ToolResultData(val output: String, val success: Boolean)
 
-    private fun MessageEntity.toLLMMessage(): LLMMessage {
+    /** nanoMuse: 历史图片从新到旧累计，超出一次请求能带的总量后只留路径占位，不再读进内存。 */
+    private class NmHistoryImageAllowance(var remaining: Long = ImageBudget.MAX_REQUEST_BYTES)
+
+    /** nanoMuse: 由落盘消息重建模型历史；错误占位仅供界面显示，不进入历史。 */
+    private suspend fun nmHistoryFrom(rows: List<MessageEntity>): List<LLMMessage> = withContext(Dispatchers.IO) {
+        val allowance = NmHistoryImageAllowance()
+        rows.asReversed().filterNot { it.id.startsWith("nm_error_") }.map { it.toLLMMessage(allowance) }.asReversed()
+    }
+
+    /** nanoMuse: 读取一张历史图片；超出额度或解不开时返回空。 */
+    private fun nmHistoryImage(
+        file: java.io.File, mime: String, allowance: NmHistoryImageAllowance,
+    ): io.github.nanomuse.chat.InferenceImage? {
+        if (allowance.remaining <= 0) return null
+        val image = nmInferenceImages.load(file, mime) ?: return null
+        if (image.bytes.size > allowance.remaining) {
+            allowance.remaining = 0
+            return null
+        }
+        allowance.remaining -= image.bytes.size
+        return image
+    }
+
+    private fun MessageEntity.toLLMMessage(imageAllowance: NmHistoryImageAllowance): LLMMessage { // nanoMuse: 图片额度由整段历史共用
         val r = if (role == "user") LLMMessage.Role.USER else LLMMessage.Role.ASSISTANT
         val contentParts = mutableListOf<AgentContentPart>()
         val imageParts = mutableListOf<LLMMessage.ImagePart>()
@@ -13706,16 +13781,21 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                         if (!mime.startsWith("image/")) continue
                         val file = java.io.File(mediaStore.mediaBaseDir, rel)
                         if (!file.exists()) continue
-                        val bytes = try { file.readBytes() } catch (_: Exception) { continue }
                         val restoredPath = v.optString("linuxPath", "").ifEmpty { null }
+                        // nanoMuse: 与发送时相同的尺寸和字节上限；带不下的旧图留一个路径占位。
+                        val image = nmHistoryImage(file, mime, imageAllowance)
+                        if (image == null) {
+                            contentParts.add(AgentContentPart.Text(ImageBudget.elidedImagePlaceholder(restoredPath)))
+                            continue
+                        }
                         // [T-android-vision-group / GH#182] Seed the read_image
                         // hint on restored images too, so a non-vision main model
                         // with a Vision Group configured gets steered to read_image
                         // on subsequent turns after a session reload (not the bare
                         // "can't see it" literal).
                         val restoredPlaceholder = visionPlaceholderFor(restoredPath)
-                        imageParts.add(LLMMessage.ImagePart(bytes, mime, linuxPath = restoredPath, noVisionPlaceholder = restoredPlaceholder))
-                        contentParts.add(AgentContentPart.ImageData(bytes, mime, linuxPath = restoredPath, noVisionPlaceholder = restoredPlaceholder))
+                        imageParts.add(LLMMessage.ImagePart(image.bytes, image.mimeType, linuxPath = restoredPath, noVisionPlaceholder = restoredPlaceholder))
+                        contentParts.add(AgentContentPart.ImageData(image.bytes, image.mimeType, linuxPath = restoredPath, noVisionPlaceholder = restoredPlaceholder))
                     }
                 }
             }

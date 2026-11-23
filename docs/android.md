@@ -436,6 +436,26 @@ Large pasted text becomes an attachment while its file is written in the backgro
 
 Search results omit group headings while a query is active so the landscape keyboard leaves more room for conversations. Android service-start restrictions are handled at both launch and foreground promotion: a denied promotion stops the service without restarting it or changing its declared type. This prevents the denial from crashing the app; it does not guarantee background execution when Android disallows it.
 
+### Long chats, large files and interrupted replies {#long-chats-large-files}
+
+A line that starts with `#` but is not a heading, such as `#tag`, `#include` or `#!/bin/sh`, renders as ordinary text. The Markdown parser always consumes at least one line per step.
+
+Attachments are checked before they are read: 100 MB for one image, 1 GB for one file and 1.5 GB for one message. A source that does not report its size is cut off at the same limits. A message with an attachment over the limit is not sent and the composer keeps its text and attachments; in the queue of a running reply, only that attachment is left out and a notice says so. Images are streamed to disk, and the copy sent to the model is decoded at the size it needs (2,000 pixels on the long side, 5 MB). The same limits apply when a chat is opened again: the newest images up to 25 MB are loaded, older ones stay on disk with their path in the history. Files written for a message that is cancelled or fails before it is saved are deleted.
+
+Opening a chat that has been compacted reads the part the model uses, from 130 rows before the compaction point and at least the last 300 rows. **Load older messages** reads one page at a time. Retrying, deleting, editing, branching, the message directory and the token statistics read the whole chat first. A chat that was never compacted is read in full, because the model needs all of it.
+
+A reply whose connection closes without any end marker is retried up to twice. Tools of that step run only after the stream has ended, so a retry does not run them again. When the marker is still missing, the text is kept with the notice and the **Continue** action, and a model that never sends a marker is not retried again in the same process. Network errors reach the retry policy as they are, and Stop is recognised by the state of the task itself.
+
+A request to the Responses API keeps `call_id` and the item id unique across the whole history and pairs each call with its result. A call that was replayed without a result of its own is removed; repeated calls that each have a result are renamed.
+
+The foreground service that keeps a chat alive waits for its own promotion before it stops. A stop requested between the start and the promotion is carried out by the service afterwards.
+
+Configuration paths accept model ids with dots and slashes, such as `models.provider/deepseek-v4.1-flash.contextWindow`.
+
+The context window of a model is your own value first, then the one the provider reports in its model list, then the model catalogue, then an estimate from the model name. The model page shows the value in use and where it comes from.
+
+Importing a skill keeps its `SKILL.md` as it is. Only top-level fields are read, quoted values and folded blocks are supported, and editing the name or description changes those fields alone. Skill descriptions in the system prompt share 8,000 characters, up to 1,024 each, instead of a fixed 200.
+
 ### Translucent pet header
 
 The home chat pet header uses a single 4dp backdrop blur with a fading lower edge. Messages scroll behind it, while their top content inset still lets the oldest message move fully clear of the header. The blur samples only the message list, excluding the pet animation and header controls. Name and round-button surfaces are translucent; the pet image or video remains sharp, including any background already present in that asset. Android versions below 12 use a translucent tint fallback.

@@ -679,10 +679,7 @@ extension AIChatViewModel {
                 if pathArg.hasPrefix("/var/minis/") {
                     toolImageLinuxPath = pathArg
                 } else if pathArg.hasPrefix("minis://") {
-                    let tail = String(pathArg.dropFirst("minis://".count))
-                    if !tail.isEmpty {
-                        toolImageLinuxPath = "/var/minis/\(tail)"
-                    }
+                    toolImageLinuxPath = NivoAttachmentMarkup.linuxPath(forMinisURL: pathArg) // nanoMuse: 地址里的编码要还原
                 }
 
                 var meta = "Image loaded successfully."
@@ -918,6 +915,11 @@ extension AIChatViewModel {
                     originalFileName: "browser_snapshot.jpg", subdir: "browser",
                     linuxPath: toolImageLinuxPath
                 )
+                // nanoMuse: 落盘的是原图；发给模型的副本进缓存，重开会话时用它而不是原图。
+                if let inference = toolImageData {
+                    let mediaURL = await ChatStore.shared.mediaFileURLResolver()(ref)
+                    await Task.detached { NivoInferenceImage.remember(inference, for: mediaURL) }.value
+                }
                 snapshot = ToolSnapshot(type: .image, text: nil, mediaRef: ref, duration: toolDuration)
             } else {
                 let lines = toolOutput.components(separatedBy: "\n")

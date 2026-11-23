@@ -40,6 +40,7 @@ fun MessageAnchorsSheet(viewModel: ChatViewModel, onDismiss: () -> Unit, onPick:
     var query by rememberSaveable(session) { mutableStateOf("") }
     var debounced by remember(session) { mutableStateOf("") }
     var savedOnly by rememberSaveable(session) { mutableStateOf(false) }
+    LaunchedEffect(session) { viewModel.nmLoadAllMessages() } // 目录和搜索覆盖整段对话
     LaunchedEffect(query) { delay(150); debounced = query }
     val entries by produceState(emptyList<MessageAnchor>(), messages, saved, debounced, savedOnly) {
         value = withContext(Dispatchers.Default) { anchorEntries(messages, saved, debounced, savedOnly) }

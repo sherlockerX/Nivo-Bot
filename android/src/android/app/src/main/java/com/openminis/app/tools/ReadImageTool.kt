@@ -64,10 +64,15 @@ object ReadImageTool {
                 return ToolExecutionResult("Error: File not found: $path", false, toolTitle = toolTitle)
             }
 
-            val original = BitmapFactory.decodeFile(file.absolutePath)
+            val maxEdge = 2000
+            // nanoMuse: 先读尺寸再按比例解码，大图不会整张展开进内存；元数据仍报告原始尺寸。
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxEdge) sample *= 2
+            val original = BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
                 ?: return ToolExecutionResult("Error: Cannot decode image: $path", false, toolTitle = toolTitle)
 
-            val maxEdge = 2000
             val scaled = if (original.width > maxEdge || original.height > maxEdge) {
                 val scale = maxEdge.toFloat() / maxOf(original.width, original.height)
                 val w = (original.width * scale).toInt()
@@ -84,7 +89,7 @@ object ReadImageTool {
             if (scaled !== original) scaled.recycle()
             original.recycle()
 
-            val metadata = "[$path | ${original.width}x${original.height} | ${file.length()} bytes]"
+            val metadata = "[$path | ${bounds.outWidth}x${bounds.outHeight} | ${file.length()} bytes]" // nanoMuse
             ToolExecutionResult(
                 output = metadata,
                 success = true,

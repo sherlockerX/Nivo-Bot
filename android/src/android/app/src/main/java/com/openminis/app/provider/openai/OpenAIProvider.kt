@@ -881,7 +881,7 @@ class OpenAIProvider private constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                cancel("Image stream error", mapError(e))
+                close(mapError(e)) // nanoMuse: 直接交出原始错误，不包成取消
             } finally {
                 reader.close()
                 response.close()
@@ -979,7 +979,7 @@ class OpenAIProvider private constructor(
                     if (sawReasoningField || reasoningAccum.isNotEmpty()) {
                         send(LLMStreamChunk.ReasoningContent(reasoningAccum.toString()))
                     }
-                    send(LLMStreamChunk.Finished(finishReason))
+                    send(LLMStreamChunk.Finished(finishReason, isTerminated = true)) // nanoMuse: [DONE]就是结束标记
                     sentFinished = true
                     break
                 }
@@ -1483,6 +1483,8 @@ class OpenAIProvider private constructor(
                         "reasoningLen=$reasoningLen toolCallEvents=$toolCallEventCount sawUsage=$sawUsageBlock"
                 )
             }
+        } catch (e: CancellationException) {
+            throw e // nanoMuse: 收集方已取消，不当成传输错误
         } catch (e: Exception) {
             // T321: never silently swallow — log message + top-3 stack frames.
             val frames = e.stackTrace.take(3).joinToString(" | ") { "${it.className}.${it.methodName}:${it.lineNumber}" }
@@ -1491,7 +1493,7 @@ class OpenAIProvider private constructor(
                 "[T321] stream parse exception: ${e.javaClass.simpleName}: ${e.message} @ $frames " +
                     "(events=$sseEventCount contentLen=$contentLen reasoningLen=$reasoningLen)"
             )
-            cancel("Stream error", mapError(e))
+            close(mapError(e)) // nanoMuse: 直接交出原始错误；已送出的片段先送达，不因取消而丢失
         } finally {
             reader.close()
             response.close()
@@ -3289,42 +3291,9 @@ class OpenAIProvider private constructor(
                 })
             }
         }
-        // nanoMuse: Responses rejects duplicate function_call call_id values across the
-        // whole input. Rename later calls deterministically and queue each rewritten id so
-        // parallel/repeated function_call_output items keep the same pairing. Deliberately
-        // inspect call_id only: reasoning item ids and function_call item ids are untouched.
-        val responseCallIdCounts = HashMap<String, Int>()
-        val usedResponseCallIds = HashSet<String>()
-        val pendingResponseOutputs = HashMap<String, java.util.ArrayDeque<String>>()
-        for (i in 0 until input.length()) {
-            val item = input.optJSONObject(i) ?: continue
-            val rawId = item.optString("call_id", "")
-            if (rawId.isEmpty()) continue
-            when (item.optString("type")) {
-                "function_call" -> {
-                    var occurrence = (responseCallIdCounts[rawId] ?: 0) + 1
-                    var rewritten: String
-                    while (true) {
-                        val suffix = if (occurrence == 1) "" else "-$occurrence"
-                        rewritten = rawId.take(64 - suffix.length) + suffix
-                        if (rewritten !in usedResponseCallIds) break
-                        occurrence += 1
-                    }
-                    responseCallIdCounts[rawId] = occurrence
-                    usedResponseCallIds.add(rewritten)
-                    pendingResponseOutputs
-                        .getOrPut(rawId) { java.util.ArrayDeque() }
-                        .addLast(rewritten)
-                    item.put("call_id", rewritten)
-                }
-                "function_call_output" -> {
-                    pendingResponseOutputs[rawId]?.pollFirst()?.let {
-                        item.put("call_id", it)
-                    }
-                }
-            }
-        }
-        body.put("input", input)
+        // nanoMuse: 整个输入里call_id和function_call.id都必须唯一，且每个调用都有结果；
+        // 真实的重复调用改名并保持配对，重放出来又没有结果的调用去掉。
+        body.put("input", io.github.nanomuse.chat.ResponsesCallPairing.normalize(input))
 
         // [T-android-model-use-passthrough-mode GH#72] Same verbatim merge as the
         // chat-completions builder. Skipped for Codex OAuth inside mergeChatExtraBody.
