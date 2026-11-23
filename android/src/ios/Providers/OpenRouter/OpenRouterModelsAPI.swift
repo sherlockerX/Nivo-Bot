@@ -80,13 +80,16 @@ enum OpenRouterModelsAPI {
                 supportsReasoning = params.contains("reasoning")
             }
 
-            return LLMModel(
+            var model = LLMModel(
                 id: id, displayName: displayName, provider: "OpenRouter",
                 modalityOverride: modalityOverride,
                 contextWindow: contextWindow,
                 maxOutputTokens: maxOutputTokens,
                 supportsReasoning: supportsReasoning
             )
+            model.isContextWindowFromEndpoint = contextWindow == nil ? nil : true // nanoMuse
+            model.isMaxOutputFromEndpoint = maxOutputTokens == nil ? nil : true // nanoMuse
+            return model
         }
 
         let enriched = ModelsDevAPI.enrichModels(models)

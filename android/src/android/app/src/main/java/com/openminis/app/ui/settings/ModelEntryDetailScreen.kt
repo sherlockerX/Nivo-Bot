@@ -198,6 +198,15 @@ fun ModelEntryDetailScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+                // nanoMuse: 正在使用的上下文长度和它的来源，随输入更新。
+                val contextOverride = contextWindowText.trim().toIntOrNull()?.takeIf { it > 0 }
+                val capacitySource = io.github.nanomuse.models.ModelCapacity.source(baseModel, contextOverride, entry.isCustom)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(capacitySource.label, contextOverride ?: baseModel.contextWindowTokens),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(12.dp))
                 RowLabel(text = stringResource(R.string.model_entry_max_output_tokens))
                 SectionTextField(

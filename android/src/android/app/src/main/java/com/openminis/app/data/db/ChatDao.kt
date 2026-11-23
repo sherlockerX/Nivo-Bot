@@ -517,6 +517,13 @@ interface ChatDao {
         endMs: Long?,
     ): List<MessageEntity>
 
+    /** nanoMuse: 排在这条消息之前的行数；消息不存在时为0。 */
+    @Query(
+        "SELECT COUNT(*) FROM messages WHERE session_id = :sessionId AND sort_order < " +
+            "(SELECT sort_order FROM messages WHERE id = :messageId AND session_id = :sessionId)",
+    )
+    suspend fun nmRowsBefore(sessionId: String, messageId: String): Int
+
     /** Used by `minis-sessions-cli messages` to surface the total count
      *  alongside the paginated slice so callers can compute `hasMore`. */
     @Query("SELECT COUNT(*) FROM messages WHERE session_id = :sessionId")

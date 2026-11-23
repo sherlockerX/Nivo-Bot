@@ -383,6 +383,9 @@ data class ModelEntry(
             supportsReasoning = overrides.supportsReasoning ?: baseModel.supportsReasoning,
             inputModalities = overrides.inputModalities ?: baseModel.inputModalities,
             outputModalities = overrides.outputModalities ?: baseModel.outputModalities,
+            // nanoMuse: 用户填写的容量也不能被之后的目录补全覆盖。
+            isContextWindowFromEndpoint = overrides.contextWindow != null || baseModel.isContextWindowFromEndpoint,
+            isMaxOutputFromEndpoint = overrides.maxOutputTokens != null || baseModel.isMaxOutputFromEndpoint,
         )
 
     /** True when this entry carries user intent beyond API-reported defaults. */

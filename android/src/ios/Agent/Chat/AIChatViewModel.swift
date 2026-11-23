@@ -2614,12 +2614,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
 
             // Build <user-attached-files> XML metadata for the model (no base64 data)
             if !attachmentMetas.isEmpty {
-                var xml = "<user-attached-files>\n"
-                for meta in attachmentMetas {
-                    xml += "  <file path=\"\(meta.path)\" url=\"\(meta.minisURL)\" size=\"\(meta.size)\" modified=\"\(nowStr)\" />\n"
-                }
-                xml += "</user-attached-files>"
-                userParts.append(.text(xml))
+                userParts.append(.text(NivoAttachmentMarkup.block(attachmentMetas, modified: nowStr))) // nanoMuse: 属性值转义
             }
 
             // Batch-reading tip when images were omitted

@@ -28,4 +28,11 @@
     </plurals>
     <string name="nm_steps_show_more">Show all</string>
     <string name="nm_steps_show_less">Show less</string>
+    <string name="nm_attachment_too_large">%1$s is larger than %2$s, so it was not attached</string>
+    <string name="nm_stream_unfinished">The reply ended before it was complete</string>
+    <string name="nm_capacity_override">In use: %1$d tokens, set by you</string>
+    <string name="nm_capacity_endpoint">In use: %1$d tokens, reported by this provider</string>
+    <string name="nm_capacity_catalog">In use: %1$d tokens, from the model catalog</string>
+    <string name="nm_capacity_estimate">In use: %1$d tokens, estimated from the model name</string>
+    <string name="nm_attachments_too_large">%1$s was not attached. The attachments of one message can total up to %2$s</string>
 </resources>

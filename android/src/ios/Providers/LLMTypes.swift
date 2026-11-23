@@ -107,6 +107,10 @@ struct LLMModel: Equatable, Hashable, Identifiable, Sendable, Codable {
     /// which is the permissive/pass-through direction.
     var effortDeclarationIsAuthoritative: Bool?
 
+    // nanoMuse: 容量由当前端点报告（或由用户填写）时为真，模型目录不再覆盖；旧数据没有这两个字段。
+    var isContextWindowFromEndpoint: Bool?
+    var isMaxOutputFromEndpoint: Bool?
+
     init(id: String, displayName: String, provider: String, modalityOverride: ModelModality? = nil,
          contextWindow: Int? = nil, maxOutputTokens: Int? = nil,
          supportsReasoning: Bool? = nil, interleavedReasoningField: String? = nil,

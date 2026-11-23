@@ -4603,13 +4603,16 @@ extension RawMessage {
 
                             if body.contains("<file ") {
                                 // New XML format: <file path="..." url="..." size="..." modified="..." />
+                                // nanoMuse: 新消息的属性值已转义；旧消息的文件名可能带原样的引号，
+                                // 所以按后面的属性确定结尾，不以第一个引号为准。
                                 let filePattern = try? NSRegularExpression(
-                                    pattern: #"<file\s+path="([^"]*)"(?:\s+url="([^"]*)")?(?:\s+size="([^"]*)")?(?:\s+modified="([^"]*)")?\s*/>"#
+                                    pattern: #"<file\s+path="(.*?)"(?:\s+url="(.*?)")?(?:\s+size="([^"]*)")?(?:\s+modified="([^"]*)")?\s*/>"#
                                 )
                                 let nsBody = body as NSString
                                 let matches = filePattern?.matches(in: body, range: NSRange(location: 0, length: nsBody.length)) ?? []
                                 for match in matches {
-                                    let path = match.range(at: 1).location != NSNotFound ? nsBody.substring(with: match.range(at: 1)) : ""
+                                    let path = match.range(at: 1).location != NSNotFound
+                                        ? NivoAttachmentMarkup.unescape(nsBody.substring(with: match.range(at: 1))) : "" // nanoMuse
                                     let sizeStr = match.range(at: 3).location != NSNotFound ? nsBody.substring(with: match.range(at: 3)) : "0"
                                     let modStr = match.range(at: 4).location != NSNotFound ? nsBody.substring(with: match.range(at: 4)) : ""
                                     if !path.isEmpty {
@@ -4907,7 +4910,15 @@ extension RawMessage {
             case .text(let s):
                 agentParts.append(.text(s))
             case .mediaRef(let ref):
-                if let data = try? Data(contentsOf: mediaResolver(ref)) {
+                let fileURL = mediaResolver(ref)
+                // nanoMuse: 图片与发送时用同样的像素和字节上限，原图只留在磁盘。
+                if ref.mimeType.hasPrefix("image/") {
+                    if let image = NivoInferenceImage.load(from: fileURL, mimeType: ref.mimeType) {
+                        agentParts.append(.imageData(data: image.data, mimeType: image.mimeType, linuxPath: ref.linuxPath))
+                    } else if FileManager.default.fileExists(atPath: fileURL.path) {
+                        agentParts.append(.text(NivoInferenceImage.placeholder(linuxPath: ref.linuxPath)))
+                    }
+                } else if let data = try? Data(contentsOf: fileURL) {
                     agentParts.append(.imageData(data: data, mimeType: ref.mimeType, linuxPath: ref.linuxPath))
                 }
             case .toolUse(let tu):
@@ -4916,15 +4927,18 @@ extension RawMessage {
             case .toolResult(let tr):
                 var imgData: Data? = nil
                 var imgMime: String? = nil
+                var output = tr.output // nanoMuse
                 if let ref = tr.mediaRef {
                     let fileURL = mediaResolver(ref)
-                    if let data = try? Data(contentsOf: fileURL) {
-                        imgData = data
-                        // Sniff actual image format — stored mimeType may be wrong (e.g. png for jpeg data)
-                        imgMime = Self.sniffImageMimeType(data) ?? ref.mimeType
+                    // nanoMuse: 截图落盘的是原图，放进历史的是缩小后的副本；类型以文件内容为准。
+                    if let image = NivoInferenceImage.load(from: fileURL, mimeType: ref.mimeType) {
+                        imgData = image.data
+                        imgMime = Self.sniffImageMimeType(image.data) ?? image.mimeType
+                    } else if FileManager.default.fileExists(atPath: fileURL.path) {
+                        output += "\n" + NivoInferenceImage.placeholder(linuxPath: ref.linuxPath)
                     }
                 }
-                agentParts.append(.toolResult(id: tr.toolUseId, name: "", content: tr.output, isError: !tr.success, imageData: imgData, imageMimeType: imgMime, imageLinuxPath: tr.mediaRef?.linuxPath))
+                agentParts.append(.toolResult(id: tr.toolUseId, name: "", content: output, isError: !tr.success, imageData: imgData, imageMimeType: imgMime, imageLinuxPath: tr.mediaRef?.linuxPath))
             }
         }
 

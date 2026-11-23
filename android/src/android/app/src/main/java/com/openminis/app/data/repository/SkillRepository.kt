@@ -45,7 +45,6 @@ class SkillRepository(private val context: Context) {
         private const val DB_NAME = "skills.db"
         private const val DB_VERSION = 3
         private const val MAX_SKILLS_IN_PROMPT = 20
-        private const val MAX_SKILL_DESC_LENGTH = 200
         private const val RECENT_WINDOW_MS = 7L * 24 * 3600 * 1000
         private const val RECENT_SLOTS = 10
         private const val NORMALIZE_THRESHOLD = 1000.0
@@ -140,7 +139,7 @@ class SkillRepository(private val context: Context) {
 
     // -- CRUD --
 
-    fun add(name: String, description: String, body: String, version: String = "1.0.0", source: ImportSource = ImportSource.FILE, sourceURL: String? = null): Skill? {
+    fun add(name: String, description: String, body: String, version: String = "1.0.0", source: ImportSource = ImportSource.FILE, sourceURL: String? = null, original: String? = null): Skill? { // nanoMuse: original是导入的原文
         val id = slugify(name)
         if (id.isBlank()) return null
         if (_skills.value.any { it.id == id }) return null
@@ -156,18 +155,19 @@ class SkillRepository(private val context: Context) {
         )
 
         insertDb(skill)
-        writeSkillMd(skill)
+        writeSkillMd(skill, original) // nanoMuse
         _skills.value = _skills.value + skill
         Log.i(TAG, "Added skill: ${skill.id}")
         return skill
     }
 
-    fun update(id: String, name: String? = null, description: String? = null, body: String? = null): Boolean {
+    fun update(id: String, name: String? = null, description: String? = null, body: String? = null, original: String? = null): Boolean { // nanoMuse: original是新的原文，原样写盘
         val current = _skills.value.find { it.id == id } ?: return false
         val updated = current.copy(
             name = name ?: current.name,
             description = description ?: current.description,
             body = body ?: current.body,
+            version = original?.let(::parseSkillMd)?.version ?: current.version, // nanoMuse
             updatedAt = System.currentTimeMillis(),
         )
 
@@ -175,7 +175,7 @@ class SkillRepository(private val context: Context) {
             "UPDATE skills SET name=?, description=?, version=?, updated_at=? WHERE id=?",
             arrayOf<Any>(updated.name, updated.description, updated.version, updated.updatedAt, id)
         )
-        writeSkillMd(updated)
+        writeSkillMd(updated, original) // nanoMuse
         _skills.value = _skills.value.map { if (it.id == id) updated else it }
         return true
     }
@@ -283,13 +283,11 @@ class SkillRepository(private val context: Context) {
             hasMore = total > selected.size
         }
 
+        // nanoMuse: 描述按总预算分配，不再一律截到200字。
+        val descriptions = io.github.nanomuse.skills.SkillPromptBudget.fit(selected.map { it.description })
         val xml = buildString {
             append("<available_skills>\n")
-            for (skill in selected) {
-                var desc = skill.description
-                if (desc.length > MAX_SKILL_DESC_LENGTH) {
-                    desc = desc.substring(0, MAX_SKILL_DESC_LENGTH) + "…"
-                }
+            for ((skill, desc) in selected.zip(descriptions)) {
                 append("  <skill>\n")
                 append("    <name>").append(escapeXml(skill.name)).append("</name>\n")
                 append("    <description>").append(escapeXml(desc)).append("</description>\n")
@@ -412,7 +410,7 @@ class SkillRepository(private val context: Context) {
                     replaced.updatedAt, id
                 )
             )
-            writeSkillMd(replaced)
+            writeSkillMd(replaced, content) // nanoMuse: 保留原文
             _skills.value = _skills.value.map { if (it.id == id) replaced else it }
             return replaced
         }
@@ -423,6 +421,7 @@ class SkillRepository(private val context: Context) {
             version = parsed.version,
             source = source,
             sourceURL = sourceURL,
+            original = content, // nanoMuse: 保留原文
         )
     }
 
@@ -614,6 +613,7 @@ class SkillRepository(private val context: Context) {
             name = parsed.name,
             description = parsed.description,
             body = parsed.body,
+            original = content, // nanoMuse: 保留原文
         )
         if (!ok) return@withContext UpdateResult.Failure("Failed to write updated skill")
 
@@ -817,7 +817,9 @@ class SkillRepository(private val context: Context) {
         val file = File(File(skillsDir, skillId), "SKILL.md")
         if (file.exists()) {
             val original = file.readText()
-            val updated = original.replaceFirst(Regex("(?m)^name:\\s*.*$"), "name: $trimmed")
+            // nanoMuse: 只改顶层name，不会碰到正文或嵌套字段里的同名行。
+            val updated = io.github.nanomuse.skills.SkillFrontMatter.parse(original)
+                ?.rewrite(mapOf("name" to trimmed)) ?: original
             if (updated != original) file.writeText(updated)
         }
         val refreshed = current.copy(name = trimmed, updatedAt = System.currentTimeMillis())
@@ -1382,18 +1384,24 @@ class SkillRepository(private val context: Context) {
         )
     }
 
-    private fun writeSkillMd(skill: Skill) {
-        val dir = File(skillsDir, skill.id)
-        dir.mkdirs()
-        val content = buildString {
-            appendLine("---")
-            appendLine("name: ${skill.name}")
-            appendLine("description: ${skill.description}")
-            appendLine("version: ${skill.version}")
-            appendLine("---")
-            append(skill.body)
-        }
-        File(dir, "SKILL.md").writeText(content)
+    /**
+     * nanoMuse: 有[original]时原样写盘；否则在现有SKILL.md上只改名称、描述、版本和正文，
+     * 其他元数据保留；文件不存在或没有元数据时才新建。
+     */
+    private fun writeSkillMd(skill: Skill, original: String? = null) {
+        val file = File(skillsDir, "${skill.id}/SKILL.md")
+        file.parentFile?.mkdirs()
+        file.writeText(original ?: composeSkillMd(skill, file))
+    }
+
+    private fun composeSkillMd(skill: Skill, file: File): String {
+        val fields = mapOf("name" to skill.name, "description" to skill.description, "version" to skill.version)
+        val existing = runCatching { file.takeIf { it.exists() }?.readText() }.getOrNull()
+            ?.let(io.github.nanomuse.skills.SkillFrontMatter::parse)
+            ?: return io.github.nanomuse.skills.SkillFrontMatter.compose(fields, skill.body)
+        // 版本写在metadata里且没有变化时，不另加一个顶层version。
+        val isNestedVersion = existing["version"] == null && existing.nested("metadata", "version") == skill.version
+        return existing.rewrite(if (isNestedVersion) fields - "version" else fields, skill.body)
     }
 
     private fun readSkillMdBody(id: String): String {
@@ -1444,82 +1452,12 @@ class SkillRepository(private val context: Context) {
     fun parseSkillMdPublic(content: String): ParsedSkill? = parseSkillMd(content)
 
     private fun parseSkillMd(content: String): ParsedSkill? {
-        val trimmed = content.trimStart()
-        if (!trimmed.startsWith("---")) return null
-
-        // Find the closing `---` on a line by itself (matches iOS — and avoids
-        // false matches against horizontal rules later in the document).
-        val lines = trimmed.lines()
-        var frontmatterEndLine = -1
-        for (i in 1 until lines.size) {
-            if (lines[i].trim() == "---") {
-                frontmatterEndLine = i
-                break
-            }
-        }
-        if (frontmatterEndLine < 0) return null
-
-        var name = ""
-        var description = ""
-        var version = "1.0.0"
-
-        var i = 1
-        while (i < frontmatterEndLine) {
-            val line = lines[i]
-            val colonIdx = line.indexOf(':')
-            if (colonIdx < 0) { i++; continue }
-            val key = line.substring(0, colonIdx).trim().lowercase()
-            val rawValue = line.substring(colonIdx + 1).trim()
-
-            // YAML block scalar: `|` keeps newlines, `>` folds them into spaces.
-            // Body lines continue while they are indented (or empty); a
-            // dedented line ends the block.
-            //
-            // T151: also accept the YAML chomping indicators `>-`, `>+`, `|-`,
-            // `|+` (and any explicit indentation digit suffix). Real-world
-            // skill frontmatter — qbt-hub, for one — opens its description
-            // with `description: >-` so trailing newlines are stripped, but
-            // the previous strict `==` match treated that as a plain string
-            // literal, leaving the renderer to display the raw `>-` marker.
-            val isBlockScalar = rawValue.startsWith("|") || rawValue.startsWith(">")
-            val resolved: String
-            if (isBlockScalar && i + 1 < frontmatterEndLine) {
-                val fold = rawValue.startsWith(">")
-                val blockLines = mutableListOf<String>()
-                var j = i + 1
-                while (j < frontmatterEndLine) {
-                    val next = lines[j]
-                    if (next.isEmpty() || next[0].isWhitespace()) {
-                        blockLines.add(next.trim())
-                    } else break
-                    j++
-                }
-                resolved = if (fold) {
-                    blockLines.joinToString(" ").trim()
-                } else {
-                    blockLines.joinToString("\n").trim('\n')
-                }
-                i = j
-            } else {
-                resolved = rawValue
-                i++
-            }
-
-            when (key) {
-                "name" -> name = resolved
-                "description" -> description = resolved
-                "version" -> version = resolved
-            }
-        }
-
+        // nanoMuse: 只认顶层字段，引号和续行按YAML解读；版本也可以写在metadata里。
+        val matter = io.github.nanomuse.skills.SkillFrontMatter.parse(content) ?: return null
+        val name = matter["name"].orEmpty()
         if (name.isBlank()) return null
-
-        val bodyStartLine = frontmatterEndLine + 1
-        val body = if (bodyStartLine < lines.size) {
-            lines.subList(bodyStartLine, lines.size).joinToString("\n").trim('\n')
-        } else ""
-
-        return ParsedSkill(name, description, version, body)
+        val version = matter["version"]?.ifBlank { null } ?: matter.nested("metadata", "version")?.ifBlank { null } ?: "1.0.0"
+        return ParsedSkill(name, matter["description"].orEmpty(), version, matter.body)
     }
 
     private fun slugify(name: String): String =

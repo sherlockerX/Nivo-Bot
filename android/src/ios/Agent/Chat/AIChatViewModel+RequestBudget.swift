@@ -117,6 +117,7 @@ extension AIChatViewModel {
     /// where the bytes are still readable via `read_image`. Returns the
     /// budgeted history; same instance when nothing was elided.
     func applyRequestImageBudget(_ messages: [AgentMessage]) -> [AgentMessage] {
+        let messages = Self.nmLimitingImages(messages) // nanoMuse: 先核对每张图的像素和字节，再算总量
         // Collect every image part in chronological order so the planner
         // can reverse-walk and protect the most recent images.
         struct Ref { let msgIdx: Int; let partIdx: Int; let image: BudgetImage }

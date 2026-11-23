@@ -15,9 +15,7 @@ struct AttachmentMeta: Identifiable, Equatable {
 
     /// Derive a `minis://` URL from the Linux path.
     var minisURL: String {
-        guard path.hasPrefix("/var/minis/") else { return path }
-        let rel = String(path.dropFirst("/var/minis/".count))
-        return "minis://\(rel)"
+        NivoAttachmentMarkup.minisURL(forLinuxPath: path) ?? path // nanoMuse: 文件名里的#、?、空格等要编码
     }
 
     var fileName: String {

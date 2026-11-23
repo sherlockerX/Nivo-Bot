@@ -312,12 +312,13 @@ enum ModelsDevAPI {
         }
 
         // Context window: models.dev is the source of truth
-        if let ctx = devModel.limit?.context {
+        // nanoMuse: 端点报告的容量优先于目录，目录记录的是别处同名模型。
+        if let ctx = devModel.limit?.context, model.isContextWindowFromEndpoint != true {
             result.contextWindow = ctx
         }
 
         // Max output tokens: models.dev is the source of truth
-        if let out = devModel.limit?.output {
+        if let out = devModel.limit?.output, model.isMaxOutputFromEndpoint != true { // nanoMuse
             result.maxOutputTokens = out
         }
 

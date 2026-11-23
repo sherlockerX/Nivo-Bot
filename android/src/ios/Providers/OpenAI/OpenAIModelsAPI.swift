@@ -181,7 +181,13 @@ enum OpenAIModelsAPI {
             // text-only endpoints stay text-only, while real OpenAI vision
             // models still get `.imageInput` from the architecture block
             // above (or from models.dev / pattern inference downstream).
-            return LLMModel(id: id, displayName: displayName, provider: "OpenAI", modalityOverride: modality)
+            // nanoMuse: 端点报告的容量随模型保存，并标明来源。
+            let limits = NivoModelCapacity.endpointLimits(item)
+            var model = LLMModel(id: id, displayName: displayName, provider: "OpenAI", modalityOverride: modality,
+                                 contextWindow: limits.context, maxOutputTokens: limits.output)
+            model.isContextWindowFromEndpoint = limits.context == nil ? nil : true
+            model.isMaxOutputFromEndpoint = limits.output == nil ? nil : true
+            return model
         }
 
         let enriched = ModelsDevAPI.enrichModels(models)

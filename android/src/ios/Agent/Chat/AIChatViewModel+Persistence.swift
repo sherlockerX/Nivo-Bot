@@ -244,6 +244,8 @@ extension AIChatViewModel {
         }
 
         let resolver = await ChatStore.shared.mediaFileURLResolver()
+        // nanoMuse: 需要缩小的历史图片先在后台备好，重建历史时不占用主线程。
+        await NivoInferenceImage.prepare(rawMessages.flatMap { $0.nmImageRefs }.map { (url: resolver($0), mimeType: $0.mimeType) })
         logger.info("[SessionLoad] \(sessionId) — Phase 1 DB load: \(String(format: "%.1f", dbElapsed))ms (\(rawMessages.count) messages)")
 
         // Phase 2: Build UI messages and agent history

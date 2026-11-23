@@ -37,6 +37,9 @@ data class LLMModel(
     // Mirrors iOS ModelModality flags. When null, treat as text-in/text-out only.
     val inputModalities: List<String>? = null,
     val outputModalities: List<String>? = null,
+    // nanoMuse: 容量由当前端点报告时为真，模型目录不再覆盖；旧数据没有这两个字段。
+    val isContextWindowFromEndpoint: Boolean = false,
+    val isMaxOutputFromEndpoint: Boolean = false,
 ) {
     companion object {
         // Anthropic — mirrors iOS LLMTypes.swift allAnthropic.

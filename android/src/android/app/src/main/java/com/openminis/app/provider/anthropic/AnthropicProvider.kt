@@ -188,6 +188,7 @@ class AnthropicProvider(
         var currentToolId: String? = null
         var currentToolName: String? = null
         val toolInputBuffer = StringBuilder()
+        var nmStopReason: String? = null // nanoMuse
 
         try {
             var line: String?
@@ -259,12 +260,17 @@ class AnthropicProvider(
                         }
                         val stopReason = event.optJSONObject("delta")
                             ?.safeOptString("stop_reason", "")?.ifEmpty { null }
+                        if (stopReason != null) nmStopReason = stopReason // nanoMuse
                         send(LLMStreamChunk.Finished(stopReason))
                     }
+                    // nanoMuse: message_stop是结束标记，有的中转不给stop_reason
+                    "message_stop" -> send(LLMStreamChunk.Finished(nmStopReason, isTerminated = true))
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // nanoMuse: 收集方已取消，不当成传输错误
         } catch (e: Exception) {
-            cancel("Stream error", mapError(e))
+            close(mapError(e)) // nanoMuse: 直接交出原始错误，不包成取消
         } finally {
             reader.close()
             response.close()

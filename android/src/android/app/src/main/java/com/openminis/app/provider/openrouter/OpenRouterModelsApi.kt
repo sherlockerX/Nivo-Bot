@@ -104,6 +104,8 @@ object OpenRouterModelsApi {
                     provider = "OpenRouter",
                     contextWindow = contextWindow,
                     maxOutputTokens = maxOutputTokens,
+                    isContextWindowFromEndpoint = contextWindow != null, // nanoMuse
+                    isMaxOutputFromEndpoint = maxOutputTokens != null, // nanoMuse
                     supportsReasoning = if (supportsReasoning) true else null,
                     inputModalities = inputModalities,
                     outputModalities = outputModalities,

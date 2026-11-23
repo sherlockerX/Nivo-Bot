@@ -616,6 +616,7 @@ fun SkillDetailScreen(
                         name = parsed.name,
                         description = parsed.description,
                         body = parsed.body,
+                        original = content, // nanoMuse: 保留原文
                     )
                     updateStatus = if (ok) UpdateStatus.Done else UpdateStatus.Failed(context.getString(R.string.skill_detail_error_update_failed))
                 }
@@ -1118,9 +1119,10 @@ fun SkillFileViewerScreen(
     // For SKILL.md, reconstruct from the in-memory record (so frontmatter
     // edits stay in sync with DB metadata). For sibling files, read straight
     // from disk.
+    // nanoMuse: SKILL.md也优先显示磁盘原文，保存时不会丢掉不认识的元数据。
     val initialContent = remember(skillId, relativePath, skill.updatedAt) {
         if (isSkillMd) {
-            buildString {
+            skillRepository.readSkillFile(skillId, relativePath) ?: buildString {
                 appendLine("---")
                 appendLine("name: ${skill.name}")
                 appendLine("version: ${skill.version}")

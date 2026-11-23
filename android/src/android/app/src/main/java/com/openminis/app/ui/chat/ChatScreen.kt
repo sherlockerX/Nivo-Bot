@@ -1870,6 +1870,7 @@ fun ChatScreen(
     // users who had scrolled up to read history and then opened the keyboard
     // to send a follow-up — auto-follow then yanked them away from where
     // they were reading.
+    val nmAnchorScope = rememberCoroutineScope() // nanoMuse: 目标消息可能要先从磁盘补读
     // nanoMuse: 搜索弹窗拥有自己的焦点，定位时暂停聊天的自动跟随。
     if (nmHome?.isVisible != false && nmAnchorsOpen) io.github.nanomuse.ui.chat.MessageAnchorsSheet(
         viewModel = viewModel,
@@ -1881,8 +1882,10 @@ fun ChatScreen(
             userScrolledAway = true
             lastUserAppendMs = 0L
             nmAnchorQuery = query
-            nmAnchorPending = viewModel.revealAnchor(id)
-            if (nmAnchorPending == null) android.widget.Toast.makeText(context, R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            nmAnchorScope.launch {
+                nmAnchorPending = viewModel.revealAnchor(id)
+                if (nmAnchorPending == null) android.widget.Toast.makeText(context, R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            }
         },
     )
     // nanoMuse: 原文定位与开场只消费本次导航意图，不触碰未发送草稿。
@@ -1897,9 +1900,11 @@ fun ChatScreen(
             userScrolledAway = true
             lastUserAppendMs = 0L
             nmAnchorQuery = ""
-            nmAnchorPending = viewModel.revealAnchor(messageId)
-            if (nmAnchorPending == null) android.widget.Toast.makeText(context,
-                R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            nmAnchorScope.launch {
+                nmAnchorPending = viewModel.revealAnchor(messageId)
+                if (nmAnchorPending == null) android.widget.Toast.makeText(context,
+                    R.string.nm_anchor_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            }
         },
     )
     val imeBottomPx = if (nmHome?.isVisible == false || nmAnchorsOpen) 0 else WindowInsets.ime.getBottom(LocalDensity.current) // nanoMuse: 侧栏键盘不触发聊天自动滚动。

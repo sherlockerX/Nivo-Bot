@@ -341,8 +341,9 @@ final class XunfeiVoiceProvider: VoiceProvider {
     override func synthesize(_ request: VoiceOutputRequest) async throws -> Data {
         let host = "tts-api.xfyun.cn"
         let path = "/v2/tts"
-        let signedURL = buildSignedURL(host: host, path: path, date: Date())
-        guard let url = URL(string: signedURL) else {
+        let signedURL = buildSignedURL(scheme: "wss", host: host, path: path, date: Date())
+        // nanoMuse: webSocketTask只接受ws/wss地址，其他协议会直接抛出异常。
+        guard let url = URL(string: signedURL), url.scheme?.lowercased() == "wss" else {
             throw VoiceProviderError.parseError("Failed to build Xunfei TTS URL")
         }
         let session = URLSession(configuration: .default)
@@ -405,8 +406,8 @@ final class XunfeiVoiceProvider: VoiceProvider {
 
     override func buildVoiceInputRequest(_ request: VoiceInputRequest) throws -> URLRequest {
         let date = Date()
-        let signedURLStr = buildSignedURL(date: date)
-        guard let url = URL(string: signedURLStr) else {
+        let signedURLStr = buildSignedURL(scheme: "https", date: date) // nanoMuse: 识别走HTTP POST
+        guard let url = URL(string: signedURLStr), url.scheme?.lowercased() == "https" else {
             throw VoiceProviderError.parseError("Failed to build Xunfei signed URL")
         }
         var urlRequest = URLRequest(url: url)
@@ -464,7 +465,8 @@ final class XunfeiVoiceProvider: VoiceProvider {
 
     // MARK: - HMAC-SHA256 URL signature
 
-    private func buildSignedURL(host: String = "iat-api.xfyun.cn", path: String = "/v2/iat", date: Date) -> String {
+    // nanoMuse: 协议由调用方按各自的传输方式给出，签名内容与协议无关。
+    private func buildSignedURL(scheme: String, host: String = "iat-api.xfyun.cn", path: String = "/v2/iat", date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale     = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
@@ -478,9 +480,10 @@ final class XunfeiVoiceProvider: VoiceProvider {
                          "algorithm=\"hmac-sha256\", " +
                          "headers=\"host date request-line\", " +
                          "signature=\"\(signatureB64)\""
-        let authB64 = Data(authOrigin.utf8).base64EncodedString()
+        // nanoMuse: Base64里的加号在查询参数里会被读成空格，要编码。
+        let authB64 = Data(authOrigin.utf8).base64EncodedString().replacingOccurrences(of: "+", with: "%2B")
 
-        return "https://\(host)\(path)?authorization=\(authB64)&date=\(dateStr.voiceURLEncoded)&host=\(host)"
+        return "\(scheme)://\(host)\(path)?authorization=\(authB64)&date=\(dateStr.voiceURLEncoded)&host=\(host)"
     }
 }
 

@@ -26,6 +26,18 @@ Application tests for provider persistence, Keychain, ChatStore and personal-rec
 
 The workflow preserves the unsigned device application before `build-for-testing` embeds XCTest into its host. Packaging uses that independent copy and rejects application test bundles, while test compilation remains a required check. The resulting IPA still needs a valid personal signature before installation.
 
+## Images, attachments and model limits
+
+Images restored from a chat use the same limits as a new message: 2,000 pixels on the long side and 5 MB. The full screenshot stays on disk for previews and tools, and the reduced copy is kept in the cache folder. Every request checks the pixel size and the bytes of each image again before the total is planned; an image that cannot be reduced is replaced by its path.
+
+Attachment addresses encode `#`, `?`, spaces, quotes, Chinese and emoji in the file name. Attributes in the attachment list of a message are escaped, and messages saved earlier with a raw quote in a file name are still read.
+
+iFlytek speech synthesis connects with `wss://`; recognition keeps `https://`. The address is checked before the connection is created.
+
+When a provider sends the same reasoning text in more than one field, each chunk is shown once. An empty field still counts as present.
+
+The context window of a model is your own value first, then the one the provider reports in its model list, then the model catalogue, then an estimate. The model page shows the value in use and where it comes from. These changes have not been compiled on a Mac yet.
+
 ## Navigation and daily work
 
 The main chat no longer shows the daily ideas strip under its header; the ideas stay on the Ideas page. Coach, Focus and Tasks use a compact title bar with the drawer button, the page title and the page's own actions, as in the Android build, so their buttons no longer cover the agent's face. The daily fragments page opens on a greeting and the date, shows the day's shape with every empty place outlined and a **Change** link, and offers **Camera**, **Album** and **Reflection**; Camera and Album open the editor with the camera or the photo library already showing. Sheets that used to open blank (a new fragment, starting focus, the focus reminder, task details, groups and tags, the Coach training calendar) now carry their account with the request that opens them.

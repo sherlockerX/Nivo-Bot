@@ -1541,7 +1541,8 @@ struct ModelEntryDetailSheet: View {
                     } header: {
                         Text(AppLocalized("Capabilities"))
                     } footer: {
-                        Text(AppLocalized("Context window and max output tokens in tokens. Leave empty for default."))
+                        // nanoMuse: 正在使用的上下文长度和来源。
+                        Text(AppLocalized("Context window and max output tokens in tokens. Leave empty for default.") + "\n" + nmCapacityText)
                     }
                 } else {
                     Section {
@@ -1584,7 +1585,8 @@ struct ModelEntryDetailSheet: View {
                     } header: {
                         Text(AppLocalized("Capabilities"))
                     } footer: {
-                        Text(AppLocalized("Leave Context Window empty to use auto-detected value. Leave Max Output Tokens empty to follow the provider default."))
+                        // nanoMuse: 正在使用的上下文长度和来源。
+                        Text(AppLocalized("Leave Context Window empty to use auto-detected value. Leave Max Output Tokens empty to follow the provider default.") + "\n" + nmCapacityText)
                     }
                 }
 
@@ -1711,6 +1713,13 @@ struct ModelEntryDetailSheet: View {
             return "\(tokens / 1_000)K tokens"
         }
         return "\(tokens) tokens"
+    }
+
+    /// nanoMuse: 正在使用的上下文长度和它的来源，随输入更新。
+    private var nmCapacityText: String {
+        let typed = Int(contextWindowText.trimmingCharacters(in: .whitespaces)).flatMap { $0 > 0 ? $0 : nil }
+        return NivoModelCapacity.source(base: entry.baseModel, override: typed, isCustom: entry.isCustom)
+            .text(tokens: typed ?? entry.baseModel.contextWindowTokens)
     }
 
     /// Placeholder text for the Max Output Tokens field — shows the API-reported value

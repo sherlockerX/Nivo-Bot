@@ -26,4 +26,11 @@
     </plurals>
     <string name="nm_steps_show_more">展开全部</string>
     <string name="nm_steps_show_less">收起</string>
+    <string name="nm_attachment_too_large">%1$s超过%2$s，没有附上</string>
+    <string name="nm_stream_unfinished">回复没有收到结束标记就断开了</string>
+    <string name="nm_capacity_override">当前使用%1$d tokens，由你设置</string>
+    <string name="nm_capacity_endpoint">当前使用%1$d tokens，由这个服务报告</string>
+    <string name="nm_capacity_catalog">当前使用%1$d tokens，来自模型目录</string>
+    <string name="nm_capacity_estimate">当前使用%1$d tokens，按模型名称估算</string>
+    <string name="nm_attachments_too_large">%1$s没有附上，一条消息的附件合计最多%2$s</string>
 </resources>

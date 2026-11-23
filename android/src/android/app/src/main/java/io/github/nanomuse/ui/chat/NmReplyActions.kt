@@ -171,6 +171,7 @@ private suspend fun branch(
     question: ChatMessage?,
 ): String? {
     val sessionId = viewModel.realSessionId.ifEmpty { return null }
+    viewModel.nmLoadAllMessages() // 分支按整段用户消息计数定位
     val history = viewModel.messages.value
     val at = history.indexOfFirst { it.id == reply.id }
     if (at < 0) return null

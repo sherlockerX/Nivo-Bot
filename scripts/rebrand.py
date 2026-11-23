@@ -39,8 +39,8 @@ ANDROID_APP_ID = "io.github.nivo"
 IOS_APP_ID = "io.github.nanomuse.app"  # iOS保留已发行身份，不能随Android包名变动。
 NAME = "Nivo"  # 所有手机语言使用同一产品名，助手昵称另外本地化。
 CHINESE_NAME = NAME
-VERSION_NAME = "2.0.12"
-VERSION_CODE = 63
+VERSION_NAME = "2.0.13"
+VERSION_CODE = 64
 # 手机版本使用同一发布来源，完整品牌生成也不能恢复旧的Android版本。
 ANDROID_VERSION_NAME = VERSION_NAME
 ANDROID_VERSION_CODE = VERSION_CODE
